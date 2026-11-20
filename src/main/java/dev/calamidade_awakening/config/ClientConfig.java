@@ -10,17 +10,22 @@ public final class ClientConfig {
     public static final ModConfigSpec SPEC;
     private static final ModConfigSpec.DoubleValue SCREEN_EFFECTS;
     private static final ModConfigSpec.BooleanValue CAMERA_SHAKE;
+    private static final ModConfigSpec.BooleanValue MOTION_EFFECTS;
 
     static {
         var builder = new ModConfigSpec.Builder();
         SCREEN_EFFECTS = builder
-            .comment("Intensity of bloom, flashes, contrast and desaturation from Calamidade_Awakening and its addons (0 = off, 1 = as designed).")
+            .comment("Intensity of bloom, flashes, contrast, desaturation, aberration, vignette, grain, zoom blur and afterimage from Calamidade_Awakening and its addons (0 = off, 1 = as designed).")
             .translation("calamidade_awakening.configuration.screenEffects")
             .defineInRange("screenEffects", 1.0, 0.0, 1.0);
         CAMERA_SHAKE = builder
             .comment("Screen shake from Calamidade_Awakening and its addons.")
             .translation("calamidade_awakening.configuration.cameraShake")
             .define("cameraShake", true);
+        MOTION_EFFECTS = builder
+            .comment("Zoom blur and afterimage trails from Calamidade_Awakening and its addons. Turn off if they cause motion sickness.")
+            .translation("calamidade_awakening.configuration.motionEffects")
+            .define("motionEffects", true);
         SPEC = builder.build();
     }
 
@@ -38,6 +43,15 @@ public final class ClientConfig {
     public static boolean cameraShake() {
         try {
             return CAMERA_SHAKE.get();
+        } catch (IllegalStateException notLoaded) {
+            return true;
+        }
+    }
+
+    /** Zoom blur and afterimage (0.7.0); true until the config file is loaded. */
+    public static boolean motionEffects() {
+        try {
+            return MOTION_EFFECTS.get();
         } catch (IllegalStateException notLoaded) {
             return true;
         }

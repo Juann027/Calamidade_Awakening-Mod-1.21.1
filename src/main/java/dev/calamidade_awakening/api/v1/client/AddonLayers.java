@@ -145,6 +145,31 @@ public final class AddonLayers {
             if (flashAllowed && scaled > 0) frame.screen().addFlash(argb, scaled);
         }
 
+        // 0.7.0: the remaining RimuLib ScreenFx fields. All combine by maximum and follow the screen-effects setting.
+        /** Chromatic aberration. */
+        public void aberration(float amount) {
+            frame.screen().aberration = Math.max(frame.screen().aberration, amount * ClientConfig.screenEffects());
+        }
+        /** Radial zoom blur. Ignored when the player turns motion effects off. */
+        public void zoomBlur(float amount) {
+            if (ClientConfig.motionEffects())
+                frame.screen().zoomBlur = Math.max(frame.screen().zoomBlur, amount * ClientConfig.screenEffects());
+        }
+        /** Colored vignette; the strongest request keeps its color (ScreenFx.addVignette). */
+        public void vignette(int argb, float amount) {
+            float scaled = amount * ClientConfig.screenEffects();
+            if (scaled > 0) frame.screen().addVignette(argb, scaled);
+        }
+        /** Afterimage trail. Ignored when the player turns motion effects off. */
+        public void afterimage(float amount) {
+            if (ClientConfig.motionEffects())
+                frame.screen().afterimage = Math.max(frame.screen().afterimage, amount * ClientConfig.screenEffects());
+        }
+        /** Film grain. */
+        public void grain(float amount) {
+            frame.screen().grain = Math.max(frame.screen().grain, amount * ClientConfig.screenEffects());
+        }
+
         public float partial() { return (float) frame.partial(); }
         public Time time() { return time; }
         /** Timeline sampler of the instance (0.7.0). */

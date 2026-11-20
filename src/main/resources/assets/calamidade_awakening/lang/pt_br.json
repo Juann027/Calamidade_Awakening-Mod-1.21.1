@@ -40,7 +40,9 @@
   "command.calamidade_awakening.status": "Instâncias ativas no servidor: %s / 64",
   "calamidade_awakening.configuration.title": "Calamidade_Awakening",
   "calamidade_awakening.configuration.screenEffects": "Intensidade dos efeitos de tela",
-  "calamidade_awakening.configuration.screenEffects.tooltip": "Bloom, clarões, contraste e dessaturação deste mod e dos addons. 0 desliga.",
+  "calamidade_awakening.configuration.screenEffects.tooltip": "Bloom, clarões, contraste, dessaturação, aberração, vinheta, grão, zoom blur e rastro deste mod e dos addons. 0 desliga.",
   "calamidade_awakening.configuration.cameraShake": "Tremor de tela",
-  "calamidade_awakening.configuration.cameraShake.tooltip": "Tremor de tela deste mod e dos addons."
+  "calamidade_awakening.configuration.cameraShake.tooltip": "Tremor de tela deste mod e dos addons.",
+  "calamidade_awakening.configuration.motionEffects": "Efeitos de movimento",
+  "calamidade_awakening.configuration.motionEffects.tooltip": "Zoom blur e rastro (afterimage) deste mod e dos addons. Desligue se causarem enjoo de movimento."
 }
