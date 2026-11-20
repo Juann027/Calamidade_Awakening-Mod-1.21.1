@@ -31,14 +31,21 @@ public final class StageNetwork {
     private static long nextOrder;
 
     private static final class Live {
+        /** Most real ticks a sustained instance replays in one server tick if its clock ever jumps. */
+        private static final int MAX_CATCH_UP = 1200;
         final ServerLevel level;
         final StageEvent event;
         final VisualKind kind;
         final Entity anchor;
         final Set<ServerPlayer> recipients = new HashSet<>();
         Effects.Handle handle;
-        /** Highest instance tick whose cues already ran; -1 before the first server tick. */
+        /**
+         * Without sustain: highest instance tick whose cues already ran. With sustain: highest real age already
+         * processed (the local tick repeats on every lap). -1 before the first server tick.
+         */
         long cuedThrough = -1;
+        /** Real age at which a sustained instance was released, or -1 (0.7.0). */
+        long releasedAt = -1;
         /** Set once the instance is stopped or expired; no cue may run afterwards, even later in the same tick. */
         boolean ended;
 
@@ -55,7 +62,12 @@ public final class StageNetwork {
                 (anchor == null && !level.hasChunkAt(BlockPos.containing(event.center())));
         }
 
-        boolean finished() { return age() >= kind.duration || lost(); }
+        /** Without sustain: the real age reaches the duration. With sustain: only after the release plays out. */
+        boolean finished() {
+            if (lost()) return true;
+            if (!kind.sustained()) return age() >= kind.duration;
+            return releasedAt >= 0 && age() >= kind.timeline().endAge(releasedAt, kind.duration);
+        }
 
         Vec3 center() { return anchor == null ? event.center() : anchor.position().add(event.offset()); }
 
@@ -65,15 +77,23 @@ public final class StageNetwork {
             for (ServerPlayer player : level.players()) {
                 boolean visible = player.position().distanceToSqr(center) <= kind.range * kind.range;
                 if (!visible && recipients.remove(player)) sendEnd(player);
-                if (visible && NetApi.canSend(player, StageEvent.PACKET) && recipients.add(player))
+                if (visible && NetApi.canSend(player, StageEvent.PACKET) && recipients.add(player)) {
                     NetApi.send(player, event);
+                    // Late arrivals of a released instance get the release right after the start.
+                    if (releasedAt >= 0) sendRelease(player);
+                }
             }
         }
 
-        /** Runs every cue scheduled in (cuedThrough, age], clamped to the effect duration. */
+        /** Runs the cues due since the previous server tick, on the timeline clock. */
         void runCues() {
             List<VisualKind.ScheduledCue> cues = kind.cues();
             if (cues.isEmpty() || lost()) return;
+            if (kind.sustained()) {
+                runSustainedCues(cues);
+                return;
+            }
+            // Without sustain the local age is the real age: same behavior as 0.6.
             long age = Math.min(age(), kind.duration - 1L);
             if (age <= cuedThrough) return;
             long from = cuedThrough;
@@ -83,12 +103,47 @@ public final class StageNetwork {
             for (VisualKind.ScheduledCue scheduled : cues) {
                 if (ended) return; // a previous cue (or anything it triggered) stopped this instance
                 if (scheduled.tick() <= from || scheduled.tick() > age) continue;
-                try {
-                    scheduled.cue().run(new Effects.Context(level, center, caster, anchor, event.seed(), scheduled.tick(), handle));
-                } catch (RuntimeException failure) {
-                    LOGGER.error("Cue at tick {} of {} failed", scheduled.tick(), kind.networkKey(), failure);
-                }
+                run(scheduled, caster, center, scheduled.tick(), scheduled.tick());
             }
+        }
+
+        /** Walks every real tick since the last call; a local tick inside the loop repeats on every lap. */
+        private void runSustainedCues(List<VisualKind.ScheduledCue> cues) {
+            long now = age();
+            if (now <= cuedThrough) return;
+            long from = Math.max(cuedThrough + 1, now - MAX_CATCH_UP);
+            cuedThrough = now;
+            ServerPlayer caster = level.getServer().getPlayerList().getPlayer(event.caster());
+            Vec3 center = center();
+            dev.calamidade_awakening.api.CueClock.walk(kind.timeline(), releasedAt, kind.duration, from, now, (real, local) -> {
+                for (VisualKind.ScheduledCue scheduled : cues) {
+                    if (ended) return false; // a cue stopped this instance
+                    if (scheduled.tick() == local) run(scheduled, caster, center, local, real);
+                }
+                return !ended;
+            });
+        }
+
+        private void run(VisualKind.ScheduledCue scheduled, ServerPlayer caster, Vec3 center, double local, long real) {
+            try {
+                scheduled.cue().run(new Effects.Context(level, center, caster, anchor, event.seed(), scheduled.tick(),
+                    handle, kind.timeline(), local, real));
+            } catch (RuntimeException failure) {
+                LOGGER.error("Cue at tick {} of {} failed", scheduled.tick(), kind.networkKey(), failure);
+            }
+        }
+
+        /**
+         * The jump happens at the first real tick whose cues have not run yet, so server cues and client visuals
+         * switch to the exit on the same tick.
+         */
+        void release() {
+            releasedAt = Math.max(age(), cuedThrough + 1);
+            for (ServerPlayer player : recipients) if (level.players().contains(player)) sendRelease(player);
+        }
+
+        void sendRelease(ServerPlayer player) {
+            if (NetApi.canSend(player, ReleaseEffect.PACKET)) NetApi.send(player, new ReleaseEffect(event.order(), releasedAt));
         }
 
         void sendEnd(ServerPlayer player) {
@@ -125,22 +180,33 @@ public final class StageNetwork {
             anchor == null ? -1 : anchor.getId(), anchor == null ? null : anchor.getUUID(), anchor == null ? Vec3.ZERO : position);
         Live live = new Live(level, event, kind, anchor);
         var serverRef = new java.lang.ref.WeakReference<>(level.getServer());
-        live.handle = () -> {
-            var server = serverRef.get();
-            if (server == null || server.isStopped()) return false;
-            if (!server.isSameThread()) throw new IllegalStateException("Stop on the server thread");
-            for (var it = ACTIVE.iterator(); it.hasNext();) {
-                Live target = it.next();
-                if (target.event().order() != order) continue;
-                it.remove();
+        live.handle = new Effects.Handle() {
+            @Override public boolean stop() {
+                Live target = find(serverRef.get(), order);
+                if (target == null) return false;
+                ACTIVE.remove(target);
                 target.end();
                 return true;
             }
-            return false;
+
+            @Override public boolean release() {
+                Live target = find(serverRef.get(), order);
+                if (target == null || target.ended || !target.kind.sustained() || target.releasedAt >= 0) return false;
+                target.release();
+                return true;
+            }
         };
         ACTIVE.add(live);
         live.dispatch();
         return Optional.of(live.handle);
+    }
+
+    /** Live instance with this order, or null when the server is gone or the instance already ended. */
+    private static Live find(net.minecraft.server.MinecraftServer server, long order) {
+        if (server == null || server.isStopped()) return null;
+        if (!server.isSameThread()) throw new IllegalStateException("Stop or release on the server thread");
+        for (Live live : ACTIVE) if (live.event().order() == order) return live;
+        return null;
     }
 
     /** Number of live server instances, for diagnostics. */
@@ -151,6 +217,7 @@ public final class StageNetwork {
         NetApi.toServer(CastRequest.PACKET);
         NetApi.toClient(StageEvent.PACKET);
         NetApi.toClient(EndEffect.PACKET);
+        NetApi.toClient(ReleaseEffect.PACKET);
         NetApi.receive(CastRequest.PACKET, (request, ctx) -> ctx.server().execute(() -> {
             if (ctx.player() != null) AwakeningSkills.cast(ctx.player(), request.visual(), request.power());
         }));

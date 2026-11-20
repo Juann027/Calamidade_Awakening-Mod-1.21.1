@@ -56,6 +56,7 @@ public final class FrameBudgetCheck {
         cues();
         rangeAndDuration();
         TimelineCheck.run();
+        timelineRegistration();
         meshBudget();
         closedPrimitives();
         System.out.println("FrameBudgetCheck PASS");
@@ -123,6 +124,49 @@ public final class FrameBudgetCheck {
         expectRejected(() -> new dev.calamidade_awakening.api.v1.Effects.Definition(12001, 4, 0xffffffff,
             dev.calamidade_awakening.api.v1.Effects.Shape.RINGS, dev.calamidade_awakening.api.v1.Effects.Material.NONE, null, null),
             "duration too long");
+    }
+
+    private static void timelineRegistration() {
+        var id = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("checkaddon", "tide");
+        var definition = new dev.calamidade_awakening.api.v1.Effects.Definition(120, 2, 0xffffffff,
+            dev.calamidade_awakening.api.v1.Effects.Shape.RINGS, dev.calamidade_awakening.api.v1.Effects.Material.NONE, null, null);
+        dev.calamidade_awakening.api.v1.Effects.register(id, definition);
+        var timeline = dev.calamidade_awakening.api.v1.Timeline.builder(120).phase("impacto", 36, 52, 2, 8)
+            .marker("impacto", 40).build();
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.cue(id, "impacto", context -> {}), "marker cue before timeline");
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.timeline(id,
+            dev.calamidade_awakening.api.v1.Timeline.builder(121).build()), "timeline longer than definition");
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.timeline(
+            net.minecraft.resources.ResourceLocation.parse("calamidade_awakening:nexus"), timeline), "internal timeline");
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.timeline(
+            net.minecraft.resources.ResourceLocation.parse("checkaddon:missing"), timeline), "unknown timeline");
+        dev.calamidade_awakening.api.v1.Effects.timeline(id, timeline);
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.timeline(id, timeline), "duplicate timeline");
+        dev.calamidade_awakening.api.v1.Effects.cue(id, "impacto", context -> {});
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.cue(id, "eco", context -> {}), "unknown marker cue");
+        var kind = VisualKind.byId(VisualKind.localId(id.toString()));
+        require(kind.timeline() == timeline && kind.clock() == timeline && kind.cues().getFirst().tick() == 40
+            && !kind.sustained() && kind.localAge(70, 10) == 70, "timeline registration");
+        // Timelines go before cues.
+        var late = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("checkaddon", "late");
+        dev.calamidade_awakening.api.v1.Effects.register(late, definition);
+        dev.calamidade_awakening.api.v1.Effects.cue(late, 3, context -> {});
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.timeline(late, timeline), "timeline after cues");
+        // Effects without a timeline: empty clock with their duration, real age untouched.
+        var plain = VisualKind.byId(VisualKind.localId("checkaddon:plain"));
+        require(plain.timeline() == null && plain.clock().duration() == 40 && plain.clock() == plain.clock()
+            && plain.localAge(55.5, 3) == 55.5 && !plain.sustained(), "no timeline");
+        // Sustained effect: the kind converts ages.
+        var lamp = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("checkaddon", "lamp");
+        dev.calamidade_awakening.api.v1.Effects.register(lamp, definition);
+        dev.calamidade_awakening.api.v1.Effects.timeline(lamp,
+            dev.calamidade_awakening.api.v1.Timeline.builder(100).sustain(20, 60).build());
+        var lampKind = VisualKind.byId(VisualKind.localId(lamp.toString()));
+        require(lampKind.sustained() && lampKind.localAge(70, -1) == 30 && lampKind.localAge(70, 65) == 65, "sustained kind");
+        // 0.6 Context constructor still works and reports no timeline.
+        var context = new dev.calamidade_awakening.api.v1.Effects.Context(null, Vec3.ZERO, null, null, 7, 12, () -> true);
+        require(context.timeline() == null && context.localAge() == 12 && context.age() == 12 && !context.handle().release(),
+            "legacy context");
     }
 
     private static void expectRejected(Runnable action, String test) {

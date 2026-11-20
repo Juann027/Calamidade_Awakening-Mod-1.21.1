@@ -3,9 +3,10 @@ loaderVersion="[4,)"
 license="MIT"
 [[mods]]
 modId="calamidade_awakening"
-version="0.6.2"
+version="0.7.0"
 displayName="Calamidade_Awakening"
 description="Modular procedural visual effects for Minecraft, powered by the RimuLib API."
+# 0.7.0 adds the release channel (sustained timelines): run the same engine version on the server and on every client.
 [[dependencies.calamidade_awakening]]
 modId="minecraft"
 type="required"

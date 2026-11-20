@@ -16,6 +16,7 @@ final class TimelineCheck {
         tracks();
         markers();
         sustain();
+        cueClock();
         validation();
     }
 
@@ -126,6 +127,29 @@ final class TimelineCheck {
         require(!plain.sustained() && plain.localAge(37.5, 10) == 37.5 && plain.endAge(10, 50) == 50
             && plain.sustainStart() == -1 && plain.releaseStart() == -1, "no sustain");
         require(Timeline.empty(30).duration() == 30 && Timeline.empty(30).phases().isEmpty(), "empty");
+    }
+
+    private static void cueClock() {
+        var t = Timeline.builder(120).sustain(40, 80).build();
+        // Cue at local 50 (inside the loop) runs on every lap; cue at 10 once; cue at 100 only after release.
+        var fired = new java.util.ArrayList<String>();
+        dev.calamidade_awakening.api.CueClock.walk(t, 210, 120, 0, 400, (real, local) -> {
+            if (local == 10 || local == 50 || local == 100) fired.add(local + "@" + real);
+            return true;
+        });
+        require(fired.equals(java.util.List.of("10@10", "50@50", "50@90", "50@130", "50@170", "100@230")), "loop cues " + fired);
+        // The walk stops once the release plays out (210 + 120 - 80 = 250).
+        long[] last = {-1};
+        dev.calamidade_awakening.api.CueClock.walk(t, 210, 120, 0, 400, (real, local) -> { last[0] = real; return true; });
+        require(last[0] == 249, "walk ends with the release");
+        // The release jump skips local ticks; the release start itself is visited.
+        var jump = new java.util.ArrayList<Integer>();
+        dev.calamidade_awakening.api.CueClock.walk(t, 65, 120, 63, 67, (real, local) -> jump.add(local));
+        require(jump.equals(java.util.List.of(63, 64, 80, 81, 82)), "release jump " + jump);
+        // A visitor can stop the walk (stop() from a cue).
+        int[] count = {0};
+        dev.calamidade_awakening.api.CueClock.walk(t, -1, 120, 0, 100, (real, local) -> ++count[0] < 5);
+        require(count[0] == 5, "visitor stop");
     }
 
     private static void validation() {

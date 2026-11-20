@@ -78,11 +78,10 @@ public final class RimuStageBackend {
             var post = dev.calamidade_awakening.api.v1.client.AddonLayers.post(id);
             int remaining = Math.max(0, plan.quality().marks - addonPasses);
             if (post == null || failedPosts.contains(id)) continue;
-            double age = mc.level.getGameTime() - sample.event().tick() + frame.partial();
-            var context = new dev.calamidade_awakening.api.v1.client.AddonLayers.Post(frame,
-                new dev.calamidade_awakening.api.v1.client.AddonLayers.Time(sample.progress(), sample.opacity(),
-                    sample.seed(), sample.kind().radius),
-                sample.relative(), sample.distance(), age, sample.event().order(), plan.quality(), flashAllowed, remaining);
+            // Local age drives phases and tracks (equal to the real age without sustain, as in 0.6).
+            var context = new dev.calamidade_awakening.api.v1.client.AddonLayers.Post(frame, sample.time(),
+                sample.relative(), sample.distance(), sample.localAge(), sample.age(), sample.event().order(),
+                plan.quality(), flashAllowed, remaining);
             try {
                 post.accept(context);
             } catch (RuntimeException failure) {
@@ -112,8 +111,7 @@ public final class RimuStageBackend {
             float tint = release * .09f;
             if (definition != null && definition.impact() != null) {
                 var cue = definition.impact();
-                double age = (mc.level.getGameTime() - mark.event().tick()) + frame.partial();
-                float weight = cue.weight(age) * (float)Math.clamp(1 - mark.distance() / 64, 0, 1);
+                float weight = cue.weight(mark.localAge()) * (float)Math.clamp(1 - mark.distance() / 64, 0, 1);
                 tint = 0;
                 if (cue.style() == dev.calamidade_awakening.api.v1.Effects.ImpactStyle.MONOCHROME)
                     monochrome = Math.max(monochrome, weight);

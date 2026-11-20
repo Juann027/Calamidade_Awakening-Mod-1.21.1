@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'dev.calamidade_awakening'
-version = '0.6.2'
+version = '0.7.0'
 base { archivesName = 'calamidade_awakening' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 

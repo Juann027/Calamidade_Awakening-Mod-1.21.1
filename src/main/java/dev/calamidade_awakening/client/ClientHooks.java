@@ -70,6 +70,11 @@ public final class ClientHooks {
                     FILMS.end(packet.order());
                     COORDINATOR.invalidate();
                 }));
+            NetClientApi.receive(dev.calamidade_awakening.net.ReleaseEffect.PACKET, (packet, context) ->
+                Minecraft.getInstance().execute(() -> {
+                    SCENE.release(packet.order(), packet.age());
+                    COORDINATOR.invalidate();
+                }));
             NetClientApi.receive(StageEvent.PACKET, (packet, context) ->
                 Minecraft.getInstance().execute(() -> receive(packet)));
             event.enqueueWork(() -> {
@@ -208,8 +213,7 @@ public final class ClientHooks {
             String id = sample.kind().networkKey();
             var layer = dev.calamidade_awakening.api.v1.client.AddonLayers.hud(id);
             if (layer != null && drawn.add(id)) {
-                var time = new dev.calamidade_awakening.api.v1.client.AddonLayers.Time(
-                    sample.progress(),sample.opacity(),sample.seed(),sample.kind().radius);
+                var time = sample.time();
                 var graphics = event.getGuiGraphics();
                 graphics.pose().pushPose();
                 try { layer.accept(new dev.calamidade_awakening.api.v1.client.AddonLayers.Hud(graphics,time)); }

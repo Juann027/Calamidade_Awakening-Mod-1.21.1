@@ -5,6 +5,7 @@ import cyou.rimuru.rimulib.mc1211.client.cinematic.Shot;
 import cyou.rimuru.rimulib.mc1211.client.cinematic.Subject;
 import cyou.rimuru.rimulib.mc1211.client.render.Uniforms;
 import dev.calamidade_awakening.api.Quality;
+import dev.calamidade_awakening.api.v1.Timeline;
 import dev.calamidade_awakening.config.ClientConfig;
 import dev.calamidade_awakening.client.geometry.Color;
 import dev.calamidade_awakening.client.geometry.Mesh;
@@ -24,8 +25,25 @@ import java.util.function.Function;
  * Mesh coordinates are offsets in blocks from the interpolated anchor.
  */
 public final class AddonLayers {
-    public record Time(float progress, float opacity, float seed, double radius) {}
-    public record Hud(GuiGraphics graphics, Time time) {}
+    /**
+     * Clock of one instance. {@code progress} is local age / duration. Since 0.7.0, {@code timeline} samples the
+     * effect's {@link Timeline} at the instance's local age (phases, tracks, markers); effects registered without
+     * a timeline get an empty one whose local age is the real age.
+     */
+    public record Time(float progress, float opacity, float seed, double radius, Timeline.Sampler timeline) {
+        private static final Timeline.Sampler NONE = Timeline.empty(1).at(0);
+        /** 0.6 form, kept for compatibility: empty timeline sampler. */
+        public Time(float progress, float opacity, float seed, double radius) {
+            this(progress, opacity, seed, radius, NONE);
+        }
+        public Time {
+            Objects.requireNonNull(timeline, "timeline");
+        }
+    }
+    public record Hud(GuiGraphics graphics, Time time) {
+        /** Timeline sampler of the instance (0.7.0). */
+        public Timeline.Sampler timeline() { return time.timeline(); }
+    }
     public static final class World {
         private final Mesh mesh;
         private final Vec3 origin;
@@ -34,6 +52,8 @@ public final class AddonLayers {
             this.mesh = mesh; this.origin = origin; this.time = time;
         }
         public Time time() { return time; }
+        /** Timeline sampler of the instance (0.7.0). */
+        public Timeline.Sampler timeline() { return time.timeline(); }
         public int remainingVertices() { return mesh.remaining(); }
         public void triangle(Vec3 a, Vec3 b, Vec3 c, int argb) {
             Color color = color(argb);
@@ -53,23 +73,30 @@ public final class AddonLayers {
      * shared per-frame addon pass budget (1/2/4 for LOW/BALANCED/HIGH, also used by card shaders) and refuses
      * passes beyond it; check {@link #passesLeft()} to pick a cheaper variant. Screen effects are combined with
      * the other contributors (maximum, never overwritten). {@code center} is camera-relative, in the same space
-     * as scenePosAt. {@code age} is in ticks including partial. Flashes are dropped when the player hides
-     * lightning flashes.
+     * as scenePosAt. {@code age} is the local age in ticks including partial (0.7.0: the timeline age, equal to
+     * the real age without sustain; {@link #realAge()} keeps growing across loops). Flashes are dropped when the
+     * player hides lightning flashes.
      */
     public static final class Post {
         private final FxApi.Frame frame;
         private final Time time;
         private final Vec3 center;
-        private final double distance, age;
+        private final double distance, age, realAge;
         private final long instance;
         private final Quality quality;
         private final boolean flashAllowed;
         private int passesLeft, used;
 
+        /** 0.6 form, kept for compatibility: local and real age are equal. */
         public Post(FxApi.Frame frame, Time time, Vec3 center, double distance, double age, long instance,
                     Quality quality, boolean flashAllowed, int passBudget) {
+            this(frame, time, center, distance, age, age, instance, quality, flashAllowed, passBudget);
+        }
+
+        public Post(FxApi.Frame frame, Time time, Vec3 center, double distance, double age, double realAge,
+                    long instance, Quality quality, boolean flashAllowed, int passBudget) {
             this.frame = frame; this.time = time; this.center = center; this.distance = distance; this.age = age;
-            this.instance = instance; this.quality = quality; this.flashAllowed = flashAllowed;
+            this.realAge = realAge; this.instance = instance; this.quality = quality; this.flashAllowed = flashAllowed;
             this.passesLeft = Math.max(0, passBudget);
         }
 
@@ -80,6 +107,18 @@ public final class AddonLayers {
             used++;
             frame.pass(Objects.requireNonNull(program), Objects.requireNonNull(uniforms));
             return true;
+        }
+
+        /**
+         * Sends every track of the timeline, at the current local age, as a float uniform named
+         * {@code prefix + trackName} (0.7.0). Uniforms the shader does not declare are ignored by RimuLib.
+         * Call inside the {@link #pass} consumer.
+         */
+        public void uploadTracks(Uniforms uniforms, String prefix) {
+            Objects.requireNonNull(uniforms, "uniforms");
+            Objects.requireNonNull(prefix, "prefix");
+            Timeline.Sampler sampler = time.timeline();
+            for (String track : sampler.timeline().tracks()) uniforms.f1(prefix + track, sampler.value(track));
         }
 
         public int passesLeft() { return passesLeft; }
@@ -108,9 +147,13 @@ public final class AddonLayers {
 
         public float partial() { return (float) frame.partial(); }
         public Time time() { return time; }
+        /** Timeline sampler of the instance (0.7.0). */
+        public Timeline.Sampler timeline() { return time.timeline(); }
         public Vec3 center() { return center; }
         public double distance() { return distance; }
         public double age() { return age; }
+        /** Real age in ticks including partial; differs from {@link #age()} only for sustained timelines. */
+        public double realAge() { return realAge; }
         public long instance() { return instance; }
         public Quality quality() { return quality; }
         public boolean flashAllowed() { return flashAllowed; }
@@ -120,8 +163,19 @@ public final class AddonLayers {
      * Custom camera (0.6.0), built on the caster's client when the instance starts. Return RimuLib shots made with
      * FilmApi.cut/sweep/pose around {@code subject}; the engine plays them, owns skip/cancel and ends the film with
      * the instance. Return an empty list for no camera. Overrides the card's camera list.
+     * Since 0.7.0, {@code timeline} is the effect's {@link Timeline} (empty when none was registered), to align cuts
+     * with phases: {@code FilmApi.cut(film.timeline().start("ruptura"), ...)}. Shots run on real time, so align them
+     * with phases before a sustain loop.
      */
-    public record Film(Subject subject, Vec3 center, int duration, long instance) {}
+    public record Film(Subject subject, Vec3 center, int duration, long instance, Timeline timeline) {
+        /** 0.6 form, kept for compatibility: empty timeline of the given duration. */
+        public Film(Subject subject, Vec3 center, int duration, long instance) {
+            this(subject, center, duration, instance, Timeline.empty(Math.max(1, Math.min(duration, dev.calamidade_awakening.api.v1.Effects.MAX_TICKS))));
+        }
+        public Film {
+            Objects.requireNonNull(timeline, "timeline");
+        }
+    }
 
     /**
      * Fired once on every client that accepts an instance (0.6.0), including late arrivals ({@code age} > 0).

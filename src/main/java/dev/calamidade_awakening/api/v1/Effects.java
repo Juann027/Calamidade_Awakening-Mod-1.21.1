@@ -69,17 +69,33 @@ public final class Effects {
         }
     }
     public interface Handle {
-        /** Returns true only on the first explicit stop of a live instance. */
+        /** Ends the instance right away. Returns true only on the first explicit stop of a live instance. */
         boolean stop();
+
+        /**
+         * Releases a sustained instance (0.7.0): the loop ends and the timeline jumps to its release start, then plays
+         * the exit and expires. Synced to every client, including late arrivals. Returns true only on the first
+         * release of a live instance whose timeline has sustain; false (and no change) otherwise.
+         * Call on the server thread.
+         */
+        default boolean release() { return false; }
     }
 
     /**
      * Server-side moment of a live instance, delivered to a {@link Cue} on the server thread.
      * {@code caster} is null for effects started without a player; {@code anchor} is null for fixed positions.
      * {@code center} already includes the entity offset for anchored instances.
+     * {@code tick} is the scheduled tick on the timeline clock. Since 0.7.0, {@code timeline} is the registered
+     * timeline (null for effects without one), {@code localAge} the local age when the cue runs (equal to
+     * {@code tick}) and {@code age} the real age of the instance, which keeps growing across sustain loops.
      */
     public record Context(ServerLevel level, Vec3 center, ServerPlayer caster,
-                          Entity anchor, long seed, int tick, Handle handle) {
+                          Entity anchor, long seed, int tick, Handle handle,
+                          Timeline timeline, double localAge, long age) {
+        /** 0.6 form, kept for compatibility: no timeline, local and real age equal to the tick. */
+        public Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Handle handle) {
+            this(level, center, caster, anchor, seed, tick, handle, null, tick, tick);
+        }
         /** Living entities whose bounding box center lies within the radius, excluding the caster and the anchor. */
         public List<LivingEntity> living(double radius) {
             if (!Double.isFinite(radius) || radius <= 0 || radius > 128)
@@ -106,12 +122,28 @@ public final class Effects {
     }
 
     /**
+     * Attaches a {@link Timeline} to a registered external effect (0.7.0). Call during mod construction, after
+     * {@link #register} and before any cue of the effect. The timeline duration must not exceed the definition.
+     * Effects without a timeline behave exactly as in 0.6.
+     */
+    public static void timeline(ResourceLocation id, Timeline timeline) {
+        VisualKind.setTimeline(Objects.requireNonNull(id), Objects.requireNonNull(timeline));
+    }
+
+    /**
      * Schedules a server callback at {@code tick} (0 .. duration-1) of every instance of a registered external effect.
-     * Call during mod construction, after {@link #register}. Several cues per effect and per tick are allowed and run
-     * in registration order. Exceptions are logged and do not stop the effect.
+     * Call during mod construction, after {@link #register} (and after {@link #timeline}, if any). Several cues per
+     * effect and per tick are allowed and run in registration order. Exceptions are logged and do not stop the effect.
+     * With a timeline the tick is local: a cue inside a sustain loop runs on every lap, and a cue the release jumps
+     * over does not run.
      */
     public static void cue(ResourceLocation id, int tick, Cue cue) {
         VisualKind.addCue(Objects.requireNonNull(id), tick, Objects.requireNonNull(cue));
+    }
+
+    /** Schedules a cue on a marker of the effect's timeline (0.7.0). Register the timeline first. */
+    public static void cue(ResourceLocation id, String marker, Cue cue) {
+        VisualKind.addCue(Objects.requireNonNull(id), Objects.requireNonNull(marker), Objects.requireNonNull(cue));
     }
 
     /** Schedules a cue at the definition's {@link Impact} tick, keeping visual contact and gameplay in sync. */

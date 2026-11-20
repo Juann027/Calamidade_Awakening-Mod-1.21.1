@@ -29,7 +29,7 @@ public final class StageFilms {
             List<cyou.rimuru.rimulib.mc1211.client.cinematic.Shot> custom;
             try {
                 custom = builder.apply(new dev.calamidade_awakening.api.v1.client.AddonLayers.Film(
-                    subject, center, selected.duration, instance));
+                    subject, center, selected.duration, instance, selected.clock()));
             } catch (RuntimeException failure) {
                 LOGGER.error("Film builder for {} failed", selected.networkKey(), failure);
                 custom = null;

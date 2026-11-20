@@ -40,6 +40,58 @@ public final class VisualKind {
         kind.cues.add(new ScheduledCue(tick, Objects.requireNonNull(cue)));
     }
 
+    // 0.7.0: optional script of an external effect. Null means "no timeline" (local age == real age).
+    private volatile dev.calamidade_awakening.api.v1.Timeline timeline;
+    private volatile dev.calamidade_awakening.api.v1.Timeline emptyTimeline;
+
+    /** Registered timeline, or null. */
+    public dev.calamidade_awakening.api.v1.Timeline timeline() { return timeline; }
+
+    /** Registered timeline, or an empty one with this effect's duration (what client layers see). */
+    public dev.calamidade_awakening.api.v1.Timeline clock() {
+        var registered = timeline;
+        if (registered != null) return registered;
+        var empty = emptyTimeline;
+        if (empty == null) emptyTimeline = empty = dev.calamidade_awakening.api.v1.Timeline.empty(duration);
+        return empty;
+    }
+
+    /** True when instances loop until released (timeline with sustain). */
+    public boolean sustained() {
+        var registered = timeline;
+        return registered != null && registered.sustained();
+    }
+
+    /** Local age of an instance; equals {@code realAge} without a sustained timeline. */
+    public double localAge(double realAge, double releaseAge) {
+        var registered = timeline;
+        return registered == null ? realAge : registered.localAge(realAge, releaseAge);
+    }
+
+    public static synchronized void setTimeline(net.minecraft.resources.ResourceLocation id,
+            dev.calamidade_awakening.api.v1.Timeline script) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its timeline: " + id);
+        if (kind.timeline != null) throw new IllegalArgumentException("Duplicate timeline: " + id);
+        if (!kind.cues.isEmpty()) throw new IllegalArgumentException("Register the timeline before the cues: " + id);
+        if (script.duration() > kind.duration)
+            throw new IllegalArgumentException("Timeline (" + script.duration() + " ticks) longer than the definition ("
+                + kind.duration + "): " + id);
+        kind.timeline = Objects.requireNonNull(script);
+    }
+
+    /** Cue on a timeline marker; the marker tick is resolved now. */
+    public static synchronized void addCue(net.minecraft.resources.ResourceLocation id, String marker,
+            dev.calamidade_awakening.api.v1.Effects.Cue cue) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before adding cues: " + id);
+        if (kind.timeline == null)
+            throw new IllegalArgumentException("Register a timeline before cues on markers: " + id);
+        addCue(id, kind.timeline.tick(Objects.requireNonNull(marker)), cue);
+    }
+
     /** Every network key (internal and external), for command suggestions and diagnostics. */
     public static synchronized java.util.List<String> networkKeys() { return java.util.List.copyOf(BY_NAME.keySet()); }
 
