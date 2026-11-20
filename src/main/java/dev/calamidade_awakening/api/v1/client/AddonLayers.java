@@ -3,6 +3,7 @@ package dev.calamidade_awakening.api.v1.client;
 import cyou.rimuru.rimulib.mc1211.client.api.FxApi;
 import cyou.rimuru.rimulib.mc1211.client.cinematic.Shot;
 import cyou.rimuru.rimulib.mc1211.client.cinematic.Subject;
+import cyou.rimuru.rimulib.mc1211.client.render.Uniforms;
 import dev.calamidade_awakening.api.Quality;
 import dev.calamidade_awakening.config.ClientConfig;
 import dev.calamidade_awakening.client.geometry.Color;
@@ -73,7 +74,7 @@ public final class AddonLayers {
         }
 
         /** Queues a shader pass from assets/&lt;namespace&gt;/shaders/fx. Returns false, without drawing, when the budget is spent. */
-        public boolean pass(String program, Consumer<FxApi.Uniforms> uniforms) {
+        public boolean pass(String program, Consumer<Uniforms> uniforms) {
             if (passesLeft <= 0) return false;
             passesLeft--;
             used++;
