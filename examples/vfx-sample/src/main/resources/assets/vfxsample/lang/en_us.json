@@ -2,5 +2,10 @@
   "ability.vfxsample.signal": "Tidal Signal",
   "skill.calamidade_awakening.focus.addon/vfxsample/signal.desc": "A moving lattice, six golden vanes and a surface wave. On impact it deals light damage and pushes nearby creatures away.",
   "key.calamidade_awakening.focus.addon/vfxsample/signal": "Tidal Signal",
-  "panel.vfxsample.signal": "Power adjusts signal height"
+  "panel.vfxsample.signal": "Power adjusts signal height",
+  "command.vfxsample.farol.started": "Beacon lit. It loops until /vfxsample farol release.",
+  "command.vfxsample.farol.failed": "Could not light the beacon here.",
+  "command.vfxsample.farol.released": "Beacon released: it fades out in 3 seconds.",
+  "command.vfxsample.farol.stopped": "Beacon stopped.",
+  "command.vfxsample.farol.none": "No looping beacon of yours to release or stop."
 }

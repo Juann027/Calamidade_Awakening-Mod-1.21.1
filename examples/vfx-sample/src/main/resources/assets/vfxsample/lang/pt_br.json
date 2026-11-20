@@ -2,5 +2,10 @@
   "ability.vfxsample.signal": "Sinal de Maré",
   "skill.calamidade_awakening.focus.addon/vfxsample/signal.desc": "Malha em movimento, seis lâminas douradas e uma onda nas superfícies. No impacto, causa dano leve e empurra as criaturas próximas.",
   "key.calamidade_awakening.focus.addon/vfxsample/signal": "Sinal de Maré",
-  "panel.vfxsample.signal": "Potência ajusta a altura do sinal"
+  "panel.vfxsample.signal": "Potência ajusta a altura do sinal",
+  "command.vfxsample.farol.started": "Farol aceso. Ele repete até /vfxsample farol release.",
+  "command.vfxsample.farol.failed": "Não foi possível acender o farol aqui.",
+  "command.vfxsample.farol.released": "Farol liberado: apaga em 3 segundos.",
+  "command.vfxsample.farol.stopped": "Farol encerrado.",
+  "command.vfxsample.farol.none": "Você não tem um farol em loop para liberar ou encerrar."
 }

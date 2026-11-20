@@ -4,13 +4,13 @@ license="MIT"
 
 [[mods]]
 modId="vfxsample"
-version="1.3.1"
+version="1.4.0"
 displayName="VFX Sample"
 
 [[dependencies.vfxsample]]
 modId="calamidade_awakening"
 type="required"
-versionRange="[0.6.1,0.7.0)"
+versionRange="[0.7.0,0.8.0)"
 ordering="AFTER"
 side="BOTH"
 
