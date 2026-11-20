@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Gera docs/MANUAL-GERAL.md a partir dos capítulos em docs/.
+
+Edite sempre os arquivos de capítulo e rode:  python3 scripts/gerar_manual.py
+O manual não deve ser editado à mão: ele é sobrescrito a cada geração.
+"""
+from pathlib import Path
+import re
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+DOCS = ROOT / "docs"
+VERSION = re.search(r"^version = '([^']+)'", (ROOT / "build.gradle").read_text(encoding="utf-8"), re.M).group(1)
+
+CHAPTERS = [
+    ("JOGAR.md", "Jogar e instalar"),
+    ("API-0.3.md", "API de efeitos e impact frames"),
+    ("GAMEPLAY-0.5.md", "Gameplay sincronizado no servidor"),
+    ("ADDONS-0.4.md", "Criar addons e publicar cartões"),
+    ("AVANCADO-0.6.md", "Ganchos avançados: pós-processamento, câmera e início"),
+    ("ARQUITETURA.md", "Arquitetura do motor"),
+    ("HABILIDADES.md", "Criar habilidades dentro do motor"),
+    ("TESTE-REAL.md", "Testes em GPU real e multiplayer"),
+    ("VALIDACAO.md", "Validação, medições e limites"),
+    ("ROADMAP.md", "Histórico e evolução prevista"),
+]
+
+INTRO = f"""# Manual geral do Calamidade_Awakening {VERSION}
+
+Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
+
+> Arquivo gerado por `scripts/gerar_manual.py` a partir dos capítulos em `docs/`. Edite os capítulos, não este arquivo.
+
+## Por onde começar
+
+**Para jogar**, instale a RimuLib e o JAR do Calamidade na pasta mods do cliente e do servidor. Pressione N para abrir o Atlas no mundo, mire em um cartão e ataque para conjurar. Usar item passa à próxima página quando há addons. Para o segundo menu, obtenha o Focus com `/give @s calamidade_awakening:focus`, segure-o e pressione H. Veja o capítulo 1.
+
+**Para criar seu primeiro efeito**, comece pelo capítulo 2. Use uma posição fixa para um portal ou uma âncora de entidade para acompanhar um personagem. Para que o efeito cause dano ou outra consequência no mundo, registre um cue (capítulo 3). Para publicar um cartão, adicionar uma câmera ou fornecer um shader pelo JAR do seu mod, siga o capítulo 4. O Sinal de Maré é o exemplo executável de todo esse fluxo.
+
+**Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 5.
+
+**Para modificar o motor**, consulte os capítulos 6 e 7. Coloque a dependência oficial em `libs/rimulib-1.3.0-neoforge.jar`. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
+
+**Para medir e validar**, use o capítulo 8 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 9.
+
+**Escopo.** As cinco habilidades internas são cosméticas. O motor oferece iluminação visual por materiais e shaders; alterar a iluminação de blocos da simulação ou substituir globalmente o skybox exige implementação adicional. Consequências de gameplay pertencem aos addons, pelos cues de servidor.
+"""
+
+
+def demote(markdown: str) -> str:
+    """Remove o título H1 do capítulo e desce um nível os demais títulos, fora de blocos de código."""
+    out, fenced, dropped_title = [], False, False
+    for line in markdown.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        elif not fenced and re.match(r"^#{1,5} ", line):
+            if line.startswith("# ") and not dropped_title:
+                dropped_title = True
+                continue
+            line = "#" + line
+        out.append(line)
+    return "\n".join(out).strip("\n")
+
+
+def main() -> int:
+    parts = [INTRO]
+    parts.append("\n".join(f"{i}. [{title}](#cap{i})" for i, (_, title) in enumerate(CHAPTERS, 1)))
+    parts.append("Leitura complementar, fora do manual: [estudo técnico da integração da SA Series](ESTUDO-SA-SERIES.md).")
+    for i, (name, title) in enumerate(CHAPTERS, 1):
+        body = demote((DOCS / name).read_text(encoding="utf-8"))
+        parts.append(f'<a id="cap{i}"></a>\n\n## {i}. {title}\n\n{body}')
+    (DOCS / "MANUAL-GERAL.md").write_text("\n\n".join(parts) + "\n", encoding="utf-8")
+    print(f"docs/MANUAL-GERAL.md gerado com {len(CHAPTERS)} capítulos (versão {VERSION}).")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

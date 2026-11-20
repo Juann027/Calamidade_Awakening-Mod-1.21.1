@@ -1,0 +1,160 @@
+package dev.calamidade_awakening.client;
+
+import dev.calamidade_awakening.api.Quality;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.opengl.GL11;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Diagnostic panel (F7) and frame-time recorder for tests on physical GPUs.
+ * Counters are written by the renderers during a frame and published when the next frame starts,
+ * so the panel always shows the last complete frame regardless of render stage order.
+ */
+public final class PerfOverlay {
+    static final KeyMapping TOGGLE = new KeyMapping("key.calamidade_awakening.stats", GLFW.GLFW_KEY_F7,
+        "key.categories.calamidade_awakening");
+    private static final String PREFIX = "perf.calamidade_awakening.";
+    private static final int WINDOW = 240;
+
+    private static boolean visible;
+    private static String renderer;
+
+    // Written during the frame being rendered.
+    private static int effects, volumes, vertices, passes;
+    // Last complete frame.
+    private static int lastEffects, lastVolumes, lastVertices, lastPasses, lastResident;
+    private static Quality lastQuality = Quality.BALANCED;
+
+    private static final long[] frames = new long[WINDOW];
+    private static int frameCount, frameCursor;
+    private static long previousFrame;
+
+    private static List<String> recording;
+    private static long recordingEnds;
+    private static int recordingSeconds;
+
+    private PerfOverlay() {}
+
+    static void plan(StageScene.Plan plan) {
+        effects = plan.effects().size();
+        volumes = plan.volumes().size();
+    }
+    static void vertices(int count) { vertices = count; }
+    static void passes(int count) { passes = count; }
+
+    /** Called from RenderFrameEvent.Pre. */
+    static void frameStart(int resident, Quality quality) {
+        long now = System.nanoTime();
+        long delta = previousFrame == 0 ? 0 : now - previousFrame;
+        previousFrame = now;
+        lastEffects = effects; lastVolumes = volumes; lastVertices = vertices; lastPasses = passes;
+        lastResident = resident; lastQuality = quality;
+        effects = volumes = vertices = passes = 0;
+        if (delta <= 0) return;
+        frames[frameCursor] = delta;
+        frameCursor = (frameCursor + 1) % WINDOW;
+        frameCount = Math.min(frameCount + 1, WINDOW);
+        if (recording != null) {
+            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s",
+                recording.size(), delta / 1e6, lastResident, lastEffects, lastVolumes, lastVertices, lastPasses, quality.name()));
+            if (System.currentTimeMillis() >= recordingEnds) finishRecording();
+        }
+    }
+
+    static void tick() {
+        while (TOGGLE.consumeClick()) visible = !visible;
+    }
+
+    /** Starts a CSV recording of frame times; returns false if one is already running. */
+    static boolean record(int seconds) {
+        if (recording != null) return false;
+        recording = new ArrayList<>();
+        recordingSeconds = seconds;
+        recordingEnds = System.currentTimeMillis() + seconds * 1000L;
+        visible = true;
+        return true;
+    }
+
+    private static void finishRecording() {
+        List<String> rows = recording;
+        recording = null;
+        Minecraft mc = Minecraft.getInstance();
+        double[] ms = rows.stream().mapToDouble(row -> Double.parseDouble(row.split(",")[1])).sorted().toArray();
+        String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path file = mc.gameDirectory.toPath().resolve("calamidade_bench").resolve("frames-" + stamp + ".csv");
+        var lines = new ArrayList<String>();
+        lines.add("# Calamidade_Awakening frame recording");
+        lines.add("# renderer=" + renderer() + "; window=" + mc.getWindow().getWidth() + "x" + mc.getWindow().getHeight()
+            + "; seconds=" + recordingSeconds + "; frameLimit=" + mc.options.framerateLimit().get()
+            + "; renderDistance=" + mc.options.renderDistance().get() + "; graphics=" + mc.options.graphicsMode().get().name());
+        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality");
+        lines.addAll(rows);
+        Component message;
+        try {
+            Files.createDirectories(file.getParent());
+            Files.write(file, lines, StandardCharsets.UTF_8);
+            message = Component.translatableWithFallback(PREFIX + "saved", "Saved %s frames: median %s ms, p95 %s ms → %s",
+                ms.length, format(percentile(ms, .5)), format(percentile(ms, .95)), file.getFileName().toString());
+        } catch (IOException failure) {
+            message = Component.literal("Calamidade_Awakening: " + failure.getMessage());
+        }
+        if (mc.player != null) mc.player.displayClientMessage(message, false);
+    }
+
+    static void draw(GuiGraphics graphics) {
+        if (!visible) return;
+        Minecraft mc = Minecraft.getInstance();
+        double[] window = new double[frameCount];
+        for (int i = 0; i < frameCount; i++) window[i] = frames[i] / 1e6;
+        Arrays.sort(window);
+        var lines = new ArrayList<Component>();
+        lines.add(Component.translatableWithFallback(PREFIX + "title", "Calamidade_Awakening · diagnostics (%s)",
+            TOGGLE.getTranslatedKeyMessage()));
+        lines.add(Component.translatableWithFallback(PREFIX + "gpu", "GPU: %s", renderer()));
+        lines.add(Component.translatableWithFallback(PREFIX + "frame", "%s FPS · frame %s ms · p95 %s ms · %s",
+            mc.getFps(), format(percentile(window, .5)), format(percentile(window, .95)), lastQuality.name()));
+        lines.add(Component.translatableWithFallback(PREFIX + "scene", "Events: %s resident · %s drawn · %s volumes",
+            lastResident, lastEffects, lastVolumes));
+        lines.add(Component.translatableWithFallback(PREFIX + "cost", "Vertices %s · post passes %s",
+            lastVertices, lastPasses));
+        if (recording != null) lines.add(Component.translatableWithFallback(PREFIX + "recording", "Recording: %s s left",
+            Math.max(0, (recordingEnds - System.currentTimeMillis() + 999) / 1000)));
+        int width = 0;
+        for (Component line : lines) width = Math.max(width, mc.font.width(line));
+        int x = 4, y = 4;
+        graphics.fill(x - 2, y - 2, x + width + 2, y + lines.size() * 10, 0xc0101820);
+        for (Component line : lines) {
+            graphics.drawString(mc.font, line, x, y, 0xffd2e9f4, false);
+            y += 10;
+        }
+    }
+
+    private static String renderer() {
+        if (renderer == null) {
+            String name = GL11.glGetString(GL11.GL_RENDERER);
+            renderer = name == null ? "?" : name;
+        }
+        return renderer;
+    }
+
+    private static double percentile(double[] sorted, double fraction) {
+        if (sorted.length == 0) return 0;
+        int index = (int) Math.ceil(fraction * sorted.length) - 1;
+        return sorted[Math.clamp(index, 0, sorted.length - 1)];
+    }
+
+    private static String format(double ms) { return String.format(java.util.Locale.ROOT, "%.2f", ms); }
+
+}

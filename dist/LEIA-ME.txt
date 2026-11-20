@@ -1,0 +1,1 @@
+Execute ./gradlew dist para gerar o JAR desta versão aqui.

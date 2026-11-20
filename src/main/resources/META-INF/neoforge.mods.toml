@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+[[mods]]
+modId="calamidade_awakening"
+version="0.6.2"
+displayName="Calamidade_Awakening"
+description="Modular procedural visual effects for Minecraft, powered by the RimuLib API."
+[[dependencies.calamidade_awakening]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1]"
+ordering="NONE"
+side="BOTH"
+[[dependencies.calamidade_awakening]]
+modId="neoforge"
+type="required"
+versionRange="[21.1,21.2)"
+ordering="NONE"
+side="BOTH"
+[[dependencies.calamidade_awakening]]
+modId="rimulib"
+type="required"
+versionRange="[1.3.0,2.0)"
+ordering="AFTER"
+side="BOTH"

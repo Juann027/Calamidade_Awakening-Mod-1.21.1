@@ -1,0 +1,23 @@
+package dev.calamidade_awakening;
+
+import cyou.rimuru.rimulib.mc1211.RimuMod;
+import cyou.rimuru.rimulib.mc1211.api.RimulibApi;
+import dev.calamidade_awakening.net.StageNetwork;
+import dev.calamidade_awakening.item.AwakeningSkills;
+import dev.calamidade_awakening.config.ClientConfig;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+
+@Mod(CalamidadeAwakening.ID)
+public final class CalamidadeAwakening {
+    public static final String ID = "calamidade_awakening";
+    public static final RimuMod RIMU = RimulibApi.connect(ID, CalamidadeAwakening.class);
+
+    public CalamidadeAwakening(IEventBus bus, ModContainer container) {
+        container.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
+        AwakeningSkills.register(bus);
+        StageNetwork.register();
+    }
+}

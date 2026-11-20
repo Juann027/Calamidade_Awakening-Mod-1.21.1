@@ -1,2 +1,56 @@
-# Calamidade_Awakening-Mod-1.21.1
-Minecraft 1.21.1 Neoforge Mod [WIP] Based on Shooting Star and Catastrophe 
+# Calamidade_Awakening
+
+A modular visual effects engine for Minecraft 1.21.1, NeoForge 21.1.x and Java 21. Release 0.6.2 uses RimuLib 1.3.0. The five built-in abilities are cosmetic; addons add gameplay through server cues.
+
+[Manual geral do mod e da API (Português)](docs/MANUAL-GERAL.md)
+
+## Installation
+
+Build the JAR with `./gradlew dist` (see Development) and install `dist/calamidade_awakening-0.6.2.jar` together with the [official NeoForge RimuLib 1.3.0 JAR](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) in the mods folder. Use the same versions on the server and all clients. Replace the previous JAR; the namespace, item and key bindings are unchanged since 0.1.2. To obtain a focus, use `/give @s calamidade_awakening:focus`. Reassign custom shortcuts in Controls.
+
+English is the fallback for interface text. Brazilian Portuguese is available through Minecraft's language setting.
+
+| Default key | Action |
+|---|---|
+| N | Open or close the Star Atlas |
+| K | Prismatic Pulse |
+| U | Crystal Bloom |
+| I | Horizon Stained Glass |
+| V | Aurora Convergence |
+| Y | Horizon Core |
+| O | Cancel cinematic |
+| F7 | Diagnostics panel |
+| F8 | Cycle visual quality |
+
+If Aurora Convergence still uses L after updating, assign V in Controls. L opens the vanilla Advancements screen.
+
+Open **Star Atlas** from the pause menu or press **N** while playing. Five cards appear four blocks ahead of the camera. Aim the crosshair at a card and press Attack to cast it through the server; Use Item cycles addon pages. The atlas closes after selection, on dimension change, or beyond 24 blocks.
+
+**Horizon Core** takes ten seconds: four curved blades gather, narrow into a slit and release a violet-white wave across visible surfaces, with four positional sound cues and a held camera (press O to leave it). **Prismatic Pulse** is the fast alternative, with a 38-tick presentation and a 48-tick cooldown. Cooldowns are tracked per player and per ability.
+
+Holding the Awakening Focus also gives access to the RimuLib skill menu (normally H).
+
+## Using the mod as a library
+
+The public entry point is `dev.calamidade_awakening.api.v1.Effects`. Register an effect in your own namespace, then start it at a world position or attach it to a server entity; the returned handle can end it early. Effects can schedule a tinted flash or monochrome impact accent. Since 0.5.0, `Effects.cue` and `Effects.onImpact` run server callbacks on the instance clock, so damage and knockback land on the same tick as the visual contact. Since 0.6.0, client hooks give addons budgeted post-processing passes with their own uniforms and screen effects, a custom camera built with FilmApi, and a start event on every client; see the [advanced hooks guide](docs/AVANCADO-0.6.md). See the [API guide](docs/API-0.3.md), the [gameplay cue guide](docs/GAMEPLAY-0.5.md) (Portuguese) and the [standalone consumer](examples/vfx-sample/src/main/java/example/vfxsample/Sample.java).
+
+## Publishing an addon
+
+Register an effect, then publish its card through `Addons.publish`. The Star Atlas shows a page per addon, and the Awakening Focus includes the same skills with artwork and optional power controls. The sample Tidal Signal adds a camera storyboard, a shader, world-space blades, a HUD, a Focus panel and an impact cue that damages and pushes nearby creatures.
+
+[Addon tutorial (Portuguese)](docs/ADDONS-0.4.md) · [Example implementation](examples/vfx-sample/src/main/java/example/vfxsample/Sample.java)
+
+## Testing on real hardware
+
+F7 shows the active GPU, frame time median and p95, and per-frame engine cost. `/calamidade_client record <seconds>` writes a CSV to `calamidade_bench/`. `/calamidade bench <count> [effect]` (permission level 2) spawns a reproducible load. The [test protocol](docs/TESTE-REAL.md) covers physical GPUs and two clients on a dedicated server.
+
+## Development
+
+Place the official dependency in `libs/rimulib-1.3.0-neoforge.jar`. With JDK 21:
+
+- `./gradlew build` compiles and runs the budget, cooldown, cue and frustum checks.
+- `./gradlew dist` copies the JAR to `dist/`.
+- `./gradlew -p examples/vfx-sample build` builds the sample addon against that JAR.
+- `./gradlew runClient` / `./gradlew runServer` start the development client and dedicated server.
+
+On Windows use `gradlew.bat`. The configured NeoForge version is 21.1.267. The manual is generated from the chapters in `docs/` with `python3 scripts/gerar_manual.py`.

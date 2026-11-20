@@ -1,0 +1,22 @@
+{
+  "core_gather": {
+    "sounds": [
+      "calamidade_awakening:core_gather"
+    ]
+  },
+  "core_tension": {
+    "sounds": [
+      "calamidade_awakening:core_tension"
+    ]
+  },
+  "core_rupture": {
+    "sounds": [
+      "calamidade_awakening:core_rupture"
+    ]
+  },
+  "core_echo": {
+    "sounds": [
+      "calamidade_awakening:core_echo"
+    ]
+  }
+}

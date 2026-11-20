@@ -1,0 +1,23 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="vfxsample"
+version="1.3.1"
+displayName="VFX Sample"
+
+[[dependencies.vfxsample]]
+modId="calamidade_awakening"
+type="required"
+versionRange="[0.6.1,0.7.0)"
+ordering="AFTER"
+side="BOTH"
+
+# O exemplo chama a RimuLib diretamente (FilmApi e frame do FxApi) desde a 1.3.0.
+[[dependencies.vfxsample]]
+modId="rimulib"
+type="required"
+versionRange="[1.3.0,2.0)"
+ordering="AFTER"
+side="BOTH"

@@ -1,0 +1,54 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+group = 'dev.calamidade_awakening'
+version = '0.6.2'
+base { archivesName = 'calamidade_awakening' }
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = '21.1.267'
+    runs {
+        client { client() }
+        server { server(); programArgument '--nogui' }
+    }
+    mods {
+        calamidade_awakening { sourceSet sourceSets.main }
+    }
+}
+
+// RimuLib is supplied by the developer. It is not embedded in the output JAR.
+dependencies {
+    implementation files('libs/rimulib-1.3.0-neoforge.jar')
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+// Smoke checks exercise Minecraft's actual vertex API on the development classpath.
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.compileClasspath
+
+tasks.register('checkBudget', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.calamidade_awakening.FrameBudgetCheck'
+}
+tasks.named('check') { dependsOn 'checkBudget' }
+// FrameBudgetCheck is an executable smoke test, not a JUnit suite.
+tasks.named('test') { failOnNoDiscoveredTests = false }
+
+tasks.register('checkFrustum', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.calamidade_awakening.client.FrustumCheck'
+}
+tasks.named('check') { dependsOn 'checkFrustum' }
+
+// Copia o JAR compilado para dist/, de onde o exemplo vfx-sample e o pacote de entrega o consomem.
+tasks.register('dist', Copy) {
+    dependsOn tasks.named('build')
+    from tasks.named('jar')
+    into layout.projectDirectory.dir('dist')
+}
