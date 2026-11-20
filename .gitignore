@@ -4,3 +4,4 @@ run/
 libs/*.jar
 .idea/
 dist/*.jar
+logs/
