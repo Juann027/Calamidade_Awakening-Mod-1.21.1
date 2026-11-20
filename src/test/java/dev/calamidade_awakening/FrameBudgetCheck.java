@@ -55,6 +55,7 @@ public final class FrameBudgetCheck {
         cooldowns();
         cues();
         rangeAndDuration();
+        TimelineCheck.run();
         meshBudget();
         closedPrimitives();
         System.out.println("FrameBudgetCheck PASS");
