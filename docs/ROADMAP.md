@@ -58,6 +58,15 @@
 - Duração até 12000 ticks e raio até 512 blocos para efeitos de addon; rampas automáticas limitadas em ticks acima de 1200.
 - Configuração de cliente centralizada: intensidade dos efeitos de tela e tremor, aplicadas ao motor e aos addons, editáveis na lista de mods.
 
+### 0.7.0 — Timeline API
+
+- `Timeline`: fases com peso suave, trilhas com keyframes e seis easings, marcadores e sustain com release. Java puro, validado e coberto pelo checkBudget. Consulte TIMELINE-0.7.md.
+- `Effects.timeline`, cues em marcadores, `Handle.release()` e o pacote release, enviado também a quem entra tarde. Servidor e cliente usam a idade local.
+- Amostrador da timeline em `Time`, `World`, `Hud` e `Post`; `Post.uploadTracks`; `Film` recebe a timeline para alinhar cortes às fases.
+- `Post.aberration`, `zoomBlur`, `vignette`, `afterimage` e `grain`; opção de cliente "Efeitos de movimento".
+- Conclusão sobre arrays de uniforms registrada em AVANCADO-0.6.md; fim do atributo obsoleto `EventBusSubscriber.Bus`.
+- vfx-sample 1.4.0: Sinal de Maré roteirizado pela timeline e o Farol, efeito ambiente em loop.
+
 ## Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -68,16 +77,15 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 ## Próximas versões
 
-### 0.7 — ferramentas criativas
+### 0.8 — Atmosphere API
 
-- Parâmetros de habilidade via arquivos de dados.
-- Editor de sequências e previsão de custo.
+Próxima versão planejada. O escopo será detalhado quando o trabalho começar.
 
 ### Evolução da API, sem versão definida
 
-- Composição declarativa de estágios e keyframes.
-- Trilha de áudio sincronizada, poses e eventos temporizados.
+- Parâmetros de habilidade via arquivos de dados.
+- Editor de sequências e previsão de custo.
+- Trilha de áudio sincronizada e poses ligadas às fases da Timeline.
 - Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos) para os ganchos de cliente.
-- Fase de sustentação em loop para efeitos ambientes, como parte da Timeline API (0.7).
-- Métodos de `AddonLayers.Post` para aberração, zoom blur, vinheta, afterimage e grão, depois de confirmar os campos do ScreenFx no JAR da RimuLib.
+- Transição suave (crossfade) opcional no release, para loops cujas bordas não coincidem.
 - Cache de malhas estáticas e LOD adaptativo ao frametime.

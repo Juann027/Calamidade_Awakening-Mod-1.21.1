@@ -27,8 +27,10 @@ AddonLayers.post(id, post -> {
 | passesLeft() | Passes que ainda cabem neste quadro. Use para escolher uma variante mais barata. |
 | bloom, shake, desaturate, contrast | Combinam pelo máximo com os outros efeitos e com o motor; nunca sobrescrevem. Passam pela configuração de acessibilidade do jogador: a intensidade multiplica bloom, contraste e dessaturação, e o tremor pode estar desligado. |
 | flash(cor, intensidade) | Clarão colorido, multiplicado pela intensidade configurada. Ignorado quando o jogador oculta clarões. |
+| aberration, zoomBlur, vignette, afterimage, grain | 0.7.0. Mesmas regras de combinação e intensidade; zoom blur e afterimage obedecem a "Efeitos de movimento". |
 | center() | Centro relativo à câmera, no espaço de `scenePosAt`. Já acompanha a entidade em `Effects.follow`. |
-| age(), partial() | Idade em ticks com o tempo parcial, e o tempo parcial do quadro. Use para fases: `smoothstep(início, início+subida, idade) * (1 - smoothstep(fim-queda, fim, idade))`. |
+| age(), partial() | Idade em ticks com o tempo parcial, e o tempo parcial do quadro. Desde a 0.7.0, `age()` é a idade local da timeline (igual à real sem sustain) e `realAge()` a idade real. Para fases, prefira `timeline().weight("fase")` (TIMELINE-0.7.md). |
+| timeline(), uploadTracks(u, prefixo) | 0.7.0: amostrador da timeline na idade local; envio das trilhas como uniforms float dentro de `pass`. |
 | time() | Progresso (0 a 1), opacidade do envelope do motor, seed e raio. |
 | distance(), instance() | Distância até a câmera e identificador da instância. |
 | quality() | LOW, BALANCED ou HIGH. Reduza passos de raymarch nos perfis menores. |
@@ -88,4 +90,4 @@ Roda uma vez em cada cliente que aceita a instância, inclusive quem entra atras
 
 ## Exemplo completo
 
-O Sinal de Maré 1.3.1 usa os três ganchos. Em `SampleClient.java`: um passe `signal_ripple` com uniforms próprios (anéis dourados que saem do impacto, pedidos só a partir do tick 36 e omitidos em LOW porque o cartão já usa a única vaga) e bloom e tremor no pico; uma câmera de corte seco seguida de travelling; e um som para quem assiste de fora. O shader está em `assets/vfxsample/shaders/fx/signal_ripple.fsh`.
+O Sinal de Maré 1.4.0 usa os três ganchos, agora guiados pela Timeline. Em `SampleClient.java`: um passe `signal_ripple` com uniforms próprios e a trilha `intensidade` enviada por `uploadTracks` (anéis dourados que saem do impacto, pedidos a partir de dois ticks antes da fase `impacto` e omitidos em LOW porque o cartão já usa a única vaga), bloom, tremor, zoom blur e aberração no impacto; uma câmera com cortes alinhados às fases; e um som para quem assiste de fora. O shader está em `assets/vfxsample/shaders/fx/signal_ripple.fsh`.

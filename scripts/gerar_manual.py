@@ -18,6 +18,7 @@ CHAPTERS = [
     ("GAMEPLAY-0.5.md", "Gameplay sincronizado no servidor"),
     ("ADDONS-0.4.md", "Criar addons e publicar cartões"),
     ("AVANCADO-0.6.md", "Ganchos avançados: pós-processamento, câmera e início"),
+    ("TIMELINE-0.7.md", "Timeline: fases, trilhas, marcadores e sustain"),
     ("ARQUITETURA.md", "Arquitetura do motor"),
     ("HABILIDADES.md", "Criar habilidades dentro do motor"),
     ("TESTE-REAL.md", "Testes em GPU real e multiplayer"),
@@ -37,11 +38,11 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
 **Para criar seu primeiro efeito**, comece pelo capítulo 2. Use uma posição fixa para um portal ou uma âncora de entidade para acompanhar um personagem. Para que o efeito cause dano ou outra consequência no mundo, registre um cue (capítulo 3). Para publicar um cartão, adicionar uma câmera ou fornecer um shader pelo JAR do seu mod, siga o capítulo 4. O Sinal de Maré é o exemplo executável de todo esse fluxo.
 
-**Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 5.
+**Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 5. Para escrever o roteiro do efeito uma vez só (fases, trilhas e marcadores que servidor, shader e câmera compartilham) e para efeitos ambientes em loop, use a Timeline do capítulo 6.
 
-**Para modificar o motor**, consulte os capítulos 6 e 7. Coloque a dependência oficial em `libs/rimulib-1.3.0-neoforge.jar`. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
+**Para modificar o motor**, consulte os capítulos 7 e 8. Coloque a dependência oficial em `libs/rimulib-1.3.0-neoforge.jar`. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
 
-**Para medir e validar**, use o capítulo 8 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 9.
+**Para medir e validar**, use o capítulo 9 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 10.
 
 **Escopo.** As cinco habilidades internas são cosméticas. O motor oferece iluminação visual por materiais e shaders; alterar a iluminação de blocos da simulação ou substituir globalmente o skybox exige implementação adicional. Consequências de gameplay pertencem aos addons, pelos cues de servidor.
 """
