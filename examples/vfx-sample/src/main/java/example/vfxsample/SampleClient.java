@@ -8,7 +8,8 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
-@EventBusSubscriber(modid="vfxsample",value=Dist.CLIENT,bus=EventBusSubscriber.Bus.MOD)
+// Sem atributo bus: o FML escolhe o barramento pelo tipo do evento (FMLClientSetupEvent é IModBusEvent).
+@EventBusSubscriber(modid="vfxsample",value=Dist.CLIENT)
 public final class SampleClient {
     @SubscribeEvent public static void setup(FMLClientSetupEvent e) {
         AddonLayers.world(Sample.SIGNAL,world -> {

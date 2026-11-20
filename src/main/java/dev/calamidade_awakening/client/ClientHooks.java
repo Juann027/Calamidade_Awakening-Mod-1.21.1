@@ -55,7 +55,8 @@ public final class ClientHooks {
         return GLFW.GLFW_KEY_UNKNOWN;
     }
 
-    @EventBusSubscriber(modid = CalamidadeAwakening.ID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
+    // No bus attribute: FML routes each listener by event type (IModBusEvent -> mod bus).
+    @EventBusSubscriber(modid = CalamidadeAwakening.ID, value = Dist.CLIENT)
     public static final class Setup {
         @SubscribeEvent
         public static void client(FMLClientSetupEvent event) {
