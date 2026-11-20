@@ -37,7 +37,7 @@ AddonLayers.post(id, post -> {
 Regras:
 
 - **Orçamento por passe.** O quadro tem 1, 2 ou 4 passes de addon (LOW, BALANCED, HIGH). Shaders de cartão e cada `pass` dos posts consomem esse total na ordem de prioridade dos efeitos. Um efeito com shader de cartão e post já gasta uma vaga no cartão. Desde a 0.6.2, o callback é chamado mesmo sem vaga: `pass` retorna false, mas bloom, tremor, contraste e clarão continuam valendo. O painel F7 mostra os passes realmente enfileirados.
-- **Outros efeitos de tela.** Aberração, zoom blur, vinheta, afterimage e grão ainda não têm método em `Post`, porque os nomes dos campos do ScreenFx da RimuLib 1.3.0 precisam ser confirmados no JAR. Estão no roadmap.
+- **Outros efeitos de tela.** Aberração, zoom blur, vinheta, afterimage e grão ainda não têm método em `Post`, mas os campos do ScreenFx da RimuLib 1.3.0 já foram confirmados no JAR (`aberration`, `zoomBlur`, `vignette`, `afterimage` e `grain`; veja VALIDACAO.md). Estão no roadmap.
 - **Arrays de uniforms.** Para listas (pontos de um hipercubo, células de uma grade), teste primeiro se a sua versão da RimuLib aceita nomes indexados como `u.f4("Pontos[3]", ...)`. Se não aceitar, empacote os dados em vários uniforms nomeados.
 - **Falhas.** Uma exceção no callback desativa aquele post até reiniciar o jogo e é registrada uma vez no log. Os passes enfileirados antes da falha continuam contados.
 

@@ -2,13 +2,58 @@
 
 ## Versões 0.5.0 a 0.6.2 — estado atual
 
-**Ainda não compiladas nem executadas.** As mudanças da 0.5.0 (cues, recarga por habilidade, diagnóstico, Atlas) da 0.6.0 (ganchos post, film e start) da 0.6.1 (orçamento por passe, contagem real no F7, cues após cancelamento) e da 0.6.2 (post sempre chamado, alcance por definição, duração até 12000 ticks, configuração de acessibilidade) foram escritas sem acesso a um ambiente com NeoForge e RimuLib. Antes de distribuir:
+**Compiladas; ainda não executadas em jogo.** As mudanças da 0.5.0 (cues, recarga por habilidade, diagnóstico, Atlas), da 0.6.0 (ganchos post, film e start), da 0.6.1 (orçamento por passe, contagem real no F7, cues após cancelamento) e da 0.6.2 (post sempre chamado, alcance por definição, duração até 12000 ticks, configuração de acessibilidade) foram escritas sem compilar e compiladas pela primeira vez na 0.6.2.
 
-1. Rode `./gradlew build` na raiz. O build inclui `checkBudget`, que agora também cobre a recarga por habilidade e o agendamento de cues, e `checkFrustum`.
-2. Rode `./gradlew dist` para copiar o JAR para `dist/` e depois `./gradlew -p examples/vfx-sample build`.
-3. Siga o roteiro de [TESTE-REAL.md](TESTE-REAL.md) e registre aqui os resultados, o SHA-256 dos JARs e os CSVs de quadro.
+### Build
 
-O protocolo de rede não mudou em relação à 0.4.0 (canais event, end e request_v2). Pontos a conferir contra o JAR da RimuLib 1.3.0: os tipos `FxApi.Frame`, `FxApi.Uniforms`, `cinematic.Shot` e `cinematic.Subject` usados em `AddonLayers`; o tipo de retorno de `Frame.partial()`; os campos e métodos do ScreenFx usados por `AddonLayers.Post` (`bloom`, `shake`, `desaturate`, `contrast`, `addFlash`); e a aceitação de nomes de uniform indexados.
+Minecraft Java 1.21.1, NeoForge 21.1.267, RimuLib 1.3.0 (`rimulib-1.3.0-neoforge.jar`, SHA-256 `15ccd4958a0412cbcf618a10962b0b6a7e1683fd66b94d07e10bc7cabeedb774`), OpenJDK 21 e Gradle 9.2.1.
+
+- `./gradlew build`: o primeiro build falhou com um único erro de compilação. `AddonLayers.Post.pass` usava `FxApi.Uniforms`, que não existe; o tipo real é `cyou.rimuru.rimulib.mc1211.client.render.Uniforms`. Depois da correção, o build passou, com `checkBudget` (`FrameBudgetCheck PASS`) e `checkFrustum`.
+- `./gradlew dist`: passou e gerou `dist/calamidade_awakening-0.6.2.jar`.
+- `./gradlew -p examples/vfx-sample build`: passou e gerou `vfx-sample-1.3.1.jar`.
+- Avisos restantes, sem efeito no build: `EventBusSubscriber.Bus` está marcado para remoção, em `ClientHooks` e no `SampleClient`; e `StageNetwork` usa uma API obsoleta.
+
+SHA-256 de `dist/calamidade_awakening-0.6.2.jar`: `fd44ae6de877eddc86f11a372163474f58ffb8eccc1905f352e36922082065c5`
+
+SHA-256 de `examples/vfx-sample/build/libs/vfx-sample-1.3.1.jar`: `08f15d46e06619cedc5c47747e6c5c55da5f3e3bdec2ada1722e06451e2f5871`
+
+### Integração conferida no JAR (javap)
+
+RimuLib 1.3.0, pacote `cyou.rimuru.rimulib.mc1211`:
+
+- `client.api.FxApi.Frame`: `pass(String, Consumer<client.render.Uniforms>)`, `screen()` retorna `ScreenFx` e `partial()` retorna `float`. Não existe `FxApi.Uniforms`. `Uniforms` é uma interface com `f1`, `f2`, `f3`, `f4`, `vec4s`, `texture`, `glTexture`, `tape`, `kept` e `v3`.
+- `client.render.ScreenFx`: os campos públicos `float` `bloom`, `shake`, `desaturate` e `contrast` existem, assim como o método `addFlash(int, float)`.
+- `client.cinematic.Shot` é um record `(int start, int end, int blendIn, Shot.Path path)`. `Shot.Path.pose(Subject, float, float)` retorna `CameraPose`. `FilmApi.cut(int, int, Shot.Path)` e `FilmApi.sweep(int, int, int, Shot.Path)` aceitam as lambdas `(s, partial, k) -> FilmApi.pose(...)` usadas pelo motor e pelo exemplo.
+- `client.cinematic.Subject`: interface com `feet`, `target`, `forward`, `eye`, `anchor`, `right`, `frame`, `aroundTarget`, `clears` e `clear`.
+- Outros campos públicos do `ScreenFx`, ainda sem método em `Post`:
+  - aberração: `aberration`;
+  - zoom blur: `zoomBlur`;
+  - vinheta: `vignette`, `vignetteR`, `vignetteG`, `vignetteB`, além do método `addVignette(int, float)`;
+  - afterimage: `afterimage`;
+  - grão: `grain`.
+  
+  O `ScreenFx` também tem `flash`, `flashR`, `flashG`, `flashB`, `bloomRadius`, `bloomWide`, `impact`, `impactMode`, `impactX`, `impactY`, `freeze`, `keepHot`, `synthetic`, `priority`, `stepFps`, `tape`, `rewind`, `rewindTear`, `tapeStyle`, `tapeHz` e `keep`, além dos métodos `addImpact(float, int, float, float)`, `reset()` e `idle()`.
+
+NeoForge 21.1.267 (FML loader 4.0.45):
+
+- `ModContainer.registerConfig(ModConfig.Type, IConfigSpec)` existe.
+- `ModConfigSpec.Builder.translation(String)`, `defineInRange(String, double, double, double)`, que retorna `DoubleValue`, e `define(String, boolean)`, que retorna `BooleanValue`: os três existem.
+- `IConfigScreenFactory.createScreen(ModContainer, Screen)` existe, e o construtor `ConfigurationScreen(ModContainer, Screen)` existe. Por isso, `ConfigurationScreen::new` serve como fábrica.
+
+### Pendente
+
+Nada da 0.5.0 à 0.6.2 foi executado em jogo. Siga o roteiro de [TESTE-REAL.md](TESTE-REAL.md) e registre aqui os resultados e os CSVs de quadro. Pontos a observar:
+
+- os cues de servidor e o dano do Sinal de Maré;
+- o orçamento por passe e o painel F7;
+- o post chamado sem vaga;
+- o alcance por definição;
+- os efeitos longos;
+- a tela de configuração na lista de mods e o efeito dos dois ajustes;
+- a câmera própria (film);
+- a aceitação de nomes de uniform indexados (`u.f4("Pontos[3]", ...)`), que o javap não mostra.
+
+O protocolo de rede não mudou em relação à 0.4.0 (canais event, end e request_v2).
 
 ---
 

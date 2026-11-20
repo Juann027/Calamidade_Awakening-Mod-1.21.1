@@ -1,6 +1,6 @@
 # Mudanças
 
-**Estado: 0.5.0 a 0.6.2 ainda não compiladas.** Rode `./gradlew build` e `./gradlew dist` antes de usar. Veja docs/VALIDACAO.md.
+**Estado: 0.5.0 a 0.6.2 compiladas na 0.6.2; testes em jogo pendentes.** Veja docs/VALIDACAO.md.
 
 # 0.6.2 — prioridade, alcance, duração e acessibilidade
 
