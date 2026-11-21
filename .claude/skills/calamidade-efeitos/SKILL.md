@@ -24,6 +24,7 @@ Siga na ordem. Cada passo aponta para o capítulo e a receita que mostram o cód
 Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projeto <addon> [--cartao]` (compila sem edição, registra-se sozinho em `FMLConstructModEvent`, comando `/<namespace> efeito <nome>`). Ou copie a receita mais parecida.
 
 - `Effects.Definition(ticks, raio, argb, Shape, Material, partícula, som[, Impact])`, `.withRange(blocos)`.
+- Protagonista: `.withPriority(Effects.Priority.HERO)` só no efeito principal da cena (ataque de chefe, golpe final). Entra antes dos NORMAL, nunca é cortado pelo limite de desenhados (no máximo 2 HERO por quadro, os mais próximos) e tem orçamento de passes próprio (1/2/3). Não marque tudo como HERO: o terceiro HERO mais distante simplesmente não é desenhado.
 - Raio: o teste de frustum usa 2,5 × raio em volta do centro. Cubra tudo o que o shader desenha (feixe alto, cubo grande), senão o efeito some quando o centro sai da tela.
 - Capítulos: `docs/API-0.3.md`, `docs/ADDONS-0.4.md` (cartão). Receitas: todas.
 
@@ -73,6 +74,8 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 |---|---|---|---|
 | Efeitos desenhados por quadro | 3 | 6 | 12 |
 | Passes de addon (cartões + `post.pass`) | 1 | 2 | 4 |
+| Passes de efeitos HERO (orçamento próprio) | 1 | 2 | 3 |
+| Efeitos HERO desenhados (os mais próximos) | 2 | 2 | 2 |
 | Vértices de malha | 12 000 | 48 000 | 96 000 |
 | Passos de raymarch do motor | 8 | 14 | 22 |
 

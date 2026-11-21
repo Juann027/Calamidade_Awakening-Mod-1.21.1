@@ -42,7 +42,7 @@ public final class FrameBudgetCheck {
             throw new AssertionError("sealed registry accepted");
         } catch (IllegalStateException expected) {}
         for (Quality q : Quality.values()) {
-            require(q.marks <= 4 && q.marks <= q.effects && q.steps <= 22 && q.vertices > 0, "quality bounds");
+            require(q.marks <= 4 && q.marks <= q.effects && q.heroPasses <= 3 && q.steps <= 22 && q.vertices > 0, "quality bounds");
             for (int count = 1; count <= q.effects; count++) require((q.vertices / count) * count <= q.vertices, "shared vertex cap");
         }
         require(Quality.LOW.next() == Quality.BALANCED && Quality.HIGH.next() == Quality.LOW, "quality cycle");
@@ -57,6 +57,7 @@ public final class FrameBudgetCheck {
         rangeAndDuration();
         TimelineCheck.run();
         AtmosphereCheck.run();
+        PriorityCheck.run();
         timelineRegistration();
         atmosphereRegistration();
         meshBudget();

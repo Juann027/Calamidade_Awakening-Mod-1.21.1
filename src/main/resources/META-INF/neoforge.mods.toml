@@ -3,7 +3,7 @@ loaderVersion="[4,)"
 license="MIT"
 [[mods]]
 modId="calamidade_awakening"
-version="0.8.0"
+version="0.9.0"
 displayName="Calamidade_Awakening"
 description="Modular procedural visual effects for Minecraft, powered by the RimuLib API."
 # Must match version in build.gradle (checkModVersion fails the build otherwise).

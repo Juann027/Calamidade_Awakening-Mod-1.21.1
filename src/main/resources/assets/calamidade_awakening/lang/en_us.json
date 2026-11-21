@@ -45,6 +45,7 @@
   "calamidade_awakening.configuration.cameraShake.tooltip": "Screen shake from this mod and its addons.",
   "calamidade_awakening.configuration.motionEffects": "Motion effects",
   "calamidade_awakening.configuration.motionEffects.tooltip": "Zoom blur and afterimage trails from this mod and its addons. Turn off if they cause motion sickness.",
+  "perf.calamidade_awakening.heroes": "Protagonists (HERO): %s drawn · %s/%s passes",
   "perf.calamidade_awakening.atmosphere": "Atmosphere: %s active · pass %s",
   "perf.calamidade_awakening.yes": "yes",
   "perf.calamidade_awakening.no": "no",

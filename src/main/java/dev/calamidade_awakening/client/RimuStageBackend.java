@@ -68,15 +68,18 @@ public final class RimuStageBackend {
                 }
             });
         }
-        // Addon passes: card shaders and post layers share one per-frame budget (1/2/4), spent in the plan's
-        // priority order. Post layers are charged for every pass they really queue. Since 0.6.2 a post layer is
-        // always called for its visible instance, even with no pass left, so its screen effects still apply.
-        int addonPasses = 0;
+        // Addon passes: card shaders and post layers spend one per-frame budget in the plan's priority order. Since
+        // 0.9.0 there are two pools: HERO effects spend their own (1/2/3), NORMAL ones the common pool (1/2/4); the
+        // plan lists HERO instances first. Post layers are charged for every pass they really queue. Since 0.6.2 a
+        // post layer is always called for its visible instance, even with no pass left, so its screen effects apply.
+        var budget = new dev.calamidade_awakening.api.PassBudget(plan.quality());
         boolean flashAllowed = !mc.options.hideLightningFlash().get();
+        int heroes = 0;
         for (var sample : plan.effects()) {
+            boolean hero = sample.kind().hero();
+            if (hero) heroes++;
             var addon = sample.kind().addon();
-            if (addon != null && addon.card().shader() != null && addonPasses < plan.quality().marks) {
-                addonPasses++;
+            if (addon != null && addon.card().shader() != null && budget.take(hero)) {
                 passes++;
                 frame.pass(addon.card().shader().toString(), u -> {
                     u.v3("CaCenter", sample.relative());
@@ -86,12 +89,11 @@ public final class RimuStageBackend {
             }
             String id = sample.kind().networkKey();
             var post = dev.calamidade_awakening.api.v1.client.AddonLayers.post(id);
-            int remaining = Math.max(0, plan.quality().marks - addonPasses);
             if (post == null || failedPosts.contains(id)) continue;
             // Local age drives phases and tracks (equal to the real age without sustain, as in 0.6).
             var context = new dev.calamidade_awakening.api.v1.client.AddonLayers.Post(frame, sample.time(),
                 sample.relative(), sample.distance(), sample.localAge(), sample.age(), sample.event().order(),
-                plan.quality(), flashAllowed, remaining);
+                plan.quality(), flashAllowed, budget.left(hero));
             try {
                 post.accept(context);
             } catch (RuntimeException failure) {
@@ -100,9 +102,10 @@ public final class RimuStageBackend {
                 LOGGER.error("Post layer {} failed and was disabled for this session", id, failure);
             }
             // Count what was really queued, including passes issued before a failure.
-            addonPasses += context.used();
+            budget.charge(hero, context.used());
             passes += context.used();
         }
+        PerfOverlay.heroes(heroes, budget.used(true));
         PerfOverlay.passes(passes);
         float strongest = 0;
         float impulse = 0;

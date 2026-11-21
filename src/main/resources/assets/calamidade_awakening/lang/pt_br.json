@@ -45,6 +45,7 @@
   "calamidade_awakening.configuration.cameraShake.tooltip": "Tremor de tela deste mod e dos addons.",
   "calamidade_awakening.configuration.motionEffects": "Efeitos de movimento",
   "calamidade_awakening.configuration.motionEffects.tooltip": "Zoom blur e rastro (afterimage) deste mod e dos addons. Desligue se causarem enjoo de movimento.",
+  "perf.calamidade_awakening.heroes": "Protagonistas (HERO): %s desenhadas · %s/%s passes",
   "perf.calamidade_awakening.atmosphere": "Atmosfera: %s ativas · passe %s",
   "perf.calamidade_awakening.yes": "sim",
   "perf.calamidade_awakening.no": "não",

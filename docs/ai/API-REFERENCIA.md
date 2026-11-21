@@ -1,4 +1,4 @@
-# Referência da API pública (api.v1) — Calamidade_Awakening 0.8.0
+# Referência da API pública (api.v1) — Calamidade_Awakening 0.9.0
 
 > Gerado por `scripts/ApiReferencia.java` a partir do `javap -public` do JAR compilado e do Javadoc dos fontes. Não edite à mão: rode `./gradlew apiDocs`. O build (`checkApiDocs`) falha se este arquivo estiver desatualizado ou se um membro público ficar sem Javadoc.
 
@@ -26,6 +26,7 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Effects.Impact`](#effectsimpact)
 - [`Effects.ImpactStyle`](#effectsimpactstyle)
 - [`Effects.Material`](#effectsmaterial)
+- [`Effects.Priority`](#effectspriority)
 - [`Effects.Shape`](#effectsshape)
 - [`Timeline`](#timeline)
 - [`Timeline.Builder`](#timelinebuilder)
@@ -314,8 +315,10 @@ What an effect is: duration, size, color, built-in look, optional particle and s
 |---|---|
 | `new Definition(int ticks, double radius, int argb, Effects.Shape shape, Effects.Material material, ResourceLocation particle, ResourceLocation sound)` | Definition without impact accent and with the default range. |
 | `new Definition(int ticks, double radius, int argb, Effects.Shape shape, Effects.Material material, ResourceLocation particle, ResourceLocation sound, Effects.Impact impact)` | Definition with an impact accent and the default range. |
-| `new Definition(int ticks, double radius, int argb, Effects.Shape shape, Effects.Material material, ResourceLocation particle, ResourceLocation sound, Effects.Impact impact, double range)` | Canonical constructor: ticks, radius, argb, shape, material, particle, sound, impact, range. |
-| `Effects.Definition withRange(double blocks)` | Copy with another distribution range, 16..1024 blocks. |
+| `new Definition(int ticks, double radius, int argb, Effects.Shape shape, Effects.Material material, ResourceLocation particle, ResourceLocation sound, Effects.Impact impact, double range)` | 0.8 form, kept for compatibility: `Priority.NORMAL` priority. |
+| `new Definition(int ticks, double radius, int argb, Effects.Shape shape, Effects.Material material, ResourceLocation particle, ResourceLocation sound, Effects.Impact impact, double range, Effects.Priority priority)` | Canonical constructor: ticks, radius, argb, shape, material, particle, sound, impact, range, priority. |
+| `Effects.Definition withRange(double blocks)` | Copy with another distribution range, 16..1024 blocks (keeps the priority). |
+| `Effects.Definition withPriority(Effects.Priority value)` | Copy with another drawing priority (0.9.0). |
 | `int ticks()` | Duration, 1..`MAX_TICKS` ticks. |
 | `double radius()` | Size in blocks, (0, 512]; also the frustum test extent and the radius handed to layers. |
 | `int argb()` | Main color (ARGB), used by built-in geometry, flashes and cards. |
@@ -325,6 +328,7 @@ What an effect is: duration, size, color, built-in look, optional particle and s
 | `ResourceLocation sound()` | Optional positional opening sound ID; null for none. |
 | `Effects.Impact impact()` | Optional impact accent; null for none. |
 | `double range()` | Distribution range, 16..1024 blocks (`DEFAULT_RANGE` by default). |
+| `Effects.Priority priority()` | Drawing priority (0.9.0), `Priority.NORMAL` by default; see `withPriority`. |
 
 ## Effects.Handle
 
@@ -376,6 +380,17 @@ Built-in volumetric material raymarched by the engine's shared pass (costs one o
 | `VEIL` | Translucent petals and strands. |
 | `LENS` | Lens band with streams. |
 | `NEBULA` | Noisy nebula halo. |
+
+## Effects.Priority
+
+`dev.calamidade_awakening.api.v1.Effects.Priority` · enum
+
+Drawing priority of an effect (0.9.0), set with `Definition.withPriority`.
+
+| Membro | Descrição |
+|---|---|
+| `NORMAL` | Default: competes with the other instances by intensity over distance. |
+| `HERO` | Protagonist: chosen first, never cut by the effect limit (nearest 2 per frame), own pass budget. |
 
 ## Effects.Shape
 
@@ -560,7 +575,7 @@ Post-processing access for one visible instance (0.6.1).
 | `new Post(FxApi.Frame frame, AddonLayers.Time time, Vec3 center, double distance, double age, double realAge, long instance, Quality quality, boolean flashAllowed, int passBudget)` | Engine use. |
 | `boolean pass(String program, Consumer<Uniforms> uniforms)` | Queues a shader pass from assets/&lt;namespace&gt;/shaders/fx. |
 | `void uploadTracks(Uniforms uniforms, String prefix)` | Sends every track of the timeline, at the current local age, as a float uniform named `prefix + trackName` (0.7.0). |
-| `int passesLeft()` | Passes that still fit in this frame's addon budget (1/2/4 for LOW/BALANCED/HIGH, shared). |
+| `int passesLeft()` | Passes that still fit in this frame's budget for this effect: the shared addon budget (1/2/4 for LOW/BALANCED/HIGH) or, for a HERO effect, the HERO budget (1/2/3). |
 | `int used()` | Passes actually queued by this callback (diagnostics). |
 | `void bloom(float amount)` | Bloom, 0..1 typical; combined by maximum and scaled by the screen-effects setting. |
 | `void shake(float amount)` | Camera shake, 0..1 typical; combined by maximum and ignored when the player turns camera shake off. |

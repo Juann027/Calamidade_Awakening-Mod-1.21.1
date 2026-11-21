@@ -74,8 +74,10 @@ No jogo: **F7** painel de diagnóstico (passes, vértices, atmosferas), **F8** t
 | Raio da definição | (0, 512] blocos; também a extensão do teste de frustum (2,5 × raio) |
 | Alcance de distribuição | 16..1024 blocos (padrão 128) |
 | Instâncias simultâneas | 64 no servidor; 96 residentes por cliente |
-| Efeitos desenhados por quadro | 3 / 6 / 12 (LOW / BALANCED / HIGH) |
-| Passes de addon por quadro | 1 / 2 / 4, divididos entre shaders de cartão e `post.pass`, por prioridade |
+| Efeitos desenhados por quadro | 3 / 6 / 12 (LOW / BALANCED / HIGH); HERO entram primeiro e ocupam vagas |
+| Efeitos HERO desenhados | no máximo 2 por quadro, os mais próximos; nunca cortados pelo limite acima |
+| Passes de addon por quadro | 1 / 2 / 4, divididos entre shaders de cartão e `post.pass` dos efeitos NORMAL, por prioridade |
+| Passes HERO por quadro | 1 / 2 / 3, orçamento próprio dos efeitos `withPriority(Priority.HERO)` |
 | Vértices de malha por quadro | 12 000 / 48 000 / 96 000, divididos entre os efeitos visíveis |
 | Passe de atmosfera | 1 por quadro, do motor, fora do orçamento de addons; só com atmosfera ativa |
 | Mistura de atmosferas | as 2 de maior peso |

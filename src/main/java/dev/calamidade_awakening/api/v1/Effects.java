@@ -58,6 +58,23 @@ public final class Effects {
         NEBULA
     }
 
+    /**
+     * Drawing priority of an effect (0.9.0), set with {@link Definition#withPriority}.
+     *
+     * <p>{@code HERO} is for the protagonist of a scene (a boss attack, the finishing move of a cast): its visible
+     * instances are chosen before every NORMAL one and are never cut by the per-frame effect limit (3/6/12 for
+     * LOW/BALANCED/HIGH). At most 2 HERO instances are drawn per frame, the nearest to the camera, so a server full
+     * of HERO effects cannot bring the frame rate down again. HERO instances also get their own pass budget per frame
+     * (1/2/3 for LOW/BALANCED/HIGH), separate from the common addon budget (1/2/4): their card shader, post passes and
+     * the engine's beams and lights passes are charged there. Use HERO sparingly: one or two effects per addon.
+     */
+    public enum Priority {
+        /** Default: competes with the other instances by intensity over distance. */
+        NORMAL,
+        /** Protagonist: chosen first, never cut by the effect limit (nearest 2 per frame), own pass budget. */
+        HERO
+    }
+
     /** Look of the impact accent. */
     public enum ImpactStyle {
         /** Flash tinted with the definition color (hidden when the player hides lightning flashes). */
@@ -106,6 +123,9 @@ public final class Effects {
      *     new Effects.Impact(40, 3, .75f, Effects.ImpactStyle.MONOCHROME)).withRange(256);
      * }</pre>
      *
+     * <p>Since 0.9.0 a definition also has a {@link Priority} ({@code NORMAL} unless {@link #withPriority} says
+     * {@code HERO}).
+     *
      * @param ticks    duration, 1..{@value #MAX_TICKS} ticks
      * @param radius   size in blocks, (0, 512]; also the frustum test extent and the radius handed to layers
      * @param argb     main color (ARGB), used by built-in geometry, flashes and cards
@@ -115,9 +135,11 @@ public final class Effects {
      * @param sound    optional positional opening sound ID; null for none
      * @param impact   optional impact accent; null for none
      * @param range    distribution range, 16..1024 blocks ({@link #DEFAULT_RANGE} by default)
+     * @param priority drawing priority (0.9.0), {@link Priority#NORMAL} by default; see {@link #withPriority}
      */
     public record Definition(int ticks, double radius, int argb, Shape shape, Material material,
-                             ResourceLocation particle, ResourceLocation sound, Impact impact, double range) {
+                             ResourceLocation particle, ResourceLocation sound, Impact impact, double range,
+                             Priority priority) {
         /** Definition without impact accent and with the {@link #DEFAULT_RANGE default range}. */
         public Definition(int ticks, double radius, int argb, Shape shape, Material material,
                           ResourceLocation particle, ResourceLocation sound) {
@@ -128,19 +150,38 @@ public final class Effects {
                           ResourceLocation particle, ResourceLocation sound, Impact impact) {
             this(ticks, radius, argb, shape, material, particle, sound, impact, DEFAULT_RANGE);
         }
+        /** 0.8 form, kept for compatibility: {@link Priority#NORMAL} priority. */
+        public Definition(int ticks, double radius, int argb, Shape shape, Material material,
+                          ResourceLocation particle, ResourceLocation sound, Impact impact, double range) {
+            this(ticks, radius, argb, shape, material, particle, sound, impact, range, Priority.NORMAL);
+        }
         public Definition {
             if (impact != null && impact.tick() + impact.duration() > ticks)
                 throw new IllegalArgumentException("Impact must fit within effect duration");
             Objects.requireNonNull(shape);
             Objects.requireNonNull(material);
+            Objects.requireNonNull(priority, "priority");
             if (ticks < 1 || ticks > MAX_TICKS || !Double.isFinite(radius) || radius <= 0 || radius > 512)
                 throw new IllegalArgumentException("Expected 1..12000 ticks and radius in (0,512]");
             if (!Double.isFinite(range) || range < 16 || range > 1024)
                 throw new IllegalArgumentException("Expected range in [16,1024]");
         }
-        /** Copy with another distribution range, 16..1024 blocks. */
+        /** Copy with another distribution range, 16..1024 blocks (keeps the priority). */
         public Definition withRange(double blocks) {
-            return new Definition(ticks, radius, argb, shape, material, particle, sound, impact, blocks);
+            return new Definition(ticks, radius, argb, shape, material, particle, sound, impact, blocks, priority);
+        }
+        /**
+         * Copy with another drawing priority (0.9.0). {@code withPriority(Priority.HERO)} makes the effect a
+         * protagonist: drawn before NORMAL effects, never cut by the effect limit (the nearest 2 HERO instances per
+         * frame) and with its own pass budget (1/2/3 for LOW/BALANCED/HIGH).
+         *
+         * <pre>{@code
+         * new Effects.Definition(200, 24, 0xffffd070, Effects.Shape.NONE, Effects.Material.NONE, null, null)
+         *     .withRange(256).withPriority(Effects.Priority.HERO);
+         * }</pre>
+         */
+        public Definition withPriority(Priority value) {
+            return new Definition(ticks, radius, argb, shape, material, particle, sound, impact, range, value);
         }
     }
     /** Server-side control of one live instance, returned by {@link #start} and {@link #follow}. */

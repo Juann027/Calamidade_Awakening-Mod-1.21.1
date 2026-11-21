@@ -105,8 +105,10 @@ public final class AddonLayers {
 
     /**
      * Post-processing access for one visible instance (0.6.1). Passes go through {@link #pass}, which charges the
-     * shared per-frame addon pass budget (1/2/4 for LOW/BALANCED/HIGH, also used by card shaders) and refuses
-     * passes beyond it; check {@link #passesLeft()} to pick a cheaper variant. Screen effects are combined with
+     * per-frame pass budget of the effect and refuses passes beyond it: the shared addon budget (1/2/4 for
+     * LOW/BALANCED/HIGH, also used by card shaders and by the engine's beams and lights passes) or, for
+     * {@code Effects.Priority.HERO} effects (0.9.0), the separate HERO budget (1/2/3). Check {@link #passesLeft()}
+     * to pick a cheaper variant. Screen effects are combined with
      * the other contributors (maximum, never overwritten). {@code center} is camera-relative, in the same space
      * as scenePosAt. {@code age} is the local age in ticks including partial (0.7.0: the timeline age, equal to
      * the real age without sustain; {@link #realAge()} keeps growing across loops). Flashes are dropped when the
@@ -157,7 +159,11 @@ public final class AddonLayers {
             for (String track : sampler.timeline().tracks()) uniforms.f1(prefix + track, sampler.value(track));
         }
 
-        /** Passes that still fit in this frame's addon budget (1/2/4 for LOW/BALANCED/HIGH, shared). */
+        /**
+         * Passes that still fit in this frame's budget for this effect: the shared addon budget (1/2/4 for
+         * LOW/BALANCED/HIGH) or, for a HERO effect, the HERO budget (1/2/3). Engine beams and lights passes of the
+         * effect's class are reserved before the post layers run.
+         */
         public int passesLeft() { return passesLeft; }
         /** Passes actually queued by this callback (diagnostics). */
         public int used() { return used; }

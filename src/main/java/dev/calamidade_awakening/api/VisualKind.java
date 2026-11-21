@@ -22,6 +22,10 @@ public final class VisualKind {
     public void bindCard(dev.calamidade_awakening.api.v1.Addons.Entry entry) { this.card = entry; }
     private dev.calamidade_awakening.api.v1.Effects.Definition definition;
     public dev.calamidade_awakening.api.v1.Effects.Definition definition() { return definition; }
+    /** True for external effects registered with {@code Priority.HERO} (0.9.0); built-in effects are NORMAL. */
+    public boolean hero() {
+        return definition != null && definition.priority() == dev.calamidade_awakening.api.v1.Effects.Priority.HERO;
+    }
     private static boolean sealed;
 
     /** Server gameplay callback scheduled on an instance clock. */

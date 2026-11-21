@@ -148,8 +148,9 @@ public final class StageScene {
             if (!isVisible(frustum, origin, kind.radius)) continue;
             float seed = (effect.seed() & 0xFFFFL) / 65535f;
             Sample mark = new Sample(effect, kind, relative, (float) p, (float) alpha, seed, distance, age, local);
-            candidates.add(new FrameBudget.Candidate<>(mark, distance, alpha, effect.order(), kind.range));
+            candidates.add(new FrameBudget.Candidate<>(mark, distance, alpha, effect.order(), kind.range, kind.hero()));
         }
+        // 0.9.0: HERO instances first (nearest 2), never cut by the effect limit; NORMAL ones fill the rest.
         List<Sample> selected = FrameBudget.select(candidates, quality.effects);
         List<Sample> volumes = selected.stream().filter(sample -> sample.kind().volume != VisualKind.Volume.NONE)
             .limit(quality.marks).toList();
