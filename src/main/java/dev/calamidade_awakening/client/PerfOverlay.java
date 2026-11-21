@@ -44,6 +44,8 @@ public final class PerfOverlay {
         lastLightPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
     private static boolean lastAtmospherePass;
     private static Quality lastQuality = Quality.BALANCED;
+    /** Resident instances by source kind (0.10.0): players, entities, blocks, scripts. */
+    private static int[] lastSources = new int[4];
 
     private static final long[] frames = new long[WINDOW];
     private static int frameCount, frameCursor;
@@ -71,7 +73,8 @@ public final class PerfOverlay {
     static void lights(int drawn, dev.calamidade_awakening.api.EnginePasses.Pool pool) { lights = drawn; lightPool = pool; }
 
     /** Called from RenderFrameEvent.Pre. */
-    static void frameStart(int resident, Quality quality) {
+    static void frameStart(int resident, int[] bySource, Quality quality) {
+        lastSources = bySource;
         long now = System.nanoTime();
         long delta = previousFrame == 0 ? 0 : now - previousFrame;
         previousFrame = now;
@@ -88,10 +91,10 @@ public final class PerfOverlay {
         frameCursor = (frameCursor + 1) % WINDOW;
         frameCount = Math.min(frameCount + 1, WINDOW);
         if (recording != null) {
-            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s,%d,%d,%d,%d,%d,%s,%d,%s",
+            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s,%d,%d,%d,%d,%d,%s,%d,%s,%d,%d,%d,%d",
                 recording.size(), delta / 1e6, lastResident, lastEffects, lastVolumes, lastVertices, lastPasses, quality.name(),
                 lastAtmospheres, lastAtmospherePass ? 1 : 0, lastHeroes, lastHeroPasses, lastBeams, lastBeamPool.name(),
-                lastLights, lastLightPool.name()));
+                lastLights, lastLightPool.name(), lastSources[0], lastSources[1], lastSources[2], lastSources[3]));
             if (System.currentTimeMillis() >= recordingEnds) finishRecording();
         }
     }
@@ -122,7 +125,7 @@ public final class PerfOverlay {
         lines.add("# renderer=" + renderer() + "; window=" + mc.getWindow().getWidth() + "x" + mc.getWindow().getHeight()
             + "; seconds=" + recordingSeconds + "; frameLimit=" + mc.options.framerateLimit().get()
             + "; renderDistance=" + mc.options.renderDistance().get() + "; graphics=" + mc.options.graphicsMode().get().name());
-        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality,atmospheres,atmospherePass,heroes,heroPasses,beams,beamPass,lights,lightPass");
+        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality,atmospheres,atmospherePass,heroes,heroPasses,beams,beamPass,lights,lightPass,players,entities,blocks,scripts");
         lines.addAll(rows);
         Component message;
         try {
@@ -150,6 +153,8 @@ public final class PerfOverlay {
             mc.getFps(), format(percentile(window, .5)), format(percentile(window, .95)), lastQuality.name()));
         lines.add(Component.translatableWithFallback(PREFIX + "scene", "Events: %s resident · %s drawn · %s volumes",
             lastResident, lastEffects, lastVolumes));
+        lines.add(Component.translatableWithFallback(PREFIX + "sources", "Sources: %s players · %s mobs · %s blocks · %s scripts",
+            lastSources[0], lastSources[1], lastSources[2], lastSources[3]));
         lines.add(Component.translatableWithFallback(PREFIX + "cost", "Vertices %s · post passes %s",
             lastVertices, lastPasses));
         lines.add(Component.translatableWithFallback(PREFIX + "heroes", "Protagonists (HERO): %s drawn · %s/%s passes",

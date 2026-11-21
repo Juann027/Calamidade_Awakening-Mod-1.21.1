@@ -5,6 +5,7 @@ import cyou.rimuru.rimulib.mc1211.net.RimuPacket;
 import dev.calamidade_awakening.CalamidadeAwakening;
 import dev.calamidade_awakening.api.Basis;
 import dev.calamidade_awakening.api.VisualKind;
+import dev.calamidade_awakening.api.v1.EffectSource;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
@@ -12,19 +13,24 @@ import java.util.UUID;
 
 /**
  * Start of an instance, sent once to each player in range (and to late arrivals). Since 0.10.0 it travels on the
- * {@code event_v2} channel and carries the instance orientation: yaw and pitch in degrees and whether the yaw follows
- * the anchor's body. An engine older than 0.10.0 does not register {@code event_v2}, so mixed versions fail cleanly
- * (no instances) instead of misreading the packet: run the same engine version on the server and every client.
+ * {@code event_v2} channel and carries the instance orientation (yaw and pitch in degrees and whether the yaw follows
+ * the anchor's body) and the kind of its source (player, entity, block or script, for F7). An engine older than 0.10.0
+ * does not register {@code event_v2}, so mixed versions fail cleanly (no instances) instead of misreading the packet:
+ * run the same engine version on the server and every client.
  */
 public record StageEvent(int visual, long order, long tick, UUID caster,
                          ResourceLocation dimension, Vec3 center, long seed, int entityId, UUID anchorUuid, Vec3 offset,
-                         float yaw, float pitch, boolean followBody) {
+                         float yaw, float pitch, boolean followBody, EffectSource.Kind source) {
     public StageEvent(int visual, long order, long tick, UUID caster, ResourceLocation dimension, Vec3 center, long seed) {
         this(visual, order, tick, caster, dimension, center, seed, -1, null, Vec3.ZERO);
     }
     public StageEvent(int visual, long order, long tick, UUID caster, ResourceLocation dimension, Vec3 center, long seed,
                       int entityId, UUID anchorUuid, Vec3 offset) {
-        this(visual, order, tick, caster, dimension, center, seed, entityId, anchorUuid, offset, 0, 0, false);
+        this(visual, order, tick, caster, dimension, center, seed, entityId, anchorUuid, offset, 0, 0, false,
+            EffectSource.Kind.SCRIPT);
+    }
+    public StageEvent {
+        java.util.Objects.requireNonNull(source, "source");
     }
     public static final RimuPacket<StageEvent> PACKET = NetApi.packet(
         ResourceLocation.fromNamespaceAndPath(CalamidadeAwakening.ID, "event_v2"),
@@ -52,6 +58,7 @@ public record StageEvent(int visual, long order, long tick, UUID caster,
         buf.writeFloat(yaw);
         buf.writeFloat(pitch);
         buf.writeByte(followBody ? 1 : 0);
+        buf.writeByte(source.ordinal());
     }
 
     private static StageEvent read(FriendlyByteBuf buf) {
@@ -69,9 +76,12 @@ public record StageEvent(int visual, long order, long tick, UUID caster,
         Vec3 offset = entityId >= 0 ? buf.readVec3() : Vec3.ZERO;
         float yaw = buf.readFloat(), pitch = buf.readFloat();
         int flags = buf.readUnsignedByte();
+        int kind = buf.readUnsignedByte();
+        var kinds = EffectSource.Kind.values();
         // A malformed orientation becomes "no orientation" instead of breaking the client.
         if (!Float.isFinite(yaw) || !Float.isFinite(pitch)) { yaw = 0; pitch = 0; }
         return new StageEvent(visual, order, tick, caster, dimension, center, seed, entityId, anchorUuid, offset,
-            Basis.wrapYaw(yaw), Math.clamp(pitch, -90f, 90f), (flags & 1) != 0 && entityId >= 0);
+            Basis.wrapYaw(yaw), Math.clamp(pitch, -90f, 90f), (flags & 1) != 0 && entityId >= 0,
+            kind < kinds.length ? kinds[kind] : EffectSource.Kind.SCRIPT);
     }
 }

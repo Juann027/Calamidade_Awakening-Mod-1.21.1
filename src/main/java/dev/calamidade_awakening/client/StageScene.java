@@ -73,6 +73,13 @@ public final class StageScene {
     /** Resident sequences on this client, for diagnostics. */
     public int size() { return active.size(); }
 
+    /** Resident sequences by source kind, in {@code EffectSource.Kind} order (0.10.0, F7). */
+    public int[] sizeBySource() {
+        int[] counts = new int[dev.calamidade_awakening.api.v1.EffectSource.Kind.values().length];
+        for (StageEvent event : active.values()) counts[event.source().ordinal()]++;
+        return counts;
+    }
+
     private Vec3 center(StageEvent event, float partial) {
         if (event.entityId() < 0) return event.center();
         var entity = level.getEntity(event.entityId());

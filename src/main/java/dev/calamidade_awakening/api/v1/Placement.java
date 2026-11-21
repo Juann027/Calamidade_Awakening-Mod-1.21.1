@@ -3,12 +3,14 @@ package dev.calamidade_awakening.api.v1;
 import dev.calamidade_awakening.api.Basis;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 import java.util.Objects;
 
 /**
- * Where and how an instance starts (0.10.0): a fixed position or an anchor entity, an orientation (yaw and pitch) and
- * the player who cast it. Immutable: every {@code with...}, {@link #facing}, {@link #shifted} and
+ * Where and how an instance starts (0.10.0): a fixed position or an anchor entity, an orientation (yaw and pitch),
+ * the player who cast it, its {@link EffectSource source}, an optional cooldown per source and an optional block entity
+ * that bounds its life. Immutable: every {@code with...}, {@link #facing}, {@link #shifted} and
  * {@link #followingBody} call returns a copy. Start it with
  * {@link Effects#start(net.minecraft.resources.ResourceLocation, net.minecraft.server.level.ServerLevel, Placement)}
  * on the server thread.
@@ -39,15 +41,25 @@ public final class Placement {
     private final float yaw, pitch;
     private final boolean followBody;
     private final ServerPlayer caster;
+    // 0.10.0, stage 2: who started it, cooldown per source and effect, block entity that bounds its life.
+    private final EffectSource source;
+    private final int cooldown;
+    private final BlockEntity block;
 
-    private Placement(Vec3 position, Entity anchor, float yaw, float pitch, boolean followBody, ServerPlayer caster) {
+    private Placement(Vec3 position, Entity anchor, float yaw, float pitch, boolean followBody, ServerPlayer caster,
+                      EffectSource source, int cooldown, BlockEntity block) {
         this.position = position; this.anchor = anchor; this.yaw = yaw; this.pitch = pitch;
         this.followBody = followBody; this.caster = caster;
+        this.source = source; this.cooldown = cooldown; this.block = block;
+    }
+
+    private Placement copy(Vec3 position, Entity anchor, float yaw, float pitch, boolean followBody) {
+        return new Placement(position, anchor, yaw, pitch, followBody, caster, source, cooldown, block);
     }
 
     /** Fixed world position in blocks, no orientation (world axes). */
     public static Placement at(Vec3 position) {
-        return new Placement(finite(position, "position"), null, 0, 0, false, null);
+        return new Placement(finite(position, "position"), null, 0, 0, false, null, null, 0, null);
     }
 
     /** Fixed world position in blocks, turned by {@code yaw} and {@code pitch} (degrees). */
@@ -57,7 +69,7 @@ public final class Placement {
 
     /** Anchored to an entity: the center follows the entity's feet. The instance ends when the entity goes away. */
     public static Placement on(Entity anchor) {
-        return new Placement(Vec3.ZERO, Objects.requireNonNull(anchor, "anchor"), 0, 0, false, null);
+        return new Placement(Vec3.ZERO, Objects.requireNonNull(anchor, "anchor"), 0, 0, false, null, null, 0, null);
     }
 
     /**
@@ -65,7 +77,7 @@ public final class Placement {
      * the world axes while the placement has no orientation, as in {@link Effects#follow}).
      */
     public static Placement on(Entity anchor, Vec3 offset) {
-        return new Placement(offset(offset), Objects.requireNonNull(anchor, "anchor"), 0, 0, false, null);
+        return new Placement(offset(offset), Objects.requireNonNull(anchor, "anchor"), 0, 0, false, null, null, 0, null);
     }
 
     /**
@@ -75,7 +87,7 @@ public final class Placement {
     public Placement withOrientation(float yaw, float pitch) {
         if (!Float.isFinite(yaw) || !Float.isFinite(pitch) || pitch < -90 || pitch > 90)
             throw new IllegalArgumentException("Expected a finite yaw and a pitch in [-90, 90]: " + yaw + ", " + pitch);
-        return new Placement(position, anchor, Basis.wrapYaw(yaw), pitch == 0 ? 0f : pitch, followBody, caster);
+        return copy(position, anchor, Basis.wrapYaw(yaw), pitch == 0 ? 0f : pitch, followBody);
     }
 
     /** Copy with this yaw (degrees), keeping the pitch. */
@@ -106,11 +118,11 @@ public final class Placement {
     public Placement shifted(double right, double up, double forward) {
         if (!Double.isFinite(right) || !Double.isFinite(up) || !Double.isFinite(forward))
             throw new IllegalArgumentException("Shift must be finite");
-        if (anchor != null) return new Placement(offset(position.add(-right, up, forward)), anchor, yaw, pitch, followBody, caster);
+        if (anchor != null) return copy(offset(position.add(-right, up, forward)), anchor, yaw, pitch, followBody);
         Basis basis = Basis.of(yaw, pitch);
         Vec3 moved = position.add(basis.worldX(-right, up, forward), basis.worldY(-right, up, forward),
             basis.worldZ(-right, up, forward));
-        return new Placement(finite(moved, "position"), null, yaw, pitch, followBody, caster);
+        return copy(finite(moved, "position"), null, yaw, pitch, followBody);
     }
 
     /**
@@ -120,7 +132,7 @@ public final class Placement {
      */
     public Placement followingBody() {
         if (anchor == null) throw new IllegalArgumentException("followingBody needs an anchored placement (Placement.on)");
-        return new Placement(position, anchor, yaw, pitch, true, caster);
+        return copy(position, anchor, yaw, pitch, true);
     }
 
     /**
@@ -128,7 +140,37 @@ public final class Placement {
      * cues receive them as {@code caster} and {@link Point#caster caster points} resolve to them. Null for none.
      */
     public Placement withCaster(ServerPlayer caster) {
-        return new Placement(position, anchor, yaw, pitch, followBody, caster);
+        return new Placement(position, anchor, yaw, pitch, followBody, caster, source, cooldown, block);
+    }
+
+    /**
+     * Copy started by this source (0.10.0), for the per-source limits, the slots reserved for players and
+     * {@link #withCooldown}. Null lets the engine pick: the {@link #boundTo bound block}, else the caster, else the
+     * anchor, else {@link EffectSource#script()}.
+     */
+    public Placement withSource(EffectSource source) {
+        return new Placement(position, anchor, yaw, pitch, followBody, caster, source, cooldown, block);
+    }
+
+    /**
+     * Copy with a cooldown per source and effect (0.10.0), in ticks, 0 (none) to 72000: the start is refused (empty
+     * Optional) while the cooldown of this {@link #source()} for this effect runs, and an accepted start begins it. The
+     * same cooldown {@link Effects#cooldownReady} and {@link Effects#startCooldown} read and write.
+     */
+    public Placement withCooldown(int ticks) {
+        if (ticks < 0 || ticks > 72000) throw new IllegalArgumentException("Expected a cooldown in 0..72000 ticks: " + ticks);
+        return new Placement(position, anchor, yaw, pitch, followBody, caster, source, ticks, block);
+    }
+
+    /**
+     * Copy whose life is bound to a block entity (0.10.0): the instance ends when the block entity is removed (the
+     * block is broken or replaced, or its chunk unloads). Unless {@link #withSource} says otherwise, the source is that
+     * block ({@link EffectSource#block(BlockEntity)}). The block entity must be in a level.
+     */
+    public Placement boundTo(BlockEntity blockEntity) {
+        Objects.requireNonNull(blockEntity, "blockEntity");
+        if (blockEntity.getLevel() == null) throw new IllegalArgumentException("Block entity is not in a level yet");
+        return new Placement(position, anchor, yaw, pitch, followBody, caster, source, cooldown, blockEntity);
     }
 
     /** World position in blocks (fixed placements), or the offset from the anchor's feet in the instance frame. */
@@ -145,12 +187,28 @@ public final class Placement {
     public boolean followBody() { return followBody; }
     /** Player who cast the instance, or null. */
     public ServerPlayer caster() { return caster; }
+    /**
+     * Source of the instance (0.10.0): the one given to {@link #withSource}, else the {@link #boundTo bound block},
+     * else the caster, else the anchor ({@link EffectSource#entity}), else {@link EffectSource#script()}.
+     */
+    public EffectSource source() {
+        if (source != null) return source;
+        if (block != null) return EffectSource.block(block);
+        if (caster != null) return EffectSource.player(caster);
+        if (anchor != null) return EffectSource.entity(anchor);
+        return EffectSource.script();
+    }
+    /** Cooldown per source and effect in ticks, 0 for none (0.10.0). */
+    public int cooldown() { return cooldown; }
+    /** Block entity that bounds the instance's life, or null (0.10.0). */
+    public BlockEntity block() { return block; }
 
     /** Readable form with the position or anchor, orientation and options. */
     @Override public String toString() {
         return "Placement[" + (anchor == null ? "at " + position : "on " + anchor.getUUID() + " + " + position)
             + ", yaw=" + yaw + ", pitch=" + pitch + (followBody ? ", followBody" : "")
-            + (caster != null ? ", caster=" + caster.getUUID() : "") + "]";
+            + (caster != null ? ", caster=" + caster.getUUID() : "") + ", source=" + source()
+            + (cooldown > 0 ? ", cooldown=" + cooldown : "") + (block != null ? ", boundTo=" + block.getBlockPos() : "") + "]";
     }
 
     private static Vec3 finite(Vec3 value, String what) {

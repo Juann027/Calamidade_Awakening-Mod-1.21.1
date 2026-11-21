@@ -23,7 +23,9 @@ import java.util.List;
 /**
  * Reproducible load for measurements:
  * /calamidade bench <count> [effect] places count instances in an arc 14 blocks ahead of the player,
- * /calamidade bench stop ends them, /calamidade status reports live instances. Requires permission level 2.
+ * /calamidade bench stop ends them, /calamidade status reports live instances (by source kind and with the limits of
+ * the server config since 0.10.0). Requires permission level 2. Bench instances are SCRIPT starts, so with the default
+ * reserve of 16 slots for players at most 48 of them run at once.
  */
 @EventBusSubscriber(modid = CalamidadeAwakening.ID)
 public final class BenchCommand {
@@ -82,8 +84,19 @@ public final class BenchCommand {
 
     private static int status(CommandContext<CommandSourceStack> ctx) {
         int live = StageNetwork.liveCount();
+        int[] by = StageNetwork.liveBySource();
         ctx.getSource().sendSuccess(() -> Component.translatableWithFallback(PREFIX + "status",
             "Live instances on server: %s / 64", live), false);
+        // 0.10.0: by source kind, the limits of the server config and the starts they refused.
+        ctx.getSource().sendSuccess(() -> Component.translatableWithFallback(PREFIX + "status.sources",
+            "By source: %s players · %s mobs · %s blocks · %s scripts", by[0], by[1], by[2], by[3]), false);
+        var rules = dev.calamidade_awakening.config.ServerConfig.rules();
+        int[] refused = StageNetwork.refused();
+        int refusedTotal = refused[1] + refused[2] + refused[3];
+        ctx.getSource().sendSuccess(() -> Component.translatableWithFallback(PREFIX + "status.limits",
+            "Limits: %s per player · %s per mob · %s per block · %s slots reserved for players · refused %s (full %s, reserve %s, per source %s)",
+            rules.perPlayer(), rules.perEntity(), rules.perBlock(), rules.playerReserve(), refusedTotal,
+            refused[1], refused[2], refused[3]), false);
         return live;
     }
 

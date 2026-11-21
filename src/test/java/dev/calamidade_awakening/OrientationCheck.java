@@ -145,13 +145,15 @@ final class OrientationCheck {
     }
 
     private static void context() {
-        var oriented = new Effects.Context(null, Vec3.ZERO, null, null, 0, 0, null, null, 0, 0, 90, 0);
+        var oriented = new Effects.Context(null, Vec3.ZERO, null, null, 0, 0, null, null, 0, 0, 90, 0,
+            dev.calamidade_awakening.api.v1.EffectSource.script());
         Vec3 f = oriented.forward();
         near(f.x, f.y, f.z, -1, 0, 0, "Context.forward facing west");
         Vec3 r = oriented.facing(2, 1, 0);
         near(r.x, r.y, r.z, 0, 1, -2, "Context.facing right of west is north");
         var old = new Effects.Context(null, Vec3.ZERO, null, null, 0, 3, null, null, 3, 3);
-        require(old.yaw() == 0 && old.pitch() == 0, "0.9 Context form has no orientation");
+        require(old.yaw() == 0 && old.pitch() == 0 && old.source().kind()
+            == dev.calamidade_awakening.api.v1.EffectSource.Kind.SCRIPT, "0.9 Context form: no orientation, script source");
         Vec3 g = old.forward();
         near(g.x, g.y, g.z, 0, 0, 1, "0.9 form faces south");
         var oldest = new Effects.Context(null, Vec3.ZERO, null, null, 0, 4, null);

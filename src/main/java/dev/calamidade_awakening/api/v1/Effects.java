@@ -215,18 +215,26 @@ public final class Effects {
      * @param yaw      instance yaw in degrees when the cue runs, [-180, 180) (0.10.0): the {@link Placement} yaw, plus
      *                 the anchor's body yaw when the instance follows it; 0 without orientation
      * @param pitch    instance pitch in degrees, [-90, 90], positive looks down (0.10.0); 0 without orientation
+     * @param source   who started the instance (0.10.0): player, entity, block or script
      */
     public record Context(ServerLevel level, Vec3 center, ServerPlayer caster,
                           Entity anchor, long seed, int tick, Handle handle,
-                          Timeline timeline, double localAge, long age, float yaw, float pitch) {
+                          Timeline timeline, double localAge, long age, float yaw, float pitch, EffectSource source) {
         /** 0.6 form, kept for compatibility: no timeline, local and real age equal to the tick. */
         public Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Handle handle) {
             this(level, center, caster, anchor, seed, tick, handle, null, tick, tick);
         }
-        /** 0.7 to 0.9 form, kept for compatibility: no orientation (yaw 0, pitch 0, the world axes). */
+        /**
+         * 0.7 to 0.9 form, kept for compatibility: no orientation (yaw 0, pitch 0, the world axes); the source is the
+         * caster, else the anchor, else a script.
+         */
         public Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick,
                        Handle handle, Timeline timeline, double localAge, long age) {
-            this(level, center, caster, anchor, seed, tick, handle, timeline, localAge, age, 0, 0);
+            this(level, center, caster, anchor, seed, tick, handle, timeline, localAge, age, 0, 0,
+                caster != null ? EffectSource.player(caster) : anchor != null ? EffectSource.entity(anchor) : EffectSource.script());
+        }
+        public Context {
+            Objects.requireNonNull(source, "source");
         }
         /** Living entities whose bounding box center lies within the radius, excluding the caster and the anchor. */
         public List<LivingEntity> living(double radius) {
@@ -351,9 +359,40 @@ public final class Effects {
     }
 
     /**
+     * True when {@code source} may start {@code id} now: no cooldown of that source for that effect is running
+     * (0.10.0). Cooldowns are per source and per effect, server-side, and are the same that {@link Placement#withCooldown}
+     * and the Focus cards use (a card's cooldown is its player's). Server thread;
+     * unknown effects throw {@link IllegalArgumentException}.
+     *
+     * <pre>{@code
+     * var mob = EffectSource.entity(zombie);
+     * if (Effects.cooldownReady(mob, ID, level) && Effects.start(ID, level, Placement.on(zombie)).isPresent())
+     *     Effects.startCooldown(mob, ID, level, 60);
+     * }</pre>
+     */
+    public static boolean cooldownReady(EffectSource source, ResourceLocation id, ServerLevel level) {
+        return StageNetwork.cooldownLeft(Objects.requireNonNull(source), Objects.requireNonNull(id), Objects.requireNonNull(level)) == 0;
+    }
+
+    /** Ticks left of the cooldown of {@code source} for {@code id}, 0 when ready (0.10.0). Server thread. */
+    public static long cooldownLeft(EffectSource source, ResourceLocation id, ServerLevel level) {
+        return StageNetwork.cooldownLeft(Objects.requireNonNull(source), Objects.requireNonNull(id), Objects.requireNonNull(level));
+    }
+
+    /**
+     * Starts (or restarts) the cooldown of {@code source} for {@code id}: {@code ticks} 1..72000, 0 clears it
+     * (0.10.0). Server thread.
+     */
+    public static void startCooldown(EffectSource source, ResourceLocation id, ServerLevel level, int ticks) {
+        if (ticks < 0 || ticks > 72000) throw new IllegalArgumentException("Expected a cooldown in 0..72000 ticks: " + ticks);
+        StageNetwork.startCooldown(Objects.requireNonNull(source), Objects.requireNonNull(id), Objects.requireNonNull(level), ticks);
+    }
+
+    /**
      * Starts an instance at a fixed world position (blocks). Server thread. Unknown effects throw
      * {@link IllegalArgumentException}; the result is empty when the position's chunk is not loaded or the server
-     * already runs 64 instances.
+     * already runs 64 instances. Since 0.10.0 its source is {@link EffectSource#script()}, so it also respects the slots
+     * reserved for players (see {@link EffectSource}).
      */
     public static Optional<Handle> start(ResourceLocation id, ServerLevel level, Vec3 position) {
         return StageNetwork.start(id, level, position, null, null);
@@ -374,7 +413,8 @@ public final class Effects {
 
     /**
      * Starts an instance at a position for a caster: the caster's client plays the effect's camera (card shots or
-     * {@code AddonLayers.film}) and cues receive the player as {@code caster}. Server thread.
+     * {@code AddonLayers.film}) and cues receive the player as {@code caster}. Server thread. Since 0.10.0 its source is
+     * the player: empty when that player already holds the per-player limit (16 by default).
      */
     public static Optional<Handle> start(ResourceLocation id, net.minecraft.server.level.ServerPlayer caster, Vec3 position) {
         return StageNetwork.start(id, caster.serverLevel(), position, null, caster.getUUID());
@@ -390,8 +430,11 @@ public final class Effects {
 
     /**
      * Starts an instance from a {@link Placement} (0.10.0): fixed position or anchor entity, yaw and pitch, the yaw
-     * optionally following the anchor's body, and the caster. Server thread. Empty (no error) when the chunk is not
-     * loaded, the anchor is removed or in another level than {@code level}, or the server already runs 64 instances.
+     * optionally following the anchor's body, the caster, the {@link EffectSource source}, a cooldown and a bound block
+     * entity. Server thread. Empty (no error) when the chunk is not loaded, the anchor is removed or in another level
+     * than {@code level}, the source's cooldown for this effect is running, the source already holds its limit (by
+     * default 16 per player, 4 per mob, 2 per block), only the slots reserved for players are left (16 of the 64 by
+     * default, for non-player sources) or the server already runs 64 instances.
      *
      * <pre>{@code
      * Effects.start(ID, level, Placement.on(mob).shifted(0, 1.2, .5).followingBody());
@@ -405,6 +448,7 @@ public final class Effects {
      * Starts an instance anchored to a server entity: the center follows the entity's feet plus {@code offset}
      * (world axes, blocks). The instance ends when the entity is removed or unloaded. Server thread. Empty when
      * the entity is removed or in another level, its chunk is not loaded or the server already runs 64 instances.
+     * Since 0.10.0 the entity is the source ({@link EffectSource#entity}): empty also above its per-source limit.
      */
     public static Optional<Handle> follow(ResourceLocation id, Entity entity, Vec3 offset) {
         if (!(entity.level() instanceof ServerLevel level))

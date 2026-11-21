@@ -54,5 +54,18 @@
   "perf.calamidade_awakening.yes": "yes",
   "perf.calamidade_awakening.no": "no",
   "calamidade_awakening.configuration.vanillaFog": "Atmosphere fog through the game fog",
-  "calamidade_awakening.configuration.vanillaFog.tooltip": "Recommended. Terrain, entities, particles, water and clouds are fogged at their real distance. Turn off only if a shader pack ignores the game fog: the mod then draws the fog on the screen."
+  "calamidade_awakening.configuration.vanillaFog.tooltip": "Recommended. Terrain, entities, particles, water and clouds are fogged at their real distance. Turn off only if a shader pack ignores the game fog: the mod then draws the fog on the screen.",
+  "perf.calamidade_awakening.sources": "Sources: %s players · %s mobs · %s blocks · %s scripts",
+  "command.calamidade_awakening.status.sources": "By source: %s players · %s mobs · %s blocks · %s scripts",
+  "command.calamidade_awakening.status.limits": "Limits: %s per player · %s per mob · %s per block · %s slots reserved for players · refused %s (full %s, reserve %s, per source %s)",
+  "calamidade_awakening.configuration.limits": "Limits by source",
+  "calamidade_awakening.configuration.limits.tooltip": "Live effect instances by source. The server runs at most 64 in total.",
+  "calamidade_awakening.configuration.maxPerPlayer": "Per player",
+  "calamidade_awakening.configuration.maxPerPlayer.tooltip": "Most live instances started by one player (cards, items, commands with a player caster).",
+  "calamidade_awakening.configuration.maxPerEntity": "Per mob",
+  "calamidade_awakening.configuration.maxPerEntity.tooltip": "Most live instances started by one non-player entity (mob attacks).",
+  "calamidade_awakening.configuration.maxPerBlock": "Per block",
+  "calamidade_awakening.configuration.maxPerBlock.tooltip": "Most live instances started by one block (block entity triggers).",
+  "calamidade_awakening.configuration.playerReserve": "Slots reserved for players",
+  "calamidade_awakening.configuration.playerReserve.tooltip": "Slots of the 64 that only players may use: mobs, blocks and scripts share the rest. 0 means no reserve."
 }

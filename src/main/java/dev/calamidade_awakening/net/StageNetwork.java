@@ -6,6 +6,9 @@ import cyou.rimuru.rimulib.mc1211.api.NetApi;
 import dev.calamidade_awakening.CalamidadeAwakening;
 import dev.calamidade_awakening.api.Basis;
 import dev.calamidade_awakening.api.Cooldowns;
+import dev.calamidade_awakening.api.SourceLimits;
+import dev.calamidade_awakening.api.v1.EffectSource;
+import dev.calamidade_awakening.config.ServerConfig;
 import dev.calamidade_awakening.api.VisualKind;
 import dev.calamidade_awakening.api.v1.Effects;
 import dev.calamidade_awakening.item.AwakeningSkills;
@@ -15,6 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -26,10 +30,12 @@ import java.util.*;
 @EventBusSubscriber(modid = CalamidadeAwakening.ID)
 public final class StageNetwork {
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final int MAX_LIVE = 64;
+    private static final int MAX_LIVE = SourceLimits.TOTAL;
     private static final List<Live> ACTIVE = new ArrayList<>();
-    /** Per player and per skill: one slow skill no longer blocks the others. */
+    /** Per source and per effect (0.10.0; per player and per skill since 0.5): one slow effect never blocks the others. */
     private static final Cooldowns COOLDOWNS = new Cooldowns();
+    /** Starts refused by the limits since the server started, by verdict (diagnostics for /calamidade status). */
+    private static final int[] REFUSED = new int[SourceLimits.Verdict.values().length];
     private static long nextOrder;
 
     private static final class Live {
@@ -39,6 +45,9 @@ public final class StageNetwork {
         final StageEvent event;
         final VisualKind kind;
         final Entity anchor;
+        /** Who started it (0.10.0) and the block entity that bounds its life, or null. */
+        final EffectSource source;
+        final BlockEntity block;
         final Set<ServerPlayer> recipients = new HashSet<>();
         Effects.Handle handle;
         /**
@@ -51,8 +60,8 @@ public final class StageNetwork {
         /** Set once the instance is stopped or expired; no cue may run afterwards, even later in the same tick. */
         boolean ended;
 
-        Live(ServerLevel level, StageEvent event, VisualKind kind, Entity anchor) {
-            this.level = level; this.event = event; this.kind = kind; this.anchor = anchor;
+        Live(ServerLevel level, StageEvent event, VisualKind kind, Entity anchor, EffectSource source, BlockEntity block) {
+            this.level = level; this.event = event; this.kind = kind; this.anchor = anchor; this.source = source; this.block = block;
         }
 
         StageEvent event() { return event; }
@@ -61,7 +70,9 @@ public final class StageNetwork {
 
         boolean lost() {
             return (anchor != null && (anchor.isRemoved() || anchor.level() != level)) ||
-                (anchor == null && !level.hasChunkAt(BlockPos.containing(event.center())));
+                (anchor == null && !level.hasChunkAt(BlockPos.containing(event.center()))) ||
+                // 0.10.0: the bound block entity was broken, replaced or unloaded (setRemoved in every case).
+                (block != null && block.isRemoved());
         }
 
         /** Without sustain: the real age reaches the duration. With sustain: only after the release plays out. */
@@ -133,7 +144,7 @@ public final class StageNetwork {
             try {
                 Basis basis = basis();
                 scheduled.cue().run(new Effects.Context(level, center, caster, anchor, event.seed(), scheduled.tick(),
-                    handle, kind.timeline(), local, real, basis.yaw, basis.pitch));
+                    handle, kind.timeline(), local, real, basis.yaw, basis.pitch, source));
             } catch (RuntimeException failure) {
                 LOGGER.error("Cue at tick {} of {} failed", scheduled.tick(), kind.networkKey(), failure);
             }
@@ -171,7 +182,16 @@ public final class StageNetwork {
      * What a start asks for (0.10.0): fixed position or anchor (then {@code position} is the offset in the instance
      * frame), caster (null for none), yaw and pitch in degrees and whether the yaw follows the anchor's body.
      */
-    record Spawn(Vec3 position, Entity anchor, UUID caster, float yaw, float pitch, boolean followBody) {}
+    record Spawn(Vec3 position, Entity anchor, UUID caster, float yaw, float pitch, boolean followBody,
+                 EffectSource source, int cooldown, BlockEntity block) {
+        /** The source the engine picks when none was given: the caster, else the anchor, else a script. */
+        EffectSource effectiveSource() {
+            if (source != null) return source;
+            if (caster != null) return EffectSource.player(caster);
+            if (anchor != null) return EffectSource.entity(anchor);
+            return EffectSource.script();
+        }
+    }
 
     /** Body yaw of an entity on the server: {@code yBodyRot} for living entities, the yaw for the others. */
     static float bodyYaw(Entity entity) { return entity instanceof LivingEntity living ? living.yBodyRot : entity.getYRot(); }
@@ -191,14 +211,14 @@ public final class StageNetwork {
     public static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Vec3 position, Entity anchor, UUID caster) {
         if (!Double.isFinite(position.x) || !Double.isFinite(position.y) || !Double.isFinite(position.z))
             throw new IllegalArgumentException("Non-finite anchor coordinates");
-        return start(id, level, new Spawn(position, anchor, caster, 0, 0, false));
+        return start(id, level, new Spawn(position, anchor, caster, 0, 0, false, null, 0, null));
     }
 
     /** 0.10.0: start from a public {@link dev.calamidade_awakening.api.v1.Placement} (already validated). */
     public static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, dev.calamidade_awakening.api.v1.Placement placement) {
         return start(id, level, new Spawn(placement.position(), placement.anchor(),
             placement.caster() == null ? null : placement.caster().getUUID(), placement.yaw(), placement.pitch(),
-            placement.followBody()));
+            placement.followBody(), placement.source(), placement.cooldown(), placement.block()));
     }
 
     private static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Spawn spawn) {
@@ -212,6 +232,17 @@ public final class StageNetwork {
         Entity anchor = spawn.anchor();
         UUID caster = spawn.caster() == null ? new UUID(0, 0) : spawn.caster();
         if (ACTIVE.size() >= MAX_LIVE || (anchor != null && (anchor.isRemoved() || anchor.level() != level))) return Optional.empty();
+        BlockEntity block = spawn.block();
+        if (block != null && (block.isRemoved() || block.getLevel() != level)) return Optional.empty();
+        // 0.10.0: cooldown per source and effect, then the per-source limits and the slots reserved for players.
+        EffectSource source = spawn.effectiveSource();
+        long now = level.getGameTime();
+        if (spawn.cooldown() > 0 && !COOLDOWNS.ready(source, kind.id, now)) return Optional.empty();
+        SourceLimits.Verdict verdict = admit(source);
+        if (!verdict.ok()) {
+            REFUSED[verdict.ordinal()]++;
+            return Optional.empty();
+        }
         boolean follow = spawn.followBody() && anchor != null;
         Basis basis = follow ? Basis.of(bodyYaw(anchor) + spawn.yaw(), spawn.pitch()) : Basis.of(spawn.yaw(), spawn.pitch());
         Vec3 position = spawn.position();
@@ -221,8 +252,9 @@ public final class StageNetwork {
         StageEvent event = new StageEvent(kind.id, order, level.getGameTime(), caster,
             level.dimension().location(), center, level.getRandom().nextLong(),
             anchor == null ? -1 : anchor.getId(), anchor == null ? null : anchor.getUUID(), anchor == null ? Vec3.ZERO : position,
-            spawn.yaw(), spawn.pitch(), follow);
-        Live live = new Live(level, event, kind, anchor);
+            spawn.yaw(), spawn.pitch(), follow, source.kind());
+        Live live = new Live(level, event, kind, anchor, source, block);
+        if (spawn.cooldown() > 0) COOLDOWNS.start(source, kind.id, now, spawn.cooldown());
         var serverRef = new java.lang.ref.WeakReference<>(level.getServer());
         live.handle = new Effects.Handle() {
             @Override public boolean stop() {
@@ -253,8 +285,48 @@ public final class StageNetwork {
         return null;
     }
 
+    /** Admission of a new instance of this source against the live ones and the server config (0.10.0). */
+    private static SourceLimits.Verdict admit(EffectSource source) {
+        int nonPlayer = 0, same = 0;
+        for (Live live : ACTIVE) {
+            if (live.source.kind() != EffectSource.Kind.PLAYER) nonPlayer++;
+            if (live.source.equals(source)) same++;
+        }
+        return SourceLimits.admit(ServerConfig.rules(), source.kind(), ACTIVE.size(), nonPlayer, same);
+    }
+
     /** Number of live server instances, for diagnostics. */
     public static int liveCount() { return ACTIVE.size(); }
+
+    /** Live server instances by source kind, in {@link EffectSource.Kind} order (0.10.0). */
+    public static int[] liveBySource() {
+        int[] counts = new int[EffectSource.Kind.values().length];
+        for (Live live : ACTIVE) counts[live.source.kind().ordinal()]++;
+        return counts;
+    }
+
+    /** Starts refused by the limits since the server started, in {@link SourceLimits.Verdict} order (0.10.0). */
+    public static int[] refused() { return REFUSED.clone(); }
+
+    /** Ticks left of a source's cooldown for an effect (0.10.0). */
+    public static long cooldownLeft(EffectSource source, ResourceLocation id, ServerLevel level) {
+        serverThread(level);
+        return COOLDOWNS.remaining(source, kindOf(id).id, level.getGameTime());
+    }
+
+    /** Starts (ticks &gt; 0) or clears (0) a source's cooldown for an effect (0.10.0). */
+    public static void startCooldown(EffectSource source, ResourceLocation id, ServerLevel level, int ticks) {
+        serverThread(level);
+        int visual = kindOf(id).id;
+        if (ticks <= 0) COOLDOWNS.cancel(source, visual);
+        else COOLDOWNS.start(source, visual, level.getGameTime(), ticks);
+    }
+
+    private static VisualKind kindOf(ResourceLocation id) {
+        VisualKind kind = VisualKind.byId(VisualKind.localId(id.toString()));
+        if (kind == null) throw new IllegalArgumentException("Unknown effect " + id);
+        return kind;
+    }
 
     private StageNetwork() {}
     public static void register() {
@@ -273,14 +345,15 @@ public final class StageNetwork {
         if (kind == null || !player.isAlive() || player.isSpectator() || ACTIVE.size() >= MAX_LIVE) return false;
         ServerLevel level = player.serverLevel();
         long now = level.getGameTime();
-        if (!COOLDOWNS.ready(player.getUUID(), kind.id, now)) return false;
+        EffectSource source = EffectSource.player(player);
+        if (!COOLDOWNS.ready(source, kind.id, now)) return false;
         Vec3 center = AimApi.ground(player, 32, 12).add(0, 2, 0);
         var addon = kind.addon();
         if (kind.id < 0 && addon == null) return false;
         boolean accepted = addon == null ? Effects.start(ResourceLocation.parse(kind.networkKey()), player, center).isPresent()
             : addon.action().cast(player, center, addon.power() == null ? 1 : addon.power().clamp(power));
         if (!accepted) return false;
-        COOLDOWNS.start(player.getUUID(), kind.id, now, addon == null ? kind.duration + 10 : addon.card().cooldown());
+        COOLDOWNS.start(source, kind.id, now, addon == null ? kind.duration + 10 : addon.card().cooldown());
         return true;
     }
 
@@ -301,5 +374,6 @@ public final class StageNetwork {
     public static void stop(ServerStoppedEvent event) {
         ACTIVE.clear();
         COOLDOWNS.clear();
+        java.util.Arrays.fill(REFUSED, 0);
     }
 }

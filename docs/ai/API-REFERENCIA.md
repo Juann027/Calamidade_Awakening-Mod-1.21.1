@@ -22,6 +22,8 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Beam.Builder`](#beambuilder)
 - [`Beam.Param`](#beamparam)
 - [`Beam.State`](#beamstate)
+- [`EffectSource`](#effectsource)
+- [`EffectSource.Kind`](#effectsourcekind)
 - [`Effects`](#effects)
 - [`Effects.Context`](#effectscontext)
 - [`Effects.Cue`](#effectscue)
@@ -384,6 +386,43 @@ Resolved beam at one moment: parameters already taken from tracks and clamped, t
 | `float noise()` | Lateral noise amplitude, blocks. |
 | `float reveal()` | Drawn fraction from the start, 0..1. |
 
+## EffectSource
+
+`dev.calamidade_awakening.api.v1.EffectSource` · class
+
+Who started an instance (0.10.0): a player, an entity (a mob), a block or a script.
+
+| Membro | Descrição |
+|---|---|
+| `static EffectSource player(Player player)` | A player. |
+| `static EffectSource player(UUID uuid)` | A player by UUID (for cooldown lookups of offline or remembered players). |
+| `static EffectSource entity(Entity entity)` | An entity: `Kind.PLAYER` for players, `Kind.ENTITY` for any other entity. |
+| `static EffectSource entity(UUID uuid)` | A non-player entity by UUID (`Kind.ENTITY`). |
+| `static EffectSource block(Level level, BlockPos pos)` | A block at a position of a level. |
+| `static EffectSource block(ResourceLocation dimension, BlockPos pos)` | A block at a position of a dimension (for example `minecraft:overworld`). |
+| `static EffectSource block(BlockEntity blockEntity)` | The block of a block entity placed in a level. |
+| `static EffectSource script()` | Code with no individual source. |
+| `EffectSource.Kind kind()` | Kind of source. |
+| `UUID uuid()` | UUID of the player or entity; null for blocks and scripts. |
+| `ResourceLocation dimension()` | Dimension of a block source; null for the others. |
+| `BlockPos pos()` | Position of a block source (immutable); null for the others. |
+| `boolean equals(Object o)` | Same kind and identity. |
+| `int hashCode()` | Hash of kind and identity. |
+| `String toString()` | Readable form, such as `ENTITY(uuid)` or `BLOCK(minecraft:overworld 10 64 -3)`. |
+
+## EffectSource.Kind
+
+`dev.calamidade_awakening.api.v1.EffectSource.Kind` · enum
+
+Kind of source, each with its own per-source limit.
+
+| Membro | Descrição |
+|---|---|
+| `PLAYER` | A player (cards, items, commands run by a player). |
+| `ENTITY` | A non-player entity: a mob attack, a projectile, a vehicle. |
+| `BLOCK` | A block or block entity, identified by dimension and position. |
+| `SCRIPT` | Code with no individual source (commands, datapacks, mod logic). |
+
 ## Effects
 
 `dev.calamidade_awakening.api.v1.Effects` · class
@@ -402,11 +441,14 @@ Public common-side API: register effects, schedule server cues and start or stop
 | `static void cue(ResourceLocation id, int tick, Effects.Cue cue)` | Schedules a server callback at `tick` (0 .. duration-1) of every instance of a registered external effect. |
 | `static void cue(ResourceLocation id, String marker, Effects.Cue cue)` | Schedules a cue on a marker of the effect's timeline (0.7.0). |
 | `static void onImpact(ResourceLocation id, Effects.Cue cue)` | Schedules a cue at the definition's `Impact` tick, keeping visual contact and gameplay in sync. |
+| `static boolean cooldownReady(EffectSource source, ResourceLocation id, ServerLevel level)` | True when `source` may start `id` now: no cooldown of that source for that effect is running (0.10.0). |
+| `static long cooldownLeft(EffectSource source, ResourceLocation id, ServerLevel level)` | Ticks left of the cooldown of `source` for `id`, 0 when ready (0.10.0). |
+| `static void startCooldown(EffectSource source, ResourceLocation id, ServerLevel level, int ticks)` | Starts (or restarts) the cooldown of `source` for `id`: `ticks` 1..72000, 0 clears it (0.10.0). |
 | `static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Vec3 position)` | Starts an instance at a fixed world position (blocks). |
 | `static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Vec3 position, float yaw, float pitch)` | Starts an instance at a fixed world position (blocks) turned by `yaw` and `pitch` (degrees, Minecraft convention: yaw 0 faces south, pitch positive looks down, within [-90, 90]) (0.10.0). |
 | `static Optional<Effects.Handle> start(ResourceLocation id, ServerPlayer caster, Vec3 position)` | Starts an instance at a position for a caster: the caster's client plays the effect's camera (card shots or `AddonLayers.film`) and cues receive the player as `caster`. |
 | `static Optional<Effects.Handle> start(ResourceLocation id, ServerPlayer caster, Vec3 position, float yaw, float pitch)` | Starts an instance for a caster at a position turned by `yaw` and `pitch` in degrees (0.10.0); see ServerLevel, Vec3, float, float). |
-| `static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Placement placement)` | Starts an instance from a `Placement` (0.10.0): fixed position or anchor entity, yaw and pitch, the yaw optionally following the anchor's body, and the caster. |
+| `static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Placement placement)` | Starts an instance from a `Placement` (0.10.0): fixed position or anchor entity, yaw and pitch, the yaw optionally following the anchor's body, the caster, the source, a cooldown and a bound block entity. |
 | `static Optional<Effects.Handle> follow(ResourceLocation id, Entity entity, Vec3 offset)` | Starts an instance anchored to a server entity: the center follows the entity's feet plus `offset` (world axes, blocks). |
 | `static Optional<Effects.Handle> follow(ResourceLocation id, Entity entity, Vec3 offset, boolean followBody)` | Starts an instance anchored to a server entity whose yaw follows the entity's body when `followBody` is true (0.10.0): the body yaw of a living entity, interpolated on clients, or the yaw of other entities. |
 
@@ -419,8 +461,8 @@ Server-side moment of a live instance, delivered to a `Cue` on the server thread
 | Membro | Descrição |
 |---|---|
 | `new Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Effects.Handle handle)` | 0.6 form, kept for compatibility: no timeline, local and real age equal to the tick. |
-| `new Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Effects.Handle handle, Timeline timeline, double localAge, long age)` | 0.7 to 0.9 form, kept for compatibility: no orientation (yaw 0, pitch 0, the world axes). |
-| `new Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Effects.Handle handle, Timeline timeline, double localAge, long age, float yaw, float pitch)` | Canonical constructor: level, center, caster, anchor, seed, tick, handle, timeline, localAge, age, yaw, pitch. |
+| `new Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Effects.Handle handle, Timeline timeline, double localAge, long age)` | 0.7 to 0.9 form, kept for compatibility: no orientation (yaw 0, pitch 0, the world axes); the source is the caster, else the anchor, else a script. |
+| `new Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Effects.Handle handle, Timeline timeline, double localAge, long age, float yaw, float pitch, EffectSource source)` | Canonical constructor: level, center, caster, anchor, seed, tick, handle, timeline, localAge, age, yaw, pitch, source. |
 | `List<LivingEntity> living(double radius)` | Living entities whose bounding box center lies within the radius, excluding the caster and the anchor. |
 | `Vec3 facing(double right, double up, double forward)` | World offset (blocks) of `right`, `up` and `forward` in the instance frame (0.10.0); add it to `center()` for a point in front of the effect. |
 | `Vec3 forward()` | Unit vector the instance faces (0.10.0); (0, 0, 1) without orientation. |
@@ -436,6 +478,7 @@ Server-side moment of a live instance, delivered to a `Cue` on the server thread
 | `long age()` | Real age in ticks, which keeps growing across sustain loops (0.7.0). |
 | `float yaw()` | Instance yaw in degrees when the cue runs, [-180, 180) (0.10.0): the `Placement` yaw, plus the anchor's body yaw when the instance follows it; 0 without orientation. |
 | `float pitch()` | Instance pitch in degrees, [-90, 90], positive looks down (0.10.0); 0 without orientation. |
+| `EffectSource source()` | Who started the instance (0.10.0): player, entity, block or script. |
 
 ## Effects.Cue
 
@@ -666,7 +709,7 @@ Resolved light at one moment: parameters taken from tracks and clamped, flicker 
 
 `dev.calamidade_awakening.api.v1.Placement` · class
 
-Where and how an instance starts (0.10.0): a fixed position or an anchor entity, an orientation (yaw and pitch) and the player who cast it.
+Where and how an instance starts (0.10.0): a fixed position or an anchor entity, an orientation (yaw and pitch), the player who cast it, its source, an optional cooldown per source and an optional block entity that bounds its life.
 
 | Membro | Descrição |
 |---|---|
@@ -681,6 +724,9 @@ Where and how an instance starts (0.10.0): a fixed position or an anchor entity,
 | `Placement shifted(double right, double up, double forward)` | Copy moved by `right`, `up` and `forward` blocks in the placement's frame. |
 | `Placement followingBody()` | Copy whose yaw follows the anchor's body every tick and every frame (0.10.0): the body yaw of a living entity (`yBodyRot`, interpolated on clients), or the entity's yaw for other entities, plus this placement's yaw as an offset. |
 | `Placement withCaster(ServerPlayer caster)` | Copy cast by this player: their client plays the effect's camera (card shots or `AddonLayers.film`), cues receive them as `caster` and caster points resolve to them. |
+| `Placement withSource(EffectSource source)` | Copy started by this source (0.10.0), for the per-source limits, the slots reserved for players and `withCooldown`. |
+| `Placement withCooldown(int ticks)` | Copy with a cooldown per source and effect (0.10.0), in ticks, 0 (none) to 72000: the start is refused (empty Optional) while the cooldown of this `source()` for this effect runs, and an accepted start begins it. |
+| `Placement boundTo(BlockEntity blockEntity)` | Copy whose life is bound to a block entity (0.10.0): the instance ends when the block entity is removed (the block is broken or replaced, or its chunk unloads). |
 | `Vec3 position()` | World position in blocks (fixed placements), or the offset from the anchor's feet in the instance frame. |
 | `Entity anchor()` | Anchor entity, or null for a fixed position. |
 | `boolean anchored()` | True when anchored to an entity. |
@@ -688,6 +734,9 @@ Where and how an instance starts (0.10.0): a fixed position or an anchor entity,
 | `float pitch()` | Pitch in degrees, [-90, 90] (positive looks down). |
 | `boolean followBody()` | True when the yaw follows the anchor's body (`followingBody`). |
 | `ServerPlayer caster()` | Player who cast the instance, or null. |
+| `EffectSource source()` | Source of the instance (0.10.0): the one given to `withSource`, else the bound block, else the caster, else the anchor (`EffectSource.entity`), else `EffectSource.script()`. |
+| `int cooldown()` | Cooldown per source and effect in ticks, 0 for none (0.10.0). |
+| `BlockEntity block()` | Block entity that bounds the instance's life, or null (0.10.0). |
 | `String toString()` | Readable form with the position or anchor, orientation and options. |
 
 ## Point

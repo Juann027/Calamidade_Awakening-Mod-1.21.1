@@ -17,6 +17,8 @@ public final class CalamidadeAwakening {
 
     public CalamidadeAwakening(IEventBus bus, ModContainer container) {
         container.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
+        // 0.10.0: limits by source (per player, per mob, per block, slots reserved for players), per world.
+        container.registerConfig(ModConfig.Type.SERVER, dev.calamidade_awakening.config.ServerConfig.SPEC);
         AwakeningSkills.register(bus);
         StageNetwork.register();
     }

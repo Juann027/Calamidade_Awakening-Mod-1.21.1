@@ -169,7 +169,7 @@ public final class ClientHooks {
 
     @SubscribeEvent
     public static void frame(RenderFrameEvent.Pre event) {
-        PerfOverlay.frameStart(SCENE.size(), COORDINATOR.quality());
+        PerfOverlay.frameStart(SCENE.size(), SCENE.sizeBySource(), COORDINATOR.quality());
         COORDINATOR.invalidate();
         ATMOSPHERE.invalidate();
     }

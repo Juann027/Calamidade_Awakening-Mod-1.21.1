@@ -62,6 +62,7 @@ public final class FrameBudgetCheck {
         LightCheck.run();
         OrientationCheck.run();
         dev.calamidade_awakening.net.StageEventCheck.run();
+        SourceCheck.run();
         timelineRegistration();
         atmosphereRegistration();
         meshBudget();
