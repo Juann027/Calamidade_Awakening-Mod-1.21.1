@@ -32,6 +32,11 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Effects.Material`](#effectsmaterial)
 - [`Effects.Priority`](#effectspriority)
 - [`Effects.Shape`](#effectsshape)
+- [`Light`](#light)
+- [`Light.Builder`](#lightbuilder)
+- [`Light.Param`](#lightparam)
+- [`Light.Shape`](#lightshape)
+- [`Light.State`](#lightstate)
 - [`Point`](#point)
 - [`Point.Source`](#pointsource)
 - [`Timeline`](#timeline)
@@ -392,6 +397,7 @@ Public common-side API: register effects, schedule server cues and start or stop
 | `static void timeline(ResourceLocation id, Timeline timeline)` | Attaches a `Timeline` to a registered external effect (0.7.0). |
 | `static void atmosphere(ResourceLocation id, Atmosphere atmosphere)` | Attaches an `Atmosphere` to a registered external effect (0.8.0): sky tint, fog, exposure, ambient tint and stars while its instances are active. |
 | `static void beams(ResourceLocation id, Beam... beams)` | Attaches 1..`Beam.MAX_PER_EFFECT` beams to a registered external effect (0.9.0). |
+| `static void lights(ResourceLocation id, Light... lights)` | Attaches 1..`Light.MAX_PER_EFFECT` visual lights to a registered external effect (0.9.0). |
 | `static void cue(ResourceLocation id, int tick, Effects.Cue cue)` | Schedules a server callback at `tick` (0 .. duration-1) of every instance of a registered external effect. |
 | `static void cue(ResourceLocation id, String marker, Effects.Cue cue)` | Schedules a cue on a marker of the effect's timeline (0.7.0). |
 | `static void onImpact(ResourceLocation id, Effects.Cue cue)` | Schedules a cue at the definition's `Impact` tick, keeping visual contact and gameplay in sync. |
@@ -531,6 +537,120 @@ Built-in world geometry drawn by the engine around the instance center.
 | `RINGS` | Concentric rings. |
 | `ORBIT` | Orbiting ribbons. |
 | `NEXUS` | Curved blades that converge (Horizon Core style). |
+
+## Light
+
+`dev.calamidade_awakening.api.v1.Light` · class
+
+Immutable visual light of one effect (0.9.0): it brightens the blocks, entities and terrain on screen around a `Point`, along a segment (optionally the segment of one of the effect's beams) or over a disc or a ring on the ground (shock waves).
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_PER_EFFECT` | Most lights per effect (`Effects.lights`). |
+| `static float MAX_RADIUS` | Largest reach (point and segment) or disc/ring radius, blocks. |
+| `static float MAX_INTENSITY` | Largest intensity multiplier. |
+| `static float MAX_TRACK_OFFSET` | Largest track offset, blocks per axis. |
+| `static float ACTIVE_WEIGHT` | Weight below which a light is not drawn. |
+| `static Light.Builder point(Point at)` | Point light at `at`. |
+| `static Light.Builder segment(Point from, Point to)` | Light along the segment from `from` to `to` (different points). |
+| `static Light.Builder along(Beam beam)` | Light along a beam of the same effect (register the beams before the lights): its ends, reveal and weight, and its halo color unless `Builder.color` is called. |
+| `static Light.Builder disc(Point center, float radius)` | Disc of light on the ground: `radius` blocks (0..`MAX_RADIUS`) around `center`; soft edge 25% of it. |
+| `static Light.Builder ring(Point center, float radius, float width)` | Ring of light on the ground: a band `width` blocks wide (0..64) at `radius` blocks from `center`. |
+| `Light.Shape shape()` | Shape of the source. |
+| `Point from()` | Position (point), start (segment) or center (disc, ring). |
+| `Point to()` | End of a segment, or null for the other shapes. |
+| `Beam beam()` | Beam this light follows (`along(Beam)`), or null. |
+| `int color()` | Light color, ARGB (alpha ignored); for `along(Beam)` without an explicit color, the beam's halo color. |
+| `float intensity()` | Brightness multiplier, 0..`MAX_INTENSITY`. |
+| `float radius()` | Reach (point, segment) or disc/ring radius, blocks. |
+| `float falloff()` | Attenuation exponent (point, segment). |
+| `float width()` | Ring band width or disc edge softness, blocks. |
+| `float height()` | Vertical reach of a disc or ring, blocks. |
+| `float flicker()` | Flicker amount, 0..1. |
+| `float flickerSpeed()` | Flicker speed, changes per second. |
+| `String track(Light.Param param)` | Track bound to a parameter, or null when the parameter is constant. |
+| `Map<Light.Param, String> tracks()` | Every track binding, in `Param` order. |
+| `String weightPhase()` | Phase whose weight multiplies the light weight, or null. |
+| `boolean animated()` | True when some parameter, the weight or the phase depends on the timeline. |
+| `void validate(Timeline timeline)` | Checks that every track and the phase this light reads exist in `timeline`, which may be null only when nothing is animated. |
+| `Light.State sample(Timeline.Sampler timeline, float envelope, double seconds, float seed, float flickerScale)` | Resolves this light at one moment. |
+| `static float flickerFactor(float amount, float speed, double seconds, float seed)` | Flicker multiplier of the intensity, pure: `1 - amount * n`, with `n` a smooth value noise in 0..1 that changes about `speed` times per second, offset by `seed`. 1 when amount or speed is 0; always within `[1 - amount, 1]`. |
+
+## Light.Builder
+
+`dev.calamidade_awakening.api.v1.Light.Builder` · class
+
+Builder of a `Light`.
+
+| Membro | Descrição |
+|---|---|
+| `Light.Builder color(int argb)` | Light color (ARGB, alpha ignored); white by default, the halo color for `Light.along(Beam)`. |
+| `Light.Builder intensity(float value)` | Brightness multiplier, 0..`MAX_INTENSITY` (1 by default). |
+| `Light.Builder radius(float blocks)` | Reach of a point or segment light, or the radius of a disc or ring, in blocks (0..`MAX_RADIUS`). |
+| `Light.Builder falloff(float exponent)` | Attenuation exponent of a point or segment light, 0.25..4 (2 by default). |
+| `Light.Builder width(float blocks)` | Ring band width or disc edge softness, blocks (0..64). |
+| `Light.Builder height(float blocks)` | Vertical reach of a disc or ring above and below its center, blocks (0.25..32, 3 by default). |
+| `Light.Builder flicker(float amount, float speed)` | Flicker: `amount` 0..1 of the intensity, about `speed` changes per second (0..20). |
+| `Light.Builder track(Light.Param param, String track)` | Takes `param` from a track of the effect's timeline instead of the constant (clamped to the parameter range). |
+| `Light.Builder weightPhase(String phase)` | Multiplies the light weight by the weight of a timeline phase (0 outside it). |
+| `Light build()` | Immutable light. |
+
+## Light.Param
+
+`dev.calamidade_awakening.api.v1.Light.Param` · enum
+
+Numeric parameters that can be driven by a timeline track, each with the range used to clamp it.
+
+| Membro | Descrição |
+|---|---|
+| `INTENSITY` | Brightness multiplier. |
+| `RADIUS` | Reach (point, segment) or disc/ring radius, blocks. |
+| `FALLOFF` | Exponent of the distance attenuation (point, segment); 1 linear, 2 soft (default), 4 tight. |
+| `WIDTH` | Ring band width or disc edge softness, blocks. |
+| `HEIGHT` | Vertical reach of a disc or ring above and below its center, blocks. |
+| `FLICKER` | Flicker amount, 0..1 (0 steady, 1 may go fully dark). |
+| `FLICKER_SPEED` | Flicker speed, changes per second. |
+| `X` | Offset added to the position (all ends and the center), x, blocks. |
+| `Y` | Offset added to the position, y, blocks. |
+| `Z` | Offset added to the position, z, blocks. |
+| `WEIGHT` | Extra multiplier of the light weight, 0..1 (the envelope and the phase still apply). |
+| `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
+
+## Light.Shape
+
+`dev.calamidade_awakening.api.v1.Light.Shape` · enum
+
+Shape of the light source.
+
+| Membro | Descrição |
+|---|---|
+| `POINT` | A point: lights in every direction within `radius`. |
+| `SEGMENT` | A segment (or a beam): lights from its nearest point within `radius`. |
+| `DISC` | A disc on the ground: `radius` wide with a soft edge `width` blocks wide. |
+| `RING` | A ring on the ground: a band `width` blocks wide at `radius` from the center. |
+
+## Light.State
+
+`dev.calamidade_awakening.api.v1.Light.State` · record
+
+Resolved light at one moment: parameters taken from tracks and clamped, flicker applied to the intensity, and the weight (0..1).
+
+| Membro | Descrição |
+|---|---|
+| `new State(float weight, float x, float y, float z, int color, float intensity, float radius, float falloff, float width, float height)` | Canonical constructor: weight, x, y, z, color, intensity, radius, falloff, width, height. |
+| `boolean visible()` | True when the engine draws this light: weight above `ACTIVE_WEIGHT`, lit and with some size. |
+| `float weight()` | Light weight, 0..1 (for `along(Beam)`, times the beam weight on the client). |
+| `float x()` | Track offset, x, blocks. |
+| `float y()` | Track offset, y, blocks. |
+| `float z()` | Track offset, z, blocks. |
+| `int color()` | Light color, ARGB (alpha ignored). |
+| `float intensity()` | Brightness multiplier after flicker, 0..`MAX_INTENSITY`. |
+| `float radius()` | Reach (point, segment) or disc/ring radius, blocks. |
+| `float falloff()` | Attenuation exponent. |
+| `float width()` | Ring band width or disc edge, blocks. |
+| `float height()` | Vertical reach of a disc or ring, blocks. |
 
 ## Point
 

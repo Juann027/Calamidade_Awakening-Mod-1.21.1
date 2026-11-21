@@ -12,13 +12,13 @@ Versão atual: motor **0.8.0**; exemplo `examples/vfx-sample` **1.5.0** (depende
 
 | Caminho | Conteúdo |
 |---|---|
-| `src/main/java/dev/calamidade_awakening/api/v1/` | **API pública** (estável): `Effects`, `Timeline`, `Atmosphere`, `Beam`, `Point`, `Addons`. |
+| `src/main/java/dev/calamidade_awakening/api/v1/` | **API pública** (estável): `Effects`, `Timeline`, `Atmosphere`, `Beam`, `Light`, `Point`, `Addons`. |
 | `src/main/java/dev/calamidade_awakening/api/v1/client/` | API pública de cliente: `AddonLayers` (world, hud, panel, post, film, start). |
 | `src/main/java/dev/calamidade_awakening/api/` | Núcleo puro interno (sem Minecraft quando possível): `VisualKind` (registro), `FrameBudget`, `Quality`, `CueClock`, `Cooldowns`, `AtmosphereMath`. |
 | `src/main/java/dev/calamidade_awakening/client/` | Cliente: `ClientHooks` (eventos), `StageScene` (instâncias e seleção), `RimuStageBackend` (passes), `AtmosphereFrame` (atmosfera e névoa), `PerfOverlay` (F7), `StageFilms`, `StarAtlas`, `geometry/`. |
 | `src/main/java/dev/calamidade_awakening/net/` | Rede e servidor: `StageNetwork` (instâncias, cues, alcance), pacotes `StageEvent`, `EndEffect`, `ReleaseEffect`, `CastRequest`, `BenchCommand`. |
 | `src/main/java/dev/calamidade_awakening/config/` | `ClientConfig`: acessibilidade (screenEffects, cameraShake, motionEffects, vanillaFog). |
-| `src/main/resources/assets/calamidade_awakening/shaders/fx/` | Shaders de pós do motor: `awakening_field.fsh`, `beams.fsh`, `atmosphere.fsh` e a biblioteca **`calamidade_fx.glsl`**. |
+| `src/main/resources/assets/calamidade_awakening/shaders/fx/` | Shaders de pós do motor: `awakening_field.fsh`, `lights.fsh`, `beams.fsh`, `atmosphere.fsh` e a biblioteca **`calamidade_fx.glsl`**. |
 | `src/test/java/` | Testes executáveis sem framework: `FrameBudgetCheck` (inclui `TimelineCheck`, `AtmosphereCheck`), `FrustumCheck`. |
 | `examples/vfx-sample/` | Addon de exemplo, projeto Gradle separado: Sinal de Maré, Farol e as **7 receitas** (`receitas/`). |
 | `docs/` | Capítulos (português). `MANUAL-GERAL.md` é gerado: não edite à mão. |
@@ -51,7 +51,7 @@ Versão atual: motor **0.8.0**; exemplo `examples/vfx-sample` **1.5.0** (depende
 | `./gradlew apiDocs` | Regenera `docs/ai/API-REFERENCIA.md` (javap no JAR + Javadoc). |
 | `./gradlew syncRecipes` | Copia o código do exemplo para os blocos de `docs/ai/receitas/*.md`. |
 | `node scripts/testar_glsl.cjs` | Executa os testes de `calamidade_fx.glsl` numa GPU (WebGL2 no Chromium headless; requer Node e Playwright). |
-| `node scripts/previa_passes.cjs [cena]` | Roda os passes `beams` e `lights` do motor sobre uma cena sintética e grava PNGs em `build/previa/`. |
+| `node scripts/previa_passes.cjs [cena]` | Roda os passes `beams` e `lights` do motor (shader real, `common.glsl` da RimuLib) sobre uma cena sintética com profundidade e grava PNGs em `build/previa/`. |
 | `python3 scripts/novo_efeito.py <ns> <nome> --projeto <dir> [--cartao]` | Gera o esqueleto de um efeito de addon que compila sem edição. |
 | `python3 scripts/gerar_manual.py` | Regenera `docs/MANUAL-GERAL.md` a partir dos capítulos. |
 | `./gradlew runClient` | Cliente de desenvolvimento (precisa de tela). |
@@ -81,6 +81,7 @@ No jogo: **F7** painel de diagnóstico (passes, vértices, atmosferas), **F8** t
 | Passes HERO por quadro | 1 / 2 / 3, orçamento próprio dos efeitos `withPriority(Priority.HERO)` |
 | Vértices de malha por quadro | 12 000 / 48 000 / 96 000, divididos entre os efeitos visíveis |
 | Feixes (`Effects.beams`) | até 16 por efeito; 16 / 48 / 128 por quadro, dos efeitos mais importantes; um passe `beams` por quadro, cobrado do orçamento HERO se um efeito HERO desenhado tem feixes, senão do comum |
+| Luzes (`Effects.lights`) | até 8 por efeito; 8 / 24 / 64 por quadro, dos efeitos mais importantes; um passe `lights` por quadro, antes dos efeitos e da atmosfera, mesmo esquema de orçamento dos feixes. Luz visual: não muda o nível de luz do jogo |
 | Passe de atmosfera | 1 por quadro, do motor, fora do orçamento de addons; só com atmosfera ativa |
 | Mistura de atmosferas | as 2 de maior peso |
 | Nomes de fase, trilha e marcador | `[a-z0-9_]`, até 64 caracteres |
@@ -93,5 +94,5 @@ No jogo: **F7** painel de diagnóstico (passes, vértices, atmosferas), **F8** t
 - Javadoc em inglês no código; documentação, mensagens de commit e textos de jogo em português (com tradução `en_us`).
 - Coordenadas de cliente: `post.center()` e os uniforms de shader são **relativos à câmera** (o espaço de `scenePosAt`); `World` usa deslocamentos a partir do centro da instância.
 - Shaders fx: a RimuLib antepõe `#version 150` e `common.glsl` (veja [glsl.md](docs/ai/glsl.md)); escreva `fragColor` com a cor final da cena (leia `DiffuseSampler`, some o efeito, escreva tudo).
-- Registro na ordem: `Effects.register` → `Effects.timeline` → `Effects.atmosphere` / `Effects.beams` → `Effects.cue`; cartões com `Addons.publish` durante a construção do mod; camadas de cliente em `FMLClientSetupEvent`.
+- Registro na ordem: `Effects.register` → `Effects.timeline` → `Effects.atmosphere` / `Effects.beams` → `Effects.lights` → `Effects.cue`; cartões com `Addons.publish` durante a construção do mod; camadas de cliente em `FMLClientSetupEvent`.
 - Testes novos de lógica pura entram no `checkBudget` (`src/test/java`, sem JUnit).

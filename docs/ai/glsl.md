@@ -57,6 +57,11 @@ Arquivo: `src/main/resources/assets/calamidade_awakening/shaders/fx/calamidade_f
 | `float caPulseTrain(x, espaçamento, tamanho)` | 0..1 | Pulsos gaussianos ao longo de um feixe; `x` em blocos já deslocado pelo movimento. |
 | `float caBeamTaper(s, comprimento, pontas)` | 0..1 | 0 nas pontas, 1 a `pontas` blocos delas: prende ondulação e ruído às pontas. |
 | `float caDepthFade(t, cena, suave)` | 0..1 | Oclusão suave pela profundidade: 1 na frente da cena, 0 a `suave` blocos atrás. |
+| `vec3 caNormalFromNeighbors(p, esq, dir, baixo, cima)` | normal virada para a câmera | Versão 2. Normal pela profundidade: posições (`scenePosAt`) do pixel e dos 4 vizinhos; usa a diferença menor em cada eixo (bordas e céu não estragam). |
+| `float caPointLight(p, n, luz, alcance, queda)` | 0..1 | `(1 - d/alcance)^queda` vezes o cosseno com envolvimento 0,3; faces de costas, nada. |
+| `float caSegmentLight(p, n, a, b, alcance, queda)` | 0..1 | Igual, a partir do ponto mais próximo do segmento AB (luz de feixe). |
+| `float caGroundLight(p, n, centro, raio, largura, altura, anel)` | 0..1 | Disco (anel = 0) ou anel (1) de luz no chão; alcance vertical `altura`; faces para cima 100%, paredes 40%, tetos 0. |
+| `vec3 caLitColor(base, luz)` | cor | `base + base^0,4 × 0,8 × luz`: soma a luz sobre o albedo estimado (realça superfícies escuras de noite). |
 
 Testes: `node scripts/testar_glsl.cjs` compila a biblioteca em GLSL ES 3.00 e executa os casos numa GPU (WebGL2 no Chromium headless), comparando com valores esperados. O `checkShaders` do Gradle compila cada shader do motor e do exemplo em GLSL 1.50, com o `common.glsl` real e os `#include` resolvidos como a RimuLib faz. `node scripts/previa_passes.cjs` roda os passes `beams` e `lights` do motor, com o `common.glsl` real, sobre uma cena sintética com profundidade e grava PNGs em `build/previa/` (prévia da aparência e da oclusão sem o jogo).
 

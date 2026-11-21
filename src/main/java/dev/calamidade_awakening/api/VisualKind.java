@@ -123,6 +123,35 @@ public final class VisualKind {
         kind.beams = list;
     }
 
+    // 0.9.0: optional visual lights of an external effect, drawn by the engine's lights pass. Empty means none.
+    private volatile java.util.List<dev.calamidade_awakening.api.v1.Light> lights = java.util.List.of();
+
+    /** Registered lights, in registration order (empty when none). */
+    public java.util.List<dev.calamidade_awakening.api.v1.Light> lights() { return lights; }
+
+    /**
+     * Binds 1..8 lights once. Tracks and phases they read must exist in the timeline registered before them, and a
+     * light made with {@code Light.along(beam)} needs that beam among the effect's beams, registered before.
+     */
+    public static synchronized void setLights(net.minecraft.resources.ResourceLocation id,
+            java.util.List<dev.calamidade_awakening.api.v1.Light> value) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its lights: " + id);
+        if (!kind.lights.isEmpty()) throw new IllegalArgumentException("Duplicate lights: " + id);
+        var list = java.util.List.copyOf(value);
+        if (list.isEmpty() || list.size() > dev.calamidade_awakening.api.v1.Light.MAX_PER_EFFECT)
+            throw new IllegalArgumentException("Expected 1.." + dev.calamidade_awakening.api.v1.Light.MAX_PER_EFFECT
+                + " lights per effect: " + id);
+        for (var light : list) {
+            light.validate(kind.timeline);
+            if (light.beam() != null && kind.beams.stream().noneMatch(b -> b == light.beam()))
+                throw new IllegalArgumentException("Light follows a beam that is not registered for " + id
+                    + ": call Effects.beams with that beam first");
+        }
+        kind.lights = list;
+    }
+
     /** Cue on a timeline marker; the marker tick is resolved now. */
     public static synchronized void addCue(net.minecraft.resources.ResourceLocation id, String marker,
             dev.calamidade_awakening.api.v1.Effects.Cue cue) {

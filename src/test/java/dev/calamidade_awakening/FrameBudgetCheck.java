@@ -59,6 +59,7 @@ public final class FrameBudgetCheck {
         AtmosphereCheck.run();
         PriorityCheck.run();
         BeamCheck.run();
+        LightCheck.run();
         timelineRegistration();
         atmosphereRegistration();
         meshBudget();

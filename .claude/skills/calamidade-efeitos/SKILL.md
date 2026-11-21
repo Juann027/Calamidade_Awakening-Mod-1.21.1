@@ -48,6 +48,13 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - Sem shader nem camada de cliente: o motor desenha todos os feixes num passe `beams`, com largura mínima de um pixel e oclusão pelo terreno. O raio da definição cobre o feixe (teste de frustum).
 - Capítulo: `docs/FEIXES-0.9.md`. Receitas: pilar, laser, teia.
 
+### 3c. Luz no mundo (opcional, 0.9.0)
+
+- `Light.point(Point.center(0, .6, 0)).color(argb).intensity(x).radius(blocos).falloff(1..2).flicker(quantidade, velocidade)`; `Light.segment(a, b)`; `Light.along(feixe)` (segue um feixe do mesmo efeito: pontas, revelação, peso e cor do halo); `Light.disc(centro, raio)` e `Light.ring(centro, raio, largura).height(blocos)` para o chão (ondas de choque). `.track(Light.Param.RADIUS, "onda")`, `.weightPhase("fase")`. `Effects.lights(id, luzes...)` depois de `Effects.beams` (até 8).
+- Luz **visual**: clareia o que a câmera vê, com normal pela profundidade (só faces voltadas para a fonte), sem céu, sumindo com a névoa do jogo. Não muda o nível de luz, o spawn de mobs nem plantas; não faz sombra.
+- Calibre de noite: intensidade 2 a 3, alcance 8 a 12, queda 1,2 a 2. Cintilação some com intensidade dos efeitos de tela 0 e cai para 1/4 com "ocultar clarões".
+- Capítulo: `docs/LUZ-0.9.md`. Receitas: fogueira, onda_luz, pilar.
+
 ### 4. Pós-processamento e shader
 
 - Cliente (`FMLClientSetupEvent`): `AddonLayers.post(id, post -> { var t = post.timeline(); post.pass("ns:programa", u -> {...}); post.bloom(...); })`.
@@ -89,6 +96,7 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - `post.pass` devolve `false` sem vaga; o callback roda mesmo assim, então bloom, tremor e clarão continuam valendo. Um shader de cartão já gasta uma vaga.
 - Passe de atmosfera: 1 por quadro, do motor, fora do orçamento.
 - Passe de feixes: 1 por quadro para todos os feixes (16/48/128), cobrado do orçamento HERO se houver efeito HERO com feixes, senão do comum.
+- Passe de luzes: 1 por quadro para todas as luzes (8/24/64), antes dos efeitos e da atmosfera, mesmo esquema de orçamento. Os passes de feixes e luzes são pagos antes dos passes de addon; um efeito NORMAL com feixe e luz em LOW (1 vaga comum) só tem o feixe.
 - Duração até 12000 ticks; raio até 512; alcance 16..1024; 64 instâncias por servidor.
 - Acessibilidade obrigatória: passes próprios de tela inteira × `post.screenEffects()`; nada de piscar com `!post.flashAllowed()`; nada de zoom ou borrão com `!post.motionEffects()`.
 

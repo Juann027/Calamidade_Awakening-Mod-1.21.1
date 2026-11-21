@@ -40,7 +40,8 @@ public final class ClientHooks {
     private static final StageFilms FILMS = new StageFilms();
     private static final AtmosphereFrame ATMOSPHERE = new AtmosphereFrame(SCENE);
     private static final BeamFrame BEAMS = new BeamFrame(SCENE);
-    private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS);
+    private static final LightFrame LIGHTS = new LightFrame(SCENE);
+    private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
     private static final Map<VisualKind, KeyMapping> DEMOS = new LinkedHashMap<>();
     private static final KeyMapping QUALITY = new KeyMapping("key.calamidade_awakening.quality",
@@ -182,6 +183,10 @@ public final class ClientHooks {
     @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.LOWEST)
     public static void fogDistances(net.neoforged.neoforge.client.event.ViewportEvent.RenderFog event) {
         ATMOSPHERE.fogDistances(event);
+        // 0.9.0: the lights pass fades with the terrain fog the game really uses this frame (after every listener).
+        if (event.getMode() == net.minecraft.client.renderer.FogRenderer.FogMode.FOG_TERRAIN)
+            LIGHTS.fog(event.getNearPlaneDistance(), event.getFarPlaneDistance(),
+                event.getFogShape() == com.mojang.blaze3d.shaders.FogShape.CYLINDER);
     }
 
     /** /calamidade_client record <seconds>: grava tempos de quadro em calamidade_bench/*.csv. */

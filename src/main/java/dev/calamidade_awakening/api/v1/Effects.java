@@ -17,8 +17,8 @@ import java.util.Optional;
  * Public common-side API: register effects, schedule server cues and start or stop instances.
  *
  * <p>Register during mod construction, on both sides (the common mod constructor), in this order:
- * {@link #register}, then optionally {@link #timeline}, {@link #atmosphere}, {@link #beams} (0.9.0) and the cues
- * ({@link #cue}, {@link #onImpact}). Start, follow and stop instances on the server thread. Times are in game ticks (20 per
+ * {@link #register}, then optionally {@link #timeline}, {@link #atmosphere}, {@link #beams} and {@link #lights}
+ * (0.9.0) and the cues ({@link #cue}, {@link #onImpact}). Start, follow and stop instances on the server thread. Times are in game ticks (20 per
  * second), distances in blocks, colors in ARGB ints. Invalid input throws {@link IllegalArgumentException}.
  *
  * <pre>{@code
@@ -283,6 +283,23 @@ public final class Effects {
      */
     public static void beams(ResourceLocation id, Beam... beams) {
         VisualKind.setBeams(Objects.requireNonNull(id), List.of(Objects.requireNonNull(beams)));
+    }
+
+    /**
+     * Attaches 1..{@value Light#MAX_PER_EFFECT} visual {@link Light lights} to a registered external effect (0.9.0).
+     * Call once per effect during mod construction (common side), after {@link #register}, after {@link #timeline}
+     * when a light reads tracks or a phase, and after {@link #beams} when a light follows a beam
+     * ({@link Light#along(Beam)}). Only effects of your namespace. The client draws the lights of every drawn instance
+     * in one engine pass per frame, before the effect passes and the atmosphere, charged to the HERO pass budget when
+     * the effect is {@link Priority#HERO}, otherwise to the common addon budget. Visual only: the game's light level,
+     * mob spawning and plant growth do not change.
+     *
+     * <pre>{@code
+     * Effects.lights(ID, Light.point(Point.center(0, .6, 0)).color(0xffff9a40).intensity(2).radius(9).build());
+     * }</pre>
+     */
+    public static void lights(ResourceLocation id, Light... lights) {
+        VisualKind.setLights(Objects.requireNonNull(id), List.of(Objects.requireNonNull(lights)));
     }
 
     /**

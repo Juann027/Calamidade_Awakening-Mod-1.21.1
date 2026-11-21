@@ -141,7 +141,36 @@ function beamRow(a, b, core, halo, coreRgb, haloRgb, gain, reveal, pulses = 0, p
     pulseTravel, pulseSize, 1, noiseTime, waveAmp, waveLen, waveTravel, noise];
 }
 
+// Linha de luz: posição (ou início/centro), alcance ou raio, fim, queda, cor × intensidade, forma, largura, altura.
+const SHAPE = { ponto: 0, segmento: 1, disco: 2, anel: 3 };
+function lightRow(shape, a, radius, rgb, gain, { b = a, falloff = 2, width = 0, height = 3 } = {}) {
+  return [...a, radius, ...b, falloff, ...rgb.map(v => v * gain), SHAPE[shape], width, height, 0, 0];
+}
+
 const CENAS = {
+  // Fogueira de noite: luz pontual laranja ao lado do bloco baixo, sem geometria nenhuma.
+  fogueira: {
+    night: true, pitch: -12,
+    lights: [lightRow('ponto', [-1.6, -1.0, 8.5], 10, [1, 0.6, 0.25], 3, { falloff: 1.2 })],
+  },
+  // Pilar de luz de noite: feixe do céu ao chão, luz ao longo dele e disco no chão.
+  pilar: {
+    night: true, pitch: 4,
+    lights: [
+      lightRow('segmento', [0, -1.62, 18], 10, [1, 0.75, 0.35], 2.0, { b: [0, 60, 18] }),
+      lightRow('disco', [0, -1.62, 18], 7, [1, 0.8, 0.4], 1.2, { width: 3, height: 3 }),
+    ],
+    beams: [beamRow([0, -1.62, 18], [0, 140, 18], 0.6, 4, [1, 1, 1], [1, 0.69, 0.25], 1, 1, 3, 30, 6)],
+  },
+  // Anel de luz no chão (onda de choque) e o mesmo de dia.
+  onda: {
+    night: true, pitch: -14,
+    lights: [lightRow('anel', [0, -1.62, 14], 7, [0.45, 0.8, 1], 2.5, { width: 2.5, height: 2 })],
+  },
+  onda_dia: {
+    night: false, pitch: -14,
+    lights: [lightRow('anel', [0, -1.62, 14], 7, [0.45, 0.8, 1], 2.5, { width: 2.5, height: 2 })],
+  },
   // Pilar do céu ao chão atrás do muro (o muro esconde a base), feixe fino na frente e teia com pulsos.
   feixes: {
     night: false, pitch: 2,

@@ -49,6 +49,7 @@
   "perf.calamidade_awakening.beams": "Feixes: %s desenhados (máx. %s) · passe %s",
   "perf.calamidade_awakening.pool.hero": "HERO",
   "perf.calamidade_awakening.pool.common": "comum",
+  "perf.calamidade_awakening.lights": "Luzes: %s desenhadas (máx. %s) · passe %s",
   "perf.calamidade_awakening.atmosphere": "Atmosfera: %s ativas · passe %s",
   "perf.calamidade_awakening.yes": "sim",
   "perf.calamidade_awakening.no": "não",

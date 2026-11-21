@@ -37,9 +37,11 @@ public final class PerfOverlay {
     // Last complete frame.
     private static int lastEffects, lastVolumes, lastVertices, lastPasses, lastResident, lastAtmospheres;
     private static int lastHeroes, lastHeroPasses;
-    private static int beams, lastBeams;
+    private static int beams, lastBeams, lights, lastLights;
     private static dev.calamidade_awakening.api.EnginePasses.Pool beamPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE,
-        lastBeamPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
+        lastBeamPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE,
+        lightPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE,
+        lastLightPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
     private static boolean lastAtmospherePass;
     private static Quality lastQuality = Quality.BALANCED;
 
@@ -65,6 +67,8 @@ public final class PerfOverlay {
     static void heroes(int drawn, int passes) { heroes = drawn; heroPasses = passes; }
     /** Beams drawn and the pool that paid for the beams pass (0.9.0). */
     static void beams(int drawn, dev.calamidade_awakening.api.EnginePasses.Pool pool) { beams = drawn; beamPool = pool; }
+    /** Lights drawn and the pool that paid for the lights pass (0.9.0). */
+    static void lights(int drawn, dev.calamidade_awakening.api.EnginePasses.Pool pool) { lights = drawn; lightPool = pool; }
 
     /** Called from RenderFrameEvent.Pre. */
     static void frameStart(int resident, Quality quality) {
@@ -75,18 +79,19 @@ public final class PerfOverlay {
         lastResident = resident; lastQuality = quality;
         lastAtmospheres = atmospheres; lastAtmospherePass = atmospherePass;
         lastHeroes = heroes; lastHeroPasses = heroPasses;
-        lastBeams = beams; lastBeamPool = beamPool;
-        effects = volumes = vertices = passes = atmospheres = heroes = heroPasses = beams = 0;
-        beamPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
+        lastBeams = beams; lastBeamPool = beamPool; lastLights = lights; lastLightPool = lightPool;
+        effects = volumes = vertices = passes = atmospheres = heroes = heroPasses = beams = lights = 0;
+        beamPool = lightPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
         atmospherePass = false;
         if (delta <= 0) return;
         frames[frameCursor] = delta;
         frameCursor = (frameCursor + 1) % WINDOW;
         frameCount = Math.min(frameCount + 1, WINDOW);
         if (recording != null) {
-            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s,%d,%d,%d,%d,%d,%s",
+            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s,%d,%d,%d,%d,%d,%s,%d,%s",
                 recording.size(), delta / 1e6, lastResident, lastEffects, lastVolumes, lastVertices, lastPasses, quality.name(),
-                lastAtmospheres, lastAtmospherePass ? 1 : 0, lastHeroes, lastHeroPasses, lastBeams, lastBeamPool.name()));
+                lastAtmospheres, lastAtmospherePass ? 1 : 0, lastHeroes, lastHeroPasses, lastBeams, lastBeamPool.name(),
+                lastLights, lastLightPool.name()));
             if (System.currentTimeMillis() >= recordingEnds) finishRecording();
         }
     }
@@ -117,7 +122,7 @@ public final class PerfOverlay {
         lines.add("# renderer=" + renderer() + "; window=" + mc.getWindow().getWidth() + "x" + mc.getWindow().getHeight()
             + "; seconds=" + recordingSeconds + "; frameLimit=" + mc.options.framerateLimit().get()
             + "; renderDistance=" + mc.options.renderDistance().get() + "; graphics=" + mc.options.graphicsMode().get().name());
-        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality,atmospheres,atmospherePass,heroes,heroPasses,beams,beamPass");
+        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality,atmospheres,atmospherePass,heroes,heroPasses,beams,beamPass,lights,lightPass");
         lines.addAll(rows);
         Component message;
         try {
@@ -151,6 +156,8 @@ public final class PerfOverlay {
             lastHeroes, lastHeroPasses, lastQuality.heroPasses));
         lines.add(Component.translatableWithFallback(PREFIX + "beams", "Beams: %s drawn (max %s) · pass %s",
             lastBeams, lastQuality.beams, pool(lastBeamPool)));
+        lines.add(Component.translatableWithFallback(PREFIX + "lights", "Lights: %s drawn (max %s) · pass %s",
+            lastLights, lastQuality.lights, pool(lastLightPool)));
         lines.add(Component.translatableWithFallback(PREFIX + "atmosphere", "Atmosphere: %s active · pass %s",
             lastAtmospheres, lastAtmospherePass
                 ? Component.translatableWithFallback(PREFIX + "yes", "yes")

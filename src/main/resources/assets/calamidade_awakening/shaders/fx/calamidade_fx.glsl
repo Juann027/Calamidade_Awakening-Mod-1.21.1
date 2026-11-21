@@ -151,6 +151,69 @@ float caDepthFade(float t, float sceneDist, float soft) {
     return 1.0 - x * x * (3.0 - 2.0 * x);
 }
 
+// ------------------------------------------------------------------------------------------- luz no mundo (versão 2)
+
+// Normal aproximada de uma superfície a partir das posições (scenePosAt) do pixel e dos quatro vizinhos. Em cada eixo
+// usa a diferença menor (a do lado da mesma superfície), então bordas de blocos e o céu ao lado não estragam a normal.
+// Devolve a normal virada para a câmera (que está na origem); sem área, -normalize(p).
+// Ex.: vec2 px = 1.0 / OutSize;
+//      vec3 n = caNormalFromNeighbors(p, scenePosAt(uv - vec2(px.x, 0.0)), scenePosAt(uv + vec2(px.x, 0.0)),
+//                                     scenePosAt(uv - vec2(0.0, px.y)), scenePosAt(uv + vec2(0.0, px.y)));
+vec3 caNormalFromNeighbors(vec3 p, vec3 left, vec3 right, vec3 down, vec3 up) {
+    vec3 dx = right - p;
+    vec3 dx2 = p - left;
+    if (dot(dx2, dx2) < dot(dx, dx)) dx = dx2;
+    vec3 dy = up - p;
+    vec3 dy2 = p - down;
+    if (dot(dy2, dy2) < dot(dy, dy)) dy = dy2;
+    vec3 n = cross(dx, dy);
+    float len = length(n);
+    if (len < 1e-12) return -normalize(p);
+    n /= len;
+    return dot(n, p) > 0.0 ? -n : n;
+}
+
+// Luz pontual em l sobre o ponto p de normal n: (1 - distância / radius) ^ falloff, vezes o cosseno com envolvimento
+// de 0,3 (o chão em ângulo rasante ainda recebe luz, faces de lado ~23%, faces de costas para a fonte nada).
+// 0 além de radius (blocos).
+float caPointLight(vec3 p, vec3 n, vec3 l, float radius, float falloff) {
+    vec3 d = l - p;
+    float dist = length(d);
+    if (radius <= 0.0 || dist >= radius) return 0.0;
+    float att = pow(1.0 - dist / radius, max(falloff, 0.01));
+    float ndl = dist > 1e-4 ? max((dot(n, d / dist) + 0.3) / 1.3, 0.0) : 1.0;
+    return att * ndl;
+}
+
+// Luz ao longo do segmento AB: a de caPointLight a partir do ponto do segmento mais próximo de p.
+float caSegmentLight(vec3 p, vec3 n, vec3 a, vec3 b, float radius, float falloff) {
+    vec3 ba = b - a;
+    float baba = dot(ba, ba);
+    float s = baba > 1e-12 ? clamp(dot(p - a, ba) / baba, 0.0, 1.0) : 0.0;
+    return caPointLight(p, n, a + ba * s, radius, falloff);
+}
+
+// Luz no chão em volta de c: disco de raio radius com borda suave de width blocos (ring = 0), ou anel de largura
+// width no raio radius (ring = 1). Alcança height blocos acima e abaixo de c; faces para cima recebem tudo, paredes
+// 40%, tetos nada.
+float caGroundLight(vec3 p, vec3 n, vec3 c, float radius, float width, float height, float ring) {
+    vec3 q = p - c;
+    float r = length(q.xz);
+    float profile = ring > 0.5
+        ? 1.0 - smoothstep(0.0, max(width * 0.5, 1e-3), abs(r - radius))
+        : 1.0 - smoothstep(max(radius - max(width, 1e-3), 0.0), max(radius, 1e-3), r);
+    if (profile <= 0.0) return 0.0;
+    float vertical = 1.0 - smoothstep(height * 0.5, max(height, 1e-3), abs(q.y));
+    return profile * vertical * clamp(n.y * 0.6 + 0.4, 0.0, 1.0);
+}
+
+// Cor de um pixel iluminado: soma a luz (cor × intensidade × atenuação) sobre o albedo estimado da cena,
+// cor^0,4 × 0,8, que realça superfícies escuras (de noite a cor da cena é quase preta, mas o bloco não) e mantém a
+// textura (a estimativa cresce com a cor).
+vec3 caLitColor(vec3 base, vec3 light) {
+    return base + pow(max(base, vec3(0.0)), vec3(0.4)) * 0.8 * light;
+}
+
 // ------------------------------------------------------------------------------------------- grades
 
 // Linhas de grade num plano. p: coordenadas no plano (blocos); cell: tamanho da célula (blocos);
