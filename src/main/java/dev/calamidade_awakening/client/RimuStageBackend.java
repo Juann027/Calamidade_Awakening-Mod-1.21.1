@@ -9,9 +9,10 @@ import java.util.List;
 
 /**
  * One shared RimuLib layer. Pass order in a frame: the lights pass (0.9.0, so effects and atmosphere stay on top),
- * the engine field (one pass for all selected marks), the addon passes (card shaders and post layers), the beams pass
- * (0.9.0) and the atmosphere pass (0.8.0). Addon passes and the beams and lights passes spend the per-frame budget:
- * the HERO pool for HERO effects, the common pool for the others; beams and lights are paid first, because one pass
+ * the terrain pass (0.11.0: heat over edited terrain and falling stand-ins), the engine field (one pass for all
+ * selected marks), the addon passes (card shaders and post layers), the beams pass (0.9.0) and the atmosphere pass
+ * (0.8.0). Addon passes and the beams, terrain and lights passes spend the per-frame budget: the HERO pool for HERO
+ * effects, the common pool for the others; the engine passes are paid first (beams, terrain, lights), because one pass
  * serves every drawn effect.
  */
 public final class RimuStageBackend {
@@ -20,18 +21,20 @@ public final class RimuStageBackend {
     private final AtmosphereFrame atmosphere;
     private final BeamFrame beams;
     private final LightFrame lights;
+    private final TerrainFrame terrain;
     private FxApi.Stage stage;
     private final FxApi.Layer layer = this::draw;
     private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
     private final java.util.Set<String> failedPosts = new java.util.HashSet<>();
 
     RimuStageBackend(FrameCoordinator coordinator, StageFilms films, AtmosphereFrame atmosphere, BeamFrame beams,
-                     LightFrame lights) {
+                     LightFrame lights, TerrainFrame terrain) {
         this.coordinator = coordinator;
         this.films = films;
         this.atmosphere = atmosphere;
         this.beams = beams;
         this.lights = lights;
+        this.terrain = terrain;
     }
 
     public void install() {
@@ -49,7 +52,8 @@ public final class RimuStageBackend {
         StageScene.Plan plan = coordinator.plan(camera, new Vec3(look.x(), look.y(), look.z()), frame.partial());
         float orbit = films.orbitalMix(frame.partial());
         beams.collect(plan, camera, frame.partial());
-        lights.collect(plan, camera, frame.partial());
+        terrain.collect(plan, camera, frame.partial());
+        lights.collect(plan, camera, frame.partial(), terrain);
         if (!plan.effects().isEmpty() || orbit > .001f) drawEffects(frame, plan, orbit);
         // 0.8.0: one engine pass for the mixed atmosphere, last, so exposure and tint cover the whole scene.
         // Not charged to the addon budget and independent of the frustum (the sky stays when you turn away).
@@ -65,11 +69,18 @@ public final class RimuStageBackend {
         // 0.9.0: the shared engine passes are paid first, because one pass serves every drawn effect.
         var budget = new dev.calamidade_awakening.api.PassBudget(plan.quality());
         var beamPool = beams.pay(budget);
+        // 0.11.0: the terrain pass before the lights: a falling stand-in is the object itself, its light a bonus.
+        var terrainPool = terrain.pay(budget);
         var lightPool = lights.pay(budget);
         if (lightPool.drawn()) {
             lights.queue(frame);
             passes++;
         }
+        if (terrainPool.drawn()) {
+            terrain.queue(frame, plan.quality(), time, !mc.options.hideLightningFlash().get());
+            passes++;
+        }
+        PerfOverlay.terrain(terrainPool.drawn() ? terrain.zones() : 0, terrainPool.drawn() ? terrain.standIns() : 0, terrainPool);
         if (!marks.isEmpty() || orbit > .001f) {
             passes++;
             frame.pass("awakening_field", uniforms -> {

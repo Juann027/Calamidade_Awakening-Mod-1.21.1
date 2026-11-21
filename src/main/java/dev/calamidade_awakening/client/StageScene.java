@@ -70,6 +70,9 @@ public final class StageScene {
         Long release = released.get(event.order());
         return release != null && realAge >= kind.timeline().endAge(release, kind.duration);
     }
+    /** True while the instance with this order is resident (0.11.0, terrain state pruning). */
+    public boolean has(long order) { return active.containsKey(order); }
+
     /** Resident sequences on this client, for diagnostics. */
     public int size() { return active.size(); }
 

@@ -40,7 +40,13 @@ final class LightFrame {
     }
 
     /** Resolves the visible lights of the plan, in priority order, capped by the quality. */
-    void collect(StageScene.Plan plan, Vec3 camera, float partial) {
+    void collect(StageScene.Plan plan, Vec3 camera, float partial) { collect(plan, camera, partial, null); }
+
+    /**
+     * Same, plus the engine lights of the terrain visuals (0.11.0): the cooling disc of every hot zone and the fire of
+     * every stand-in, counted with the lights of their instance (caps and pass payment).
+     */
+    void collect(StageScene.Plan plan, Vec3 camera, float partial, TerrainFrame terrain) {
         heroNeeds = normalNeeds = false;
         var mc = Minecraft.getInstance();
         boolean calm = mc.options.hideLightningFlash().get();
@@ -48,7 +54,8 @@ final class LightFrame {
         List<List<Resolved>> perEffect = new ArrayList<>();
         for (StageScene.Sample sample : plan.effects()) {
             var list = sample.kind().lights();
-            if (list.isEmpty()) continue;
+            var extra = terrain == null ? null : terrain.lights(sample.event().order());
+            if (list.isEmpty() && extra == null) continue;
             Vec3 center = camera.add(sample.relative());
             var sampler = sample.time().timeline();
             List<Resolved> resolved = new ArrayList<>(list.size());
@@ -80,6 +87,7 @@ final class LightFrame {
                 if (weight <= Light.ACTIVE_WEIGHT) continue;
                 resolved.add(new Resolved(light, a, b, state, weight));
             }
+            if (extra != null) resolved.addAll(extra);
             if (resolved.isEmpty()) continue;
             perEffect.add(resolved);
             if (sample.kind().hero()) heroNeeds = true; else normalNeeds = true;

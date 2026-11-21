@@ -43,6 +43,11 @@ public final class PerfOverlay {
         lightPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE,
         lastLightPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
     private static boolean lastAtmospherePass;
+    // 0.11.0: hot zones, stand-ins and the pool of the terrain pass; stand-in meshes and their vertices.
+    private static int terrainZones, lastTerrainZones, terrainStandIns, lastTerrainStandIns, meshes, lastMeshes,
+        meshVertices, lastMeshVertices;
+    private static dev.calamidade_awakening.api.EnginePasses.Pool terrainPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE,
+        lastTerrainPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
     private static Quality lastQuality = Quality.BALANCED;
     /** Resident instances by source kind (0.10.0): players, entities, blocks, scripts. */
     private static int[] lastSources = new int[4];
@@ -72,6 +77,13 @@ public final class PerfOverlay {
     /** Lights drawn and the pool that paid for the lights pass (0.9.0). */
     static void lights(int drawn, dev.calamidade_awakening.api.EnginePasses.Pool pool) { lights = drawn; lightPool = pool; }
 
+    /** Hot zones and stand-ins drawn and the pool that paid for the terrain pass (0.11.0). */
+    static void terrain(int zones, int standIns, dev.calamidade_awakening.api.EnginePasses.Pool pool) {
+        terrainZones = zones; terrainStandIns = standIns; terrainPool = pool;
+    }
+    /** Structure stand-in meshes drawn and their vertices (0.11.0). */
+    static void meshes(int count, int vertices) { meshes = count; meshVertices = vertices; }
+
     /** Called from RenderFrameEvent.Pre. */
     static void frameStart(int resident, int[] bySource, Quality quality) {
         lastSources = bySource;
@@ -83,6 +95,10 @@ public final class PerfOverlay {
         lastAtmospheres = atmospheres; lastAtmospherePass = atmospherePass;
         lastHeroes = heroes; lastHeroPasses = heroPasses;
         lastBeams = beams; lastBeamPool = beamPool; lastLights = lights; lastLightPool = lightPool;
+        lastTerrainZones = terrainZones; lastTerrainStandIns = terrainStandIns; lastTerrainPool = terrainPool;
+        lastMeshes = meshes; lastMeshVertices = meshVertices;
+        terrainZones = terrainStandIns = meshes = meshVertices = 0;
+        terrainPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
         effects = volumes = vertices = passes = atmospheres = heroes = heroPasses = beams = lights = 0;
         beamPool = lightPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
         atmospherePass = false;
@@ -91,10 +107,11 @@ public final class PerfOverlay {
         frameCursor = (frameCursor + 1) % WINDOW;
         frameCount = Math.min(frameCount + 1, WINDOW);
         if (recording != null) {
-            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s,%d,%d,%d,%d,%d,%s,%d,%s,%d,%d,%d,%d",
+            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s,%d,%d,%d,%d,%d,%s,%d,%s,%d,%d,%d,%d,%d,%d,%s,%d,%d",
                 recording.size(), delta / 1e6, lastResident, lastEffects, lastVolumes, lastVertices, lastPasses, quality.name(),
                 lastAtmospheres, lastAtmospherePass ? 1 : 0, lastHeroes, lastHeroPasses, lastBeams, lastBeamPool.name(),
-                lastLights, lastLightPool.name(), lastSources[0], lastSources[1], lastSources[2], lastSources[3]));
+                lastLights, lastLightPool.name(), lastSources[0], lastSources[1], lastSources[2], lastSources[3],
+                lastTerrainZones, lastTerrainStandIns, lastTerrainPool.name(), lastMeshes, lastMeshVertices));
             if (System.currentTimeMillis() >= recordingEnds) finishRecording();
         }
     }
@@ -125,7 +142,7 @@ public final class PerfOverlay {
         lines.add("# renderer=" + renderer() + "; window=" + mc.getWindow().getWidth() + "x" + mc.getWindow().getHeight()
             + "; seconds=" + recordingSeconds + "; frameLimit=" + mc.options.framerateLimit().get()
             + "; renderDistance=" + mc.options.renderDistance().get() + "; graphics=" + mc.options.graphicsMode().get().name());
-        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality,atmospheres,atmospherePass,heroes,heroPasses,beams,beamPass,lights,lightPass,players,entities,blocks,scripts");
+        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality,atmospheres,atmospherePass,heroes,heroPasses,beams,beamPass,lights,lightPass,players,entities,blocks,scripts,terrainZones,standIns,terrainPass,meshes,meshVertices");
         lines.addAll(rows);
         Component message;
         try {
@@ -163,6 +180,10 @@ public final class PerfOverlay {
             lastBeams, lastQuality.beams, pool(lastBeamPool)));
         lines.add(Component.translatableWithFallback(PREFIX + "lights", "Lights: %s drawn (max %s) · pass %s",
             lastLights, lastQuality.lights, pool(lastLightPool)));
+        lines.add(Component.translatableWithFallback(PREFIX + "terrain", "Terrain: %s hot zones · %s stand-ins · pass %s",
+            lastTerrainZones, lastTerrainStandIns, pool(lastTerrainPool)));
+        lines.add(Component.translatableWithFallback(PREFIX + "meshes", "Stand-in meshes: %s · %s vertices",
+            lastMeshes, lastMeshVertices));
         lines.add(Component.translatableWithFallback(PREFIX + "atmosphere", "Atmosphere: %s active · pass %s",
             lastAtmospheres, lastAtmospherePass
                 ? Component.translatableWithFallback(PREFIX + "yes", "yes")

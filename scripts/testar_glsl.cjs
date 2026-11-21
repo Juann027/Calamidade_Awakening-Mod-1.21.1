@@ -11,6 +11,8 @@ const fs = require('fs');
 const path = require('path');
 
 const LIB = path.join(__dirname, '..', 'src/main/resources/assets/calamidade_awakening/shaders/fx/calamidade_fx.glsl');
+// 0.11.0: ruído e formas da Terrain API, iguais ao Java (o passe terrain do motor inclui este arquivo).
+const TERRAIN = path.join(__dirname, '..', 'src/main/resources/assets/calamidade_awakening/shaders/fx/calamidade_terrain.glsl');
 
 // [nome, expressão GLSL float, esperado, tolerância]
 const S3 = Math.sqrt(3);
@@ -130,6 +132,40 @@ const CASES = [
   ['estrelas: faixa 0..1', 'clamp(caStars(normalize(vec3(0.3, 0.8, 0.2)), 3.0), 0.0, 1.0) - caStars(normalize(vec3(0.3, 0.8, 0.2)), 3.0)', 0, 0],
   ['estrelas: nada abaixo do horizonte', 'caStars(normalize(vec3(0.3, -0.2, 0.5)), 2.0)', 0, 0],
   ['estrelas: determinístico', 'caStars(normalize(vec3(-0.4, 0.7, 0.5)), 1.0) - caStars(normalize(vec3(-0.4, 0.7, 0.5)), 1.0)', 0, 0],
+  // Terrain API (0.11.0): calamidade_terrain.glsl contra valores calculados pelo Java (TerrainNoise, TerrainShape).
+  ['terreno: hash 0', 'float(caTerrainHash(ivec3(0, 0, 0), 0u) >> 8u)', 10959206.0, 0],
+  ['terreno: hash 1', 'float(caTerrainHash(ivec3(-5, 70, 12), 123456u) >> 8u)', 9649050.00, 0],
+  ['terreno: hash 2', 'float(caTerrainHash(ivec3(123, -64, -999), 4294967295u) >> 8u)', 12545503.0, 0],
+  ['terreno: hash 3', 'float(caTerrainHash(ivec3(-32000, 319, 31000), 2147483647u) >> 8u)', 2023522.00, 0],
+  ['terreno: hash 4', 'float(caTerrainHash(ivec3(7, 7, 7), 2654435769u) >> 8u)', 16508714.0, 0],
+  ['terreno: valor 0', 'caTerrainValue(vec3(0.5, 0.25, 0.75), 0u)', 0.615853119, 2e-6],
+  ['terreno: fbm 0', 'caTerrainFbm(vec3(0.5, 0.25, 0.75), 0u)', 0.624893738, 4e-6],
+  ['terreno: valor 1', 'caTerrainValue(vec3(-3.3, 12.7, 8.1), 123456u)', 0.761718588, 2e-6],
+  ['terreno: fbm 1', 'caTerrainFbm(vec3(-3.3, 12.7, 8.1), 123456u)', 0.643063629, 4e-6],
+  ['terreno: valor 2', 'caTerrainValue(vec3(100.01, -20.5, 7.25), 4294967295u)', 0.358327745, 2e-6],
+  ['terreno: fbm 2', 'caTerrainFbm(vec3(100.01, -20.5, 7.25), 4294967295u)', 0.350805977, 4e-6],
+  ['terreno: valor 3', 'caTerrainValue(vec3(0.0, 0.0, 0.0), 2147483647u)', 0.285040200, 2e-6],
+  ['terreno: fbm 3', 'caTerrainFbm(vec3(0.0, 0.0, 0.0), 2147483647u)', 0.517712629, 4e-6],
+  ['terreno: valor 4', 'caTerrainValue(vec3(-0.001, 0.999, -7.5), 2654435769u)', 0.274688276, 2e-6],
+  ['terreno: fbm 4', 'caTerrainFbm(vec3(-0.001, 0.999, -7.5), 2654435769u)', 0.359049219, 4e-6],
+  ['terreno: sphere 0', 'caTerrainPrimitive(vec3(0.0, 0.0, 0.0), vec4(0.0, 5.0, 0.0, 0.0), vec4(-1.0, 2.0, 3.0, 0.0))', -1.25834261, 2e-5],
+  ['terreno: sphere 2', 'caTerrainPrimitive(vec3(9.0, -0.5, 1.0), vec4(0.0, 5.0, 0.0, 0.0), vec4(-1.0, 2.0, 3.0, 0.0))', 5.50000000, 2e-5],
+  ['terreno: sphere 4', 'caTerrainPrimitive(vec3(0.5, -3.9, 0.2), vec4(0.0, 5.0, 0.0, 0.0), vec4(-1.0, 2.0, 3.0, 0.0))', 1.70074623, 2e-5],
+  ['terreno: crater 0', 'caTerrainPrimitive(vec3(3.0, -2.0, 4.0), vec4(1.0, 10.0, 4.0, 2.5), vec4(0.0, 0.0, 0.0, 3.0))', -1.21895142, 2e-5],
+  ['terreno: crater 2', 'caTerrainPrimitive(vec3(-2.0, 1.0, 11.0), vec4(1.0, 10.0, 4.0, 2.5), vec4(0.0, 0.0, 0.0, 3.0))', 1.18033989, 2e-5],
+  ['terreno: crater 4', 'caTerrainPrimitive(vec3(6.0, 6.0, -6.0), vec4(1.0, 10.0, 4.0, 2.5), vec4(0.0, 0.0, 0.0, 3.0))', 3.00000000, 2e-5],
+  ['terreno: trench 0', 'caTerrainPrimitive(vec3(9.0, -0.5, 1.0), vec4(2.0, 2.5, 20.0, 0.0), vec4(0.0, -1.0, 2.0, 0.0))', 6.51387819, 2e-5],
+  ['terreno: trench 2', 'caTerrainPrimitive(vec3(0.5, -3.9, 0.2), vec4(2.0, 2.5, 20.0, 0.0), vec4(0.0, -1.0, 2.0, 0.0))', 0.442787794, 2e-5],
+  ['terreno: trench 4', 'caTerrainPrimitive(vec3(0.0, 0.0, 0.0), vec4(2.0, 2.5, 20.0, 0.0), vec4(0.0, -1.0, 2.0, 0.0))', -1.50000000, 2e-5],
+  ['terreno: cylinder 0', 'caTerrainPrimitive(vec3(-2.0, 1.0, 11.0), vec4(3.0, 4.0, 6.0, 0.0), vec4(0.0, 0.0, 0.0, 0.0))', 7.18033989, 2e-5],
+  ['terreno: cylinder 2', 'caTerrainPrimitive(vec3(6.0, 6.0, -6.0), vec4(3.0, 4.0, 6.0, 0.0), vec4(0.0, 0.0, 0.0, 0.0))', 5.39608645, 2e-5],
+  ['terreno: cylinder 4', 'caTerrainPrimitive(vec3(3.0, -2.0, 4.0), vec4(3.0, 4.0, 6.0, 0.0), vec4(0.0, 0.0, 0.0, 0.0))', 1.00000000, 2e-5],
+  ['terreno: crater 0', 'caTerrainPrimitive(vec3(0.5, -3.9, 0.2), vec4(1.0, 8.0, 6.0, 1.0), vec4(0.0, 0.0, 0.0, 6.0))', -1.35689011, 2e-5],
+  ['terreno: crater 2', 'caTerrainPrimitive(vec3(0.0, 0.0, 0.0), vec4(1.0, 8.0, 6.0, 1.0), vec4(0.0, 0.0, 0.0, 6.0))', -4.80000000, 2e-5],
+  ['terreno: crater 4', 'caTerrainPrimitive(vec3(9.0, -0.5, 1.0), vec4(1.0, 8.0, 6.0, 1.0), vec4(0.0, 0.0, 0.0, 6.0))', 1.05538514, 2e-5],
+  ['terreno: borda irregular', '2.0 * caTerrainFbm(vec3(8.7, 0.3, 1.1) / 3.0, 2290649224u) - 1.0', 0.243114745, 1e-5],
+  ['terreno: borda irregular', '2.0 * caTerrainFbm(vec3(-2.0, 8.5, 3.0) / 3.0, 2290649224u) - 1.0', -0.192072581, 1e-5],
+  ['terreno: borda irregular', '2.0 * caTerrainFbm(vec3(0.0, 0.0, 9.2) / 3.0, 2290649224u) - 1.0', -0.601829563, 1e-5],
 ];
 
 function shaderSource(library) {
@@ -152,7 +188,7 @@ void main() {
 
 async function run() {
   const { chromium } = require('playwright');
-  const library = fs.readFileSync(LIB, 'utf8');
+  const library = fs.readFileSync(LIB, 'utf8') + '\n' + fs.readFileSync(TERRAIN, 'utf8');
   const fragment = shaderSource(library);
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   try {

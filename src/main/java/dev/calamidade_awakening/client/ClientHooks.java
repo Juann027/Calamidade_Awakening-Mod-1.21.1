@@ -41,7 +41,11 @@ public final class ClientHooks {
     private static final AtmosphereFrame ATMOSPHERE = new AtmosphereFrame(SCENE);
     private static final BeamFrame BEAMS = new BeamFrame(SCENE);
     private static final LightFrame LIGHTS = new LightFrame(SCENE);
-    private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS);
+    /** Terrain edit states from the server and the terrain pass (0.11.0). */
+    private static final TerrainClient TERRAIN = new TerrainClient();
+    private static final TerrainFrame TERRAIN_FRAME = new TerrainFrame(SCENE, TERRAIN);
+    private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS,
+        TERRAIN_FRAME);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
     private static final Map<VisualKind, KeyMapping> DEMOS = new LinkedHashMap<>();
     private static final KeyMapping QUALITY = new KeyMapping("key.calamidade_awakening.quality",
@@ -71,9 +75,12 @@ public final class ClientHooks {
             NetClientApi.receive(dev.calamidade_awakening.net.EndEffect.PACKET, (packet, context) ->
                 Minecraft.getInstance().execute(() -> {
                     SCENE.remove(packet.order());
+                    TERRAIN.forget(packet.order());
                     FILMS.end(packet.order());
                     COORDINATOR.invalidate();
                 }));
+            NetClientApi.receive(dev.calamidade_awakening.net.TerrainSync.PACKET, (packet, context) ->
+                Minecraft.getInstance().execute(() -> TERRAIN.receive(packet)));
             NetClientApi.receive(dev.calamidade_awakening.net.ReleaseEffect.PACKET, (packet, context) ->
                 Minecraft.getInstance().execute(() -> {
                     SCENE.release(packet.order(), packet.age());
@@ -124,7 +131,10 @@ public final class ClientHooks {
     private static void receive(StageEvent packet) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return;
-        if (SCENE.updateLevel(mc.level)) FILMS.cancel();
+        if (SCENE.updateLevel(mc.level)) {
+            FILMS.cancel();
+            TERRAIN.clear();
+        }
         if (!SCENE.accept(packet, mc.level)) return;
         COORDINATOR.invalidate();
         VisualKind kind = VisualKind.byId(packet.visual());
@@ -148,8 +158,13 @@ public final class ClientHooks {
     @SubscribeEvent
     public static void tick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
-        if (SCENE.updateLevel(mc.level)) FILMS.cancel();
+        if (SCENE.updateLevel(mc.level)) {
+            FILMS.cancel();
+            TERRAIN.clear();
+        }
         SCENE.tick(mc.level);
+        // Terrain states of instances that expired on this client (the server only sends end_effect on stops).
+        TERRAIN.orders().removeIf(order -> !SCENE.has(order));
         COORDINATOR.invalidate();
         while (CANCEL.consumeClick()) FILMS.cancel();
         PerfOverlay.tick();

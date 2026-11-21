@@ -93,5 +93,6 @@
   "calamidade_awakening.configuration.terrainUndoEdits": "Snapshots guardados",
   "calamidade_awakening.configuration.terrainUndoEdits.tooltip": "Máximo de snapshots de desfazer (os mais antigos saem primeiro).",
   "calamidade_awakening.configuration.terrainMaxStructure": "Tamanho máximo de estrutura",
-  "calamidade_awakening.configuration.terrainMaxStructure.tooltip": "Maior estrutura .nbt que uma edição pode colocar, em blocos por eixo."
+  "calamidade_awakening.configuration.terrainMaxStructure.tooltip": "Maior estrutura .nbt que uma edição pode colocar, em blocos por eixo.",
+  "perf.calamidade_awakening.meshes": "Malhas de dublê: %s · %s vértices"
 }
