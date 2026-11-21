@@ -4,7 +4,7 @@ Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e J
 
 ## Instalação
 
-Coloque o JAR `dist/calamidade_awakening-0.7.0.jar` e o [JAR oficial da RimuLib 1.3.0 para NeoForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) na pasta mods. Use as mesmas versões no servidor e em todos os clientes. Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
+Coloque o JAR `dist/calamidade_awakening-0.7.0.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. O JAR da RimuLib vem no repositório, em `libs/rimulib-1.3.0-neoforge.jar` (arquivo oficial, também no [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532)), e os dois JARs ficam anexados a cada release do GitHub. Use as mesmas versões no servidor e em todos os clientes. Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
 
 A interface usa inglês como padrão e tem tradução para português do Brasil pela opção de idioma do Minecraft.
 
@@ -55,4 +55,4 @@ Segurando o Foco Awakening, a tecla **H** abre o menu de habilidades da RimuLib.
 
 ## Desenvolvimento
 
-Coloque a dependência oficial em `libs/rimulib-1.3.0-neoforge.jar`. Com o JDK 21, `./gradlew build` compila e roda os testes de orçamento; `./gradlew dist` copia o JAR para `dist/`; `./gradlew runClient` abre o cliente de desenvolvimento e `./gradlew runServer` o servidor dedicado. No Windows, use `gradlew.bat`.
+A RimuLib já vem em `libs/`; um clone novo compila sem baixar nada. Com o JDK 21, `./gradlew build` compila e roda os testes de orçamento; `./gradlew dist` copia o JAR para `dist/`; `./gradlew runClient` abre o cliente de desenvolvimento e `./gradlew runServer` o servidor dedicado. No Windows, use `gradlew.bat`.

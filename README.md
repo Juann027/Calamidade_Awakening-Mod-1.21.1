@@ -6,7 +6,7 @@ A modular visual effects engine for Minecraft 1.21.1, NeoForge 21.1.x and Java 2
 
 ## Installation
 
-Build the JAR with `./gradlew dist` (see Development) and install `dist/calamidade_awakening-0.7.0.jar` together with the [official NeoForge RimuLib 1.3.0 JAR](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) in the mods folder. Use the same versions on the server and all clients (0.7.0 adds a network channel for releasing looping effects). Replace the previous JAR; the namespace, item and key bindings are unchanged since 0.1.2. To obtain a focus, use `/give @s calamidade_awakening:focus`. Reassign custom shortcuts in Controls.
+Build the JAR with `./gradlew dist` (see Development) and install `dist/calamidade_awakening-0.7.0.jar` together with RimuLib 1.3.0 for NeoForge in the mods folder. The RimuLib JAR ships in this repository at `libs/rimulib-1.3.0-neoforge.jar` (official file, also on [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532)); both JARs are attached to each GitHub release. Use the same versions on the server and all clients (0.7.0 adds a network channel for releasing looping effects). Replace the previous JAR; the namespace, item and key bindings are unchanged since 0.1.2. To obtain a focus, use `/give @s calamidade_awakening:focus`. Reassign custom shortcuts in Controls.
 
 English is the fallback for interface text. Brazilian Portuguese is available through Minecraft's language setting.
 
@@ -46,7 +46,7 @@ F7 shows the active GPU, frame time median and p95, and per-frame engine cost. `
 
 ## Development
 
-Place the official dependency in `libs/rimulib-1.3.0-neoforge.jar`. With JDK 21:
+RimuLib is already in `libs/`, so a fresh clone builds as is. With JDK 21:
 
 - `./gradlew build` compiles and runs the budget, cooldown, cue, timeline and frustum checks.
 - `./gradlew dist` copies the JAR to `dist/`.

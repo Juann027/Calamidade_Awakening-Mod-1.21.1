@@ -12,7 +12,7 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
 **Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 5. Para escrever o roteiro do efeito uma vez só (fases, trilhas e marcadores que servidor, shader e câmera compartilham) e para efeitos ambientes em loop, use a Timeline do capítulo 6.
 
-**Para modificar o motor**, consulte os capítulos 7 e 8. Coloque a dependência oficial em `libs/rimulib-1.3.0-neoforge.jar`. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
+**Para modificar o motor**, consulte os capítulos 7 e 8. A RimuLib já vem em `libs/rimulib-1.3.0-neoforge.jar`. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
 
 **Para medir e validar**, use o capítulo 9 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 10.
 
@@ -41,7 +41,7 @@ Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e J
 
 ### Instalação
 
-Coloque o JAR `dist/calamidade_awakening-0.7.0.jar` e o [JAR oficial da RimuLib 1.3.0 para NeoForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) na pasta mods. Use as mesmas versões no servidor e em todos os clientes. Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
+Coloque o JAR `dist/calamidade_awakening-0.7.0.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. O JAR da RimuLib vem no repositório, em `libs/rimulib-1.3.0-neoforge.jar` (arquivo oficial, também no [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532)), e os dois JARs ficam anexados a cada release do GitHub. Use as mesmas versões no servidor e em todos os clientes. Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
 
 A interface usa inglês como padrão e tem tradução para português do Brasil pela opção de idioma do Minecraft.
 
@@ -92,7 +92,7 @@ Segurando o Foco Awakening, a tecla **H** abre o menu de habilidades da RimuLib.
 
 ### Desenvolvimento
 
-Coloque a dependência oficial em `libs/rimulib-1.3.0-neoforge.jar`. Com o JDK 21, `./gradlew build` compila e roda os testes de orçamento; `./gradlew dist` copia o JAR para `dist/`; `./gradlew runClient` abre o cliente de desenvolvimento e `./gradlew runServer` o servidor dedicado. No Windows, use `gradlew.bat`.
+A RimuLib já vem em `libs/`; um clone novo compila sem baixar nada. Com o JDK 21, `./gradlew build` compila e roda os testes de orçamento; `./gradlew dist` copia o JAR para `dist/`; `./gradlew runClient` abre o cliente de desenvolvimento e `./gradlew runServer` o servidor dedicado. No Windows, use `gradlew.bat`.
 
 <a id="cap2"></a>
 
@@ -104,7 +104,7 @@ Para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A interface pública dest
 
 ### Primeira integração
 
-O projeto Gradle independente em [examples/vfx-sample](../examples/vfx-sample/) já contém o código e os recursos deste exercício. A partir da raiz extraída, coloque o JAR oficial da RimuLib em `libs/rimulib-1.3.0-neoforge.jar` e mantenha o JAR do Calamidade em `dist/`. Execute:
+O projeto Gradle independente em [examples/vfx-sample](../examples/vfx-sample/) já contém o código e os recursos deste exercício. A partir da raiz extraída, a RimuLib já está em `libs/rimulib-1.3.0-neoforge.jar`; mantenha o JAR do Calamidade em `dist/`. Execute:
 
 ```sh
 ./gradlew -p examples/vfx-sample build
@@ -245,7 +245,7 @@ O projeto independente em [examples/vfx-sample](../examples/vfx-sample/) impleme
 2. Pressione **N** olhando para um espaço livre. A página inicial contém as cinco habilidades internas. Use o botão **Usar item** (direito por padrão) para passar às páginas dos addons. Mire no Sinal de Maré e pressione **Atacar** (esquerdo por padrão). A tecla O interrompe a câmera.
 3. Para o menu compartilhado, obtenha o Focus com `/give @s calamidade_awakening:focus`, segure-o e pressione **H**. Selecione o Sinal de Maré. Sua linha tem descrição, arte e controle de potência. O painel do addon explica o parâmetro. Aumentar a potência eleva o ponto da conjuração seguinte. Feche o menu, mire e use o Focus com o botão direito para conjurar a habilidade selecionada. A recarga do cartão é de 130 ticks. No tick 40, o impacto causa dano leve e empurra as criaturas a até três blocos (veja o capítulo de gameplay).
 4. Os comandos `/vfxsample at`, `follow` e `stop` continuam disponíveis com permissão de comandos. Eles exercitam as instâncias diretamente. Para testar recarga, seleção do item e callback de conjuração, use o cartão.
-5. Para recompilar o addon na raiz extraída, coloque a RimuLib oficial em libs/rimulib-1.3.0-neoforge.jar e execute `./gradlew -p examples/vfx-sample build` com Java 21. No Windows, use gradlew.bat. O exemplo compila contra o JAR em dist e declara sua dependência em META-INF/neoforge.mods.toml.
+5. Para recompilar o addon na raiz extraída, execute (a RimuLib já vem em libs/rimulib-1.3.0-neoforge.jar) `./gradlew -p examples/vfx-sample build` com Java 21. No Windows, use gradlew.bat. O exemplo compila contra o JAR em dist e declara sua dependência em META-INF/neoforge.mods.toml.
 
 ### Registro comum
 
@@ -835,7 +835,7 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 #### Build
 
-Minecraft Java 1.21.1, NeoForge 21.1.267, RimuLib 1.3.0 (`rimulib-1.3.0-neoforge.jar`, baixado do CDN do CurseForge, SHA-256 `15ccd4958a0412cbcf618a10962b0b6a7e1683fd66b94d07e10bc7cabeedb774`, igual ao da 0.6.2), OpenJDK 21.0.13 e Gradle 9.2.1.
+Minecraft Java 1.21.1, NeoForge 21.1.267, RimuLib 1.3.0 (`rimulib-1.3.0-neoforge.jar`, arquivo oficial do CurseForge, agora versionado em `libs/`, SHA-256 `15ccd4958a0412cbcf618a10962b0b6a7e1683fd66b94d07e10bc7cabeedb774`, igual ao da 0.6.2), OpenJDK 21.0.13 e Gradle 9.2.1.
 
 - `./gradlew clean build`: passou, com `checkBudget` (`FrameBudgetCheck PASS`, agora incluindo `TimelineCheck`) e `checkFrustum`. Cada etapa da 0.7.0 foi compilada e testada antes do seu commit.
 - `./gradlew dist`: passou e gerou `dist/calamidade_awakening-0.7.0.jar`. Um `clean build` repetido gerou o mesmo JAR, byte a byte.
