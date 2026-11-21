@@ -44,6 +44,7 @@ public final class ClientHooks {
     /** Terrain edit states from the server and the terrain pass (0.11.0). */
     private static final TerrainClient TERRAIN = new TerrainClient();
     private static final TerrainFrame TERRAIN_FRAME = new TerrainFrame(SCENE, TERRAIN);
+    private static final TerrainMeshes TERRAIN_MESHES = new TerrainMeshes(TERRAIN);
     private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS,
         TERRAIN_FRAME);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
@@ -161,10 +162,12 @@ public final class ClientHooks {
         if (SCENE.updateLevel(mc.level)) {
             FILMS.cancel();
             TERRAIN.clear();
+            TERRAIN_MESHES.clear();
         }
         SCENE.tick(mc.level);
         // Terrain states of instances that expired on this client (the server only sends end_effect on stops).
         TERRAIN.orders().removeIf(order -> !SCENE.has(order));
+        if (mc.level != null) TERRAIN.dust(mc.level, SCENE.events());
         COORDINATOR.invalidate();
         while (CANCEL.consumeClick()) FILMS.cancel();
         PerfOverlay.tick();
@@ -222,6 +225,16 @@ public final class ClientHooks {
                                 "A recording is already running"), false);
                         return started ? 1 : 0;
                     }))));
+    }
+
+    /** 0.11.0: structure stand-ins, after the translucent blocks (they fade over the real blocks after the commit). */
+    @SubscribeEvent
+    public static void terrainMeshes(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS || Minecraft.getInstance().level == null) return;
+        float partial = event.getPartialTick().getGameTimeDeltaPartialTick(false);
+        var look = event.getCamera().getLookVector();
+        var plan = COORDINATOR.plan(event.getCamera().getPosition(), new Vec3(look.x(), look.y(), look.z()), partial);
+        TERRAIN_MESHES.render(event, plan, partial);
     }
 
     @SubscribeEvent

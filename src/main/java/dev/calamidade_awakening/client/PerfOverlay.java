@@ -81,8 +81,9 @@ public final class PerfOverlay {
     static void terrain(int zones, int standIns, dev.calamidade_awakening.api.EnginePasses.Pool pool) {
         terrainZones = zones; terrainStandIns = standIns; terrainPool = pool;
     }
-    /** Structure stand-in meshes drawn and their vertices (0.11.0). */
-    static void meshes(int count, int vertices) { meshes = count; meshVertices = vertices; }
+    /** Structure stand-in meshes drawn, their vertices and the build time of the newest mesh, ms (0.11.0). */
+    static void meshes(int count, int vertices, double buildMs) { meshes = count; meshVertices = vertices; meshBuildMs = buildMs; }
+    private static double meshBuildMs;
 
     /** Called from RenderFrameEvent.Pre. */
     static void frameStart(int resident, int[] bySource, Quality quality) {
@@ -182,8 +183,8 @@ public final class PerfOverlay {
             lastLights, lastQuality.lights, pool(lastLightPool)));
         lines.add(Component.translatableWithFallback(PREFIX + "terrain", "Terrain: %s hot zones · %s stand-ins · pass %s",
             lastTerrainZones, lastTerrainStandIns, pool(lastTerrainPool)));
-        lines.add(Component.translatableWithFallback(PREFIX + "meshes", "Stand-in meshes: %s · %s vertices",
-            lastMeshes, lastMeshVertices));
+        lines.add(Component.translatableWithFallback(PREFIX + "meshes", "Stand-in meshes: %s · %s vertices · last build %s ms",
+            lastMeshes, lastMeshVertices, format(meshBuildMs)));
         lines.add(Component.translatableWithFallback(PREFIX + "atmosphere", "Atmosphere: %s active · pass %s",
             lastAtmospheres, lastAtmospherePass
                 ? Component.translatableWithFallback(PREFIX + "yes", "yes")

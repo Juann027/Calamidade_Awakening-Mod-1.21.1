@@ -94,5 +94,5 @@
   "calamidade_awakening.configuration.terrainUndoEdits.tooltip": "Most undo snapshots kept (the oldest go first).",
   "calamidade_awakening.configuration.terrainMaxStructure": "Largest structure",
   "calamidade_awakening.configuration.terrainMaxStructure.tooltip": "Largest .nbt structure an edit may place, blocks per axis.",
-  "perf.calamidade_awakening.meshes": "Stand-in meshes: %s · %s vertices"
+  "perf.calamidade_awakening.meshes": "Stand-in meshes: %s · %s vertices · last build %s ms"
 }

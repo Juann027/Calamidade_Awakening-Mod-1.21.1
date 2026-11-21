@@ -26,6 +26,8 @@ final class TerrainClient {
         Vec3 origin;
         float yaw, pitch;
         Structure structure;
+        /** True once the dust burst of the landing was spawned. */
+        boolean dusted;
     }
 
     /** Blocks of a structure stand-in: rotated states and positions packed {@code x | y << 6 | z << 12} from the corner. */
@@ -62,6 +64,63 @@ final class TerrainClient {
                         + 977L * java.util.Arrays.hashCode(packet.values()));
             }
             default -> { }
+        }
+    }
+
+    /** Entry of an edit, created when missing (to remember client-side flags before any packet). */
+    Entry entry(long order, int index) {
+        Entry[] list = entries.computeIfAbsent(order, k -> new Entry[TerrainEdit.MAX_PER_EFFECT]);
+        if (list[index] == null) list[index] = new Entry();
+        return list[index];
+    }
+
+    /**
+     * Dust when an object lands (0.11.0): at the commit of every edit with a stand-in or a structure, a burst of smoke,
+     * puffs and dust of the ground block around the origin, once per instance. Particles follow the game's particle
+     * setting.
+     */
+    void dust(net.minecraft.client.multiplayer.ClientLevel level, java.util.Collection<StageEvent> events) {
+        long now = level.getGameTime();
+        for (StageEvent event : events) {
+            VisualKind kind = VisualKind.byId(event.visual());
+            if (kind == null || kind.terrain().isEmpty()) continue;
+            for (int i = 0; i < kind.terrain().size(); i++) {
+                TerrainEdit edit = kind.terrain().get(i);
+                if (edit.standIn() == null && edit.structure() == null) continue;
+                Entry entry = entry(event.order(), i);
+                if (entry.dusted || entry.state == TerrainSync.REFUSED) continue;
+                long commit;
+                Vec3 origin;
+                if (entry.state == TerrainSync.COMMITTED) {
+                    commit = entry.commitTick;
+                    origin = entry.origin;
+                } else if (event.entityId() < 0) {
+                    commit = event.tick() + kind.timeline().tick(edit.marker());
+                    origin = event.center();
+                } else continue;
+                if (now < commit) continue;
+                entry.dusted = true;
+                if (now - commit > 10) continue;
+                burst(level, origin, (float) Math.max(3, edit.shape().extent()), event.seed());
+            }
+        }
+    }
+
+    private static void burst(net.minecraft.client.multiplayer.ClientLevel level, Vec3 origin, float radius, long seed) {
+        var random = new java.util.Random(seed);
+        var ground = level.getBlockState(net.minecraft.core.BlockPos.containing(origin.x, origin.y - .5, origin.z));
+        var dust = ground.isAir() ? null : new net.minecraft.core.particles.BlockParticleOption(
+            net.minecraft.core.particles.ParticleTypes.BLOCK, ground);
+        int count = (int) Math.clamp(radius * 7, 24, 140);
+        for (int n = 0; n < count; n++) {
+            double angle = random.nextDouble() * Math.PI * 2, r = radius * (.35 + random.nextDouble() * .8);
+            double x = origin.x + Math.cos(angle) * r, z = origin.z + Math.sin(angle) * r, y = origin.y + random.nextDouble() * 2;
+            double out = .04 + random.nextDouble() * .12;
+            level.addParticle(n % 3 == 0 ? net.minecraft.core.particles.ParticleTypes.CAMPFIRE_COSY_SMOKE
+                    : net.minecraft.core.particles.ParticleTypes.POOF,
+                x, y, z, Math.cos(angle) * out, .03 + random.nextDouble() * .08, Math.sin(angle) * out);
+            if (dust != null && n % 2 == 0)
+                level.addParticle(dust, x, y + .2, z, Math.cos(angle) * out * 2, .15 + random.nextDouble() * .2, Math.sin(angle) * out * 2);
         }
     }
 
