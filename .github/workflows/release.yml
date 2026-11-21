@@ -1,13 +1,19 @@
-# Compila o motor e o vfx-sample e publica um release do GitHub com os JARs.
-# Disparo manual (Actions > Release > Run workflow) com a tag desejada, por exemplo v0.7.0.
+# Compila o motor e o vfx-sample e publica um release do GitHub com os JARs do Calamidade e do exemplo.
+# Disparo manual (Actions > Release > Run workflow) com a tag desejada, por exemplo v0.8.0.
 # As notas vêm de .github/release-notes/<tag>.md.
+#
+# A RimuLib é baixada do CurseForge e conferida por SHA-256 (gradle.properties: rimulib.url e rimulib.sha256).
+# Ela serve só para compilar: nunca é anexada ao release. Quem joga a baixa do CurseForge.
 name: Release
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag do release (ex.: v0.7.0)"
+        description: "Tag do release (ex.: v0.8.0)"
+        required: true
+      title:
+        description: "Título depois de 'Calamidade_Awakening <versão> — ' (ex.: Atmosphere API)"
         required: true
 
 permissions:
@@ -22,24 +28,38 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - name: Build do motor (inclui checkBudget e checkFrustum)
+      - name: Baixar a RimuLib do CurseForge (SHA-256)
+        run: |
+          url=$(grep '^rimulib.url=' gradle.properties | cut -d= -f2-)
+          sha=$(grep '^rimulib.sha256=' gradle.properties | cut -d= -f2-)
+          mkdir -p libs
+          curl -fsSL --retry 4 --retry-delay 5 -o libs/rimulib-1.3.0-neoforge.jar "$url"
+          echo "$sha  libs/rimulib-1.3.0-neoforge.jar" | sha256sum -c -
+      - name: Build do motor (inclui os checks do build)
         run: ./gradlew build dist
       - name: Build do vfx-sample
         run: ./gradlew -p examples/vfx-sample build
-      - name: Reunir JARs
+      - name: Reunir JARs (só Calamidade e exemplo)
         run: |
           mkdir -p out
           cp dist/calamidade_awakening-*.jar out/
           cp examples/vfx-sample/build/libs/vfx-sample-*.jar out/
-          cp libs/rimulib-1.3.0-neoforge.jar out/
+          # Nenhum JAR de terceiros pode ser anexado.
+          for f in out/*.jar; do
+            case "$(basename "$f")" in
+              calamidade_awakening-*.jar|vfx-sample-*.jar) ;;
+              *) echo "JAR não permitido no release: $f"; exit 1 ;;
+            esac
+          done
           (cd out && sha256sum *.jar | tee SHA256SUMS.txt)
       - name: Publicar release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
+          TITLE: ${{ inputs.title }}
         run: |
           notes=".github/release-notes/${TAG}.md"
           [ -f "$notes" ] || { echo "Faltam as notas em $notes"; exit 1; }
           { cat "$notes"; echo; echo '### SHA-256 (build deste workflow)'; echo '```'; cat out/SHA256SUMS.txt; echo '```'; } > notes.md
           gh release create "$TAG" out/*.jar out/SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --title "Calamidade_Awakening ${TAG#v} — Timeline API" --notes-file notes.md
+            --target "$GITHUB_SHA" --title "Calamidade_Awakening ${TAG#v} — ${TITLE}" --notes-file notes.md

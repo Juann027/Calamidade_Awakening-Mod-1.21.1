@@ -6,7 +6,7 @@ Para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A interface pública dest
 
 ## Primeira integração
 
-O projeto Gradle independente em [examples/vfx-sample](../examples/vfx-sample/) já contém o código e os recursos deste exercício. A partir da raiz extraída, a RimuLib já está em `libs/rimulib-1.3.0-neoforge.jar`; mantenha o JAR do Calamidade em `dist/`. Execute:
+O projeto Gradle independente em [examples/vfx-sample](../examples/vfx-sample/) já contém o código e os recursos deste exercício. Na raiz, `./gradlew dist` baixa a RimuLib para `libs/` (conferida por SHA-256) e gera o JAR do Calamidade em `dist/`, que o exemplo usa. Execute:
 
 ```sh
 ./gradlew -p examples/vfx-sample build

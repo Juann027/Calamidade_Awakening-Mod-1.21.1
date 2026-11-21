@@ -10,7 +10,18 @@ neoForge {
     runs { client { client() } }
     mods { vfxsample { sourceSet sourceSets.main } }
 }
+// Os dois JARs vêm da raiz: rode antes `./gradlew dist` lá, que gera o JAR do motor em dist/ e baixa a RimuLib
+// (conferida por SHA-256) para libs/. Nenhum dos dois é versionado.
+def engineJar = file('../../dist/calamidade_awakening-0.7.0.jar')
+def rimuLibJar = file('../../libs/rimulib-1.3.0-neoforge.jar')
+tasks.named('compileJava') {
+    doFirst {
+        [engineJar, rimuLibJar].each { jar ->
+            if (!jar.exists()) throw new GradleException("Falta ${jar}. Rode `./gradlew dist` na raiz do repositório.")
+        }
+    }
+}
 dependencies {
-    implementation files('../../dist/calamidade_awakening-0.7.0.jar')
-    implementation files('../../libs/rimulib-1.3.0-neoforge.jar')
+    implementation files(engineJar)
+    implementation files(rimuLibJar)
 }

@@ -1,0 +1,48 @@
+# Remove de um release já publicado os JARs que não são do Calamidade nem do exemplo (por exemplo, a RimuLib
+# anexada à v0.7.0), recalcula o SHA256SUMS.txt com os JARs que ficam e troca as notas pelas de
+# .github/release-notes/<tag>.md. Os JARs do Calamidade e do exemplo não são recompilados nem alterados.
+# Disparo manual: Actions > Limpar release > Run workflow, com a tag (ex.: v0.7.0).
+name: Limpar release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag do release a limpar (ex.: v0.7.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  limpar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remover JARs de terceiros
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          gh release view "$TAG" --json assets -q '.assets[].name' > assets.txt
+          echo "Anexos antes:"; cat assets.txt
+          while read -r name; do
+            case "$name" in
+              calamidade_awakening-*.jar|vfx-sample-*.jar|SHA256SUMS.txt) ;;
+              *) echo "Removendo $name"; gh release delete-asset "$TAG" "$name" -y ;;
+            esac
+          done < assets.txt
+      - name: Recalcular SHA256SUMS e notas
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          notes=".github/release-notes/${TAG}.md"
+          [ -f "$notes" ] || { echo "Faltam as notas em $notes"; exit 1; }
+          mkdir -p out
+          gh release download "$TAG" -D out -p 'calamidade_awakening-*.jar' -p 'vfx-sample-*.jar'
+          (cd out && sha256sum *.jar | tee SHA256SUMS.txt)
+          gh release upload "$TAG" out/SHA256SUMS.txt --clobber
+          { cat "$notes"; echo; echo '### SHA-256 (JARs anexados)'; echo '```'; cat out/SHA256SUMS.txt; echo '```'; } > notes.md
+          gh release edit "$TAG" --notes-file notes.md
+          echo "Anexos depois:"; gh release view "$TAG" --json assets -q '.assets[].name'
