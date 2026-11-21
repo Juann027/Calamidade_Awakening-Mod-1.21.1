@@ -1,6 +1,94 @@
 # Validação, medições e limites
 
-## Versão 0.10.0 — integração com outros mods (estado atual)
+## Versão 0.11.0 — Terrain API (estado atual)
+
+**Compilada e coberta pelos testes de build; executada em jogo por um roteiro automatizado em renderização por software (Mesa llvmpipe), num cliente, no NeoForge 21.1.267: 27 de 27 verificações, com as medições da Etapa 7. Dois jogadores num servidor dedicado, GPU física e os casos manuais de TESTE-REAL.md (63 a 74) continuam pendentes.**
+
+### Build
+
+Minecraft Java 1.21.1, NeoForge 21.1.267, RimuLib 1.3.0 (task `rimulib`, SHA-256 `15ccd4958a0412cbcf618a10962b0b6a7e1683fd66b94d07e10bc7cabeedb774`), OpenJDK 21.0.13, Gradle 9.2.1, glslangValidator 15.1.0.
+
+- `./gradlew build`: passou em cada etapa, com `checkBudget` (`FrameBudgetCheck PASS`, com o novo `TerrainCheck`), `checkFrustum`, `checkShaders` (12 shaders: entra `terrain.fsh`, que inclui `calamidade_fx.glsl` e `calamidade_terrain.glsl`), `checkApiDocs`, `checkRecipes` e `checkModVersion`.
+- `./gradlew dist` e `./gradlew -p examples/vfx-sample build`: passaram, sem avisos.
+- `node scripts/testar_glsl.cjs`: 139 de 139 casos em WebGL2 (33 novos: hash, ruído, fbm, as quatro primitivas e a borda irregular, contra valores calculados pelo Java; hash exato, ruído em 2 × 10⁻⁶, distâncias em 2 × 10⁻⁵).
+
+SHA-256 de `dist/calamidade_awakening-0.11.0.jar`: `db89b4b34461a71cc022232814a8faa390d3c8902af1c4966b5183ff1c4d0d1d`
+
+SHA-256 de `examples/vfx-sample/build/libs/vfx-sample-1.8.0.jar`: `10b5436279c98d34af5f73628696a3234c3900993be1df638a3a7392846ea0ac`
+
+### Passo 0: CarveApi
+
+Conferida com `javap -p` e `javap -c` (`CarveApi`, `CarveApi$Cut`, `terrain.Carving`, `SectionCopy`, `SectionSink`): cortes só de coluna (um `Floor.at(x, z)` por coluna, tudo acima sai), `prepare()` só põe o corte numa fila e o preparo roda na thread do servidor copiando seções (`SectionCopy.states`) e cortando as cópias num pool de 2 a 8 threads, `ready()` = todos os chunks montados, aplicação por troca do vetor de seções do chunk, luz por `propagateLightSources` + `lightChunk(chunk, true)` e reenvio do chunk inteiro, orçamento estático de 30 ms por tick compartilhado por todos os cortes e 12 chunks por tick, block entities removidas, predicado de blocos mantidos global. **Decisão:** escrita direta nas `LevelChunkSection` com planejador próprio, sem a `CarveApi` (formas e casca 3D, orçamento em blocos, regras por bloco e desfazer); a justificativa completa está em TERRENO-0.11.md.
+
+### Integração conferida no JAR (javap)
+
+Minecraft 1.21.1: `LevelChunkSection.setBlockState(int, int, int, BlockState, boolean)`, `hasOnlyAir`; `LevelChunk.setBlockState` (bytecode: heightmaps `MOTION_BLOCKING`, `MOTION_BLOCKING_NO_LEAVES`, `OCEAN_FLOOR`, `WORLD_SURFACE`, `ChunkSkyLightSources.update`, `updateSectionStatus`, `LightEngine.hasDifferentLightProperties` + `checkBlock`, `onRemove`/`onPlace`, block entities), `getBlockEntity(pos, EntityCreationType)`, `removeBlockEntity`, `setUnsaved`, `getSkyLightSources`; `Heightmap.update`; `ThreadedLevelLightEngine.checkBlock`, `updateSectionStatus`; `ServerLevel.onBlockStateChange`; `ServerChunkCache.getChunkNow`, `chunkMap`; `ChunkMap.getPlayers(ChunkPos, boolean)`; `ChunkHolder.broadcastChanges` (bytecode: a luz vai aos jogadores na borda da distância de visão, os outros relightam no cliente); `ClientboundSectionBlocksUpdatePacket(SectionPos, ShortSet, LevelChunkSection)` e `SectionPos.sectionRelativePos` (bytecode: `x << 8 | z << 4 | y`); `SectionPos.asLong`, `of`; `StructureTemplateManager.get`, `StructureTemplate.save`; `NbtUtils.readBlockState`; `BlockEntity.loadWithComponents`, `saveWithFullMetadata`; `BlockState.rotate(Rotation)`, `getDestroySpeed`, `isSolid`, `hasBlockEntity`, `getFluidState`; `Block.getId`/`stateById`; `FallingBlock.isFree`; `BlockTags.LOGS`, `LEAVES`, `WITHER_IMMUNE`; `GameRules.RULE_MOBGRIEFING`; `BoundingBox`; cliente: `VertexBuffer` (`upload`, `drawWithShader`), `ByteBufferBuilder`, `BufferBuilder`, `VertexConsumer.putBulkData`, `BlockRenderDispatcher.getBlockModel`, `BakedModel.getQuads`, `BakedQuad.isTinted`/`isShade`/`getDirection`, `RenderType.translucent`, `GameRenderer.getRendertypeTranslucentShader`, `ShaderInstance.CHUNK_OFFSET`, `RenderSystem.polygonOffset`, `LightTexture.FULL_BRIGHT`, `ParticleTypes.CAMPFIRE_COSY_SMOKE`, `POOF`, `BLOCK`, `BlockParticleOption`.
+
+NeoForge 21.1.267: `ModConfigSpec.Builder.defineListAllowEmpty`, `ICancellableEvent` e `Event` (bus 8.0.5), `NeoForge.EVENT_BUS`, `RenderLevelStageEvent` (`getModelViewMatrix`, `getProjectionMatrix`, `Stage.AFTER_TRANSLUCENT_BLOCKS`).
+
+### Testes novos
+
+- **`TerrainCheck`** (Java puro, no `checkBudget`): hash com dois valores fixos (conferidos por uma implementação independente em Python), faixa, continuidade, determinismo e espalhamento do ruído; distâncias das quatro primitivas, união, subtração, deslocamento e borda irregular (sempre dentro da amplitude); volumes contra a fórmula (esfera r12 e r24 em 1,5%, cilindro em 2%, trincheira em 2,5%, cratera parabólica e cone, clearance); determinismo do plano pela seed e independência da seed sem borda irregular; vedação (todo vizinho de face de um bloco cavado está no plano) e faixas da casca para espessuras 1, 2 e 3; trincheira ao longo de z (yaw 0), de x (yaw 90), da diagonal (yaw −45) e enterrada com pitch 30; lotes em ordem de distância, entradas crescentes, soma igual ao total, ordem estável, primeiro lote na seção da origem; pesos da paleta (100 000 sorteios em 2% e 5%), faixa vazia, determinismo; preenchimento sólido e oco; rotação de estrutura (bijeção nas 4 rotações, sentido horário igual ao `Rotation.CLOCKWISE_90`, canto e paleta por posição); calor, queda e revelação do dublê; validação e registro (ordem, duplicados, 5 edições).
+- **GLSL:** os 33 casos novos acima.
+
+### Compatibilidade
+
+- O código do exemplo 1.7.0 (da 0.10.0) compila sem mudança contra o JAR 0.11.0.
+- O JAR do vfx-sample 1.7.0 baixado do release v0.10.0 (SHA-256 `93741188…`, igual ao publicado): as 197 referências ao motor, em 30 classes, existem no JAR 0.11.0 com a mesma assinatura (`javap -v` contra `javap -p -s`).
+- A API da 0.10 continua inteira; `Effects.terrain`, `TerrainShape`, `TerrainPalette`, `TerrainEdit`, `TerrainEditEvent` são adições.
+- Rede: canal novo `terrain_v1`; `event_v2`, `end_effect`, `request_v2` e `release` iguais. Servidor e clientes na mesma versão.
+
+### Em jogo (roteiro automatizado, Mesa llvmpipe)
+
+Cliente de desenvolvimento do NeoForge 21.1.267 sob Xvfb 1280 × 720, Mesa llvmpipe (LLVM 20.1.2, 256 bits), 8 a 40 FPS, BALANCED, distância 8, com os JARs acima, a RimuLib e um mod temporário de teste (fora do repositório) que cria um mundo plano próprio (bedrock, 60 de pedra, 3 de terra e grama: superfície em y = 0), roda os comandos como jogador em modo espectador, chama a API e consulta o mundo pela thread do servidor, lê o F7 por reflexão e tira capturas. Quatro rodadas; as duas primeiras acharam os defeitos abaixo, a terceira e a quarta (JARs finais) passaram inteiras.
+
+| Passo | Resultado |
+|---|---|
+| `cratera_simples` | Commit no tick do marcador: 2 447 planejados, 888 escritos, 1 tick, 8 pacotes de seção; centro cavado; 590 blocos da paleta na borda; F7: 0 zonas antes e 1 zona e 1 luz depois; calor some até o tick 215. |
+| `/calamidade terrain undo` | 888 restaurados em 1 tick (3,3 ms); a caixa 25 × 21 × 26 em volta ficou **idêntica** à de antes (0 posições diferentes). |
+| `meteoro` | Na queda, F7 "1 dublês · 0 zonas"; depois, 1 zona; 81 blocos de ouro bruto no centro (3 597 planejados, 1 393 escritos, 2,8 ms). |
+| `raio_trincheira` olhando para o oeste | Rasgo de 33 blocos ao longo de x e 4 em z: segue o yaw. |
+| `torre_caindo` (yaw 0 e 90) | Malha do dublê com 1 672 vértices (montada em 2,4 ms); torre colocada; barril com os 3 pães do template; barril − lanterna = (−1, −8, +1) em yaw 0 e (−1, ·, −1) em yaw 90 (rotação de 90°). |
+| Proteção | Baú (block entity), bedrock e `reinforced_deepslate` dentro da cratera intactos; água posta ao lado da borda: 0 blocos de água dentro da cratera. |
+| `TerrainEditEvent` cancelado | 1 evento, 1 recusa por evento, nenhum bloco mudou. |
+| `mobGriefing` (fonte: um porco, mundo pacífico) | Desligado: recusa por mobGriefing, nada muda; ligado: commit. |
+| Config | `terrainEnabled = false`, `terrainDimensions = [the_end]`, `terrainMaxVolume = 100`: uma recusa de cada, nenhum commit. |
+| Chegada tardia | Com os chunks presos por `/forceload`, o jogador sai a 3 000 blocos (o chunk descarrega no cliente) antes do impacto e volta 2 s depois: cratera com a esfera de ouro no cliente e 1 zona quente (o calor ainda esfriando). |
+| Regressão 0.10 | `leque`: 5 feixes. |
+
+Nenhum erro de shader e nenhuma exceção do motor ou do exemplo no log; as exceções são do áudio (sem OpenAL) e da rede da Mojang, esperadas neste ambiente.
+
+**O que o teste em jogo achou e foi corrigido:** (1) **o cliente não via a cratera** (a do servidor estava certa): o pacote de seção usa o empacotamento do jogo, `x << 8 | z << 4 | y` (conferido com `javap -c` em `SectionPos.sectionRelativePos`), e o escritor passava o do plano, `y << 8 | z << 4 | x`; o cliente aplicava os blocos transpostos. (2) Logo depois do commit, o buraco mostrava o céu por 1 a 3 quadros (seções ainda sendo remontadas): o passe `terrain` passou a pintar o fundo quente nesses pixels nos primeiros 1,5 s. (3) Brilho forte e largo demais (um disco amarelo saturado): brasa, fissuras, aura e a luz do motor mais baixas e a borda do calor mais estreita. (4) O relatório do commit lia o tempo da thread antes de somar o último lote. (5) No próprio roteiro: o zumbi do teste de `mobGriefing` sumia no modo pacífico (trocado por um porco) e o `/fill` vindo do cliente rodava fora do tick medido (veja abaixo).
+
+Capturas: [cratera: antes, impacto, quente, esfriando, fria, desfeita](gameplay/cratera-0110.jpg) · [meteoro: queda, impacto, revelação, depois](gameplay/meteoro-0110.jpg) · [raio e trincheira](gameplay/raio-trincheira-0110.jpg) · [torre: queda, pouso, depois, girada](gameplay/torre-0110.jpg) · [proteção e água; chegada tardia](gameplay/protecao-tardia-0110.jpg).
+
+### Medição (Etapa 7)
+
+Mesmo mundo plano, regiões novas para cada caso, jogador parado a ~35 blocos olhando para a área. MSPT: duração de cada tick do servidor entre `ServerTickEvent.Pre` (prioridade mais alta) e `Post` (mais baixa). **No singleplayer, um comando vindo do cliente roda na fila de tarefas do servidor, fora desse intervalo**: na terceira rodada o `/fill` parecia de graça por isso. Na quarta, o `/fill` e a ignição da TNT são executados **dentro** do tick (no `Pre`, pelo mod de teste), com a duração do próprio comando medida. Tempo de quadro: intervalo entre `RenderFrameEvent.Pre` seguidos, em llvmpipe (CPU dividida entre o servidor integrado, a remontagem das seções e a rasterização): serve para comparar os casos entre si, não como número de GPU. Repouso: mediana 22,3 ms, p95 28,4 ms.
+
+| Caso (mesmo volume: esfera de raio 12 ≈ 7 238 blocos) | Thread do servidor | Pior tick | Ticks acima de 50 ms | Quadros nos 3 s seguintes (mediana / p95 / máx.) |
+|---|---|---|---|---|
+| **(a) Terrain API**, esfera r12 sem casca e sem calor, 1ª | commit 13,6 ms, 1 tick (7 224 escritos, 14 pacotes de seção) | 15,2 ms | 0 | 24,5 / 41,3 / 45,9 ms |
+| (a) 2ª | commit 10,7 ms, 1 tick | 12,1 ms | 0 | 24,7 / 45,6 / 48,5 ms |
+| **(b) `/fill`** de ar num cubo 19 × 20 × 19 (7 220 blocos), dentro de um tick, 1ª | comando 44,7 ms | 51,6 ms | 1 | 20,7 / 25,3 / 35,9 ms |
+| (b) 2ª | comando 16,0 ms | 21,1 ms | 0 | 40,8 / 61,1 / 65,7 ms |
+| **(c) TNT empilhada**: 5 × 5 × 5 = 125 TNT na pedra, acesa por redstone | 1 077 ms somados em 140 ticks (explosões, entidades, drops, luz) | 107,8 ms | 3 | 28,8 / 58,7 / 66,2 ms (7 s) |
+| **Cratera grande**: esfera r24 com casca de 2, em lotes de 16 384 | 63,5 ms em 5 ticks (73 379 planejados, 71 494 escritos, 56 pacotes) | 24,6 ms | 0 | 58,9 / 92,0 / 176,6 ms (4 s) |
+
+Leitura:
+
+- **Servidor:** para o mesmo volume, o commit da Terrain API custou 10,7 a 13,6 ms, contra 16,0 a 44,7 ms do `/fill` (que, conferido com `javap -c` em `FillCommand.fillBlocks` e `BlockInput.place`, faz `updateFromNeighbourShapes` e `setBlock(pos, estado, 2)` em cada posição e depois `blockUpdated` em todas) e cerca de 1,1 s espalhado por 7 s de explosões da TNT, com picos de 108 ms. A TNT destruiu 5 701 blocos (menos que os outros) e deixou 53 entidades de item. A cratera de raio 24 (10 vezes o volume) ficou abaixo de 25 ms por tick porque o commit é dividido em lotes: nenhum tick passou de 50 ms.
+- **Cliente:** a Terrain API e o `/fill` mudam o mesmo número de seções e custam parecido para remontar; em llvmpipe o ruído entre rodadas é do tamanho da diferença (veja a 2ª do `/fill`). A TNT custa mais por mais tempo (partículas, entidades, sete segundos de mudanças). A cratera r24 remonta 56 seções em poucos ticks: a mediana dos quadros subiu para 59 ms por 4 s em renderização por software; numa GPU física esse custo é da CPU (compilação das seções) e precisa ser medido (TESTE-REAL.md, caso 72).
+- **Sob o impact frame:** o commit cabe num tick até ~16 000 blocos com o orçamento padrão; acima disso o resto entra nos ticks seguintes, ainda dentro de um clarão de 4 a 8 ticks.
+
+### Pendente
+
+- TESTE-REAL.md, parte 6 (casos 63 a 74), com dois jogadores num servidor dedicado e numa GPU física, incluindo o custo de quadro da cratera grande e o comportamento com Sodium/Embeddium.
+- Os pendentes da 0.10.0 continuam (abaixo).
+
+---
+
+## Versão 0.10.0 — integração com outros mods
 
 **Compilada e coberta pelos testes de build; executada em jogo por um roteiro automatizado em renderização por software (Mesa llvmpipe), num cliente, no NeoForge 21.1.267 e no 21.1.265, com o mesmo roteiro e o mesmo resultado (53 de 53 verificações). Dois jogadores num servidor dedicado, GPU física e os casos manuais de TESTE-REAL.md (52 a 62) continuam pendentes.**
 
