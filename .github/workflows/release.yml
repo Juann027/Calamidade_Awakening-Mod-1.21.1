@@ -1,0 +1,45 @@
+# Compila o motor e o vfx-sample e publica um release do GitHub com os JARs.
+# Disparo manual (Actions > Release > Run workflow) com a tag desejada, por exemplo v0.7.0.
+# As notas vêm de .github/release-notes/<tag>.md.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag do release (ex.: v0.7.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Build do motor (inclui checkBudget e checkFrustum)
+        run: ./gradlew build dist
+      - name: Build do vfx-sample
+        run: ./gradlew -p examples/vfx-sample build
+      - name: Reunir JARs
+        run: |
+          mkdir -p out
+          cp dist/calamidade_awakening-*.jar out/
+          cp examples/vfx-sample/build/libs/vfx-sample-*.jar out/
+          cp libs/rimulib-1.3.0-neoforge.jar out/
+          (cd out && sha256sum *.jar | tee SHA256SUMS.txt)
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          notes=".github/release-notes/${TAG}.md"
+          [ -f "$notes" ] || { echo "Faltam as notas em $notes"; exit 1; }
+          { cat "$notes"; echo; echo '### SHA-256 (build deste workflow)'; echo '```'; cat out/SHA256SUMS.txt; echo '```'; } > notes.md
+          gh release create "$TAG" out/*.jar out/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title "Calamidade_Awakening ${TAG#v} — Timeline API" --notes-file notes.md
