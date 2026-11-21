@@ -13,12 +13,68 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Public common-side API. Register during mod construction. Start and stop on the server thread. */
+/**
+ * Public common-side API: register effects, schedule server cues and start or stop instances.
+ *
+ * <p>Register during mod construction, on both sides (the common mod constructor), in this order:
+ * {@link #register}, then optionally {@link #timeline}, {@link #atmosphere} and the cues ({@link #cue},
+ * {@link #onImpact}). Start, follow and stop instances on the server thread. Times are in game ticks (20 per
+ * second), distances in blocks, colors in ARGB ints. Invalid input throws {@link IllegalArgumentException}.
+ *
+ * <pre>{@code
+ * var id = ResourceLocation.fromNamespaceAndPath("meumod", "golpe");
+ * Effects.register(id, new Effects.Definition(80, 4, 0xffffb050, Effects.Shape.RINGS,
+ *     Effects.Material.LENS, null, null));
+ * Effects.onImpact(id, ctx -> ...);                         // optional gameplay
+ * Effects.start(id, serverLevel, position);                 // server thread
+ * }</pre>
+ */
 public final class Effects {
-    public enum Shape { NONE, PRISM, RINGS, ORBIT, NEXUS }
-    public enum Material { NONE, CRYSTAL, VEIL, LENS, NEBULA }
-    public enum ImpactStyle { TINTED_FLASH, MONOCHROME }
-    /** Starts at tick zero or later. Frame strength decays linearly over the specified game ticks. */
+    /** Built-in world geometry drawn by the engine around the instance center. */
+    public enum Shape {
+        /** No built-in geometry (use AddonLayers.world or post passes). */
+        NONE,
+        /** Spinning prism shards. */
+        PRISM,
+        /** Concentric rings. */
+        RINGS,
+        /** Orbiting ribbons. */
+        ORBIT,
+        /** Curved blades that converge (Horizon Core style). */
+        NEXUS
+    }
+
+    /** Built-in volumetric material raymarched by the engine's shared pass (costs one of its marks). */
+    public enum Material {
+        /** No volume. */
+        NONE,
+        /** Faceted crystal shell with an inner grid. */
+        CRYSTAL,
+        /** Translucent petals and strands. */
+        VEIL,
+        /** Lens band with streams. */
+        LENS,
+        /** Noisy nebula halo. */
+        NEBULA
+    }
+
+    /** Look of the impact accent. */
+    public enum ImpactStyle {
+        /** Flash tinted with the definition color (hidden when the player hides lightning flashes). */
+        TINTED_FLASH,
+        /** Desaturation plus contrast (a monochrome impact frame). */
+        MONOCHROME
+    }
+
+    /**
+     * Impact accent of a definition: a screen accent at {@code tick} whose strength decays linearly to zero over
+     * {@code duration} ticks. Also the tick used by {@link #onImpact}.
+     *
+     * @param tick     start tick, 0..{@value #MAX_TICKS}-1 (and tick + duration within the definition)
+     * @param duration ticks, 1..20
+     * @param strength peak strength, (0, 1]
+     * @param style    accent style
+     */
     public record Impact(int tick, int duration, float strength, ImpactStyle style) {
         public Impact {
             Objects.requireNonNull(style);
@@ -26,29 +82,48 @@ public final class Effects {
                 !Float.isFinite(strength) || strength <= 0 || strength > 1)
                 throw new IllegalArgumentException("Invalid impact timing or strength");
         }
+        /** Accent strength at {@code age} ticks: {@code strength} at the impact tick, falling to 0 after {@code duration}. */
         public float weight(double age) {
             double elapsed = age - tick;
             return elapsed >= 0 && elapsed < duration ? strength * (float)(1 - elapsed / duration) : 0;
         }
     }
 
-    /** Particle (a SimpleParticleType) and positional opening sound are optional resource IDs. */
-    /** Default distance, in blocks, within which players receive an instance. */
+    /** Default distribution range, in blocks: players farther than this from the center do not receive an instance. */
     public static final double DEFAULT_RANGE = 128;
+    /** Longest effect, in ticks (12000 = 10 minutes). */
     public static final int MAX_TICKS = 12000;
 
     /**
-     * {@code ticks}: 1..12000 (10 minutes). For ambient effects, use a long duration and end it with
-     * {@link Handle#stop()}. {@code radius}: (0,512]. {@code range}: 16..1024 blocks; players farther than this
-     * from the center do not receive the instance. Beyond each player's render distance only sky pixels exist,
-     * so a large range mainly helps effects drawn in the sky.
+     * What an effect is: duration, size, color, built-in look, optional particle and sound, impact accent and
+     * distribution range. For ambient effects use a long duration and end them with {@link Handle#stop()}, or a
+     * {@link Timeline} with sustain and {@link Handle#release()}. Beyond each player's render distance only sky
+     * pixels exist, so a large range mainly helps effects drawn in the sky.
+     *
+     * <pre>{@code
+     * new Effects.Definition(120, 2, 0xff65e8c9, Effects.Shape.RINGS, Effects.Material.CRYSTAL,
+     *     ResourceLocation.withDefaultNamespace("end_rod"), null,
+     *     new Effects.Impact(40, 3, .75f, Effects.ImpactStyle.MONOCHROME)).withRange(256);
+     * }</pre>
+     *
+     * @param ticks    duration, 1..{@value #MAX_TICKS} ticks
+     * @param radius   size in blocks, (0, 512]; also the frustum test extent and the radius handed to layers
+     * @param argb     main color (ARGB), used by built-in geometry, flashes and cards
+     * @param shape    built-in geometry
+     * @param material built-in volume
+     * @param particle optional particle ID (a SimpleParticleType), emitted every 4 ticks; null for none
+     * @param sound    optional positional opening sound ID; null for none
+     * @param impact   optional impact accent; null for none
+     * @param range    distribution range, 16..1024 blocks ({@link #DEFAULT_RANGE} by default)
      */
     public record Definition(int ticks, double radius, int argb, Shape shape, Material material,
                              ResourceLocation particle, ResourceLocation sound, Impact impact, double range) {
+        /** Definition without impact accent and with the {@link #DEFAULT_RANGE default range}. */
         public Definition(int ticks, double radius, int argb, Shape shape, Material material,
                           ResourceLocation particle, ResourceLocation sound) {
             this(ticks, radius, argb, shape, material, particle, sound, null, DEFAULT_RANGE);
         }
+        /** Definition with an impact accent and the {@link #DEFAULT_RANGE default range}. */
         public Definition(int ticks, double radius, int argb, Shape shape, Material material,
                           ResourceLocation particle, ResourceLocation sound, Impact impact) {
             this(ticks, radius, argb, shape, material, particle, sound, impact, DEFAULT_RANGE);
@@ -63,11 +138,12 @@ public final class Effects {
             if (!Double.isFinite(range) || range < 16 || range > 1024)
                 throw new IllegalArgumentException("Expected range in [16,1024]");
         }
-        /** Copy with another distribution range. */
+        /** Copy with another distribution range, 16..1024 blocks. */
         public Definition withRange(double blocks) {
             return new Definition(ticks, radius, argb, shape, material, particle, sound, impact, blocks);
         }
     }
+    /** Server-side control of one live instance, returned by {@link #start} and {@link #follow}. */
     public interface Handle {
         /** Ends the instance right away. Returns true only on the first explicit stop of a live instance. */
         boolean stop();
@@ -83,11 +159,17 @@ public final class Effects {
 
     /**
      * Server-side moment of a live instance, delivered to a {@link Cue} on the server thread.
-     * {@code caster} is null for effects started without a player; {@code anchor} is null for fixed positions.
-     * {@code center} already includes the entity offset for anchored instances.
-     * {@code tick} is the scheduled tick on the timeline clock. Since 0.7.0, {@code timeline} is the registered
-     * timeline (null for effects without one), {@code localAge} the local age when the cue runs (equal to
-     * {@code tick}) and {@code age} the real age of the instance, which keeps growing across sustain loops.
+     *
+     * @param level    server level of the instance
+     * @param center   current center (blocks); includes the entity offset for anchored instances
+     * @param caster   player who cast it, or null (started without a player, or the player left)
+     * @param anchor   entity of {@link Effects#follow}, or null for fixed positions
+     * @param seed     instance seed, the same the client uses for its visuals
+     * @param tick     scheduled tick on the timeline clock (local tick)
+     * @param handle   handle of this instance ({@code stop()}, {@code release()})
+     * @param timeline registered timeline, or null (0.7.0)
+     * @param localAge local age when the cue runs, equal to {@code tick} (0.7.0)
+     * @param age      real age in ticks, which keeps growing across sustain loops (0.7.0)
      */
     public record Context(ServerLevel level, Vec3 center, ServerPlayer caster,
                           Entity anchor, long seed, int tick, Handle handle,
@@ -112,11 +194,16 @@ public final class Effects {
      * The engine stays cosmetic; damage, knockback, block changes and costs belong to the cue.
      */
     @FunctionalInterface public interface Cue {
+        /** Runs on the server thread; exceptions are logged and do not stop the effect or the other cues. */
         void run(Context context);
     }
 
     private Effects() {}
 
+    /**
+     * Registers an external effect in your own namespace (the {@code calamidade_awakening} namespace is reserved).
+     * Call during mod construction on both sides; IDs must be unique.
+     */
     public static void register(ResourceLocation id, Definition definition) {
         VisualKind.registerExternal(Objects.requireNonNull(id), Objects.requireNonNull(definition));
     }
@@ -165,16 +252,28 @@ public final class Effects {
         cue(id, kind.definition().impact().tick(), cue);
     }
 
+    /**
+     * Starts an instance at a fixed world position (blocks). Server thread. Unknown effects throw
+     * {@link IllegalArgumentException}; the result is empty when the position's chunk is not loaded or the server
+     * already runs 64 instances.
+     */
     public static Optional<Handle> start(ResourceLocation id, ServerLevel level, Vec3 position) {
         return StageNetwork.start(id, level, position, null, null);
     }
 
-    /** Use the effect's built-in film, if defined, for the specified caster. */
+    /**
+     * Starts an instance at a position for a caster: the caster's client plays the effect's camera (card shots or
+     * {@code AddonLayers.film}) and cues receive the player as {@code caster}. Server thread.
+     */
     public static Optional<Handle> start(ResourceLocation id, net.minecraft.server.level.ServerPlayer caster, Vec3 position) {
         return StageNetwork.start(id, caster.serverLevel(), position, null, caster.getUUID());
     }
 
-    /** Offset is in world axes, relative to the entity's feet. */
+    /**
+     * Starts an instance anchored to a server entity: the center follows the entity's feet plus {@code offset}
+     * (world axes, blocks). The instance ends when the entity is removed or unloaded. Server thread. Empty when
+     * the entity is removed or in another level, its chunk is not loaded or the server already runs 64 instances.
+     */
     public static Optional<Handle> follow(ResourceLocation id, Entity entity, Vec3 offset) {
         if (!(entity.level() instanceof ServerLevel level))
             throw new IllegalArgumentException("Expected a server entity");

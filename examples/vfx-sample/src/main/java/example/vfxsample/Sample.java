@@ -90,6 +90,9 @@ public final class Sample {
         Effects.cue(BEACON, 0, ctx -> ctx.level().playSound(null, BlockPos.containing(ctx.center()),
             SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 1f, 1f));
 
+        // 1.5.0 — receitas de docs/ai/receitas/, cada uma um efeito real: /vfxsample receita <nome>.
+        example.vfxsample.receitas.Receitas.register();
+
         NeoForge.EVENT_BUS.addListener(this::commands);
         NeoForge.EVENT_BUS.addListener(this::logout);
         NeoForge.EVENT_BUS.addListener(this::shutdown);
@@ -103,7 +106,8 @@ public final class Sample {
             .then(Commands.literal("farol")
                 .then(Commands.literal("start").executes(ctx -> beaconStart(ctx.getSource())))
                 .then(Commands.literal("release").executes(ctx -> beaconRelease(ctx.getSource())))
-                .then(Commands.literal("stop").executes(ctx -> beaconStop(ctx.getSource())))));
+                .then(Commands.literal("stop").executes(ctx -> beaconStop(ctx.getSource()))))
+            .then(example.vfxsample.receitas.Receitas.comando()));
     }
 
     private static void impact(Effects.Context context) {
@@ -168,10 +172,12 @@ public final class Sample {
         if (event.getEntity() instanceof ServerPlayer player) {
             stop(player.getUUID());
             beaconStopFor(player.getUUID());
+            example.vfxsample.receitas.Receitas.parar(player.getUUID());
         }
     }
     private void shutdown(ServerStoppedEvent event) {
         last.clear();
         beacons.clear();
+        example.vfxsample.receitas.Receitas.limpar();
     }
 }

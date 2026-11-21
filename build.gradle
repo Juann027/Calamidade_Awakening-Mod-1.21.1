@@ -155,6 +155,67 @@ tasks.register('checkShaders') {
 }
 tasks.named('check') { dependsOn 'checkShaders' }
 
+// 0.8.0: docs/ai/API-REFERENCIA.md é gerado de javap -public no JAR + Javadoc (scripts/ApiReferencia.java, Java de
+// arquivo único rodado pelo java do toolchain). apiDocs regenera; checkApiDocs falha se o arquivo estiver
+// desatualizado ou se algum membro público da api.v1 estiver sem Javadoc.
+def apiLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+['apiDocs': false, 'checkApiDocs': true].each { taskName, checkOnly ->
+    tasks.register(taskName, Exec) {
+        group = checkOnly ? 'verification' : 'documentation'
+        description = checkOnly ? 'Falha se docs/ai/API-REFERENCIA.md não corresponde à api.v1 compilada.'
+            : 'Regenera docs/ai/API-REFERENCIA.md a partir do JAR (javap) e do Javadoc.'
+        def jarFile = tasks.named('jar').flatMap { it.archiveFile }
+        dependsOn tasks.named('jar')
+        inputs.file(jarFile)
+        inputs.dir('src/main/java/dev/calamidade_awakening/api/v1')
+        inputs.file('scripts/ApiReferencia.java')
+        def reference = layout.projectDirectory.file('docs/ai/API-REFERENCIA.md').asFile
+        if (checkOnly) { inputs.file(reference); outputs.upToDateWhen { false } } else outputs.file(reference)
+        executable = apiLauncher.get().executablePath.asFile.absolutePath
+        workingDir = layout.projectDirectory.asFile
+        def arguments = ['-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', 'scripts/ApiReferencia.java', '--jar', jarFile.get().asFile.absolutePath,
+                         '--src', 'src/main/java', '--out', 'docs/ai/API-REFERENCIA.md']
+        if (checkOnly) arguments << '--check'
+        args arguments
+    }
+}
+tasks.named('check') { dependsOn 'checkApiDocs' }
+
+// 0.8.0: as receitas de docs/ai/receitas/ trazem o código dos efeitos reais do vfx-sample. Cada bloco de código
+// precedido por "<!-- arquivo: caminho -->" precisa ser idêntico ao arquivo. syncRecipes copia os arquivos para os
+// blocos; checkRecipes (parte do build) falha se algum bloco divergir.
+def recipeBlocks = ~/<!-- arquivo: (\S+) -->\n```(\w+)\n((?:(?!```)[\s\S])*)```/
+['syncRecipes': false, 'checkRecipes': true].each { taskName, checkOnly ->
+    tasks.register(taskName) {
+        group = checkOnly ? 'verification' : 'documentation'
+        description = checkOnly ? 'Falha se o código das receitas em docs/ai/receitas/ diverge dos arquivos do vfx-sample.'
+            : 'Copia o código do vfx-sample para os blocos das receitas em docs/ai/receitas/.'
+        def root = layout.projectDirectory.asFile
+        def docs = layout.projectDirectory.dir('docs/ai/receitas').asFile
+        inputs.dir(docs)
+        inputs.dir(layout.projectDirectory.dir('examples/vfx-sample/src'))
+        if (checkOnly) outputs.upToDateWhen { false }
+        doLast {
+            def stale = []
+            docs.listFiles().findAll { it.name.endsWith('.md') }.sort().each { doc ->
+                def text = doc.getText('UTF-8')
+                def updated = text.replaceAll(recipeBlocks) { all, path, lang, body ->
+                    def source = new File(root, path)
+                    if (!source.isFile()) throw new GradleException("${doc.name}: arquivo inexistente ${path}")
+                    def code = source.getText('UTF-8').replaceAll(/\n+$/, '')
+                    if (code + '\n' != body) stale << "${doc.name} -> ${path}"
+                    "<!-- arquivo: ${path} -->\n```${lang}\n${code}\n```"
+                }
+                if (!checkOnly && updated != text) doc.setText(updated, 'UTF-8')
+            }
+            if (checkOnly && !stale.isEmpty())
+                throw new GradleException("Receitas desatualizadas (rode ./gradlew syncRecipes):\n  " + stale.join('\n  '))
+            if (!checkOnly) logger.lifecycle("syncRecipes: ${stale.size()} blocos atualizados")
+        }
+    }
+}
+tasks.named('check') { dependsOn 'checkRecipes' }
+
 // Copia o JAR compilado para dist/, de onde o exemplo vfx-sample e o pacote de entrega o consomem.
 tasks.register('dist', Copy) {
     dependsOn tasks.named('build')

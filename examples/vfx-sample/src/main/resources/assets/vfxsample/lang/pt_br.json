@@ -7,5 +7,10 @@
   "command.vfxsample.farol.failed": "Não foi possível acender o farol aqui.",
   "command.vfxsample.farol.released": "Farol liberado: apaga em 3 segundos.",
   "command.vfxsample.farol.stopped": "Farol encerrado.",
-  "command.vfxsample.farol.none": "Você não tem um farol em loop para liberar ou encerrar."
+  "command.vfxsample.farol.none": "Você não tem um farol em loop para liberar ou encerrar.",
+  "command.vfxsample.receita.started": "Receita %s iniciada.",
+  "command.vfxsample.receita.failed": "Não foi possível iniciar a receita %s aqui.",
+  "command.vfxsample.receita.released": "Receita liberada: ela some aos poucos.",
+  "command.vfxsample.receita.stopped": "Receita encerrada.",
+  "command.vfxsample.receita.none": "Você não tem uma receita em andamento para liberar ou encerrar."
 }

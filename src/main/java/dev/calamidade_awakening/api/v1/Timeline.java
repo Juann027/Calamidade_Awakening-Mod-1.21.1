@@ -19,13 +19,31 @@ import java.util.regex.Pattern;
  *
  * <p>Names match {@code [a-z0-9_]+} and are unique within their kind: a phase and a marker may share a name.
  * Invalid input throws {@link IllegalArgumentException}, like the rest of the API.
+ *
+ * <pre>{@code
+ * static final Timeline ROTEIRO = Timeline.builder(120)          // 120 ticks
+ *     .phase("formacao", 0, 40, 8, 6)                           // início, fim, subida, queda
+ *     .track("intensidade", keyframe(0, 0f), keyframe(40, 1f, Easing.OVERSHOOT), keyframe(120, 0f))
+ *     .marker("impacto", 40)
+ *     .build();
+ * Effects.timeline(ID, ROTEIRO);                                // depois de Effects.register
+ * }</pre>
  */
 public final class Timeline {
     private static final Pattern NAME = Pattern.compile("[a-z0-9_]{1,64}");
 
     /** Curve of one keyframe segment. The easing of a keyframe shapes the segment that <em>arrives</em> at it. */
     public enum Easing {
-        LINEAR, SMOOTH, EASE_IN, EASE_OUT, EASE_IN_OUT,
+        /** Straight line. */
+        LINEAR,
+        /** Smoothstep: slow at both ends. */
+        SMOOTH,
+        /** Cubic, slow start. */
+        EASE_IN,
+        /** Cubic, slow end. */
+        EASE_OUT,
+        /** Cubic, slow start and end. */
+        EASE_IN_OUT,
         /** Back-out: passes about 10% beyond the target and settles on it. */
         OVERSHOOT;
 
@@ -45,7 +63,13 @@ public final class Timeline {
         }
     }
 
-    /** One value on a track. {@code tick} in [0, duration]; {@code easing} shapes the segment ending here. */
+    /**
+     * One value on a track.
+     *
+     * @param tick   local tick, 0..duration, strictly increasing along the track
+     * @param value  finite value at that tick
+     * @param easing curve of the segment that arrives at this keyframe
+     */
     public record Keyframe(int tick, float value, Easing easing) {
         public Keyframe {
             Objects.requireNonNull(easing, "easing");
@@ -54,8 +78,9 @@ public final class Timeline {
         }
     }
 
+    /** Keyframe at {@code tick} (ticks) with {@code value}, reached through {@code easing}. */
     public static Keyframe keyframe(int tick, float value, Easing easing) { return new Keyframe(tick, value, easing); }
-    /** Linear keyframe. */
+    /** Keyframe reached linearly. */
     public static Keyframe keyframe(int tick, float value) { return new Keyframe(tick, value, Easing.LINEAR); }
 
     private record Phase(int start, int end, int rise, int fall) {}
@@ -85,6 +110,7 @@ public final class Timeline {
     /** Timeline with no phases, tracks or markers; what client layers see for effects registered without one. */
     public static Timeline empty(int duration) { return builder(duration).build(); }
 
+    /** Duration in ticks (1..{@link Effects#MAX_TICKS}); must not exceed the effect definition. */
     public int duration() { return duration; }
 
     // ---------------------------------------------------------------- phases
@@ -107,8 +133,11 @@ public final class Timeline {
         return (float) Math.clamp((age - p.start) / (double) (p.end - p.start), 0, 1);
     }
 
+    /** First tick of a phase. */
     public int start(String phase) { return phase(phase).start; }
+    /** Tick where a phase ends (exclusive). */
     public int end(String phase) { return phase(phase).end; }
+    /** True when a phase with this name exists. */
     public boolean hasPhase(String name) { return phases.containsKey(name); }
     /** Phase names in declaration order. */
     public Set<String> phases() { return phases.keySet(); }
@@ -132,6 +161,7 @@ public final class Timeline {
         return (float) (a.value() + (b.value() - a.value()) * b.easing().apply(t));
     }
 
+    /** True when a track with this name exists. */
     public boolean hasTrack(String name) { return tracks.containsKey(name); }
     /** Track names in declaration order. */
     public Set<String> tracks() { return tracks.keySet(); }
@@ -144,18 +174,21 @@ public final class Timeline {
 
     // ---------------------------------------------------------------- markers
 
+    /** Tick of a marker. */
     public int tick(String marker) {
         Integer tick = markers.get(marker);
         if (tick == null) throw new IllegalArgumentException("Unknown marker: " + marker);
         return tick;
     }
 
+    /** True when a marker with this name exists. */
     public boolean hasMarker(String name) { return markers.containsKey(name); }
     /** Marker names in declaration order. */
     public Set<String> markers() { return markers.keySet(); }
 
     // ---------------------------------------------------------------- sustain and release
 
+    /** True when the timeline has a sustain loop (the instance loops until released). */
     public boolean sustained() { return sustainStart >= 0; }
     /** First tick of the loop, or -1 without sustain. */
     public int sustainStart() { return sustainStart; }
@@ -200,17 +233,23 @@ public final class Timeline {
         private final Timeline timeline;
         private final double localAge;
 
+        /** Sampler of {@code timeline} at {@code localAge} ticks. */
         public Sampler(Timeline timeline, double localAge) {
             this.timeline = Objects.requireNonNull(timeline);
             this.localAge = localAge;
         }
 
+        /** The sampled timeline. */
         public Timeline timeline() { return timeline; }
         /** Local age in ticks, partial tick included. */
         public double localAge() { return localAge; }
+        /** Phase weight at this age, 0..1 ({@link Timeline#weight}). */
         public float weight(String phase) { return timeline.weight(phase, localAge); }
+        /** Phase progress at this age, 0..1 ({@link Timeline#progress}). */
         public float progress(String phase) { return timeline.progress(phase, localAge); }
+        /** Track value at this age ({@link Timeline#value}). */
         public float value(String track) { return timeline.value(track, localAge); }
+        /** Tick of a marker. */
         public int tick(String marker) { return timeline.tick(marker); }
         /** Ticks since a marker (negative before it). */
         public double since(String marker) { return localAge - timeline.tick(marker); }
@@ -218,6 +257,7 @@ public final class Timeline {
 
     // ---------------------------------------------------------------- builder
 
+    /** Builder of a {@link Timeline}; every call validates its arguments right away. */
     public static final class Builder {
         private final int duration;
         private final Map<String, Phase> phases = new LinkedHashMap<>();
@@ -291,6 +331,7 @@ public final class Timeline {
             return this;
         }
 
+        /** Immutable timeline. Throws when a release was set without sustain or before the sustain end. */
         public Timeline build() {
             if (releaseStart >= 0 && sustainStart < 0)
                 throw new IllegalArgumentException("Release requires sustain");

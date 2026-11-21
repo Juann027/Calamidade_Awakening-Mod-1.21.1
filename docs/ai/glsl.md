@@ -1,0 +1,96 @@
+# GLSL para efeitos do Calamidade_Awakening
+
+Os passes de pós-processamento (`post.pass("ns:programa", ...)`, shaders de cartão e os do motor) são shaders de fragmento em tela cheia, compilados pela RimuLib 1.3.0. Este guia diz o que já vem pronto, como incluir a biblioteca do Calamidade e as convenções de espaço e unidade.
+
+## Como a RimuLib monta o shader
+
+Conferido com `javap -c` em `cyou.rimuru.rimulib.mc1211.client.render.ShaderProgram` (RimuLib 1.3.0):
+
+1. O arquivo é `assets/<namespace>/shaders/fx/<programa>.fsh` (programa `"vfxsample:receita_anel"` → `assets/vfxsample/shaders/fx/receita_anel.fsh`).
+2. `readSource` junta: `common.glsl` da RimuLib (que começa com `#version 150`), uma linha `#line 1 1` e o seu arquivo.
+3. Cada linha do seu arquivo que, sem espaços nas pontas, começa com `#include "` e termina com `"` é trocada pelo conteúdo de `assets/<namespace do shader>/shaders/fx/<arquivo>`; se não existir, de `assets/rimulib/shaders/fx/<arquivo>`. Depois do texto incluído vem um `#line` que restaura a numeração do seu arquivo.
+4. Não há recursão (um arquivo incluído não pode incluir outro) nem busca no namespace do motor.
+5. O vertex shader é fixo: um triângulo de tela cheia com `out vec2 texCoord`; a saída é `out vec4 fragColor`.
+
+**Consequência para addons:** para usar `calamidade_fx.glsl`, copie-o para `assets/<seu_namespace>/shaders/fx/calamidade_fx.glsl`. O `scripts/novo_efeito.py` faz isso, e o `checkShaders` do build falha se uma cópia dentro deste repositório divergir da do motor. A biblioteca tem `#define CA_FX_VERSION 1` para você conferir a versão.
+
+## O que o common.glsl já oferece
+
+| Nome | Uso |
+|---|---|
+| `DiffuseSampler`, `DepthSampler` | Cor da cena até aqui e profundidade. |
+| `texCoord`, `fragColor`, `OutSize` | Coordenada 0..1 do pixel, saída e tamanho da tela em pixels. |
+| `GTime` | Segundos do relógio do mundo: `(tempo do mundo mod 24000 + fração) / 20` (conferido com `javap -c` em `FxApi$Stage`), volta a 0 a cada 20 minutos. Para animação ligada à instância, mande `post.age()` ou `post.realAge()`. |
+| `skyAt(uv)` | `true` quando o pixel é céu (sem geometria). |
+| `scenePosAt(uv)` | Posição do que o pixel mostra, **relativa à câmera**, em blocos (céu: direção × 100000). |
+| `viewDir(uv)` | Direção normalizada do raio do pixel (origem na câmera = `vec3(0.0)`). |
+| `sampleScene(uv)` | Cor da cena com a coordenada limitada à borda. |
+| `initPixel(uv)` e `gPix` | `initPixel` preenche `gPix`, o ângulo de um pixel; `gPix * distância` = tamanho do pixel em blocos. |
+| `project(p)` | Posição de mundo relativa à câmera → (uv, profundidade). |
+| `hash11`, `hash12`, `hash13`, `hash22`, `vnoise2`, `vnoise3`, `fbm2`, `fbm3` | Ruído. |
+| `raySphere`, `rayCylinderY`, `rayPlane`, `raySegmentDist`, `sdCapsule`... | Interseções e distâncias básicas. |
+| `line(d, w)`, `halo(d, w)`, `lum(c)`, `saturate(x)`, `rot(a)`, `tonemap(c)`, `prism7(h)` | Utilidades. |
+| `PI`, `TAU`, `FAR` | Constantes. |
+
+Não declare funções com esses nomes. Tudo da biblioteca do Calamidade começa com `ca`.
+
+## calamidade_fx.glsl
+
+Arquivo: `src/main/resources/assets/calamidade_awakening/shaders/fx/calamidade_fx.glsl`. Uso: `#include "calamidade_fx.glsl"` numa linha própria, depois dos uniforms.
+
+| Função | Devolve | Notas |
+|---|---|---|
+| `vec2 caRayBox(ro, rd, bmin, bmax)` | (tEntrada, tSaída) em blocos; `vec2(-1.0)` se erra ou está atrás | Caixa alinhada aos eixos. Dentro dela, tEntrada = 0. `rd` normalizada. |
+| `vec3 caBoxNormal(p, bmin, bmax)` | normal externa (eixo dominante) | Para um ponto na superfície da caixa. |
+| `vec2 caRaySphere(ro, rd, centro, raio)` | (t0, t1); `vec2(-1.0)` se erra | Dentro da esfera, t0 = 0. |
+| `vec2 caSegmentGlow(ro, rd, a, b, núcleo, halo, gPix, cena)` | (núcleo, halo) em 0..1 | Meias-larguras em blocos. Largura mínima de um pixel com intensidade compensada; some atrás do terreno (`cena` = `length(scenePosAt(uv))`). |
+| `float caGrid2(p, célula, largura, pixelMundo)` | 0..1 | Linhas num plano; afina e apaga sem moiré quando o pixel cresce. |
+| `float caWorldGrid(p, n, célula, largura, pixelMundo)` | 0..1 | Grade sobre qualquer superfície, pelos dois eixos perpendiculares à normal `n`. Passe `p` relativo a um ponto fixo (o centro do efeito) para não deslizar com a câmera. |
+| `vec3 caRainbow(h)` | cor | Matiz em voltas: 0 vermelho, 1/3 verde, 2/3 azul. |
+| `float caLuma(c)` | luminância | Pesos Rec. 709. |
+| `float caEnvelope(x, a, b, c, d)` | 0..1 | Sobe de a a b, platô, desce de c a d (smoothstep); a == b ou c == d viram degraus. |
+| `float caDistanceWave(dist, tempo, velocidade, largura, alcance)` | 0..1 | Anel na distância velocidade × tempo, que some perto do alcance; 0 antes de tempo 0. |
+| `float caStars(dir, segundos)` | 0..1 | Campo de estrelas procedural na direção `dir`; usado pelo passe de atmosfera. |
+
+Testes: `node scripts/testar_glsl.cjs` compila a biblioteca em GLSL ES 3.00 e executa 54 casos numa GPU (WebGL2 no Chromium headless), comparando com valores esperados. O `checkShaders` do Gradle compila cada shader do motor e do exemplo em GLSL 1.50, com o `common.glsl` real e os `#include` resolvidos como a RimuLib faz.
+
+## Convenções
+
+- **Espaço:** tudo relativo à câmera. A origem do raio é `vec3(0.0)`, a direção é `viewDir(texCoord)`, o centro do efeito chega por uniform de `post.center()`.
+- **Oclusão:** compare o `t` da sua interseção com `length(scenePosAt(texCoord))`; o terreno na frente esconde o efeito.
+- **Saída:** leia `texture(DiffuseSampler, texCoord).rgb`, some ou misture o efeito e escreva `fragColor = vec4(cor, 1.0)`. O pós-processamento da RimuLib (bloom, clarões, vinheta) vem depois.
+- **Unidades nos uniforms:** blocos para distâncias, ticks para tempo da instância (`post.age()`, `t.since(...)`), segundos para `GTime` (que dá a volta a cada 20 minutos).
+- **Uniforms:** `u.f1..f4`, `u.v3(nome, Vec3)`, `u.vec4s(nome, float[])` (array de vec4 numa chamada), `post.uploadTracks(u, "Track_")` (uma `uniform float Track_<trilha>` por trilha). Uniform que o shader não declara é ignorado.
+- **Portabilidade:** escreva literais float (`1.0`, não `1`): o driver do jogador pode ser estrito.
+- **Custo:** prefira soluções analíticas (as funções acima) a raymarch. Se precisar marchar, use poucos passos e reduza com `post.quality()`.
+
+## Esqueleto mínimo
+
+```glsl
+// A RimuLib antepõe #version 150 e common.glsl.
+uniform vec3 Centro;   // post.center(): relativo à câmera
+uniform vec4 Estado;   // x: peso da fase, y: opacidade, z: raio (blocos), w: ticks desde o marcador
+
+#include "calamidade_fx.glsl"
+
+void main() {
+    vec3 color = texture(DiffuseSampler, texCoord).rgb;
+    vec3 rd = viewDir(texCoord);
+    vec2 t = caRaySphere(vec3(0.0), rd, Centro, Estado.z);
+    if (t.x > 0.0 && t.x < length(scenePosAt(texCoord))) {
+        vec3 n = normalize(rd * t.x - Centro);
+        color += vec3(0.4, 0.9, 1.0) * pow(1.0 - abs(dot(n, rd)), 3.0) * Estado.x * Estado.y;
+    }
+    fragColor = vec4(color, 1.0);
+}
+```
+
+```java
+AddonLayers.post(ID, post -> {
+    var t = post.timeline();
+    post.pass("meumod:casca", u -> {
+        u.v3("Centro", post.center());
+        u.f4("Estado", t.weight("impacto"), post.time().opacity(), 4f, (float) t.since("impacto"));
+    });
+});
+```

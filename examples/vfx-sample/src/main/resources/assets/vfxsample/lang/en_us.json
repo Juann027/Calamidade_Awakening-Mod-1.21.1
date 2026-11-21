@@ -7,5 +7,10 @@
   "command.vfxsample.farol.failed": "Could not light the beacon here.",
   "command.vfxsample.farol.released": "Beacon released: it fades out in 3 seconds.",
   "command.vfxsample.farol.stopped": "Beacon stopped.",
-  "command.vfxsample.farol.none": "No looping beacon of yours to release or stop."
+  "command.vfxsample.farol.none": "No looping beacon of yours to release or stop.",
+  "command.vfxsample.receita.started": "Recipe %s started.",
+  "command.vfxsample.receita.failed": "Could not start recipe %s here.",
+  "command.vfxsample.receita.released": "Recipe released: it fades out.",
+  "command.vfxsample.receita.stopped": "Recipe stopped.",
+  "command.vfxsample.receita.none": "No running recipe of yours to release or stop."
 }

@@ -67,6 +67,8 @@ public final class SampleClient {
                 .8f, 1.2f, false);
         });
         beacon();
+        // 1.5.0 — camadas de cliente das receitas (docs/ai/receitas/).
+        example.vfxsample.receitas.Receitas.clientSetup();
         AddonLayers.hud(Sample.SIGNAL,hud -> {
             int x=hud.graphics().guiWidth()/2, y=hud.graphics().guiHeight()/2+22;
             hud.graphics().fill(x-20,y,x+20,y+2,0xaa182d36);

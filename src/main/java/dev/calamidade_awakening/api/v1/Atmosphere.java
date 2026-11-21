@@ -74,6 +74,7 @@ public final class Atmosphere {
         /** Extra multiplier of the global weight, 0..1 (the envelope and the phase still apply). */
         WEIGHT(0, 1);
 
+        /** Smallest and largest value of the parameter; track values are clamped to this range. */
         public final float min, max;
 
         Param(float min, float max) { this.min = min; this.max = max; }
@@ -84,9 +85,17 @@ public final class Atmosphere {
         }
     }
 
-    /** Linear RGB color with components in 0..1, built from ARGB ints (alpha ignored). */
+    /**
+     * RGB color with components in 0..1, built from ARGB ints (alpha ignored).
+     *
+     * @param r red, 0..1
+     * @param g green, 0..1
+     * @param b blue, 0..1
+     */
     public record Rgb(float r, float g, float b) {
+        /** (1, 1, 1). */
         public static final Rgb WHITE = new Rgb(1, 1, 1);
+        /** (0, 0, 0). */
         public static final Rgb BLACK = new Rgb(0, 0, 0);
 
         public Rgb {
@@ -118,6 +127,19 @@ public final class Atmosphere {
      * Resolved atmosphere at one moment: every parameter is a plain number already taken from tracks and
      * clamped, plus the global {@code weight} (0..1). {@link #NEUTRAL} changes nothing. The client builds one per
      * active instance and frame, then {@link Atmosphere#mix(List) mixes} them.
+     *
+     * @param weight          global weight, 0..1
+     * @param skyTop          zenith color
+     * @param skyHorizon      horizon color
+     * @param skyBlend        sky gradient mix, 0..1
+     * @param fogColor        fog color
+     * @param fogDensity      fog density, 0..1
+     * @param fogStart        fog start, blocks
+     * @param fogEnd          fog end, blocks (greater than the start)
+     * @param exposure        exposure multiplier, 0..{@value #MAX_EXPOSURE}
+     * @param ambientTint     ambient tint color
+     * @param ambientStrength ambient tint strength, 0..1
+     * @param stars           star field, 0..1
      */
     public record State(float weight, Rgb skyTop, Rgb skyHorizon, float skyBlend, Rgb fogColor, float fogDensity,
                         float fogStart, float fogEnd, float exposure, Rgb ambientTint, float ambientStrength,
