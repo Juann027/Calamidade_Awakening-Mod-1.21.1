@@ -347,7 +347,7 @@ public final class TerrainWorks {
         }
         lastReport = String.format(java.util.Locale.ROOT,
             "%s: %d planned, %d written, %d protected kept, %d sections unloaded, %d ticks, %.2f ms on the server thread, %d section packets",
-            job.label, job.plan.total(), job.writer.written(), job.protectedSkipped, job.unloadedSkipped, job.ticks + 1,
+            job.label, job.plan.total(), job.writer.written(), job.protectedSkipped, job.unloadedSkipped, job.ticks,
             job.nanos / 1e6, job.writer.sectionsSent());
         LOGGER.debug("Terrain commit {}", lastReport);
     }
@@ -357,7 +357,7 @@ public final class TerrainWorks {
         undos++;
         blocksWritten += job.writer.written();
         lastReport = String.format(java.util.Locale.ROOT, "undo #%d: %d restored, %d kept (changed since), %d ticks, %.2f ms",
-            job.snapshot.id, job.restored, job.kept, job.ticks + 1, job.nanos / 1e6);
+            job.snapshot.id, job.restored, job.kept, job.ticks, job.nanos / 1e6);
     }
 
     /** Every server tick, after the cues (so a commit writes its first batch in the marker's tick). */

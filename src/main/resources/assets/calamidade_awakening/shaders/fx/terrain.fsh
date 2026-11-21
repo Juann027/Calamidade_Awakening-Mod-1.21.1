@@ -144,7 +144,24 @@ void main() {
                 }
             }
         }
-        if (sky) continue;
+        if (sky) {
+            // Logo depois do commit, o cliente ainda remonta as seções e o buraco mostra o céu por alguns quadros:
+            // onde o raio atravessa a forma escavada e só acha céu, pinta o fundo quente da cratera.
+            if (t6.y < 1.5) {
+                vec2 hit = caRaySphere(vec3(0.0), rd, t0.xyz, extent);
+                if (hit.y > 0.0) {
+                    float inside = 0.0;
+                    for (int k = 0; k < 8; k++) {
+                        vec3 q = rd * mix(hit.x, hit.y, (float(k) + 0.5) / 8.0) - t0.xyz;
+                        vec3 l = vec3(dot(q, t1.xyz), dot(q, t2.xyz), dot(q, t3.xyz));
+                        if (l.y < 0.5 && caTerrainShape(i, l, count, t3.w, max(t4.x, 0.5), seed) < 0.0) inside = 1.0;
+                    }
+                    vec3 floorColor = vec3(0.09, 0.05, 0.04) + caTerrainEmber(t5.rgb, heat) * 0.35 * heat;
+                    color = mix(color, floorColor, inside * (1.0 - smoothstep(1.0, 1.5, t6.y)));
+                }
+            }
+            continue;
+        }
         vec3 rel = p - t0.xyz;
         float reach = extent + thickness + 2.0;
         if (dot(rel, rel) > reach * reach) continue;
@@ -152,7 +169,7 @@ void main() {
         vec3 inner = rel - n * 0.3;
         vec3 local = vec3(dot(inner, t1.xyz), dot(inner, t2.xyz), dot(inner, t3.xyz));
         float d = caTerrainShape(i, local, count, t3.w, max(t4.x, 0.5), seed);
-        float w = d < 0.0 ? 1.0 : 1.0 - smoothstep(0.15, thickness + 0.8, d);
+        float w = d < 0.0 ? 1.0 : 1.0 - smoothstep(0.0, thickness + 0.3, d);
         if (w <= 0.0) continue;
         // Brasa irregular, fissuras luminosas e um pulso lento (parado com "ocultar clarões").
         float mottle = fbm3(local * 0.85 + vec3(float(seed & 1023u)));
@@ -160,13 +177,14 @@ void main() {
         float pulse = flashes ? 0.88 + 0.12 * sin(time * 2.3 + mottle * 6.0) : 1.0;
         vec3 ember = caTerrainEmber(t5.rgb, heat);
         float glow = pow(heat, 1.5) * (0.22 + 0.78 * smoothstep(0.3, 0.8, mottle)) * pulse;
-        emission += ember * glow * w * 1.4;
-        emission += mix(ember, vec3(1.0, 0.9, 0.6), 0.5) * crack * t6.x * heat * heat * w * 2.2;
-        emission += vec3(1.0, 0.72, 0.35) * caTerrainTrail(i, local, count) * heat * w * 3.0;
+        emission += ember * glow * w * 0.85;
+        emission += mix(ember, vec3(1.0, 0.9, 0.6), 0.5) * crack * t6.x * heat * heat * w * 1.5;
+        emission += vec3(1.0, 0.72, 0.35) * caTerrainTrail(i, local, count) * heat * w * 2.2;
         burn = max(burn, w * heat);
     }
-    color *= 1.0 - 0.35 * burn;
-    color += emission * max(intensity, 0.35);
+    // Brasa, fissuras e escurecimento são efeitos de luz: seguem a intensidade dos efeitos de tela (0 desliga).
+    color *= 1.0 - 0.45 * burn * intensity;
+    color += emission * intensity;
 
     // Dublês: esfera em chamas desenhada aqui (ou só a aura de uma estrutura) e o rastro de fogo.
     for (int j = 0; j < 8; j++) {
@@ -199,7 +217,7 @@ void main() {
         float dist = rayPointDist(vec3(0.0), rd, c, t);
         float aura = dist > radius ? exp(-(dist - radius) / max(radius * 0.7, 0.3)) : 1.0;
         aura *= caDepthFade(t, sceneDist, radius);
-        emission = fire * aura * 0.9;
+        emission = fire * aura * (s3.x < 0.5 ? 0.55 : 0.3);
         if (tail > 0.0) {
             vec2 g = caSegmentGlow(vec3(0.0), rd, c, c - dir * tail, radius * 0.55, radius * 1.4, gPix, sceneDist);
             vec3 hitTail = caRaySegment(vec3(0.0), rd, c, c - dir * tail);

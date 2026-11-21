@@ -57,7 +57,12 @@ final class TerrainSnapshot {
         }
 
         void add(int sx, int sy, int sz, int index, int before, int after) {
-            sections.computeIfAbsent(net.minecraft.core.SectionPos.asLong(sx, sy, sz), k -> new Growing(sx, sy, sz)).add(index, before, after);
+            section(sx, sy, sz).add(index, before, after);
+        }
+
+        /** Changes of one section (kept by the caller while it writes that section: no map lookup per block). */
+        Growing section(int sx, int sy, int sz) {
+            return sections.computeIfAbsent(net.minecraft.core.SectionPos.asLong(sx, sy, sz), k -> new Growing(sx, sy, sz));
         }
 
         void blockEntity(BlockPos pos, CompoundTag data) { if (data != null) blockEntities.put(pos.asLong(), data); }
@@ -69,7 +74,7 @@ final class TerrainSnapshot {
         }
     }
 
-    private static final class Growing {
+    static final class Growing {
         final int x, y, z;
         short[] index = new short[64];
         int[] before = new int[64], after = new int[64];

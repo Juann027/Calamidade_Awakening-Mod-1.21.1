@@ -88,7 +88,7 @@ final class TerrainFrame {
                         int color = ember(edit.glow(), heat);
                         Vec3 at = origin.add(StageScene.turn(commit.basis(), 0, .5, 0));
                         sampleLights.add(new LightFrame.Resolved(DISC, at, at,
-                            new Light.State(1, 0, 0, 0, color, 3.2f * heat, Math.min(Light.MAX_RADIUS, reach * 1.25f), 1.5f, reach * .5f,
+                            new Light.State(1, 0, 0, 0, color, 1.8f * heat, Math.min(Light.MAX_RADIUS, reach), 1.5f, reach * .5f,
                                 Math.max(4, reach * .8f)), 1));
                     }
                 }
@@ -113,7 +113,7 @@ final class TerrainFrame {
                     used = true;
                     Vec3 at = c.subtract(camera);
                     sampleLights.add(new LightFrame.Resolved(POINT, at, at,
-                        new Light.State(1, 0, 0, 0, s.color(), 2.6f * pose.opacity(), Math.min(Light.MAX_RADIUS, 8 + radius * 3), 1.6f, 0, 0), 1));
+                        new Light.State(1, 0, 0, 0, s.color(), 2f * pose.opacity(), Math.min(Light.MAX_RADIUS, 8 + radius * 3), 1.6f, 0, 0), 1));
                 }
             }
             if (!used) continue;

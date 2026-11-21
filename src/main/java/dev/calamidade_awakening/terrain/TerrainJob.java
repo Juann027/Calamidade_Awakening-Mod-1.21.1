@@ -51,9 +51,9 @@ abstract class TerrainJob {
         } finally {
             writer.flush();
         }
-        if (done) finish();
         ticks++;
         nanos += System.nanoTime() - t0;
+        if (done) finish();
         return done;
     }
 
@@ -96,6 +96,7 @@ abstract class TerrainJob {
                     continue;
                 }
                 if (entry > 0 && !writer.enter(s.x(), s.y(), s.z())) { section++; entry = 0; continue; }
+                TerrainSnapshot.Growing changes = snapshot.section(s.x(), s.y(), s.z());
                 for (; entry < s.size() && done < budget; entry++, done++) {
                     int index = s.index()[entry] & 0xFFFF;
                     BlockState old = writer.get(index);
@@ -110,7 +111,7 @@ abstract class TerrainJob {
                     if (s.action()[entry] == TerrainPlan.STRUCTURE && target.hasBlockEntity()) data = structureData.get(pos.asLong());
                     if (old.hasBlockEntity()) snapshot.blockEntity(pos.immutable(), writer.blockEntity(index));
                     if (target.getBlock() instanceof FallingBlock) falling.add(pos.immutable());
-                    snapshot.add(s.x(), s.y(), s.z(), index, Block.getId(old), Block.getId(target));
+                    changes.add(index, Block.getId(old), Block.getId(target));
                     writer.put(index, old, target, data);
                 }
                 if (entry >= s.size()) { section++; entry = 0; }

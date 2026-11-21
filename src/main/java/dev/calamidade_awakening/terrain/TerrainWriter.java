@@ -113,8 +113,9 @@ final class TerrainWriter {
         t.section.setBlockState(lx, ly, lz, target, false);
         for (Heightmap heightmap : t.heightmaps) heightmap.update(lx, y, lz, target);
         t.chunk.getSkyLightSources().update(t.chunk, lx, y, lz);
-        if (LightEngine.hasDifferentLightProperties(t.chunk, at, old, target)) light.checkBlock(at.immutable());
-        level.onBlockStateChange(at.immutable(), old, target);
+        BlockPos fixed = at.immutable();
+        if (LightEngine.hasDifferentLightProperties(t.chunk, at, old, target)) light.checkBlock(fixed);
+        level.onBlockStateChange(fixed, old, target);
         if (target.hasBlockEntity()) {
             BlockEntity entity = t.chunk.getBlockEntity(at, LevelChunk.EntityCreationType.IMMEDIATE);
             if (entity != null && data != null) {
@@ -122,7 +123,9 @@ final class TerrainWriter {
                 entity.setChanged();
             }
         }
-        t.changed.add((short) index);
+        // The packet uses Minecraft's packing (SectionPos.sectionRelativePos: x << 8 | z << 4 | y, conferred with
+        // javap -c), not the plan's (y << 8 | z << 4 | x).
+        t.changed.add((short) ((lx << 8) | (lz << 4) | ly));
         written++;
     }
 
