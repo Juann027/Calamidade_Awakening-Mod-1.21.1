@@ -11,5 +11,11 @@ Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `
 | 5 | [Feixe vertical](05-feixe-vertical.md) | `feixe` | `caSegmentGlow` com largura mínima por pixel e oclusão |
 | 6 | [Efeito ambiente com sustain](06-ambiente-sustain.md) | `ambiente` + `release`/`stop` | loop sem emenda, release, malha de mundo |
 | 7 | [Céu tingido](07-ceu-tingido.md) | `ceu` | Atmosphere API com trilhas, sem shader próprio |
+| 8 | [Pilar de luz](08-pilar-de-luz.md) | `pilar` | Beam com revelação, `Light.along` e disco no chão, sem shader (0.9.0) |
+| 9 | [Laser preso ao jogador](09-laser.md) | `laser` | `Point.anchorEye`/`anchorAim`, `Effects.follow`, luz de impacto cintilante |
+| 10 | [Teia de feixes](10-teia.md) | `teia` | 8 feixes com pulsos e ondulação, trilha `PULSE_COUNT` |
+| 11 | [Fogueira](11-fogueira.md) | `fogueira` + `release` | só luz (sem geometria), cintilação, sustain |
+| 12 | [Onda de luz](12-onda-de-luz.md) | `onda_luz` | `Light.ring` cujo raio acompanha a onda de choque da receita 1 |
+| 13 | [Protagonista](13-protagonista.md) | `protagonista` | prioridade HERO com feixes, luzes e atmosfera; teste sob `/calamidade bench 60` |
 
 Para começar um efeito novo do zero: `python3 scripts/novo_efeito.py <namespace> <nome>` (veja [AGENTS.md](../../../AGENTS.md)). Funções GLSL usadas aqui: `calamidade_fx.glsl`, documentadas em [glsl.md](../glsl.md). Assinaturas da API: [API-REFERENCIA.md](../API-REFERENCIA.md).

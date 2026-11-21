@@ -12,17 +12,26 @@ import net.minecraft.world.phys.Vec3;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 
 /**
  * Catálogo das receitas de docs/ai/receitas/ e o comando /vfxsample receita &lt;nome&gt;. Cada receita é uma classe com
- * register() (construtor comum do mod) e Client.setup() (FMLClientSetupEvent) e um shader em
- * assets/vfxsample/shaders/fx/receita_*.fsh.
+ * register() (construtor comum do mod) e, quando tem camada de cliente, Client.setup() (FMLClientSetupEvent) e um
+ * shader em assets/vfxsample/shaders/fx/receita_*.fsh. As receitas 8 a 13 (1.6.0) usam feixes, luzes e a prioridade
+ * HERO do motor 0.9.0; só a onda de luz tem camada de cliente.
  */
 public final class Receitas {
-    /** Nome do comando, efeito e onde ele nasce em relação ao jogador. */
-    record Receita(String nome, ResourceLocation id, Function<ServerPlayer, Vec3> posicao) {}
+    /** Nome do comando, efeito e como ele começa: numa posição em relação ao jogador ou preso a ele. */
+    record Receita(String nome, ResourceLocation id, Function<ServerPlayer, Vec3> posicao, boolean preso) {
+        Receita(String nome, ResourceLocation id, Function<ServerPlayer, Vec3> posicao) { this(nome, id, posicao, false); }
+
+        /** Inicia no servidor: Effects.follow (preso ao jogador) ou Effects.start na posição. */
+        Optional<Effects.Handle> iniciar(ServerPlayer player) {
+            return preso ? Effects.follow(id, player, Vec3.ZERO) : Effects.start(id, player.serverLevel(), posicao.apply(player));
+        }
+    }
 
     static final List<Receita> TODAS = List.of(
         new Receita("anel", AnelImpacto.ID, p -> chao(p, 6)),
@@ -31,7 +40,13 @@ public final class Receitas {
         new Receita("impacto", ImpactFrame.ID, p -> olhos(p, 3)),
         new Receita("feixe", FeixeVertical.ID, p -> chao(p, 14)),
         new Receita("ambiente", AmbienteVagalumes.ID, p -> chao(p, 5)),
-        new Receita("ceu", CeuTingido.ID, p -> p.position().add(0, 2, 0)));
+        new Receita("ceu", CeuTingido.ID, p -> p.position().add(0, 2, 0)),
+        new Receita("pilar", PilarDeLuz.ID, p -> chao(p, 18)),
+        new Receita("laser", LaserMira.ID, p -> p.position(), true),
+        new Receita("teia", TeiaDeFeixes.ID, p -> chao(p, 12)),
+        new Receita("fogueira", Fogueira.ID, p -> chao(p, 5)),
+        new Receita("onda_luz", OndaDeLuz.ID, p -> chao(p, 6)),
+        new Receita("protagonista", Protagonista.ID, p -> chao(p, 30)));
 
     /** Última receita iniciada por jogador, para release e stop. */
     private static final Map<UUID, Effects.Handle> ULTIMA = new HashMap<>();
@@ -47,9 +62,18 @@ public final class Receitas {
         FeixeVertical.register();
         AmbienteVagalumes.register();
         CeuTingido.register();
+        PilarDeLuz.register();
+        LaserMira.register();
+        TeiaDeFeixes.register();
+        Fogueira.register();
+        OndaDeLuz.register();
+        Protagonista.register();
     }
 
-    /** Só no cliente. CeuTingido não tem camada de cliente: o motor desenha a atmosfera sozinho. */
+    /**
+     * Só no cliente. CeuTingido, PilarDeLuz, LaserMira, TeiaDeFeixes, Fogueira e Protagonista não têm camada de
+     * cliente: o motor desenha atmosfera, feixes e luzes sozinho.
+     */
     public static void clientSetup() {
         AnelImpacto.Client.setup();
         CuboGrade.Client.setup();
@@ -57,6 +81,7 @@ public final class Receitas {
         ImpactFrame.Client.setup();
         FeixeVertical.Client.setup();
         AmbienteVagalumes.Client.setup();
+        OndaDeLuz.Client.setup();
     }
 
     /** /vfxsample receita &lt;nome&gt; | release | stop. */
@@ -72,7 +97,7 @@ public final class Receitas {
     private static int iniciar(CommandSourceStack source, Receita receita) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         parar(player.getUUID());
-        var instancia = Effects.start(receita.id(), player.serverLevel(), receita.posicao().apply(player));
+        var instancia = receita.iniciar(player);
         instancia.ifPresent(handle -> ULTIMA.put(player.getUUID(), handle));
         source.sendSuccess(() -> instancia.isPresent()
             ? Component.translatable("command.vfxsample.receita.started", receita.nome())

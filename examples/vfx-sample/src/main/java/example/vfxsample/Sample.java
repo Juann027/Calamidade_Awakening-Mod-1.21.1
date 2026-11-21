@@ -2,6 +2,8 @@ package example.vfxsample;
 
 import dev.calamidade_awakening.api.v1.Atmosphere;
 import dev.calamidade_awakening.api.v1.Effects;
+import dev.calamidade_awakening.api.v1.Light;
+import dev.calamidade_awakening.api.v1.Point;
 import dev.calamidade_awakening.api.v1.Timeline;
 import dev.calamidade_awakening.api.v1.Timeline.Easing;
 import net.minecraft.commands.CommandSourceStack;
@@ -42,6 +44,8 @@ public final class Sample {
             keyframe(40, 1f, Easing.OVERSHOOT),
             keyframe(60, .5f, Easing.SMOOTH),
             keyframe(120, 0f, Easing.EASE_OUT))
+        // 1.6.0 — luz breve no impacto: sobe em 4 ticks e apaga até o tick 58.
+        .track("luz", keyframe(36, 0f), keyframe(40, 1f, Easing.EASE_OUT), keyframe(58, 0f, Easing.SMOOTH))
         .marker("impacto", 40)
         .build();
 
@@ -55,6 +59,18 @@ public final class Sample {
         .exposure(1.18f)
         .ambient(0xffffd8a0, .12f)
         .weightPhase("impacto")
+        .build();
+
+    /**
+     * 1.6.0 — luz visual do impacto: verde-água, alcance 9 blocos, só enquanto a trilha "luz" sobe e desce. Ilumina o
+     * chão e as criaturas atingidas; não muda o nível de luz do jogo.
+     */
+    static final Light SIGNAL_LIGHT = Light.point(Point.center(0, .5, 0))
+        .color(0xff65e8c9)
+        .intensity(2.6f)
+        .radius(9)
+        .falloff(1.5f)
+        .track(Light.Param.WEIGHT, "luz")
         .build();
 
     /**
@@ -90,9 +106,10 @@ public final class Sample {
             Effects.Shape.RINGS, Effects.Material.CRYSTAL,
             ResourceLocation.withDefaultNamespace("end_rod"), SIGNAL,
             new Effects.Impact(40, 3, .75f, Effects.ImpactStyle.MONOCHROME)));
-        // Ordem exigida: register, timeline, atmosphere, cues.
+        // Ordem exigida: register, timeline, atmosphere, lights, cues.
         Effects.timeline(SIGNAL, SIGNAL_TIMELINE);
         Effects.atmosphere(SIGNAL, SIGNAL_ATMOSPHERE);
+        Effects.lights(SIGNAL, SIGNAL_LIGHT);
         dev.calamidade_awakening.api.v1.Addons.publish(SIGNAL,new dev.calamidade_awakening.api.v1.Addons.Card(
             "ability.vfxsample.signal", "Tidal Signal", "RESONANCE", 130, SIGNAL,
             java.util.List.of(new dev.calamidade_awakening.api.v1.Addons.Shot(30,new Vec3(4,2,6),62),
