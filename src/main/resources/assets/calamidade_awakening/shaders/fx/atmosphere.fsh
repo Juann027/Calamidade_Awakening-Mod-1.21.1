@@ -15,6 +15,8 @@ uniform vec4 CaAtmoA;           // x: skyBlend, y: fogDensity, z: fogStart (bloc
 uniform vec4 CaAtmoB;           // x: exposição, y: força da tinta, z: estrelas, w: névoa na tela (0/1)
 uniform vec4 CaAtmoC;           // x: distância de renderização (blocos)
 
+#include "calamidade_fx.glsl"
+
 // Céu que o jogo pinta: disco 16 blocos acima, com névoa FOG_SKY (cilíndrica, de 0 à distância de renderização).
 vec3 atmoVanillaSky(vec3 dir) {
     if (dir.y <= 0.0) return CaAtmoVanillaFog;
@@ -32,19 +34,6 @@ float atmoHorizon(vec3 dir) {
     return 1.0 - smoothstep(0.0, 0.45, dir.y);
 }
 
-// Campo de estrelas procedural: células de ~0,3 grau sobre a esfera, uma em ~70 com estrela, cintilando.
-float atmoStars(vec3 dir, float seconds) {
-    vec3 p = dir * 180.0;
-    vec3 cell = floor(p);
-    float h = hash13(cell);
-    if (h < 0.986) return 0.0;
-    vec3 jitter = vec3(hash13(cell + 17.1), hash13(cell + 31.7), hash13(cell + 47.3)) * 0.6 + 0.2;
-    float d = length(p - (cell + jitter));
-    float core = max(0.0, 1.0 - d / 0.38);
-    float twinkle = 0.7 + 0.3 * sin(seconds * (1.5 + 5.0 * hash13(cell + 5.3)) + h * 91.0);
-    return core * core * twinkle * (0.4 + 0.6 * (h - 0.986) / 0.014);
-}
-
 void main() {
     vec3 color = texture(DiffuseSampler, texCoord).rgb;
     if (skyAt(texCoord)) {
@@ -52,7 +41,7 @@ void main() {
         vec3 base = atmoVanillaSky(dir);
         vec3 target = mix(base, atmoGradient(dir), CaAtmoA.x);
         if (CaAtmoB.z > 0.0 && dir.y > -0.05)
-            target += vec3(0.85, 0.9, 1.0) * atmoStars(dir, GTime) * CaAtmoB.z;
+            target += vec3(0.85, 0.9, 1.0) * caStars(dir, GTime) * CaAtmoB.z;
         target = mix(target, CaAtmoFogColor, CaAtmoA.y * atmoHorizon(dir));
         color = max(color + (target - base), vec3(0.0));
     } else if (CaAtmoB.w > 0.5) {

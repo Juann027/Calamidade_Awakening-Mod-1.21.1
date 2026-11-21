@@ -141,6 +141,15 @@ tasks.register('checkShaders') {
             }
         }
         zip.close()
+        // Cópias da biblioteca em outros namespaces (addons não alcançam o namespace do motor) devem ser idênticas.
+        def library = new File(roots[0], 'calamidade_awakening/shaders/fx/calamidade_fx.glsl')
+        roots.each { root ->
+            root.eachDir { ns ->
+                def copy = new File(ns, 'shaders/fx/calamidade_fx.glsl')
+                if (copy.isFile() && copy != library && copy.getText('UTF-8') != library.getText('UTF-8'))
+                    throw new GradleException("checkShaders: ${copy} difere de ${library}; copie a versão do motor")
+            }
+        }
         logger.lifecycle("checkShaders: ${checked} shaders compilados com ${validator.name}")
     }
 }
