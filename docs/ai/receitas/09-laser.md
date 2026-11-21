@@ -22,7 +22,7 @@
 
 **Mira sem acerto:** `anchorAim` usa a ponta do alcance (48 blocos) quando o olhar não encontra bloco; mirando o céu, o laser some ao longe.
 
-**Primeira pessoa:** o passe de feixes apaga o trecho a menos de ~1 bloco da câmera, então o laser não cobre a tela de quem atira.
+**Primeira pessoa:** com a ponta junto dos olhos, o motor limita a largura angular do feixe (~0,25 grau de núcleo, ~0,7 grau de halo) e apaga o trecho a menos de ~1 bloco da câmera: quem atira vê um traço fino até o alvo, não um cone. Quem vê de fora vê a largura real (0,12 e 0,9 bloco).
 
 ## Código Java
 
@@ -100,6 +100,6 @@ public final class LaserMira {
 
 1. O laser sai abaixo da mira e acompanha o movimento da câmera sem atraso visível; outro jogador vê o mesmo laser seguindo a cabeça de quem atira.
 2. O ponto de impacto brilha e cintila na parede ou no chão; o feixe é escondido por blocos entre a câmera e ele.
-3. Em primeira pessoa, o trecho perto dos olhos não cobre a tela.
+3. Em primeira pessoa, o laser é um traço fino saindo de baixo da mira; de fora (F5 ou outro jogador), ele tem a largura real.
 4. F7: "Feixes: 1", "Luzes: 2".
 5. Mirando o céu, o feixe vai até 48 blocos e a luz de impacto fica no ar (sem superfície, não ilumina nada).

@@ -838,11 +838,11 @@ Assinaturas completas: [ai/API-REFERENCIA.md](ai/API-REFERENCIA.md).
 
 ### Como o motor desenha
 
-**Um passe para todos.** A cada quadro, o motor percorre os efeitos desenhados (os HERO primeiro, depois por peso), resolve as pontas e amostra os feixes. Os que passam do teto do quadro (**16 / 48 / 128** em LOW / BALANCED / HIGH) ficam de fora, começando pelos efeitos menos importantes; um efeito que não cabe inteiro fica com os primeiros feixes. Os dados vão numa textura RGBA32F (6 texels por feixe), porque 128 feixes em uniforms passariam do mínimo que o OpenGL garante. O passe `calamidade_awakening:beams` desenha todos de uma vez, depois dos passes de addon e antes da atmosfera.
+**Um passe para todos.** A cada quadro, o motor percorre os efeitos desenhados (os HERO primeiro, depois por peso), resolve as pontas e amostra os feixes. Os que passam do teto do quadro (**16 / 48 / 128** em LOW / BALANCED / HIGH) ficam de fora, começando pelos efeitos menos importantes; um efeito que não cabe inteiro fica com os primeiros feixes. Os dados vão numa textura RGBA32F (7 texels por feixe), porque 128 feixes em uniforms passariam do mínimo que o OpenGL garante. O passe `calamidade_awakening:beams` desenha todos de uma vez, depois dos passes de addon e antes da atmosfera.
 
 **Por pixel**, para cada feixe: pontos mais próximos entre o raio do pixel e o segmento (`caRaySegment`), deslocamento lateral (ondulação e ruído), núcleo com **largura mínima de um pixel** (`caBeamCore`: de longe, o feixe fica com um pixel e mais fraco, em vez de engordar ou sumir), halo cortado entre 2,5 e 5 meias-larguras (`caBeamHalo`, para vários feixes não acenderem a tela inteira), pulsos (`caPulseTrain`) e **oclusão pela profundidade** (`caDepthFade`: o terreno na frente esconde o feixe; um feixe que entra no chão some suave). As funções estão em `calamidade_fx.glsl` (versão 2) e têm testes no WebGL2.
 
-**Perto da câmera.** O trecho a menos de ~1 bloco da câmera some aos poucos: um laser que sai dos olhos de quem atira não cobre a tela dele.
+**Perto da câmera.** O trecho a menos de ~1 bloco da câmera some aos poucos. E um feixe com uma ponta a menos de 2 blocos da câmera (um laser que sai dos olhos de quem atira) ganha largura angular limitada, ~0,25 grau de núcleo e ~0,7 grau de halo: na tela de quem atira, ele é um traço fino até o alvo, em vez de um cone que sai de baixo da mira. Quem vê de fora, longe da ponta, vê a largura real. O teste em jogo automatizado achou o cone; a prévia `laser` mostra a correção.
 
 **Vistos de frente.** Quando um feixe aponta quase para a câmera, a ondulação e o ruído diminuem sozinhos (entre ~30 e ~12 graus). Sem isso, a posição ao longo do feixe fica mal definida pixel a pixel e a onda vira anéis em volta dele; a prévia em WebGL2 (`scripts/previa_passes.cjs`) achou esse defeito antes do teste em jogo.
 
@@ -1368,7 +1368,7 @@ Mesma preparação. O que só uma GPU de verdade mostra vem primeiro: a **aparê
 | 37 | De noite (`/time set midnight`), A roda `/vfxsample receita pilar`. | O feixe desce do céu em menos de 1 s, núcleo branco e halo âmbar, três pulsos descendo. Ao tocar o chão, o terreno em volta acende em âmbar (até ~12 blocos do feixe) e aparece um disco de luz. F7: "Feixes: 1 … passe comum", "Luzes: 2 … passe comum". Captura. |
 | 38 | O mesmo de dia. | O feixe aparece (mais claro sobre o céu); a luz no chão é discreta, como uma tocha de dia. |
 | 39 | A se posiciona com um morro ou parede entre ele e o pilar. | A parte do feixe atrás do terreno some; a borda do terreno recorta o feixe sem halo "vazando" por cima. O chão escondido não é iluminado. |
-| 40 | A roda `/vfxsample receita laser` e vira a câmera devagar e depressa, mirando parede, chão e céu; B observa de lado. | O laser sai abaixo da mira e acompanha a câmera sem atraso visível; o ponto de impacto brilha e cintila. B vê o mesmo laser seguindo a cabeça de A. Em primeira pessoa, o trecho junto aos olhos não cobre a tela. |
+| 40 | A roda `/vfxsample receita laser` e vira a câmera devagar e depressa, mirando parede, chão e céu; B observa de lado. | O laser sai abaixo da mira e acompanha a câmera sem atraso visível; o ponto de impacto brilha e cintila. B vê o mesmo laser seguindo a cabeça de A. Em primeira pessoa, o laser é um traço fino saindo de baixo da mira (não um cone); em F5, ele tem a largura real. |
 | 41 | `/vfxsample receita teia`, de perto e de longe (60 blocos). | Oito fios saem do centro e chegam às pontas; pulsos ciano correm para fora; ondulação leve presa nas pontas. De longe, os fios ficam com um pixel, sem serrilhar nem piscar. Nenhum anel em volta de fios que apontam para a câmera. |
 | 42 | De noite, `/vfxsample receita fogueira`, depois `release`. | Chão e blocos até ~10 blocos em laranja, cintilando; faces de costas para a luz escuras; o céu nunca iluminado. Mobs continuam nascendo em volta (luz visual). `release` apaga em 2 s. |
 | 43 | `/vfxsample receita onda_luz`. | O anel de luz no chão acompanha a frente da onda dourada até ~22 blocos; paredes no caminho acendem quando a onda passa. |
@@ -1403,11 +1403,15 @@ Minecraft Java 1.21.1, NeoForge 21.1.267, RimuLib 1.3.0 (`rimulib-1.3.0-neoforge
 - `./gradlew dist`: passou e gerou `dist/calamidade_awakening-0.9.0.jar`.
 - `./gradlew -p examples/vfx-sample build`: passou, sem avisos, e gerou `vfx-sample-1.6.0.jar`.
 
-SHA-256: veja "Entrega" abaixo.
+SHA-256 de `dist/calamidade_awakening-0.9.0.jar`: `4813b906fd74e32b25af2168aa7446dc24252ac928bd140196c0ea801e61e256`
+
+SHA-256 de `examples/vfx-sample/build/libs/vfx-sample-1.6.0.jar`: `3ab2c335d5c9158cfd854ad923a1732af188836bb119dd59bd3fa3fece02aa61`
+
+Um `clean build` repetido depois do teste em jogo gerou os dois JARs byte a byte iguais aos testados.
 
 #### Escolhas desta versão
 
-- **Dados dos passes por textura, não por uniforms.** 128 feixes × 6 vec4 passariam do mínimo de uniforms de fragmento que o OpenGL 3.2 garante (1024 componentes). Os feixes (6 texels cada) e as luzes (4 texels) vão numa textura RGBA32F por passe, lida com `texelFetch`. `Uniforms.glTexture(nome, id)` (conferido com `javap -c` em `PostFxRenderer$Binder`) liga a textura numa unidade própria, com `glBindSampler(unidade, 0)`, até 16 unidades; o upload (`DataTexture`) restaura a textura ligada, o buffer de pixel-unpack e os parâmetros de unpack que mexe, para o cache de estado do Minecraft continuar válido.
+- **Dados dos passes por textura, não por uniforms.** 128 feixes × 7 vec4 passariam do mínimo de uniforms de fragmento que o OpenGL 3.2 garante (1024 componentes). Os feixes (7 texels cada) e as luzes (4 texels) vão numa textura RGBA32F por passe, lida com `texelFetch`. `Uniforms.glTexture(nome, id)` (conferido com `javap -c` em `PostFxRenderer$Binder`) liga a textura numa unidade própria, com `glBindSampler(unidade, 0)`, até 16 unidades; o upload (`DataTexture`) restaura a textura ligada, o buffer de pixel-unpack e os parâmetros de unpack que mexe, para o cache de estado do Minecraft continuar válido.
 - **Ordem dos passes:** `lights`, `awakening_field`, cartões e `post.pass`, `beams`, `atmosphere`. As luzes vêm antes para os efeitos ficarem por cima delas e a atmosfera as cobrir na distância.
 - **Pagamento:** feixes e luzes são pagos antes dos passes de addon, feixes primeiro; HERO paga quando um HERO desenhado os usa, senão o comum; um orçamento nunca paga pelo outro.
 - **Seleção HERO:** os HERO ocupam vagas do limite de desenhados (o total continua 3/6/12) e são no máximo 2; como o menor limite é 3, um HERO nunca é cortado.
@@ -1444,7 +1448,31 @@ LWJGL 3.3.3: `GL30.GL_RGBA32F`, `GL21.GL_PIXEL_UNPACK_BUFFER(_BINDING)`, `GL11.g
 
 #### Em jogo (roteiro automatizado, Mesa llvmpipe)
 
-_Preenchido na Etapa 6._
+Cliente de desenvolvimento do NeoForge 21.1.267 sob Xvfb 1280 × 720, Mesa llvmpipe (LLVM 20.1.2, 256 bits), 5 a 39 FPS, qualidade BALANCED, gráficos Fancy, distância 8, com os JARs desta versão, a RimuLib e um mod temporário de teste (fora do repositório) que cria um mundo plano em criativo, roda os comandos como jogador, lê os contadores do F7 por reflexão (um tick depois da captura) e tira capturas com o F7 aberto. Sem som (sem dispositivo OpenAL) e sem rede da Mojang. A RimuLib mostra, em renderizador por software, uma tela "Your graphics card can't run…" com "Exit game" e "Ignore"; o mod de teste aperta "Ignore".
+
+| Passo | F7 (desenhados · passes · HERO · feixes · luzes) | Visto na captura |
+|---|---|---|
+| Sem efeito, de dia | 0 · 0 · 0 · 0 · 0 | Cena normal. |
+| `pilar` de dia | 1 · 2 · 0 · 1 comum · 2 comum | Feixe branco sobre o céu, pulsos; disco de luz amarelo no chão em volta da base. |
+| `pilar` de noite | 1 · 2 · 0 · 1 comum · 2 comum | Halo âmbar, chão aceso em volta da base, a face do bloco de tijolos voltada para o feixe alaranjada. |
+| `pilar` atrás de um muro de pedra | 1 · 2 · 0 · 1 comum · 2 comum | O muro esconde o feixe; só o trecho acima dele aparece, recortado pela borda. |
+| `teia` | 1 · 1 · 0 · 8 comum · 0 | Oito fios ciano saindo do centro, pulsos, ondulação presa nas pontas. |
+| `laser` mirando um bloco e o chão | 1 · 2 · 0 · 1 comum · 2 comum | Brilho cintilante no ponto de impacto e luz no chão em volta dele. |
+| `fogueira` de noite | 1 · 1 · 0 · 0 · 1 comum | Poça de luz quente no chão (~10 blocos) e a face do pilar de pedregulho mais próximo alaranjada; nenhum feixe, vértice ou passe de addon. |
+| `onda_luz` | 1 · 2 · 0 · 0 · 1 comum | Faixa de luz dourada no chão junto da onda; o clarão do centro já tinha passado (`Luzes: 1`). |
+| `pilar` com intensidade dos efeitos de tela 0 | 1 · 2 · 0 · 1 comum · 2 comum | Só o núcleo branco, sem halo nem pulsos; a luz no chão continua. |
+| `fogueira` e `pilar` debaixo d'água, de noite | 1 · 1 / 2 · 0 · 0 / 1 · 1 / 2 | A luz some na névoa da água; o feixe, atrás da parede do lago, não aparece. |
+| `/calamidade bench 60` + `protagonista`, BALANCED, de dia | 6 · 3 · **1 HERO, 2/2** · 7 HERO · 3 HERO | 61 residentes; céu vermelho da atmosfera, lança, raios, anel e disco de luz entre os 5 Núcleos desenhados. |
+| o mesmo em HIGH | 12 · 3 · **1, 2/3** · 7 HERO · 3 HERO | 12 desenhados, 4 volumes. |
+| o mesmo em LOW | 3 · 2 · **1, 1/1** · 7 HERO · 0 | Feixes pagos pelo único passe HERO; luzes sem vaga, como documentado. |
+| o mesmo de noite, BALANCED | 6 · 3 · 1, 2/2 · 7 HERO · 3 HERO | Lança e luzes sobre a cena escura. |
+| Sinal de Maré no impacto, de noite | 1 · 3 · 0 · 0 · 1 comum | Luz verde-água no chão sob o sinal; atmosfera dourada ativa. |
+
+Nenhum erro de compilação ou ligação dos shaders do motor e do exemplo no log, nenhuma camada desativada por falha. Na primeira rodada, os únicos avisos do compilador de shader foram 8 "used uninitialized" em variáveis internas da RimuLib (`gSeed`, `gTime`, `gPixel`); na segunda, nenhum.
+
+**O que o teste em jogo achou e foi corrigido:** na primeira rodada, o laser visto por quem atira virava um cone largo saindo de baixo da mira (a 1–3 blocos dos olhos, o halo de 0,9 bloco ocupa dezenas de graus da tela). O passe agora limita a largura angular de feixes com uma ponta a menos de 2 blocos da câmera (~0,25 grau de núcleo, ~0,7 grau de halo); quem vê de fora continua vendo a largura real. A prévia (`node scripts/previa_passes.cjs laser`) e a segunda rodada, com os JARs finais (hashes abaixo), mostram o laser como um traço fino até o alvo; os demais resultados se repetiram.
+
+Capturas da segunda rodada: [receitas novas](gameplay/receitas-090.jpg) · [protagonista sob carga](gameplay/protagonista-carga-090.jpg) · [fogueira de noite](gameplay/luz-noite-090.jpg) · [intensidade 0, água, protagonista de noite e Sinal de Maré](gameplay/acessibilidade-agua-090.jpg).
 
 #### Pendente
 

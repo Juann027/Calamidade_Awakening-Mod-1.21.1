@@ -134,11 +134,12 @@ function scene(cam, proj, view, night) {
 
 // ------------------------------------------------------------------ cenas
 
-const BEAM_TEXELS = 6;
+const BEAM_TEXELS = 7;
 function beamRow(a, b, core, halo, coreRgb, haloRgb, gain, reveal, pulses = 0, pulseTravel = 0, pulseSize = 2,
                  waveAmp = 0, waveLen = 4, waveTravel = 0, noise = 0, noiseTime = 0) {
   return [...a, core / 2, ...b, halo / 2, ...coreRgb.map(v => v * gain), reveal, ...haloRgb.map(v => v * gain), pulses,
-    pulseTravel, pulseSize, 1, noiseTime, waveAmp, waveLen, waveTravel, noise];
+    pulseTravel, pulseSize, 1, noiseTime, waveAmp, waveLen, waveTravel, noise,
+    Math.min(Math.hypot(...a), Math.hypot(...b)) < 2 ? 1 : 0, 0, 0, 0];
 }
 
 // Linha de luz: posição (ou início/centro), alcance ou raio, fim, queda, cor × intensidade, forma, largura, altura.
@@ -148,6 +149,12 @@ function lightRow(shape, a, radius, rgb, gain, { b = a, falloff = 2, width = 0, 
 }
 
 const CENAS = {
+  // Laser que sai dos olhos (ponta a 0,3 bloco da câmera) até um bloco: fino na tela de quem atira.
+  laser: {
+    night: true, pitch: -4,
+    beams: [beamRow([0, -0.3, 0.1], [-3.5, -0.6, 9.5], 0.12, 0.9, [1, 1, 1], [1, 0.19, 0.31], 1, 1, 4, 10, 1.5)],
+    lights: [lightRow('ponto', [-3.5, -0.6, 9.4], 5, [1, 0.31, 0.38], 2.5)],
+  },
   // Fogueira de noite: luz pontual laranja ao lado do bloco baixo, sem geometria nenhuma.
   fogueira: {
     night: true, pitch: -12,

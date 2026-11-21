@@ -15,7 +15,9 @@ import java.util.List;
  */
 final class BeamFrame {
     static final String PROGRAM = "calamidade_awakening:beams";
-    static final int TEXELS = 6, ROWS = 128;
+    static final int TEXELS = 7, ROWS = 128;
+    /** An end closer than this to the camera (blocks) marks a beam attached to the viewer (its own laser). */
+    static final double ATTACHED = 2.0;
 
     /** One resolved beam: ends relative to the camera (end before the reveal), its state and the instance clock. */
     record Resolved(StageScene.Sample sample, int index, Vec3 from, Vec3 to, Beam.State state) {
@@ -91,6 +93,9 @@ final class BeamFrame {
                 realAge / 20f + r.sample().seed() * 37f + r.index() * 5.3f);
             // 5: wave amplitude, wavelength, wave travel (blocks), noise amplitude
             k = put(k, s.waveAmplitude(), s.waveLength(), realAge * s.waveSpeed(), s.noise());
+            // 6: attached to the viewer (an end within 2 blocks of the camera): the shader caps the angular width
+            boolean attached = r.from().length() < ATTACHED || r.revealedEnd().length() < ATTACHED;
+            k = put(k, attached ? 1 : 0, 0, 0, 0);
         }
         int id = texture.upload(data, count);
         frame.pass(PROGRAM, u -> {

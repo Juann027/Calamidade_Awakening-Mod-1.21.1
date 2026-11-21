@@ -2,7 +2,7 @@
 // quadro, cobrado do orçamento HERO quando algum efeito HERO desenhado tem feixes, senão do comum. A RimuLib antepõe
 // #version 150 e common.glsl (viewDir, scenePosAt, initPixel/gPix, vnoise2, TAU...).
 //
-// Os feixes chegam numa textura RGBA32F (CaBeamData, 6 texels por feixe, um feixe por linha), porque 128 feixes
+// Os feixes chegam numa textura RGBA32F (CaBeamData, 7 texels por feixe, um feixe por linha), porque 128 feixes
 // em uniforms passariam do mínimo garantido pelo OpenGL. Linha i:
 //   0: início (relativo à câmera, blocos), meia-largura do núcleo
 //   1: fim (antes da revelação), meia-largura do halo
@@ -10,6 +10,7 @@
 //   3: cor do halo × intensidade × peso × intensidade dos efeitos de tela, número de pulsos
 //   4: deslocamento dos pulsos (blocos), comprimento do pulso (blocos), ganho dos pulsos, tempo do ruído
 //   5: amplitude da ondulação (blocos), comprimento de onda (blocos), deslocamento da onda (blocos), amplitude do ruído
+//   6: x = 1 quando uma ponta está a menos de 2 blocos da câmera (feixe que sai dos olhos de quem olha)
 uniform sampler2D CaBeamData;
 uniform vec4 CaBeamInfo;   // x: número de feixes
 
@@ -39,9 +40,17 @@ void main() {
         vec3 b = a + full * reveal;
         float len = fullLen * reveal;
         float core = t0.w, halo = t1.w;
+        vec4 t6 = beamTexel(6, i);
         float lateral = t5.x + t5.w;
         vec3 hit = caRaySegment(vec3(0.0), rd, a, b);
         float pix = max(gPix * hit.x, 1e-5);
+        if (t6.x > 0.5) {
+            // Feixe preso à câmera (um laser que sai dos olhos de quem atira): largura angular limitada, ~0,25 grau
+            // de núcleo e ~0,7 grau de halo, como um laser na tela; perto dos olhos ele não vira um cone. Os outros
+            // jogadores, longe da ponta, veem a largura real.
+            core = min(core, hit.x * 0.004);
+            halo = min(halo, hit.x * 0.012);
+        }
         float reach = 5.0 * max(max(halo, core), pix) + lateral + pix;
         // Ponta acesa enquanto o feixe nasce.
         float tipT;
