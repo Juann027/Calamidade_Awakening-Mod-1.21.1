@@ -22,7 +22,7 @@ neoForge {
 // (o SHA-256 está nas notas do release e em SHA256SUMS.txt). -Pcalamidade.url=... troca o endereço (espelho ou
 // arquivo local, por exemplo file:///caminho/calamidade_awakening-0.10.0.jar); o SHA-256 continua valendo.
 def calamidadeVersao = '0.10.0'
-def calamidadeSha256 = '109dad19daefc5d965d80b0198cf8457ee516bd0781dff43642c48689ae3c60e'
+def calamidadeSha256 = 'c6229eb58a486c976429fc661b5228521ff87c96f69aaad10e0281170529bcde'
 def dependenciasBaixadas = [
     [arquivo: file("libs/calamidade_awakening-${calamidadeVersao}.jar"),
      url: providers.gradleProperty('calamidade.url').getOrElse(

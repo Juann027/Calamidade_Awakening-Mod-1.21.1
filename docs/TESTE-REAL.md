@@ -8,9 +8,9 @@ Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por
 |---|---|---|
 | F7 | Cliente | Painel com GPU, FPS, mediana e p95 do tempo de quadro, perfil, eventos residentes e desenhados, volumes, vértices e passes; desde a 0.9, protagonistas (HERO) e passes que usaram, feixes e luzes desenhados e qual orçamento pagou cada passe. |
 | `/calamidade_client record <s>` | Cliente | Grava cada quadro em `calamidade_bench/frames-AAAAMMDD-HHMMSS.csv` e mostra mediana e p95 no chat. Até 300 s. |
-| `/calamidade bench <n> [efeito]` | Servidor (permissão 2) | Cria n instâncias (1 a 64) num arco 14 blocos à frente do jogador, sem câmera. Padrão: `calamidade_awakening:nexus`. |
+| `/calamidade bench <n> [efeito]` | Servidor (permissão 2) | Cria n instâncias (1 a 64) num arco 14 blocos à frente do jogador, sem câmera. Padrão: `calamidade_awakening:nexus`. Desde a 0.10 a fonte é SCRIPT: com a reserva padrão para jogadores, chega a 48 (`playerReserve = 0` na config do servidor libera as 64). |
 | `/calamidade bench stop` | Servidor | Encerra as instâncias do benchmark. |
-| `/calamidade status` | Servidor | Instâncias ativas no servidor (limite 64). |
+| `/calamidade status` | Servidor | Instâncias ativas no servidor (limite 64); desde a 0.10, por tipo de fonte, os limites da config do servidor e as recusas. |
 
 ## Parte 1 — desempenho em GPU física
 
@@ -32,7 +32,7 @@ São 15 rodadas. Repita a carga 6 com `calamidade_awakening:prism` e com `vfxsam
 
 ## Parte 2 — dois clientes em servidor dedicado
 
-**Preparação.** Servidor dedicado NeoForge 21.1.267 com RimuLib, Calamidade 0.9.0 e o vfx-sample 1.6.0, os mesmos JARs nos dois clientes (o protocolo é o da 0.7.0, que acrescentou o canal `release`; use a mesma versão nos dois lados). Para testar sozinho no mesmo PC, use `./gradlew runServer` (ou o instalador de servidor do NeoForge), defina `online-mode=false` em `server.properties` **apenas para este teste local** e abra dois clientes com nomes diferentes: por exemplo, `./gradlew runClient` e uma instância do seu launcher com os mesmos mods. Dê permissão aos dois com `/op`. Chame os jogadores de A (conjura) e B (observa).
+**Preparação.** Servidor dedicado NeoForge 21.1.267 (ou 21.1.265) com RimuLib, Calamidade 0.10.0 e o vfx-sample 1.7.0, os mesmos JARs nos dois clientes (a 0.10.0 trocou o pacote de início por `event_v2`; use a mesma versão nos dois lados). Para testar sozinho no mesmo PC, use `./gradlew runServer` (ou o instalador de servidor do NeoForge), defina `online-mode=false` em `server.properties` **apenas para este teste local** e abra dois clientes com nomes diferentes: por exemplo, `./gradlew runClient` e uma instância do seu launcher com os mesmos mods. Dê permissão aos dois com `/op`. Chame os jogadores de A (conjura) e B (observa).
 
 | # | Ação | Resultado esperado |
 |---|---|---|
@@ -44,7 +44,7 @@ São 15 rodadas. Repita a carga 6 com `calamidade_awakening:prism` e com `vfxsam
 | 6 | A conjura o Sinal de Maré pelo Atlas perto de três mobs e de B. | No impacto (2 s), os mobs e B (com `pvp=true`, o padrão) levam dano leve e são empurrados para longe do centro; A não. Os dois clientes veem o empurrão no mesmo momento do impact frame. |
 | 7 | Sem o Focus na mão, A conjura o Núcleo do Horizonte com Y e, logo depois, o Pulso Prismático com K. | O Pulso sai normalmente (recarga por habilidade). Uma segunda tentativa de Núcleo durante os 10 s é recusada. |
 | 8 | B conjura enquanto A está em recarga. | B conjura normalmente; a recarga é de cada jogador. |
-| 9 | `/calamidade bench 64` e depois A tenta conjurar. | `/calamidade status` mostra 64/64; a conjuração de A é recusada sem erro. Após `bench stop`, volta a funcionar. |
+| 9 | `/calamidade bench 64` e depois A tenta conjurar. | Desde a 0.10: o bench para em 48 (fonte SCRIPT; 16 vagas reservadas para jogadores) e A conjura normalmente. Com `playerReserve = 0` na config do servidor, `/calamidade status` mostra 64/64 e a conjuração de A é recusada sem erro; após `bench stop`, volta a funcionar. |
 | 10 | A pressiona O durante o Núcleo do Horizonte. | A volta à própria visão; B continua vendo o efeito até o fim. |
 | 11 | Em Mods → Calamidade_Awakening → Configurar, B põe a intensidade em 0 e desliga o tremor; A conjura o Núcleo do Horizonte e o Sinal de Maré. | B vê a geometria e as ondas, sem bloom, clarão, dessaturação nem tremor. A continua vendo tudo. |
 | 12 | Em qualidade LOW, A conjura o Sinal de Maré. | O shader do cartão aparece; os anéis dourados não (sem vaga), mas o bloom do pico ainda acontece. O F7 mostra 1 passe de addon. |
@@ -107,6 +107,26 @@ Mesma preparação. O que só uma GPU de verdade mostra vem primeiro: a **aparê
 | 51 | Com Sodium/Embeddium e Iris/Oculus (se o público usa). | Anote se feixes e luzes aparecem; shader packs que trocam o pipeline podem não passar pelo pós-processamento. |
 
 Registre para cada caso o que viu e, nos casos 37, 40, 42, 45 e 50, uma captura e (45 e 50) os tempos de quadro.
+
+## Parte 5 — orientação, fontes, limites e gatilhos (0.10.0)
+
+Mesma preparação (servidor dedicado, dois clientes A e B). Deixe o F7 aberto: linha nova "Fontes: N jogadores · N mobs · N blocos · N scripts". Capítulo: [INTEGRACAO-0.10.md](INTEGRACAO-0.10.md); receitas 14 a 17.
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 52 | A roda `/vfxsample receita leque` virado para o sul, o leste e o noroeste; B observa de lado. | O leque abre sempre à frente de A; o feixe central aponta para onde a mira de A aponta. B vê o leque na mesma direção. F7: "Feixes: 5", "Luzes: 1", "Fontes: 1 jogadores". |
+| 53 | A pega `/give @s vfxsample:cajado` (sobrevivência) e clica com o botão direito olhando reto, para cima e para baixo. | O raio sai da mão direita para onde a mira aponta; a barra mostra a recarga (1,5 s) e um segundo clique não dispara; a durabilidade cai 1 por raio. Um mob no caminho leva dano. B vê o mesmo raio. |
+| 54 | A bate num mob com o cajado. | Um risco dourado atravessa o mob na direção do golpe e um anel de luz abre no chão. |
+| 55 | A coloca `vfxsample:pilar_periodico` e `vfxsample:pilar_redstone` (virado para A), com uma alavanca ao lado do segundo. | O periódico pulsa a cada 3 s. A alavanca faz o de redstone pulsar na hora e a cada 1 s; o feixe inclinado vai para a face que estava virada para A. Desligar para os pulsos. F7: "Fontes: … blocos". |
+| 56 | A quebra o pilar de redstone no meio de um pulso. | O efeito some na hora (não espera o fim do pulso). |
+| 57 | A se afasta até o chunk dos pilares descarregar (mais que a distância de simulação; num servidor com `spawnChunkRadius` padrão, construa longe do spawn) e roda `/calamidade status`; depois volta. | Longe: nenhuma instância de bloco. Ao voltar, o periódico volta a pulsar. |
+| 58 | A, em sobrevivência, deixa um zumbi bater nele; B observa de lado. | Cada golpe solta um feixe verde curto do peito do zumbi na direção de A. F7: "Fontes: … mobs". `/vfxsample zumbi off` desliga. |
+| 59 | Cinco zumbis batendo em A ao mesmo tempo. | `/calamidade status`: nunca mais de 4 instâncias por zumbi; FPS estável. |
+| 60 | `/calamidade bench 64`, depois A conjura e roda `/vfxsample receita leque`. | O bench para em 48; A ainda conjura (reserva de jogadores). `/calamidade status`: "48 scripts", "1 jogadores", recusas por reserva contadas. |
+| 61 | Na config do servidor (`serverconfig/calamidade_awakening-server.toml`), `maxPerBlock = 1` e `playerReserve = 0`; reinicie o mundo e repita 55 e 60. | O pilar de redstone tem no máximo 1 pulso vivo; o bench chega a 64 e a conjuração de A é recusada sem erro. |
+| 62 | Um mod que usa o Calamidade como dependência (`examples/consumidor`, `docs/ai/usar-como-dependencia.md`) com NeoForge 21.1.265: `./gradlew runClient`. | O jogo abre com o consumidor, o Calamidade e a RimuLib; bater num mob solta o feixe do consumidor. |
+
+Registre para cada caso o que viu e, nos casos 52, 53, 55 e 58, uma captura.
 
 ## Registro dos resultados
 

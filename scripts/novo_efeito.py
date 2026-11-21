@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gera o esqueleto de um efeito de addon do Calamidade_Awakening 0.9.0 que compila sem edição.
+"""Gera o esqueleto de um efeito de addon do Calamidade_Awakening 0.10.0 que compila sem edição.
 
 Uso:
     python3 scripts/novo_efeito.py <namespace> <nome> [--projeto DIR] [--pacote PACOTE] [--cartao] [--forcar]
@@ -107,7 +107,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 {import_list}import static dev.calamidade_awakening.api.v1.Timeline.keyframe;
 
 /**
- * Efeito {ns}:{nome}, gerado por scripts/novo_efeito.py (Calamidade_Awakening 0.9.0).
+ * Efeito {ns}:{nome}, gerado por scripts/novo_efeito.py (Calamidade_Awakening 0.10.0).
  *
  * <p>Registro automático: {{@link #construir}} roda durante a construção do mod (FMLConstructModEvent) e
  * {{@link Client#setup}} no setup do cliente. Teste: /{ns} efeito {nome}. Próximos passos: AGENTS.md e
@@ -288,8 +288,8 @@ def main() -> int:
 
     print(f"""
 Pronto: {a.namespace}:{a.nome} ({pacote}.{classe}).
-1. Compile o addon (o JAR do Calamidade 0.9.x e a RimuLib no classpath) e confira o manifesto:
-   calamidade_awakening com versionRange "[0.9.0,0.10.0)" e rimulib "[1.3.0,2.0)".
+1. Compile o addon (o JAR do Calamidade 0.10.x e a RimuLib no classpath; veja docs/ai/usar-como-dependencia.md) e confira o manifesto:
+   calamidade_awakening com versionRange "[0.10.0,0.11.0)" e rimulib "[1.3.0,2.0)".
 2. No jogo: /{a.namespace} efeito {a.nome}{" ou o cartão no Atlas (N)" if a.cartao else ""}.
 3. Edite a timeline, o shader e o cue. Receitas prontas: docs/ai/receitas/. Orçamento e regras: AGENTS.md.""")
     return 0

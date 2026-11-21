@@ -1,6 +1,6 @@
 # Receitas de efeitos
 
-Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `Receitas.java` e testável no jogo com `/vfxsample receita <nome>` (permissão de comandos). O código dos arquivos `.md` é o mesmo dos arquivos do exemplo: `./gradlew checkRecipes` (parte do build) falha se divergirem, e `./gradlew syncRecipes` os copia de novo.
+Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `Receitas.java` e testável no jogo com `/vfxsample receita <nome>` (permissão de comandos); as receitas 15 a 17 (gatilhos de item, bloco e mob) são testadas com o item, os blocos e o mob do exemplo. O código dos arquivos `.md` é o mesmo dos arquivos do exemplo: `./gradlew checkRecipes` (parte do build) falha se divergirem, e `./gradlew syncRecipes` os copia de novo.
 
 | # | Receita | Comando | Mostra |
 |---|---|---|---|
@@ -17,5 +17,9 @@ Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `
 | 11 | [Fogueira](11-fogueira.md) | `fogueira` + `release` | só luz (sem geometria), cintilação, sustain |
 | 12 | [Onda de luz](12-onda-de-luz.md) | `onda_luz` | `Light.ring` cujo raio acompanha a onda de choque da receita 1 |
 | 13 | [Protagonista](13-protagonista.md) | `protagonista` | prioridade HERO com feixes, luzes e atmosfera; teste sob `/calamidade bench 60` |
+| 14 | [Leque orientado](14-leque.md) | `leque` | orientação por instância: `Placement` com o yaw do jogador e `Point.facing` (0.10.0) |
+| 15 | [Cajado](15-cajado.md) | `/give @s vfxsample:cajado` | gatilho de item: uso, ataque, recarga, durabilidade, cue com `ctx.forward()` |
+| 16 | [Pilares](16-pilares.md) | `/give @s vfxsample:pilar_redstone` | gatilho de block entity: REDSTONE e PERIODIC, facing, fim ao quebrar ou descarregar |
+| 17 | [Zumbi com feixe](17-zumbi.md) | `/summon zombie` | gatilho de entidade num mob vanilla (`LivingDamageEvent.Post`), limite por mob |
 
 Para começar um efeito novo do zero: `python3 scripts/novo_efeito.py <namespace> <nome>` (veja [AGENTS.md](../../../AGENTS.md)). Funções GLSL usadas aqui: `calamidade_fx.glsl`, documentadas em [glsl.md](../glsl.md). Assinaturas da API: [API-REFERENCIA.md](../API-REFERENCIA.md).

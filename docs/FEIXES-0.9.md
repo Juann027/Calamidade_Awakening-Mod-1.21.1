@@ -133,3 +133,5 @@ O F7 ganha a linha **"Feixes: N desenhados (máx. M) · passe HERO/comum/não"**
 - Feixes não fazem sombra nem iluminam nada sozinhos: para isso, `Light.along(feixe)` ([Luz](LUZ-0.9.md)).
 - A oclusão usa a profundidade que a RimuLib entrega ao passe: blocos e entidades escondem o feixe; partículas e parte da geometria translúcida (água, vidro) podem não esconder.
 - Coberto por testes de lógica (`BeamCheck`), pela biblioteca no WebGL2, pela prévia sintética e por um roteiro automatizado em jogo com renderização por software ([VALIDACAO.md](VALIDACAO.md)). GPU física: [TESTE-REAL.md](TESTE-REAL.md), parte 4.
+
+**Desde a 0.10.0:** os pontos `Point.center` (e o novo `Point.facing(direita, cima, frente)`) e os deslocamentos de trilha giram com a orientação da instância; sem orientação, nada muda. Veja [INTEGRACAO-0.10.md](INTEGRACAO-0.10.md) e as receitas [14](ai/receitas/14-leque.md) a [17](ai/receitas/17-zumbi.md).

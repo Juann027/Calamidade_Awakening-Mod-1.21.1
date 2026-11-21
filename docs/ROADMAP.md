@@ -85,6 +85,14 @@
 - F7 e CSV com HERO, feixes e luzes.
 - vfx-sample 1.6.0: receitas pilar, laser, teia, fogueira, onda de luz e protagonista; luz breve no impacto do Sinal de Maré.
 
+### 0.10.0 — integração com outros mods
+
+- Orientação por instância: `Placement` (posição ou âncora, yaw, pitch, `facing`, `arrivingFrom`, `shifted`, `followingBody`) e `Effects.start`/`follow` com orientação; pontos do centro, `Point.facing`, deslocamentos de trilha e o deslocamento da âncora giram com a instância; o yaw pode seguir o corpo da âncora. Pacote `event_v2`. Consulte INTEGRACAO-0.10.md.
+- Fontes (`EffectSource`: jogador, mob, bloco, script), limites por fonte e vagas reservadas para jogadores na config do servidor; recarga por fonte e efeito; F7 e `/calamidade status` por tipo de fonte.
+- `EffectTriggers`: gatilhos de item (uso, ataque, recarga, durabilidade), de block entity (PERIODIC, REDSTONE, PROXIMITY, fim ao quebrar ou descarregar) e de entidade (corpo ou alvo), só com API comum; guia de ligação com keyframes de GeckoLib.
+- Consumo como biblioteca sem Maven: modelo de `build.gradle` (release do GitHub com SHA-256) e `examples/consumidor`, conferidos pelo build; conferida com o NeoForge 21.1.265.
+- vfx-sample 1.7.0: leque orientado, cajado, pilares de redstone e periódico, zumbi com feixe.
+
 ## Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -93,17 +101,18 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 - Sincronização entre dois clientes em servidor dedicado: observador, entrada tardia, saída e retorno ao alcance, troca de dimensão.
 - Pipeline em Fast, Fancy, Fabulous e com mods de renderização (Sodium/Embeddium, Iris/Oculus).
 - Aparência dos feixes e da luz numa GPU física (de dia, de noite, debaixo d'água) e custo dos passes `beams` e `lights` com o teto de HIGH (128 feixes, 64 luzes).
+- Gatilhos e limites por fonte com dois jogadores num servidor dedicado (TESTE-REAL.md, parte 5) e o RespectCraft rodando o Finisher Engine com efeitos do Calamidade.
 
 ## Próximas versões
 
-### 0.10 — Trail API e títulos e HUD cinematográficos
+### 0.11 — Trail API e títulos e HUD cinematográficos
 
 Próxima versão planejada.
 
 - **Trail API (rastros e marcas):** rastros de entidades, projéteis e pontas de feixe (fitas com histórico de posições, largura e cor por idade), e marcas que ficam no chão por um tempo (queimaduras, runas, crateras de luz), com orçamento de vértices e de marcas por quadro.
 - **Títulos e HUD cinematográficos:** cartões de título e legendas de habilidade sincronizados à Timeline (nome do golpe, fase do chefe), barras de cinema e enquadramento, com acessibilidade de tamanho, contraste e duração.
 
-### Depois da 0.10
+### Depois da 0.11
 
 - Ramificações de feixes (raios que se dividem) e feixes curvos.
 - Sombras simples para a Light (oclusão por profundidade na direção da fonte).
@@ -113,6 +122,8 @@ Próxima versão planejada.
 - Parâmetros de habilidade via arquivos de dados.
 - Editor de sequências e previsão de custo.
 - Trilha de áudio sincronizada e poses ligadas às fases da Timeline.
-- Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos) para os ganchos de cliente.
+- Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos, força de um golpe) para os ganchos de cliente.
+- Pontos resolvidos pelo cliente a partir de ossos de rigs (GeckoLib ou outro), por um gancho de cliente registrado pelo mod do rig, sem o Calamidade depender do GeckoLib.
+- Orientação seguindo o olhar (yaw e pitch da cabeça) além do corpo.
 - Transição suave (crossfade) opcional no release, para loops cujas bordas não coincidem.
 - Cache de malhas estáticas e LOD adaptativo ao frametime.

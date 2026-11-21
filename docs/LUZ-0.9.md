@@ -142,3 +142,5 @@ O F7 ganha a linha **"Luzes: N desenhadas (máx. M) · passe HERO/comum/não"**.
 - Geometria translúcida (água, vidro) pode receber a luz do que está atrás dela, conforme a profundidade que a RimuLib entrega.
 - Shader packs que substituem o pipeline do jogo podem não passar pelo pós-processamento da RimuLib.
 - Coberto por testes de lógica (`LightCheck`), pela biblioteca no WebGL2, pela prévia sintética e por um roteiro automatizado em jogo com renderização por software ([VALIDACAO.md](VALIDACAO.md)). GPU física: [TESTE-REAL.md](TESTE-REAL.md), parte 4.
+
+**Desde a 0.10.0:** luzes em pontos do centro e os deslocamentos `X`, `Y` e `Z` giram com a orientação da instância; discos e anéis continuam horizontais (só o centro gira). Veja [INTEGRACAO-0.10.md](INTEGRACAO-0.10.md).

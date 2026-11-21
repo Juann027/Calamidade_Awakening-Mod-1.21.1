@@ -12,6 +12,8 @@ Antes de tudo, leia `AGENTS.md` (regras invioláveis: API pública, rede, licen�
 - Um efeito novo num addon (ou no `examples/vfx-sample`).
 - Mudar o roteiro, o visual, a câmera ou o gameplay de um efeito existente.
 - Dar clima a uma luta ou área (céu, névoa, escuridão) com a Atmosphere API.
+- Disparar um efeito de um item, de um bloco (block entity) ou do ataque de um mob, ou virá-lo para uma direção (0.10.0).
+- Usar o Calamidade a partir de outro mod (o RespectCraft, por exemplo): dependência sem Maven e integração com rigs animados.
 
 Não use para mudar o próprio motor (renderização interna, rede, registro): aí siga `docs/ARQUITETURA.md` e `docs/HABILIDADES.md`.
 
@@ -55,6 +57,15 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - Calibre de noite: intensidade 2 a 3, alcance 8 a 12, queda 1,2 a 2. Cintilação some com intensidade dos efeitos de tela 0 e cai para 1/4 com "ocultar clarões".
 - Capítulo: `docs/LUZ-0.9.md`. Receitas: 8 (pilar), 11 (fogueira), 12 (onda de luz).
 
+### 3d. Orientação, fontes e gatilhos (opcional, 0.10.0)
+
+- **Virar o efeito:** `Effects.start(id, level, posição, yaw, pitch)` ou `Effects.start(id, level, Placement...)`. `Placement.at(pos).withLookOf(jogador)`, `.facing(alvo)`, `.arrivingFrom(atacante.getEyePosition())` (direção do golpe), `.shifted(direita, cima, frente)`, `Placement.on(mob).followingBody()` (yaw segue o corpo). Escreva pontos com `Point.facing(direita, cima, frente)`: giram com a instância. Sem orientação, tudo fica como na 0.9 (frente = sul).
+- **Referencial:** eixos locais do Minecraft (x esquerda, y cima, z frente); yaw 0 = sul, pitch positivo olha para baixo. Giram: pontos do centro, deslocamentos de trilha, offset da âncora, `ctx.facing`/`ctx.forward()` nos cues, `post.facing`/`world.facing` nas camadas. Não giram: `Point.world`, offsets de pontos de entidade, discos e anéis de luz (só o centro), `Shape`/`Material` embutidos.
+- **Gatilhos (`EffectTriggers`, `static final`):** `item(id).offset(.3, -.25, .4).cooldown(30).durability(1)` com `use(...)` no `Item#use` e `attack(...)` no `hurtEnemy` (pontos EYES, CASTER, AIM, TARGET); `blockEntity(id).redstone().period(20)` / `.periodic(60)` / `.proximity(6)` com um `Component` por block entity e `tick()` no ticker do servidor (a instância acaba ao quebrar o bloco ou descarregar o chunk); `entity(id).offset(0, 1.3, .4).cooldown(20)` com `fire(mob)` ou `fire(mob, alvo)`.
+- **Fontes e limites:** toda instância tem `EffectSource` (PLAYER, ENTITY, BLOCK, SCRIPT). Padrão do servidor: 16 por jogador, 4 por mob, 2 por bloco, 16 das 64 vagas só para jogadores. Acima do limite, `Optional.empty()` sem erro: trate o vazio. Recarga por fonte e efeito: `Placement.withCooldown`, `Effects.cooldownReady/cooldownLeft/startCooldown`.
+- **GeckoLib/rigs:** a animação roda no cliente, o efeito começa no servidor no mesmo tick do `triggerAnim`; alinhe marcadores da Timeline aos keyframes (segundos × 20). O Calamidade não depende de GeckoLib.
+- Capítulo: `docs/INTEGRACAO-0.10.md`. Receitas: 14 (leque orientado), 15 (cajado), 16 (pilares), 17 (zumbi). Dependência sem Maven: `docs/ai/usar-como-dependencia.md`.
+
 ### 4. Pós-processamento e shader
 
 - Cliente (`FMLClientSetupEvent`): `AddonLayers.post(id, post -> { var t = post.timeline(); post.pass("ns:programa", u -> {...}); post.bloom(...); })`.
@@ -78,7 +89,7 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 ### 7. Teste
 
 1. `./gradlew build` (inclui `checkShaders`, `checkApiDocs`, `checkRecipes`), `./gradlew dist`, build do addon. Feixes e luzes: `node scripts/previa_passes.cjs` mostra os passes reais numa cena sintética antes do jogo.
-2. No jogo: comando do efeito; **F7** (passes de pós, vértices, "Protagonistas (HERO)", "Feixes", "Luzes", "Atmosfera: N ativas · passe sim/não"); **F8** em LOW, BALANCED e HIGH; intensidade dos efeitos de tela em 0; "ocultar clarões" ligado; "Efeitos de movimento" desligado.
+2. No jogo: comando do efeito; **F7** (passes de pós, vértices, "Fontes", "Protagonistas (HERO)", "Feixes", "Luzes", "Atmosfera: N ativas · passe sim/não"); **F8** em LOW, BALANCED e HIGH; intensidade dos efeitos de tela em 0; "ocultar clarões" ligado; "Efeitos de movimento" desligado. Efeitos orientados: teste virado para vários lados; gatilhos: `/calamidade status` (ativas por fonte e recusas).
 3. Carga: `/calamidade bench <n> <efeito>` e `/calamidade_client record 30` (CSV em `calamidade_bench/`).
 4. Roteiro: `docs/TESTE-REAL.md`. Registre o que mediu em `docs/VALIDACAO.md`.
 
@@ -97,7 +108,7 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - Passe de atmosfera: 1 por quadro, do motor, fora do orçamento.
 - Passe de feixes: 1 por quadro para todos os feixes (16/48/128), cobrado do orçamento HERO se houver efeito HERO com feixes, senão do comum.
 - Passe de luzes: 1 por quadro para todas as luzes (8/24/64), antes dos efeitos e da atmosfera, mesmo esquema de orçamento. Os passes de feixes e luzes são pagos antes dos passes de addon; um efeito NORMAL com feixe e luz em LOW (1 vaga comum) só tem o feixe.
-- Duração até 12000 ticks; raio até 512; alcance 16..1024; 64 instâncias por servidor.
+- Duração até 12000 ticks; raio até 512; alcance 16..1024; 64 instâncias por servidor (0.10: 16 por jogador, 4 por mob, 2 por bloco e 16 vagas reservadas para jogadores, configuráveis no servidor).
 - Acessibilidade obrigatória: passes próprios de tela inteira × `post.screenEffects()`; nada de piscar com `!post.flashAllowed()`; nada de zoom ou borrão com `!post.motionEffects()`.
 
 ## Erros comuns
@@ -108,3 +119,6 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - Grade ou padrão que "nada" com a câmera: use coordenadas relativas a um ponto fixo (o centro do efeito), não `scenePosAt` direto.
 - `#include` de um arquivo que não está no namespace do shader (a RimuLib não procura no namespace do motor).
 - Usar tipos da RimuLib ou do Minecraft sem conferir com `javap` (veja `AGENTS.md`).
+- Escrever "frente" com `Point.center(0, 0, d)` esperando a direção do olhar sem passar orientação: sem `Placement`/yaw, a frente é o sul.
+- Ignorar o `Optional` vazio de um `start` (limite por fonte, reserva, recarga): não é erro, é recusa.
+- Começar efeitos ou dano a partir de keyframes de animação no cliente: o efeito começa no servidor.

@@ -1,4 +1,4 @@
-# Manual geral do Calamidade_Awakening 0.9.0
+# Manual geral do Calamidade_Awakening 0.10.0
 
 Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
@@ -12,13 +12,13 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
 **Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 5. Para escrever o roteiro do efeito uma vez só (fases, trilhas e marcadores que servidor, shader e câmera compartilham) e para efeitos ambientes em loop, use a Timeline do capítulo 6. Para mudar o clima da cena (céu, névoa, exposição, tinta e estrelas) sem escrever shader, use a Atmosphere do capítulo 7. Para feixes (lasers, pilares, teias) e para luz que clareia o terreno em volta do efeito, também sem shader, use o Beam e a Light dos capítulos 8 e 9. Para que o efeito principal de uma cena apareça inteiro com dezenas de outros na tela, marque-o como protagonista (HERO, capítulo 10, que também explica para leigos a diferença entre quantos efeitos são desenhados e quanto cada um custa).
 
-**Para IAs e agentes**, comece por `AGENTS.md` na raiz do repositório e pelo material de `docs/ai/`: referência da API gerada do JAR, guia de GLSL com a biblioteca `calamidade_fx.glsl` e treze receitas completas (`/vfxsample receita <nome>`). `python3 scripts/novo_efeito.py <namespace> <nome>` gera o esqueleto de um efeito novo.
+**Para IAs e agentes**, comece por `AGENTS.md` na raiz do repositório e pelo material de `docs/ai/`: referência da API gerada do JAR, guia de GLSL com a biblioteca `calamidade_fx.glsl` dezessete receitas completas (`/vfxsample receita <nome>`, item, blocos e mob do exemplo) e o modelo para usar o Calamidade como dependência (`docs/ai/usar-como-dependencia.md`). `python3 scripts/novo_efeito.py <namespace> <nome>` gera o esqueleto de um efeito novo.
 
 **Para modificar o motor**, consulte os capítulos 11 e 12. O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256; ela não é versionada. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
 
 **Para medir e validar**, use o capítulo 13 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 14.
 
-**Escopo.** As cinco habilidades internas são cosméticas. O motor oferece iluminação visual por materiais e shaders, desde a 0.8 tingimento do céu e névoa por efeito (Atmosphere) e, desde a 0.9, feixes e luz visual sobre o que a câmera vê (Beam e Light); a luz da 0.9 não muda o nível de luz da simulação (spawn de mobs, plantas), e substituir o skybox por texturas próprias exige implementação adicional. Consequências de gameplay pertencem aos addons, pelos cues de servidor.
+**Escopo.** As cinco habilidades internas são cosméticas. O motor oferece iluminação visual por materiais e shaders, desde a 0.8 tingimento do céu e névoa por efeito (Atmosphere) e, desde a 0.9, feixes e luz visual sobre o que a câmera vê (Beam e Light) e, desde a 0.10, efeitos orientados e gatilhos de item, bloco e mob; a luz da 0.9 não muda o nível de luz da simulação (spawn de mobs, plantas), e substituir o skybox por texturas próprias exige implementação adicional. Consequências de gameplay pertencem aos addons, pelos cues de servidor.
 
 
 1. [Jogar e instalar](#cap1)
@@ -31,11 +31,12 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 8. [Beam: feixes de luz](#cap8)
 9. [Light: luz visual sobre o mundo](#cap9)
 10. [Prioridade protagonista e orçamento por quadro](#cap10)
-11. [Arquitetura do motor](#cap11)
-12. [Criar habilidades dentro do motor](#cap12)
-13. [Testes em GPU real e multiplayer](#cap13)
-14. [Validação, medições e limites](#cap14)
-15. [Histórico e evolução prevista](#cap15)
+11. [Integração com outros mods: orientação, fontes, limites e gatilhos](#cap11)
+12. [Arquitetura do motor](#cap12)
+13. [Criar habilidades dentro do motor](#cap13)
+14. [Testes em GPU real e multiplayer](#cap14)
+15. [Validação, medições e limites](#cap15)
+16. [Histórico e evolução prevista](#cap16)
 
 Leitura complementar, fora do manual: [estudo técnico da integração da SA Series](ESTUDO-SA-SERIES.md).
 
@@ -43,11 +44,11 @@ Leitura complementar, fora do manual: [estudo técnico da integração da SA Ser
 
 ## 1. Jogar e instalar
 
-Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.9.0 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor.
+Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.10.0 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor.
 
 ### Instalação
 
-Coloque o JAR `dist/calamidade_awakening-0.9.0.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes. Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
+Coloque o JAR `dist/calamidade_awakening-0.10.0.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes (a 0.10.0 mudou o pacote de início de efeito para `event_v2`; versões diferentes simplesmente não trocam efeitos). Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
 
 A interface usa inglês como padrão e tem tradução para português do Brasil pela opção de idioma do Minecraft.
 
@@ -104,7 +105,7 @@ O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256 (task `ri
 
 ## 2. API de efeitos e impact frames
 
-Este documento descreve a API introduzida na 0.3, que continua válida na 0.9.0. Para o exemplo incluído no pacote atual, caminhos de instalação e publicação de cartões, abra [Addons 0.4](ADDONS-0.4.md).
+Este documento descreve a API introduzida na 0.3, que continua válida na 0.10.0. Para o exemplo incluído no pacote atual, caminhos de instalação e publicação de cartões, abra [Addons 0.4](ADDONS-0.4.md).
 
 Para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A interface pública desta versão é `dev.calamidade_awakening.api.v1.Effects` e seus tipos internos. O pacote contém um JAR de motor e conteúdo. O consumidor instala seu próprio JAR junto dele e da RimuLib 1.3.0 em ambos os lados.
 
@@ -123,7 +124,7 @@ No Windows use `gradlew.bat`. O primeiro build precisa baixar os artefatos de de
 2. Use `/vfxsample follow`. O exemplo encerra o sinal anterior e cria um novo na sua entidade. Use F5 e caminhe para ver o movimento.
 3. Use `/vfxsample stop` durante os seis segundos do efeito. A emissão e a geometria cessam; partículas já emitidas completam a própria vida.
 
-Para usar em outro repositório, copie o modelo de dependências de build.gradle, adapte os caminhos locais e leve a dependência obrigatória de calamidade_awakening do neoforge.mods.toml para o manifesto do seu mod. O exemplo atual declara o intervalo [0.9.0,0.10.0). As chamadas desta página existem desde a 0.3.0. O mod de exemplo é opcional.
+Para usar em outro repositório, use o modelo de [docs/ai/usar-como-dependencia.md](ai/usar-como-dependencia.md) (o JAR vem do release do GitHub, conferido por SHA-256, sem Maven) e leve a dependência de calamidade_awakening do neoforge.mods.toml para o manifesto do seu mod. O exemplo atual declara o intervalo [0.10.0,0.11.0). Desde a 0.10.0, `Effects.start` e `Effects.follow` também aceitam orientação e uma `Placement` ([INTEGRACAO-0.10.md](INTEGRACAO-0.10.md)). As chamadas desta página existem desde a 0.3.0. O mod de exemplo é opcional.
 
 ![Sinal do mod consumidor antes do impacto](gameplay/vfxsample-signal.png)
 
@@ -321,7 +322,7 @@ Há até 1/2/4 passes de addon por quadro em LOW/BALANCED/HIGH, além do passe c
 - Cartão aparece com textura ausente: verifique o caminho de sprite do Focus no JAR do addon, inclusive addon/namespace e caixa das letras.
 - A habilidade aparece e o clique não conjura: confirme a recarga, os requisitos do callback e a mesma instalação nos dois lados. O destaque do Atlas indica o envio do pedido; a execução começa com a aceitação do servidor.
 - Geometria aparece mas o shader falha: verifique namespace, shaders/fx e mensagens do compilador GLSL no log do cliente. Um shader de core do Minecraft tem outro contrato. Teste primeiro um passe que apenas devolve a cor de entrada.
-- Ao publicar uma versão, teste o mod-base sozinho e com dois addons que escolham o mesmo nome de efeito em namespaces diferentes. Atualize cliente e servidor juntos: o pedido de conjuração da 0.4 inclui potência e usa o canal request_v2. A 0.5.0 mantém o mesmo protocolo de rede; a 0.6.0 também. A 0.7.0 acrescenta o canal release (efeitos com sustain), então servidor e clientes precisam estar na 0.7.0. Addons da 0.4 a 0.6 funcionam sem mudança no código após ampliar o intervalo de dependência para incluir 0.7. A 0.8.0 mantém o protocolo da 0.7.0 (a atmosfera não usa rede); addons da 0.7 só precisam ampliar o intervalo para incluir 0.8. A 0.9.0 também mantém o protocolo (feixes, luzes e prioridade não usam rede); addons da 0.8 só precisam ampliar o intervalo para incluir 0.9. Para começar um addon novo, `python3 scripts/novo_efeito.py <namespace> <nome>` gera um efeito que compila sem edição, e `docs/ai/receitas/` traz treze efeitos completos.
+- Ao publicar uma versão, teste o mod-base sozinho e com dois addons que escolham o mesmo nome de efeito em namespaces diferentes. Atualize cliente e servidor juntos: o pedido de conjuração da 0.4 inclui potência e usa o canal request_v2. A 0.5.0 mantém o mesmo protocolo de rede; a 0.6.0 também. A 0.7.0 acrescenta o canal release (efeitos com sustain), então servidor e clientes precisam estar na 0.7.0. Addons da 0.4 a 0.6 funcionam sem mudança no código após ampliar o intervalo de dependência para incluir 0.7. A 0.8.0 mantém o protocolo da 0.7.0 (a atmosfera não usa rede); addons da 0.7 só precisam ampliar o intervalo para incluir 0.8. A 0.9.0 também mantém o protocolo (feixes, luzes e prioridade não usam rede); addons da 0.8 só precisam ampliar o intervalo para incluir 0.9. A 0.10.0 troca o pacote de início por `event_v2` (orientação e fonte), então servidor e clientes precisam estar na 0.10.0; addons da 0.9 só precisam ampliar o intervalo para incluir 0.10. Para começar um addon novo, `python3 scripts/novo_efeito.py <namespace> <nome>` gera um efeito que compila sem edição, e `docs/ai/receitas/` traz dezessete efeitos completos.
 
 <a id="cap5"></a>
 
@@ -871,6 +872,8 @@ O F7 ganha a linha **"Feixes: N desenhados (máx. M) · passe HERO/comum/não"**
 - A oclusão usa a profundidade que a RimuLib entrega ao passe: blocos e entidades escondem o feixe; partículas e parte da geometria translúcida (água, vidro) podem não esconder.
 - Coberto por testes de lógica (`BeamCheck`), pela biblioteca no WebGL2, pela prévia sintética e por um roteiro automatizado em jogo com renderização por software ([VALIDACAO.md](VALIDACAO.md)). GPU física: [TESTE-REAL.md](TESTE-REAL.md), parte 4.
 
+**Desde a 0.10.0:** os pontos `Point.center` (e o novo `Point.facing(direita, cima, frente)`) e os deslocamentos de trilha giram com a orientação da instância; sem orientação, nada muda. Veja [INTEGRACAO-0.10.md](INTEGRACAO-0.10.md) e as receitas [14](ai/receitas/14-leque.md) a [17](ai/receitas/17-zumbi.md).
+
 <a id="cap9"></a>
 
 ## 9. Light: luz visual sobre o mundo
@@ -1018,6 +1021,8 @@ O F7 ganha a linha **"Luzes: N desenhadas (máx. M) · passe HERO/comum/não"**.
 - Shader packs que substituem o pipeline do jogo podem não passar pelo pós-processamento da RimuLib.
 - Coberto por testes de lógica (`LightCheck`), pela biblioteca no WebGL2, pela prévia sintética e por um roteiro automatizado em jogo com renderização por software ([VALIDACAO.md](VALIDACAO.md)). GPU física: [TESTE-REAL.md](TESTE-REAL.md), parte 4.
 
+**Desde a 0.10.0:** luzes em pontos do centro e os deslocamentos `X`, `Y` e `Z` giram com a orientação da instância; discos e anéis continuam horizontais (só o centro gira). Veja [INTEGRACAO-0.10.md](INTEGRACAO-0.10.md).
+
 <a id="cap10"></a>
 
 ## 10. Prioridade protagonista e orçamento por quadro
@@ -1094,7 +1099,276 @@ Coberto por testes puros no `checkBudget` (`PriorityCheck`: HERO nunca cortado, 
 
 <a id="cap11"></a>
 
-## 11. Arquitetura do motor
+## 11. Integração com outros mods: orientação, fontes, limites e gatilhos
+
+A 0.10.0 prepara o Calamidade para ser usado por outros mods: o **RespectCraft** (Finisher Engine: finalizações entre dois participantes, com rigs GeckoLib, câmera própria e eventos por tick como `EVENT_HIT` de força 1 a 3 e `EVENT_FALL`), itens, blocos e ataques de mobs. Quatro peças novas, todas na API pública `dev.calamidade_awakening.api.v1`:
+
+1. **Orientação por instância**: um efeito pode começar com yaw e pitch, e seus pontos, feixes e luzes viram junto.
+2. **Fontes, limites e reserva**: toda instância sabe quem a começou (jogador, mob, bloco ou script); o servidor limita cada fonte e guarda vagas para jogadores.
+3. **Gatilhos prontos** (`EffectTriggers`): item, block entity e entidade, sem depender de GeckoLib.
+4. **Consumo como biblioteca**: um modelo de `build.gradle` que baixa o JAR do release do GitHub com SHA-256.
+
+Addons da 0.9 continuam funcionando sem mudança no código: sem orientação, o referencial é o dos eixos do mundo, e as fontes e os limites só recusam o que antes passaria de 64 instâncias, de 16 por jogador ou da reserva. O protocolo de rede mudou (pacote `event_v2`): **servidor e clientes precisam da mesma versão do motor**.
+
+### 1. Orientação por instância
+
+#### O referencial
+
+Uma instância orientada tem um referencial próprio, com os eixos locais do Minecraft (os mesmos de `^x ^y ^z` nos comandos):
+
+| Eixo local | `Point.center(x, y, z)` | `Point.facing(direita, cima, frente)` | Com yaw 0 e pitch 0 |
+|---|---|---|---|
+| esquerda | `+x` | `-direita` | leste (+X) |
+| cima | `+y` | `cima` | cima (+Y) |
+| frente | `+z` | `frente` | sul (+Z) |
+
+Yaw e pitch em graus, na convenção do Minecraft: **yaw 0 olha para o sul**, 90 para o oeste, -90 para o leste, 180 para o norte; **pitch positivo olha para baixo**, de -90 a 90. Sem orientação (yaw 0, pitch 0) o referencial é exatamente o dos eixos do mundo, por isso efeitos escritos para a 0.9 ficam idênticos quando ninguém passa orientação, e viram quando alguém passa.
+
+O que gira com a instância:
+
+| Gira | Não gira |
+|---|---|
+| Pontos `Point.center(...)` e `Point.facing(...)` de feixes e luzes | Pontos `Point.world(...)` (posição fixa) |
+| Deslocamentos por trilha (`Beam.Param.FROM_X`…`TO_Z`, `Light.Param.X/Y/Z`) | Deslocamentos de pontos de entidade (`anchor`, `anchorEye`, `caster`…: eixos do mundo) |
+| O deslocamento da âncora (`Placement.on(entidade, offset)`, `follow(..., true)`) | Discos e anéis de luz no chão (só o centro gira; continuam horizontais) |
+| `ctx.facing(...)`/`ctx.forward()` nos cues; `post.facing(...)` e `world.facing(...)` nas camadas | A geometria e os volumes embutidos (`Shape`, `Material`) e shaders de addon que não usam `post.facing` |
+
+#### Como começar orientado
+
+```java
+// Virado para onde o jogador olha (só na horizontal):
+Effects.start(ID, level, posicao, jogador.getYRot(), 0);
+Effects.start(ID, jogador, posicao, jogador.getYRot(), jogador.getXRot());   // com conjurador
+
+// Placement: posição ou âncora, orientação, conjurador, fonte, recarga e bloco vinculado.
+Effects.start(ID, level, Placement.at(olhos).withLookOf(jogador).shifted(.3, -.25, .4).withCaster(jogador));
+Effects.start(ID, level, Placement.at(vitima.getBoundingBox().getCenter()).arrivingFrom(atacante.getEyePosition()));
+Effects.start(ID, level, Placement.at(posicao).facing(alvo));                 // olhando para um ponto
+
+// Preso a um mob, com o yaw seguindo o corpo dele a cada tick e quadro:
+Effects.start(ID, level, Placement.on(mob).shifted(0, 1.2, .6).followingBody());
+Effects.follow(ID, mob, new Vec3(0, 1.2, .6), true);                         // o mesmo, forma curta
+```
+
+| `Placement` | O que faz |
+|---|---|
+| `at(posição)`, `at(posição, yaw, pitch)` | posição fixa, com ou sem orientação |
+| `on(entidade)`, `on(entidade, offset)` | presa à entidade (pés + offset no referencial da instância) |
+| `withOrientation(yaw, pitch)`, `withYaw(yaw)` | orientação explícita (yaw qualquer, normalizado; pitch em [-90, 90]) |
+| `withLookOf(entidade)` | o olhar da entidade (`getYRot`, `getXRot`) |
+| `facing(alvo)` | olhando da posição (ou dos olhos da âncora) para `alvo` |
+| `arrivingFrom(origem)` | na direção de quem chega de `origem`: a direção de um golpe, do atacante para a vítima |
+| `shifted(direita, cima, frente)` | desloca no referencial; numa posição fixa usa a orientação já definida (defina antes), numa âncora soma ao offset |
+| `followingBody()` | o yaw segue o corpo da âncora (`yBodyRot`, interpolado no cliente como o renderizador faz); o yaw da Placement vira um desvio; o pitch fica fixo |
+| `withCaster(jogador)` | câmera do efeito para esse jogador, `ctx.caster()` e pontos `caster*` |
+| `withSource(fonte)`, `withCooldown(ticks)`, `boundTo(blockEntity)` | seção 2 |
+
+No servidor, o `Effects.Context` dos cues traz `yaw()`, `pitch()`, `facing(direita, cima, frente)` e `forward()` do momento do cue (já com o yaw do corpo, se a instância o segue). No cliente, `AddonLayers.Post` e `AddonLayers.World` trazem `yaw()`, `pitch()` e `facing(...)` do quadro.
+
+### 2. Fontes, limites e reserva
+
+#### Quem começou cada instância
+
+`EffectSource` tem quatro tipos:
+
+| Tipo | Quem | Limite padrão por fonte | Usa a reserva |
+|---|---|---|---|
+| `PLAYER` | um jogador (cartões, itens, comandos com jogador conjurador, efeitos presos a jogadores) | 16 | sim |
+| `ENTITY` | uma entidade que não é jogador (ataques de mobs) | 4 | não |
+| `BLOCK` | um bloco (dimensão e posição) | 2 | não |
+| `SCRIPT` | código sem fonte individual (comandos, datapacks, lógica de mod) | sem limite por fonte | não |
+
+Quando o código não diz, o motor escolhe: o bloco vinculado (`boundTo`), senão o conjurador, senão a âncora (`EffectSource.entity`: PLAYER para jogadores), senão SCRIPT. `Effects.start(id, level, posição)` é SCRIPT; `Effects.start(id, jogador, posição)` é PLAYER; `Effects.follow(id, entidade, offset)` é a entidade.
+
+#### Limites do servidor
+
+`serverconfig/calamidade_awakening-server.toml` de cada mundo (também editável na lista de mods em um jogador):
+
+| Opção | Padrão | Faixa | Significado |
+|---|---|---|---|
+| `maxPerPlayer` | 16 | 1..64 | instâncias ativas por jogador |
+| `maxPerEntity` | 4 | 1..64 | instâncias ativas por mob |
+| `maxPerBlock` | 2 | 1..64 | instâncias ativas por bloco |
+| `playerReserve` | 16 | 0..64 | das 64 vagas do servidor, quantas só jogadores usam: mobs, blocos e scripts dividem as outras 48 |
+
+Um pedido acima de qualquer limite é **recusado sem erro**: `Effects.start` devolve `Optional.empty()` (os gatilhos devolvem vazio ou `false`). O `/calamidade bench`, que usa fonte SCRIPT, chega a 48 com a reserva padrão (`playerReserve = 0` libera as 64).
+
+#### Recarga por fonte
+
+A recarga é por fonte **e** por efeito, no servidor:
+
+```java
+var mob = EffectSource.entity(zumbi);
+Effects.cooldownReady(mob, ID, level);        // pode começar agora?
+Effects.cooldownLeft(mob, ID, level);         // ticks restantes
+Effects.startCooldown(mob, ID, level, 60);    // começa (0 limpa)
+Effects.start(ID, level, Placement.on(zumbi).withCooldown(60));   // confere e começa numa chamada
+```
+
+Blocos usam `EffectSource.block(level, pos)` (ou `block(blockEntity)`); jogadores, `EffectSource.player(jogador)`. A recarga dos cartões do Focus é a do jogador.
+
+#### Diagnóstico
+
+- **F7**: linha "Fontes: N jogadores · N mobs · N blocos · N scripts" (instâncias residentes no cliente). O CSV de `/calamidade_client record` ganha as colunas `players`, `entities`, `blocks` e `scripts`.
+- **`/calamidade status`**: ativas por tipo, os limites em vigor e quantos pedidos cada limite recusou desde que o servidor abriu.
+
+### 3. Gatilhos prontos (`EffectTriggers`)
+
+Cada gatilho é uma configuração imutável (cada método devolve uma cópia): guarde em um campo `static final`. O efeito só precisa estar registrado quando o gatilho dispara.
+
+#### Item
+
+```java
+public class Cajado extends Item {
+    static final EffectTriggers.ItemTrigger RAIO = EffectTriggers.item(RAIO_ID).offset(.3, -.25, .4).cooldown(30).durability(1);
+    static final EffectTriggers.ItemTrigger GOLPE = EffectTriggers.item(GOLPE_ID).at(EffectTriggers.ItemTrigger.Spot.TARGET);
+    @Override public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+        return RAIO.use(level, player, hand);
+    }
+    @Override public boolean hurtEnemy(ItemStack stack, LivingEntity alvo, LivingEntity atacante) {
+        GOLPE.attack(stack, alvo, atacante);
+        return super.hurtEnemy(stack, alvo, atacante);
+    }
+}
+```
+
+| Ponto (`at`) | Onde e como vira |
+|---|---|
+| `EYES` (padrão) | nos olhos, virado pelo olhar (yaw e pitch): `Point.facing(0, 0, 24)` é sempre "24 blocos à frente" |
+| `CASTER` | preso aos pés do usuário, yaw seguindo o corpo (auras, efeitos carregados) |
+| `AIM` | no primeiro bloco mirado, até `reach` (32 por padrão), virado pelo yaw do olhar |
+| `TARGET` | no meio do alvo do ataque, virado dos olhos do atacante para ele (sem alvo, como `AIM`) |
+
+O usuário é a fonte (PLAYER para jogadores) e, sendo jogador, o conjurador. Depois de uma partida aceita, o item perde `durability` pontos (não em criativo) e, para jogadores, mostra a recarga na barra. `fire(usuário, mão, alvo)` dispara de qualquer lugar no servidor (por exemplo, `releaseUsing`). Receita completa: [15-cajado.md](ai/receitas/15-cajado.md).
+
+#### Block entity
+
+```java
+public class PilarEntidade extends BlockEntity {
+    static final EffectTriggers.BlockTrigger PULSO = EffectTriggers.blockEntity(PULSO_ID).redstone().period(20);
+    private final EffectTriggers.BlockTrigger.Component efeito = PULSO.attach(this);
+    public PilarEntidade(BlockPos pos, BlockState state) { super(TIPO.get(), pos, state); }
+    static void tick(Level level, BlockPos pos, BlockState state, PilarEntidade self) { self.efeito.tick(); }
+}
+// No bloco: getTicker devolve createTickerHelper(type, TIPO.get(), PilarEntidade::tick) no servidor.
+```
+
+| Modo | Quando começa | Com sustain | `period` |
+|---|---|---|---|
+| `PERIODIC` (padrão, 40 ticks) | a cada `period` ticks | começa uma vez e fica preso | 1..72000 |
+| `REDSTONE` | na borda de subida do sinal | preso enquanto ligado; `release()` ao desligar | 0: uma vez por borda; mais: repete enquanto ligado |
+| `PROXIMITY` (`proximity(raio)`) | quando um jogador entra no raio | preso enquanto houver jogador | como no REDSTONE |
+
+O centro é a base do bloco mais `offset(direita, cima, frente)` (padrão 0, 1, 0), virado pela propriedade `facing`/`horizontal_facing` (ou `yaw(...)` fixo). A instância nasce vinculada ao bloco (`Placement.boundTo`): **quebrar o bloco, trocá-lo ou descarregar o chunk encerra o efeito**, mesmo se o mod não avisar (o motor confere `BlockEntity.isRemoved()`, que o jogo marca nos três casos). Partidas recusadas são tentadas de novo no máximo a cada `max(period, 20)` ticks. Receita: [16-pilares.md](ai/receitas/16-pilares.md).
+
+#### Entidade (ataques de mobs)
+
+```java
+static final EffectTriggers.EntityTrigger FEIXE = EffectTriggers.entity(ID).offset(0, 1.25, .35).cooldown(20);
+// NeoForge.EVENT_BUS, servidor:
+void dano(LivingDamageEvent.Post e) {
+    if (e.getSource().getEntity() instanceof Zombie zumbi) FEIXE.fire(zumbi, e.getEntity());
+}
+```
+
+`fire(mob)` vira a instância com o corpo do mob, seguido a cada tick e quadro; `fire(mob, alvo)` a vira para o alvo no instante do golpe (o centro continua preso ao mob, e o offset fica nivelado, sem inclinar com a mira). O mob é a fonte e a âncora: os cues recebem `ctx.anchor()`, os pontos `anchor*` resolvem para ele e a instância acaba quando ele some. Receita: [17-zumbi.md](ai/receitas/17-zumbi.md).
+
+### 4. Mobs animados com GeckoLib (ou outro rig)
+
+O Calamidade **não depende do GeckoLib**; o código abaixo fica no mod do usuário. A regra: **a animação roda nos clientes, o efeito começa no servidor**. Os handlers de keyframe do GeckoLib (som, partícula, instrução personalizada) rodam em cada cliente, então não servem para começar efeitos nem para causar dano.
+
+**Padrão recomendado (servidor manda nos dois):** no servidor, no mesmo tick, dispare a animação e o efeito; escreva a Timeline do efeito com os tempos da animação (segundos do Blockbench × 20 = ticks): um marcador no keyframe do golpe para o cue de dano, fases para preparação e recuperação.
+
+```java
+// No mod com GeckoLib (nomes do GeckoLib 4.x para 1.21.1; confira com javap na versão que o seu mod usa).
+public class Golem extends Monster implements GeoEntity {
+    private static final RawAnimation ATAQUE = RawAnimation.begin().thenPlay("animation.golem.ataque");
+    // Animação de 1,25 s (25 ticks) com o golpe no keyframe de 0,6 s (tick 12).
+    static final Timeline ROTEIRO = Timeline.builder(30)
+        .phase("preparo", 0, 12, 4, 0)
+        .phase("golpe", 12, 20, 0, 8)
+        .track("feixe", keyframe(10, 0f), keyframe(12, 1f, Easing.EASE_OUT), keyframe(20, 0f, Easing.SMOOTH))
+        .marker("golpe", 12)
+        .build();
+    static final EffectTriggers.EntityTrigger GOLPE = EffectTriggers.entity(GOLPE_ID).offset(0, 1.6, .8);
+
+    @Override public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        controllers.add(new AnimationController<>(this, "ataque", 0, state -> PlayState.STOP)
+            .triggerableAnim("golpe", ATAQUE));
+    }
+
+    /** Chamado pelo goal de ataque, no servidor, quando o ataque começa. */
+    void comecarAtaque(LivingEntity alvo) {
+        triggerAnim("ataque", "golpe");   // o GeckoLib sincroniza a animação com os clientes
+        GOLPE.fire(this, alvo);           // o efeito começa no mesmo tick; o marcador "golpe" cai no keyframe do golpe
+    }
+}
+// Construtor do mod: Effects.register(GOLPE_ID, ...); Effects.timeline(GOLPE_ID, Golem.ROTEIRO);
+// Effects.beams(GOLPE_ID, ...track(Beam.Param.REVEAL, "feixe")...);
+// Effects.cue(GOLPE_ID, "golpe", ctx -> { /* dano em ctx.living(3) na frente: ctx.forward() */ });
+```
+
+Detalhes:
+
+- **Ossos (a ponta do cajado, a mão):** as posições dos ossos só existem no cliente. Meça no Blockbench onde o osso está no keyframe do golpe e use esse deslocamento no `offset` do gatilho ou em `Point.facing`; com `followBody`, ele gira com o mob.
+- **Keyframes de instrução** servem para detalhes só de cliente (partículas, som local). Não mande pacote do cliente para o servidor começar um efeito: atrasa e confia no cliente.
+- **Golpes repetidos:** o limite por mob (4) e a recarga do gatilho seguram uma animação em loop.
+
+### 5. O Finisher Engine do RespectCraft
+
+Um esboço do lado do RespectCraft (nomes da API do Finisher são ilustrativos):
+
+```java
+// Servidor, ouvindo os eventos por tick do Finisher Engine.
+void aoEvento(FinisherEvent e) {
+    ServerLevel level = (ServerLevel) e.vitima().level();
+    switch (e.tipo()) {
+        case EVENT_HIT -> {
+            ResourceLocation id = switch (e.forca()) { case 1 -> HIT_LEVE; case 2 -> HIT_MEDIO; default -> HIT_FORTE; };
+            Effects.start(id, level, Placement.at(e.vitima().getBoundingBox().getCenter())
+                .arrivingFrom(e.atacante().getEyePosition())      // "frente" = direção do golpe
+                .withSource(EffectSource.entity(e.atacante())));
+        }
+        case EVENT_FALL -> Effects.start(QUEDA, level, Placement.at(e.vitima().position())
+            .withYaw(e.atacante().getYRot()).withSource(EffectSource.entity(e.atacante())));
+    }
+}
+```
+
+- **Força 1 a 3:** três efeitos (ou um efeito com trilhas diferentes) escolhidos pela força; o golpe final pode ser `withPriority(Effects.Priority.HERO)` na definição, para nunca ser cortado pelo limite de desenhados.
+- **Direção:** `arrivingFrom(atacante)` põe a "frente" do efeito na direção do golpe; feixes e luzes escritos com `Point.facing` saem para o lado certo, seja qual for o lado da câmera.
+- **Câmera:** o Calamidade só toca câmera para efeitos com tomadas de cartão ou `AddonLayers.film`, e só para o conjurador. Efeitos do finisher sem `film` não mexem na câmera do RespectCraft.
+- **Fontes e limites:** golpes rápidos de um mesmo mob podem passar de 4 instâncias se cada efeito durar muito. Use efeitos curtos (10 a 20 ticks), a fonte do jogador quando é ele quem finaliza (16 por padrão) ou `EffectSource.script()` para a cena inteira (sem limite por fonte, ainda dentro das 48 vagas não reservadas). O dono do servidor também pode subir `maxPerEntity`.
+- **Oclusão:** os rigs são entidades desenhadas pelo jogo e escrevem profundidade; feixes atrás deles ficam escondidos como atrás de blocos.
+
+### 6. Consumo como dependência
+
+Sem Maven: uma task do Gradle baixa `calamidade_awakening-0.10.0.jar` do release do GitHub e a RimuLib do CurseForge, confere os dois por SHA-256 e os põe em `libs/`; o projeto compila com `compileOnly` e roda com `runtimeOnly`. O modelo completo, igual ao projeto real `examples/consumidor` (conferido pelo build), está em [docs/ai/usar-como-dependencia.md](ai/usar-como-dependencia.md), com integração opcional e problemas comuns.
+
+O Calamidade 0.10.0 declara `neoforge [21.1,21.2)`: os releases saem da 21.1.267 e a 0.10.0 foi conferida com a 21.1.265 (compilação, testes e o roteiro em jogo; veja [VALIDACAO.md](VALIDACAO.md)). `./gradlew build -Pneoforge.version=21.1.265` repete a conferência.
+
+### 7. Limites e custo
+
+| Item | Limite |
+|---|---|
+| Instâncias no servidor | 64; por padrão 16 só para jogadores |
+| Por fonte (padrão) | 16 por jogador, 4 por mob, 2 por bloco; script sem limite por fonte |
+| Recarga por fonte e efeito | 0..72000 ticks |
+| Yaw e pitch | yaw qualquer valor finito (normalizado para [-180, 180)); pitch em [-90, 90] |
+| `Placement.on(..., offset)` e `shifted` | até 1024 blocos por eixo |
+| Gatilho de item | `reach` 0,5..256 blocos; durabilidade 0..1024 por partida |
+| Gatilho de bloco | `period` até 72000 ticks; raio de aproximação 0,5..128 blocos |
+
+Orientação não custa nada a mais por quadro: é uma rotação por ponto no cliente. Os gatilhos rodam no servidor e só leem o sinal de redstone ou a lista de jogadores do mundo por tick.
+
+### 8. Testes
+
+- `./gradlew build`: `OrientationCheck` (eixos, igual a `Vec3.directionFromRotation`, ortonormal, ida e volta, `Placement`, `Context`), `StageEventCheck` (o pacote `event_v2` leva orientação e fonte), `SourceCheck` (fontes, admissão, simulação aleatória, recarga), `TriggerCheck` (modos de bloco e validação dos gatilhos).
+- No jogo: receitas 14 a 17, F7 ("Fontes"), `/calamidade status`. Roteiro completo em [TESTE-REAL.md](TESTE-REAL.md), parte 5.
+
+<a id="cap12"></a>
+
+## 12. Arquitetura do motor
 
 ```mermaid
 flowchart TD
@@ -1130,11 +1404,13 @@ StageNetwork usa a API pública NetApi da RimuLib. CastRequest contém a chave c
 
 O servidor mantém até 64 sequências ativas. Envia ao conjurador e observadores dentro do alcance da definição (128 blocos nos efeitos internos, 16 a 1024 nos de addons), inclusive quem entra durante a execução. O cliente deduplica por order, descarta eventos expirados e verifica a dimensão. Ele calcula progresso a partir do relógio de mundo, produzindo a mesma fase sem pacotes por quadro.
 
-Desde a 0.7.0, um efeito de addon pode ter uma Timeline (TIMELINE-0.7.md). Servidor e cliente convertem a idade real em idade local com a mesma função pura (`Timeline.localAge`); cues, progresso, opacidade, acento de impacto e camadas de addon usam a idade local. Com sustain, a instância repete o trecho em loop e não expira pela duração. `Handle.release()` grava no servidor a idade de liberação, que vai aos clientes no pacote `release` (ReleaseEffect), também logo depois do StageEvent para quem entra mais tarde. A instância expira quando a saída termina. Os canais são event, end_effect, release e request_v2; cliente e servidor precisam estar na mesma versão.
+Desde a 0.7.0, um efeito de addon pode ter uma Timeline (TIMELINE-0.7.md). Servidor e cliente convertem a idade real em idade local com a mesma função pura (`Timeline.localAge`); cues, progresso, opacidade, acento de impacto e camadas de addon usam a idade local. Com sustain, a instância repete o trecho em loop e não expira pela duração. `Handle.release()` grava no servidor a idade de liberação, que vai aos clientes no pacote `release` (ReleaseEffect), também logo depois do StageEvent para quem entra mais tarde. A instância expira quando a saída termina. Os canais são event (event_v2 desde a 0.10.0), end_effect, release e request_v2; cliente e servidor precisam estar na mesma versão.
 
 Desde a 0.8.0, um efeito de addon pode ter uma Atmosphere (ATMOSFERA-0.8.md), registrada nos dois lados como a Timeline e sem tráfego de rede. A cada quadro, `StageScene.atmospheres` resolve a atmosfera de toda instância ativa (sem frustum nem orçamento) na idade local, com peso pelo envelope e um fade no fim do alcance; `AtmosphereFrame` mistura as duas de maior peso, aplica a acessibilidade, alimenta os eventos de névoa do NeoForge (`ComputeFogColor` e `RenderFog`) e enfileira o passe `atmosphere` depois dos passes de efeito, fora do orçamento de addons. O shader do passe usa a biblioteca `calamidade_fx.glsl`, incluída pela RimuLib.
 
 Desde a 0.9.0, a seleção (`FrameBudget.select`) põe as instâncias HERO na frente (no máximo 2, as mais próximas) e preenche o resto pelas NORMAL como antes; o orçamento de passes (`PassBudget`) tem dois montantes, comum e HERO. Efeitos de addon podem ter feixes (`Beam`) e luzes (`Light`), registrados nos dois lados e sem rede. A cada quadro, `BeamFrame` e `LightFrame` percorrem os efeitos desenhados em ordem de prioridade, resolvem os `Point` em `StageScene.point` (centro, mundo, âncora, conjurador, olhos ou mira, com um raio de mira por entidade e alcance), amostram as trilhas, aplicam o teto do quadro (`EnginePasses.cap`) e enviam os dados numa textura RGBA32F (`DataTexture`, ligada por `Uniforms.glTexture`). `RimuStageBackend` paga os dois passes (`EnginePasses.pay`: HERO se um HERO os usa, senão comum) antes dos passes de addon e os enfileira nesta ordem: `lights`, `awakening_field`, cartões e `post.pass`, `beams`, `atmosphere`. O passe de luzes recebe a névoa de terreno que o jogo usou no quadro (`ViewportEvent.RenderFog`, registrada depois de todos os ouvintes).
+
+Desde a 0.10.0, uma instância tem orientação e fonte. `Placement` (ou as sobrecargas de `Effects.start`/`follow`) vira um `StageNetwork.Spawn` com posição ou âncora, yaw, pitch, a opção de seguir o corpo, a fonte (`EffectSource`), a recarga e o bloco vinculado. Antes de criar a instância, o servidor confere a recarga por fonte e efeito (`Cooldowns`, agora com chaves de qualquer fonte) e a admissão (`SourceLimits.admit`: total de 64, vagas reservadas para jogadores e limite por fonte, lidos de `ServerConfig`); recusas devolvem `Optional.empty()` e são contadas para o `/calamidade status`. O pacote de início passou a ser `event_v2`, com yaw, pitch, a opção de seguir o corpo e o tipo da fonte. O referencial é um `Basis` puro (eixos locais do Minecraft: x à esquerda, y para cima, z para a frente; identidade com yaw e pitch 0): o servidor o usa no centro das instâncias presas e no `Context` dos cues (com `yBodyRot` da âncora quando segue o corpo), e o cliente o calcula a cada quadro em `StageScene.basis` (com `Mth.rotLerp` de `yBodyRotO` e `yBodyRot`, como o renderizador), guarda-o no `Sample` e gira com ele os pontos do centro e os deslocamentos de trilha de feixes e luzes. Uma instância vinculada a uma block entity termina quando `BlockEntity.isRemoved()` (bloco quebrado ou trocado, chunk descarregado). Os gatilhos de `EffectTriggers` só montam `Placement`s; o de bloco decide com a máquina de estados pura `TriggerLogic`.
 
 ### Cliente e orçamento
 
@@ -1190,9 +1466,9 @@ O Atlas interpola coordenadas locais na abertura e usa a mesma função de posi�
 
 PerfOverlay (tecla F7) mostra o renderizador OpenGL, FPS, mediana e percentil 95 dos últimos 240 quadros, perfil de qualidade, sequências residentes, efeitos e volumes desenhados, vértices emitidos e passes de pós-processamento. Os renderizadores escrevem os contadores durante o quadro e o painel publica os valores no início do quadro seguinte, então ele sempre mostra o último quadro completo. `/calamidade_client record <segundos>` grava os mesmos dados por quadro em `calamidade_bench/frames-*.csv` na pasta do jogo. No servidor, `/calamidade bench <n> [efeito]` cria uma carga reproduzível e `/calamidade status` informa as instâncias ativas. O roteiro de uso está em [TESTE-REAL.md](TESTE-REAL.md).
 
-<a id="cap12"></a>
+<a id="cap13"></a>
 
-## 12. Criar habilidades dentro do motor
+## 13. Criar habilidades dentro do motor
 
 Para publicar uma habilidade em um JAR separado, use o [tutorial de criação de addons 0.4](ADDONS-0.4.md).
 
@@ -1271,9 +1547,9 @@ Para consumidores da 0.3.x, comece pelo [guia da API pública](API-0.3.md) e pel
 
 Ao documentar uma nova camada, inclua o registro completo, o evento que a inicia, as unidades e os limites dos parâmetros, o comportamento para observadores e um comando para reproduzir o resultado. Para eventos luminosos, descreva também o resultado com a redução de clarões ligada. Faça o exemplo compilar contra o JAR que será distribuído.
 
-<a id="cap13"></a>
+<a id="cap14"></a>
 
-## 13. Testes em GPU real e multiplayer
+## 14. Testes em GPU real e multiplayer
 
 Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por software) com servidor integrado. Este roteiro cobre o que faltava: desempenho em placa de vídeo física e sincronização entre dois clientes. Ele usa as ferramentas da 0.5.0 e leva cerca de 40 minutos.
 
@@ -1283,9 +1559,9 @@ Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por
 |---|---|---|
 | F7 | Cliente | Painel com GPU, FPS, mediana e p95 do tempo de quadro, perfil, eventos residentes e desenhados, volumes, vértices e passes; desde a 0.9, protagonistas (HERO) e passes que usaram, feixes e luzes desenhados e qual orçamento pagou cada passe. |
 | `/calamidade_client record <s>` | Cliente | Grava cada quadro em `calamidade_bench/frames-AAAAMMDD-HHMMSS.csv` e mostra mediana e p95 no chat. Até 300 s. |
-| `/calamidade bench <n> [efeito]` | Servidor (permissão 2) | Cria n instâncias (1 a 64) num arco 14 blocos à frente do jogador, sem câmera. Padrão: `calamidade_awakening:nexus`. |
+| `/calamidade bench <n> [efeito]` | Servidor (permissão 2) | Cria n instâncias (1 a 64) num arco 14 blocos à frente do jogador, sem câmera. Padrão: `calamidade_awakening:nexus`. Desde a 0.10 a fonte é SCRIPT: com a reserva padrão para jogadores, chega a 48 (`playerReserve = 0` na config do servidor libera as 64). |
 | `/calamidade bench stop` | Servidor | Encerra as instâncias do benchmark. |
-| `/calamidade status` | Servidor | Instâncias ativas no servidor (limite 64). |
+| `/calamidade status` | Servidor | Instâncias ativas no servidor (limite 64); desde a 0.10, por tipo de fonte, os limites da config do servidor e as recusas. |
 
 ### Parte 1 — desempenho em GPU física
 
@@ -1307,7 +1583,7 @@ São 15 rodadas. Repita a carga 6 com `calamidade_awakening:prism` e com `vfxsam
 
 ### Parte 2 — dois clientes em servidor dedicado
 
-**Preparação.** Servidor dedicado NeoForge 21.1.267 com RimuLib, Calamidade 0.9.0 e o vfx-sample 1.6.0, os mesmos JARs nos dois clientes (o protocolo é o da 0.7.0, que acrescentou o canal `release`; use a mesma versão nos dois lados). Para testar sozinho no mesmo PC, use `./gradlew runServer` (ou o instalador de servidor do NeoForge), defina `online-mode=false` em `server.properties` **apenas para este teste local** e abra dois clientes com nomes diferentes: por exemplo, `./gradlew runClient` e uma instância do seu launcher com os mesmos mods. Dê permissão aos dois com `/op`. Chame os jogadores de A (conjura) e B (observa).
+**Preparação.** Servidor dedicado NeoForge 21.1.267 (ou 21.1.265) com RimuLib, Calamidade 0.10.0 e o vfx-sample 1.7.0, os mesmos JARs nos dois clientes (a 0.10.0 trocou o pacote de início por `event_v2`; use a mesma versão nos dois lados). Para testar sozinho no mesmo PC, use `./gradlew runServer` (ou o instalador de servidor do NeoForge), defina `online-mode=false` em `server.properties` **apenas para este teste local** e abra dois clientes com nomes diferentes: por exemplo, `./gradlew runClient` e uma instância do seu launcher com os mesmos mods. Dê permissão aos dois com `/op`. Chame os jogadores de A (conjura) e B (observa).
 
 | # | Ação | Resultado esperado |
 |---|---|---|
@@ -1319,7 +1595,7 @@ São 15 rodadas. Repita a carga 6 com `calamidade_awakening:prism` e com `vfxsam
 | 6 | A conjura o Sinal de Maré pelo Atlas perto de três mobs e de B. | No impacto (2 s), os mobs e B (com `pvp=true`, o padrão) levam dano leve e são empurrados para longe do centro; A não. Os dois clientes veem o empurrão no mesmo momento do impact frame. |
 | 7 | Sem o Focus na mão, A conjura o Núcleo do Horizonte com Y e, logo depois, o Pulso Prismático com K. | O Pulso sai normalmente (recarga por habilidade). Uma segunda tentativa de Núcleo durante os 10 s é recusada. |
 | 8 | B conjura enquanto A está em recarga. | B conjura normalmente; a recarga é de cada jogador. |
-| 9 | `/calamidade bench 64` e depois A tenta conjurar. | `/calamidade status` mostra 64/64; a conjuração de A é recusada sem erro. Após `bench stop`, volta a funcionar. |
+| 9 | `/calamidade bench 64` e depois A tenta conjurar. | Desde a 0.10: o bench para em 48 (fonte SCRIPT; 16 vagas reservadas para jogadores) e A conjura normalmente. Com `playerReserve = 0` na config do servidor, `/calamidade status` mostra 64/64 e a conjuração de A é recusada sem erro; após `bench stop`, volta a funcionar. |
 | 10 | A pressiona O durante o Núcleo do Horizonte. | A volta à própria visão; B continua vendo o efeito até o fim. |
 | 11 | Em Mods → Calamidade_Awakening → Configurar, B põe a intensidade em 0 e desliga o tremor; A conjura o Núcleo do Horizonte e o Sinal de Maré. | B vê a geometria e as ondas, sem bloom, clarão, dessaturação nem tremor. A continua vendo tudo. |
 | 12 | Em qualidade LOW, A conjura o Sinal de Maré. | O shader do cartão aparece; os anéis dourados não (sem vaga), mas o bloom do pico ainda acontece. O F7 mostra 1 passe de addon. |
@@ -1383,13 +1659,33 @@ Mesma preparação. O que só uma GPU de verdade mostra vem primeiro: a **aparê
 
 Registre para cada caso o que viu e, nos casos 37, 40, 42, 45 e 50, uma captura e (45 e 50) os tempos de quadro.
 
+### Parte 5 — orientação, fontes, limites e gatilhos (0.10.0)
+
+Mesma preparação (servidor dedicado, dois clientes A e B). Deixe o F7 aberto: linha nova "Fontes: N jogadores · N mobs · N blocos · N scripts". Capítulo: [INTEGRACAO-0.10.md](INTEGRACAO-0.10.md); receitas 14 a 17.
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 52 | A roda `/vfxsample receita leque` virado para o sul, o leste e o noroeste; B observa de lado. | O leque abre sempre à frente de A; o feixe central aponta para onde a mira de A aponta. B vê o leque na mesma direção. F7: "Feixes: 5", "Luzes: 1", "Fontes: 1 jogadores". |
+| 53 | A pega `/give @s vfxsample:cajado` (sobrevivência) e clica com o botão direito olhando reto, para cima e para baixo. | O raio sai da mão direita para onde a mira aponta; a barra mostra a recarga (1,5 s) e um segundo clique não dispara; a durabilidade cai 1 por raio. Um mob no caminho leva dano. B vê o mesmo raio. |
+| 54 | A bate num mob com o cajado. | Um risco dourado atravessa o mob na direção do golpe e um anel de luz abre no chão. |
+| 55 | A coloca `vfxsample:pilar_periodico` e `vfxsample:pilar_redstone` (virado para A), com uma alavanca ao lado do segundo. | O periódico pulsa a cada 3 s. A alavanca faz o de redstone pulsar na hora e a cada 1 s; o feixe inclinado vai para a face que estava virada para A. Desligar para os pulsos. F7: "Fontes: … blocos". |
+| 56 | A quebra o pilar de redstone no meio de um pulso. | O efeito some na hora (não espera o fim do pulso). |
+| 57 | A se afasta até o chunk dos pilares descarregar (mais que a distância de simulação; num servidor com `spawnChunkRadius` padrão, construa longe do spawn) e roda `/calamidade status`; depois volta. | Longe: nenhuma instância de bloco. Ao voltar, o periódico volta a pulsar. |
+| 58 | A, em sobrevivência, deixa um zumbi bater nele; B observa de lado. | Cada golpe solta um feixe verde curto do peito do zumbi na direção de A. F7: "Fontes: … mobs". `/vfxsample zumbi off` desliga. |
+| 59 | Cinco zumbis batendo em A ao mesmo tempo. | `/calamidade status`: nunca mais de 4 instâncias por zumbi; FPS estável. |
+| 60 | `/calamidade bench 64`, depois A conjura e roda `/vfxsample receita leque`. | O bench para em 48; A ainda conjura (reserva de jogadores). `/calamidade status`: "48 scripts", "1 jogadores", recusas por reserva contadas. |
+| 61 | Na config do servidor (`serverconfig/calamidade_awakening-server.toml`), `maxPerBlock = 1` e `playerReserve = 0`; reinicie o mundo e repita 55 e 60. | O pilar de redstone tem no máximo 1 pulso vivo; o bench chega a 64 e a conjuração de A é recusada sem erro. |
+| 62 | Um mod que usa o Calamidade como dependência (`examples/consumidor`, `docs/ai/usar-como-dependencia.md`) com NeoForge 21.1.265: `./gradlew runClient`. | O jogo abre com o consumidor, o Calamidade e a RimuLib; bater num mob solta o feixe do consumidor. |
+
+Registre para cada caso o que viu e, nos casos 52, 53, 55 e 58, uma captura.
+
 ### Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
 
-<a id="cap14"></a>
+<a id="cap15"></a>
 
-## 14. Validação, medições e limites
+## 15. Validação, medições e limites
 
 ### Versão 0.9.0 — Beam API, Light API e prioridade protagonista (estado atual)
 
@@ -1791,9 +2087,9 @@ As outras quatro habilidades foram acionadas pelas teclas padrão U, I, V e Y. F
 
 O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servidor integrado. Continuam pendentes multiplayer com dois clientes e medições de desempenho em GPU física.
 
-<a id="cap15"></a>
+<a id="cap16"></a>
 
-## 15. Histórico e evolução prevista
+## 16. Histórico e evolução prevista
 
 ### Versões publicadas
 
@@ -1880,6 +2176,14 @@ O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servid
 - F7 e CSV com HERO, feixes e luzes.
 - vfx-sample 1.6.0: receitas pilar, laser, teia, fogueira, onda de luz e protagonista; luz breve no impacto do Sinal de Maré.
 
+#### 0.10.0 — integração com outros mods
+
+- Orientação por instância: `Placement` (posição ou âncora, yaw, pitch, `facing`, `arrivingFrom`, `shifted`, `followingBody`) e `Effects.start`/`follow` com orientação; pontos do centro, `Point.facing`, deslocamentos de trilha e o deslocamento da âncora giram com a instância; o yaw pode seguir o corpo da âncora. Pacote `event_v2`. Consulte INTEGRACAO-0.10.md.
+- Fontes (`EffectSource`: jogador, mob, bloco, script), limites por fonte e vagas reservadas para jogadores na config do servidor; recarga por fonte e efeito; F7 e `/calamidade status` por tipo de fonte.
+- `EffectTriggers`: gatilhos de item (uso, ataque, recarga, durabilidade), de block entity (PERIODIC, REDSTONE, PROXIMITY, fim ao quebrar ou descarregar) e de entidade (corpo ou alvo), só com API comum; guia de ligação com keyframes de GeckoLib.
+- Consumo como biblioteca sem Maven: modelo de `build.gradle` (release do GitHub com SHA-256) e `examples/consumidor`, conferidos pelo build; conferida com o NeoForge 21.1.265.
+- vfx-sample 1.7.0: leque orientado, cajado, pilares de redstone e periódico, zumbi com feixe.
+
 ### Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -1888,17 +2192,18 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 - Sincronização entre dois clientes em servidor dedicado: observador, entrada tardia, saída e retorno ao alcance, troca de dimensão.
 - Pipeline em Fast, Fancy, Fabulous e com mods de renderização (Sodium/Embeddium, Iris/Oculus).
 - Aparência dos feixes e da luz numa GPU física (de dia, de noite, debaixo d'água) e custo dos passes `beams` e `lights` com o teto de HIGH (128 feixes, 64 luzes).
+- Gatilhos e limites por fonte com dois jogadores num servidor dedicado (TESTE-REAL.md, parte 5) e o RespectCraft rodando o Finisher Engine com efeitos do Calamidade.
 
 ### Próximas versões
 
-#### 0.10 — Trail API e títulos e HUD cinematográficos
+#### 0.11 — Trail API e títulos e HUD cinematográficos
 
 Próxima versão planejada.
 
 - **Trail API (rastros e marcas):** rastros de entidades, projéteis e pontas de feixe (fitas com histórico de posições, largura e cor por idade), e marcas que ficam no chão por um tempo (queimaduras, runas, crateras de luz), com orçamento de vértices e de marcas por quadro.
 - **Títulos e HUD cinematográficos:** cartões de título e legendas de habilidade sincronizados à Timeline (nome do golpe, fase do chefe), barras de cinema e enquadramento, com acessibilidade de tamanho, contraste e duração.
 
-#### Depois da 0.10
+#### Depois da 0.11
 
 - Ramificações de feixes (raios que se dividem) e feixes curvos.
 - Sombras simples para a Light (oclusão por profundidade na direção da fonte).
@@ -1908,6 +2213,8 @@ Próxima versão planejada.
 - Parâmetros de habilidade via arquivos de dados.
 - Editor de sequências e previsão de custo.
 - Trilha de áudio sincronizada e poses ligadas às fases da Timeline.
-- Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos) para os ganchos de cliente.
+- Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos, força de um golpe) para os ganchos de cliente.
+- Pontos resolvidos pelo cliente a partir de ossos de rigs (GeckoLib ou outro), por um gancho de cliente registrado pelo mod do rig, sem o Calamidade depender do GeckoLib.
+- Orientação seguindo o olhar (yaw e pitch da cabeça) além do corpo.
 - Transição suave (crossfade) opcional no release, para loops cujas bordas não coincidem.
 - Cache de malhas estáticas e LOD adaptativo ao frametime.

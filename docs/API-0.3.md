@@ -1,6 +1,6 @@
 # API de efeitos (introduzida na 0.3)
 
-Este documento descreve a API introduzida na 0.3, que continua válida na 0.9.0. Para o exemplo incluído no pacote atual, caminhos de instalação e publicação de cartões, abra [Addons 0.4](ADDONS-0.4.md).
+Este documento descreve a API introduzida na 0.3, que continua válida na 0.10.0. Para o exemplo incluído no pacote atual, caminhos de instalação e publicação de cartões, abra [Addons 0.4](ADDONS-0.4.md).
 
 Para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A interface pública desta versão é `dev.calamidade_awakening.api.v1.Effects` e seus tipos internos. O pacote contém um JAR de motor e conteúdo. O consumidor instala seu próprio JAR junto dele e da RimuLib 1.3.0 em ambos os lados.
 
@@ -19,7 +19,7 @@ No Windows use `gradlew.bat`. O primeiro build precisa baixar os artefatos de de
 2. Use `/vfxsample follow`. O exemplo encerra o sinal anterior e cria um novo na sua entidade. Use F5 e caminhe para ver o movimento.
 3. Use `/vfxsample stop` durante os seis segundos do efeito. A emissão e a geometria cessam; partículas já emitidas completam a própria vida.
 
-Para usar em outro repositório, copie o modelo de dependências de build.gradle, adapte os caminhos locais e leve a dependência obrigatória de calamidade_awakening do neoforge.mods.toml para o manifesto do seu mod. O exemplo atual declara o intervalo [0.9.0,0.10.0). As chamadas desta página existem desde a 0.3.0. O mod de exemplo é opcional.
+Para usar em outro repositório, use o modelo de [docs/ai/usar-como-dependencia.md](ai/usar-como-dependencia.md) (o JAR vem do release do GitHub, conferido por SHA-256, sem Maven) e leve a dependência de calamidade_awakening do neoforge.mods.toml para o manifesto do seu mod. O exemplo atual declara o intervalo [0.10.0,0.11.0). Desde a 0.10.0, `Effects.start` e `Effects.follow` também aceitam orientação e uma `Placement` ([INTEGRACAO-0.10.md](INTEGRACAO-0.10.md)). As chamadas desta página existem desde a 0.3.0. O mod de exemplo é opcional.
 
 ![Sinal do mod consumidor antes do impacto](gameplay/vfxsample-signal.png)
 
