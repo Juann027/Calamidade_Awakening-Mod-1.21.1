@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "vfxsample:block/pilar_periodico" },
+    "facing=south": { "model": "vfxsample:block/pilar_periodico", "y": 180 },
+    "facing=west": { "model": "vfxsample:block/pilar_periodico", "y": 270 },
+    "facing=east": { "model": "vfxsample:block/pilar_periodico", "y": 90 }
+  }
+}

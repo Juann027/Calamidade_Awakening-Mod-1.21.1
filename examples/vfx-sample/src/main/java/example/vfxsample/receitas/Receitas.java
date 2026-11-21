@@ -8,7 +8,10 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,41 +23,49 @@ import java.util.function.Function;
  * Catálogo das receitas de docs/ai/receitas/ e o comando /vfxsample receita &lt;nome&gt;. Cada receita é uma classe com
  * register() (construtor comum do mod) e, quando tem camada de cliente, Client.setup() (FMLClientSetupEvent) e um
  * shader em assets/vfxsample/shaders/fx/receita_*.fsh. As receitas 8 a 13 (1.6.0) usam feixes, luzes e a prioridade
- * HERO do motor 0.9.0; só a onda de luz tem camada de cliente.
+ * HERO do motor 0.9.0; só a onda de luz tem camada de cliente. As receitas 14 a 17 (1.7.0) usam a orientação e os
+ * gatilhos do motor 0.10.0: o leque (comando), o cajado (item), os pilares (blocos) e o zumbi (mob vanilla).
  */
 public final class Receitas {
-    /** Nome do comando, efeito e como ele começa: numa posição em relação ao jogador ou preso a ele. */
-    record Receita(String nome, ResourceLocation id, Function<ServerPlayer, Vec3> posicao, boolean preso) {
-        Receita(String nome, ResourceLocation id, Function<ServerPlayer, Vec3> posicao) { this(nome, id, posicao, false); }
-
-        /** Inicia no servidor: Effects.follow (preso ao jogador) ou Effects.start na posição. */
-        Optional<Effects.Handle> iniciar(ServerPlayer player) {
-            return preso ? Effects.follow(id, player, Vec3.ZERO) : Effects.start(id, player.serverLevel(), posicao.apply(player));
+    /** Nome do comando, efeito e como ele começa no servidor. */
+    record Receita(String nome, ResourceLocation id, Function<ServerPlayer, Optional<Effects.Handle>> inicio) {
+        /** Effects.start numa posição em relação ao jogador. */
+        static Receita em(String nome, ResourceLocation id, Function<ServerPlayer, Vec3> posicao) {
+            return new Receita(nome, id, p -> Effects.start(id, p.serverLevel(), posicao.apply(p)));
         }
+
+        /** Effects.follow: presa ao jogador. */
+        static Receita presa(String nome, ResourceLocation id) {
+            return new Receita(nome, id, p -> Effects.follow(id, p, Vec3.ZERO));
+        }
+
+        Optional<Effects.Handle> iniciar(ServerPlayer player) { return inicio.apply(player); }
     }
 
     static final List<Receita> TODAS = List.of(
-        new Receita("anel", AnelImpacto.ID, p -> chao(p, 6)),
-        new Receita("cubo", CuboGrade.ID, p -> chao(p, 22).add(0, 8, 0)),
-        new Receita("bolha", BolhaArcoIris.ID, p -> olhos(p, 7)),
-        new Receita("impacto", ImpactFrame.ID, p -> olhos(p, 3)),
-        new Receita("feixe", FeixeVertical.ID, p -> chao(p, 14)),
-        new Receita("ambiente", AmbienteVagalumes.ID, p -> chao(p, 5)),
-        new Receita("ceu", CeuTingido.ID, p -> p.position().add(0, 2, 0)),
-        new Receita("pilar", PilarDeLuz.ID, p -> chao(p, 18)),
-        new Receita("laser", LaserMira.ID, p -> p.position(), true),
-        new Receita("teia", TeiaDeFeixes.ID, p -> chao(p, 12)),
-        new Receita("fogueira", Fogueira.ID, p -> chao(p, 5)),
-        new Receita("onda_luz", OndaDeLuz.ID, p -> chao(p, 6)),
-        new Receita("protagonista", Protagonista.ID, p -> chao(p, 30)));
+        Receita.em("anel", AnelImpacto.ID, p -> chao(p, 6)),
+        Receita.em("cubo", CuboGrade.ID, p -> chao(p, 22).add(0, 8, 0)),
+        Receita.em("bolha", BolhaArcoIris.ID, p -> olhos(p, 7)),
+        Receita.em("impacto", ImpactFrame.ID, p -> olhos(p, 3)),
+        Receita.em("feixe", FeixeVertical.ID, p -> chao(p, 14)),
+        Receita.em("ambiente", AmbienteVagalumes.ID, p -> chao(p, 5)),
+        Receita.em("ceu", CeuTingido.ID, p -> p.position().add(0, 2, 0)),
+        Receita.em("pilar", PilarDeLuz.ID, p -> chao(p, 18)),
+        Receita.presa("laser", LaserMira.ID),
+        Receita.em("teia", TeiaDeFeixes.ID, p -> chao(p, 12)),
+        Receita.em("fogueira", Fogueira.ID, p -> chao(p, 5)),
+        Receita.em("onda_luz", OndaDeLuz.ID, p -> chao(p, 6)),
+        Receita.em("protagonista", Protagonista.ID, p -> chao(p, 30)),
+        // 1.7.0 — orientação: o leque começa virado com o yaw do jogador (Placement).
+        new Receita("leque", LequeOrientado.ID, LequeOrientado::iniciar));
 
     /** Última receita iniciada por jogador, para release e stop. */
     private static final Map<UUID, Effects.Handle> ULTIMA = new HashMap<>();
 
     private Receitas() {}
 
-    /** Construtor comum do mod. */
-    public static void register() {
+    /** Construtor comum do mod; {@code bus} é o barramento do mod (itens, blocos e abas do criativo). */
+    public static void register(IEventBus bus) {
         AnelImpacto.register();
         CuboGrade.register();
         BolhaArcoIris.register();
@@ -68,6 +79,21 @@ public final class Receitas {
         Fogueira.register();
         OndaDeLuz.register();
         Protagonista.register();
+        // 1.7.0 — orientação e gatilhos do motor 0.10.0.
+        LequeOrientado.register();
+        Cajado.register(bus);
+        Pilares.register(bus);
+        ZumbiFeixe.register();
+        bus.addListener(Receitas::abas);
+    }
+
+    /** Cajado na aba de combate e pilares na de redstone do modo criativo. */
+    private static void abas(BuildCreativeModeTabContentsEvent event) {
+        if (event.getTabKey() == CreativeModeTabs.COMBAT) event.accept(Cajado.ITEM);
+        if (event.getTabKey() == CreativeModeTabs.REDSTONE_BLOCKS) {
+            event.accept(Pilares.PILAR_REDSTONE);
+            event.accept(Pilares.PILAR_PERIODICO);
+        }
     }
 
     /**
@@ -92,6 +118,19 @@ public final class Receitas {
         raiz.then(Commands.literal("release").executes(ctx -> liberar(ctx.getSource())));
         raiz.then(Commands.literal("stop").executes(ctx -> parar(ctx.getSource())));
         return raiz;
+    }
+
+    /** /vfxsample zumbi on|off: liga ou desliga o feixe dos zumbis (receita 17). */
+    public static LiteralArgumentBuilder<CommandSourceStack> comandoZumbi() {
+        return Commands.literal("zumbi")
+            .then(Commands.literal("on").executes(ctx -> zumbi(ctx.getSource(), true)))
+            .then(Commands.literal("off").executes(ctx -> zumbi(ctx.getSource(), false)));
+    }
+
+    private static int zumbi(CommandSourceStack source, boolean ligado) {
+        ZumbiFeixe.ativo = ligado;
+        source.sendSuccess(() -> Component.translatable(ligado ? "command.vfxsample.zumbi.on" : "command.vfxsample.zumbi.off"), true);
+        return 1;
     }
 
     private static int iniciar(CommandSourceStack source, Receita receita) throws CommandSyntaxException {

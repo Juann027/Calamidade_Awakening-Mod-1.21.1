@@ -197,6 +197,12 @@ public final class Effects {
          * Call on the server thread.
          */
         default boolean release() { return false; }
+
+        /**
+         * True while the instance lives on the server (0.10.0): not stopped, not expired and its anchor or bound block
+         * still there. Call on the server thread. Implementations from before 0.10.0 answer false.
+         */
+        default boolean alive() { return false; }
     }
 
     /**
@@ -360,8 +366,8 @@ public final class Effects {
 
     /**
      * True when {@code source} may start {@code id} now: no cooldown of that source for that effect is running
-     * (0.10.0). Cooldowns are per source and per effect, server-side, and are the same that {@link Placement#withCooldown}
-     * and the Focus cards use (a card's cooldown is its player's). Server thread;
+     * (0.10.0). Cooldowns are per source and per effect, server-side, and are the same that {@link Placement#withCooldown},
+     * the {@link EffectTriggers triggers} and the Focus cards use (a card's cooldown is its player's). Server thread;
      * unknown effects throw {@link IllegalArgumentException}.
      *
      * <pre>{@code

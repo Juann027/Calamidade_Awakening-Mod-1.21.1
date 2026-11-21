@@ -12,5 +12,10 @@
   "command.vfxsample.receita.failed": "Não foi possível iniciar a receita %s aqui.",
   "command.vfxsample.receita.released": "Receita liberada: ela some aos poucos.",
   "command.vfxsample.receita.stopped": "Receita encerrada.",
-  "command.vfxsample.receita.none": "Você não tem uma receita em andamento para liberar ou encerrar."
+  "command.vfxsample.receita.none": "Você não tem uma receita em andamento para liberar ou encerrar.",
+  "item.vfxsample.cajado": "Cajado da Calamidade",
+  "block.vfxsample.pilar_redstone": "Pilar de Pulso (redstone)",
+  "block.vfxsample.pilar_periodico": "Pilar de Ritmo",
+  "command.vfxsample.zumbi.on": "Feixe dos zumbis ligado: zumbis soltam um feixe ao bater.",
+  "command.vfxsample.zumbi.off": "Feixe dos zumbis desligado."
 }

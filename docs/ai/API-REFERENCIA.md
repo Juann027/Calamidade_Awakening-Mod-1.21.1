@@ -24,6 +24,13 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Beam.State`](#beamstate)
 - [`EffectSource`](#effectsource)
 - [`EffectSource.Kind`](#effectsourcekind)
+- [`EffectTriggers`](#effecttriggers)
+- [`EffectTriggers.BlockTrigger`](#effecttriggersblocktrigger)
+- [`EffectTriggers.BlockTrigger.Component`](#effecttriggersblocktriggercomponent)
+- [`EffectTriggers.BlockTrigger.Mode`](#effecttriggersblocktriggermode)
+- [`EffectTriggers.EntityTrigger`](#effecttriggersentitytrigger)
+- [`EffectTriggers.ItemTrigger`](#effecttriggersitemtrigger)
+- [`EffectTriggers.ItemTrigger.Spot`](#effecttriggersitemtriggerspot)
 - [`Effects`](#effects)
 - [`Effects.Context`](#effectscontext)
 - [`Effects.Cue`](#effectscue)
@@ -423,6 +430,120 @@ Kind of source, each with its own per-source limit.
 | `BLOCK` | A block or block entity, identified by dimension and position. |
 | `SCRIPT` | Code with no individual source (commands, datapacks, mod logic). |
 
+## EffectTriggers
+
+`dev.calamidade_awakening.api.v1.EffectTriggers` · class
+
+Ready-made triggers that start effects from items, block entities and entities (0.10.0).
+
+| Membro | Descrição |
+|---|---|
+| `static EffectTriggers.ItemTrigger item(ResourceLocation effect)` | Item trigger for `effect` (registered with `Effects.register` before it fires): spot EYES, no cooldown, no durability cost. |
+| `static EffectTriggers.BlockTrigger blockEntity(ResourceLocation effect)` | Block entity trigger for `effect`: PERIODIC every 40 ticks, 1 block above the block, turned by its facing. |
+| `static EffectTriggers.EntityTrigger entity(ResourceLocation effect)` | Entity trigger for `effect`: anchored at the feet, yaw following the body, no cooldown. |
+
+## EffectTriggers.BlockTrigger
+
+`dev.calamidade_awakening.api.v1.EffectTriggers.BlockTrigger` · class
+
+Starts effects from a block entity (0.10.0).
+
+| Membro | Descrição |
+|---|---|
+| `EffectTriggers.BlockTrigger mode(EffectTriggers.BlockTrigger.Mode mode)` | Copy in this mode. |
+| `EffectTriggers.BlockTrigger periodic(int ticks)` | Copy in PERIODIC mode every `ticks` ticks, 1..72000. |
+| `EffectTriggers.BlockTrigger redstone()` | Copy in REDSTONE mode (period 0: once per rising edge, unless `period` says otherwise). |
+| `EffectTriggers.BlockTrigger proximity(double radius)` | Copy in PROXIMITY mode with this radius, 0.5..128 blocks (period 0: once per arrival). |
+| `EffectTriggers.BlockTrigger period(int ticks)` | Copy with this period in ticks: PERIODIC 1..72000; REDSTONE and PROXIMITY 0..72000, where 0 starts once per rising edge and more repeats while the trigger stays on. |
+| `EffectTriggers.BlockTrigger radius(double blocks)` | Copy with this PROXIMITY radius, 0.5..128 blocks. |
+| `EffectTriggers.BlockTrigger offset(double right, double up, double forward)` | Copy with the center moved `right`, `up`, `forward` blocks from the block's bottom center (default 0, 1, 0). |
+| `EffectTriggers.BlockTrigger yaw(float degrees)` | Copy turned by a fixed yaw in degrees instead of the block's facing. |
+| `EffectTriggers.BlockTrigger pitch(float degrees)` | Copy with this pitch in degrees, [-90, 90] (positive looks down). |
+| `EffectTriggers.BlockTrigger cooldown(int ticks)` | Copy with a cooldown per block and effect, 0..72000 ticks. |
+| `ResourceLocation effect()` | Effect this trigger starts. |
+| `EffectTriggers.BlockTrigger.Mode mode()` | Mode. |
+| `int period()` | Period in ticks. |
+| `double radius()` | PROXIMITY radius in blocks. |
+| `int cooldown()` | Cooldown in ticks, 0 for none. |
+| `EffectTriggers.BlockTrigger.Component attach(BlockEntity blockEntity)` | New component for one block entity; keep it in a field of that block entity. |
+
+## EffectTriggers.BlockTrigger.Component
+
+`dev.calamidade_awakening.api.v1.EffectTriggers.BlockTrigger.Component` · class
+
+Effect state of one block entity.
+
+| Membro | Descrição |
+|---|---|
+| `void tick()` | Server tick: reads the input and starts, holds or releases the effect. |
+| `boolean stop()` | Stops the running instance now. |
+| `Optional<Effects.Handle> handle()` | Handle of the instance this component started last, while it runs. |
+| `boolean active()` | Input seen on the last tick: powered (REDSTONE), a player near (PROXIMITY), always true for PERIODIC. |
+| `BlockEntity blockEntity()` | Block entity this component serves. |
+
+## EffectTriggers.BlockTrigger.Mode
+
+`dev.calamidade_awakening.api.v1.EffectTriggers.BlockTrigger.Mode` · enum
+
+When the block starts its effect.
+
+| Membro | Descrição |
+|---|---|
+| `PERIODIC` | Every `period` ticks while the block is loaded (a sustained effect is held instead). |
+| `REDSTONE` | On the rising edge of a redstone signal into the block; again every `period` while powered (0: once). |
+| `PROXIMITY` | When a player (not a spectator) comes within `radius` blocks; again every `period` while one stays. |
+
+## EffectTriggers.EntityTrigger
+
+`dev.calamidade_awakening.api.v1.EffectTriggers.EntityTrigger` · class
+
+Starts effects anchored to an entity (0.10.0), for mob attacks.
+
+| Membro | Descrição |
+|---|---|
+| `EffectTriggers.EntityTrigger offset(double right, double up, double forward)` | Copy whose center is `right`, `up`, `forward` blocks from the entity's feet, in its body frame. |
+| `EffectTriggers.EntityTrigger followBody(boolean follow)` | Copy whose yaw follows the body (`true`, default) or stays as it was at the start (`false`). |
+| `EffectTriggers.EntityTrigger pitch(float degrees)` | Copy with this pitch for `fire(Entity)`, degrees in [-90, 90] (positive looks down). |
+| `EffectTriggers.EntityTrigger cooldown(int ticks)` | Copy with a cooldown per entity and effect, 0..72000 ticks. |
+| `ResourceLocation effect()` | Effect this trigger starts. |
+| `int cooldown()` | Cooldown in ticks, 0 for none. |
+| `Optional<Effects.Handle> fire(Entity entity)` | Starts the effect on `entity`, turned with its body (or with its yaw at the start). |
+| `Optional<Effects.Handle> fire(Entity entity, Entity target)` | Starts the effect on `entity`, turned toward `target` (yaw and pitch from the center to the target's middle) at this moment; the instance keeps following the entity. |
+
+## EffectTriggers.ItemTrigger
+
+`dev.calamidade_awakening.api.v1.EffectTriggers.ItemTrigger` · class
+
+Starts effects from an item (0.10.0): call `use` from `Item.use` and `attack` from `Item.hurtEnemy`, or `fire` from anywhere on the server.
+
+| Membro | Descrição |
+|---|---|
+| `EffectTriggers.ItemTrigger at(EffectTriggers.ItemTrigger.Spot spot)` | Copy that starts at this spot. |
+| `EffectTriggers.ItemTrigger reach(double blocks)` | Copy with this aim reach for `Spot.AIM`, 0.5..256 blocks (32 by default). |
+| `EffectTriggers.ItemTrigger offset(double right, double up, double forward)` | Copy that moves the start by `right`, `up` and `forward` blocks in the instance frame. |
+| `EffectTriggers.ItemTrigger cooldown(int ticks)` | Copy with a cooldown per user and effect, 0..72000 ticks (also put on the item for players). |
+| `EffectTriggers.ItemTrigger durability(int points)` | Copy that costs this many durability points per accepted start, 0..1024 (damageable items, not in creative). |
+| `ResourceLocation effect()` | Effect this trigger starts. |
+| `EffectTriggers.ItemTrigger.Spot spot()` | Where it starts. |
+| `int cooldown()` | Cooldown in ticks, 0 for none. |
+| `int durability()` | Durability cost per start. |
+| `InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand)` | For `Item.use`: on the server starts the effect and returns `consume` (or `fail` when refused); on the client returns `success`, so the hand swings while the server decides. |
+| `boolean attack(ItemStack stack, LivingEntity target, LivingEntity attacker)` | For `Item.hurtEnemy`: starts the effect with `target` (spot TARGET puts it on the target), using the main hand. |
+| `Optional<Effects.Handle> fire(LivingEntity user, InteractionHand hand, Entity target)` | Starts the effect for `user` holding the item in `hand`, with an optional `target` (null for none). |
+
+## EffectTriggers.ItemTrigger.Spot
+
+`dev.calamidade_awakening.api.v1.EffectTriggers.ItemTrigger.Spot` · enum
+
+Where the instance starts and how it is turned.
+
+| Membro | Descrição |
+|---|---|
+| `CASTER` | Anchored to the user's feet; the yaw follows the user's body. |
+| `EYES` | Fixed at the user's eyes, turned by the user's look (yaw and pitch). |
+| `AIM` | Fixed at the first block the user looks at, up to the reach (the full reach when nothing is hit), turned by the look's yaw. |
+| `TARGET` | Fixed at the middle of the hit entity, turned from the user's eyes toward it. |
+
 ## Effects
 
 `dev.calamidade_awakening.api.v1.Effects` · class
@@ -525,6 +646,7 @@ Server-side control of one live instance, returned by `start` and `follow`.
 |---|---|
 | `boolean stop()` | Ends the instance right away. |
 | `default boolean release()` | Releases a sustained instance (0.7.0): the loop ends and the timeline jumps to its release start, then plays the exit and expires. |
+| `default boolean alive()` | True while the instance lives on the server (0.10.0): not stopped, not expired and its anchor or bound block still there. |
 
 ## Effects.Impact
 

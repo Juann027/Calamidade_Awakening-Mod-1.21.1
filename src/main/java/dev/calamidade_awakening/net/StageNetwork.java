@@ -271,6 +271,11 @@ public final class StageNetwork {
                 target.release();
                 return true;
             }
+
+            @Override public boolean alive() {
+                Live target = find(serverRef.get(), order);
+                return target != null && !target.ended && !target.finished();
+            }
         };
         ACTIVE.add(live);
         live.dispatch();

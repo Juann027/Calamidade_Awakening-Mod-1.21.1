@@ -100,7 +100,7 @@ public final class Sample {
     private final Map<UUID, Effects.Handle> last = new HashMap<>();
     private final Map<UUID, Effects.Handle> beacons = new HashMap<>();
 
-    public Sample() {
+    public Sample(net.neoforged.bus.api.IEventBus bus) {
         dev.calamidade_awakening.api.v1.Addons.resources("vfxsample", Sample.class);
         Effects.register(SIGNAL, new Effects.Definition(120, 2, 0xff65e8c9,
             Effects.Shape.RINGS, Effects.Material.CRYSTAL,
@@ -132,7 +132,8 @@ public final class Sample {
             SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 1f, 1f));
 
         // 1.5.0 — receitas de docs/ai/receitas/, cada uma um efeito real: /vfxsample receita <nome>.
-        example.vfxsample.receitas.Receitas.register();
+        // 1.7.0 — também o cajado, os pilares e o zumbi, que registram itens e blocos no barramento do mod.
+        example.vfxsample.receitas.Receitas.register(bus);
 
         NeoForge.EVENT_BUS.addListener(this::commands);
         NeoForge.EVENT_BUS.addListener(this::logout);
@@ -148,7 +149,8 @@ public final class Sample {
                 .then(Commands.literal("start").executes(ctx -> beaconStart(ctx.getSource())))
                 .then(Commands.literal("release").executes(ctx -> beaconRelease(ctx.getSource())))
                 .then(Commands.literal("stop").executes(ctx -> beaconStop(ctx.getSource()))))
-            .then(example.vfxsample.receitas.Receitas.comando()));
+            .then(example.vfxsample.receitas.Receitas.comando())
+            .then(example.vfxsample.receitas.Receitas.comandoZumbi()));
     }
 
     private static void impact(Effects.Context context) {

@@ -12,5 +12,10 @@
   "command.vfxsample.receita.failed": "Could not start recipe %s here.",
   "command.vfxsample.receita.released": "Recipe released: it fades out.",
   "command.vfxsample.receita.stopped": "Recipe stopped.",
-  "command.vfxsample.receita.none": "No running recipe of yours to release or stop."
+  "command.vfxsample.receita.none": "No running recipe of yours to release or stop.",
+  "item.vfxsample.cajado": "Calamity Staff",
+  "block.vfxsample.pilar_redstone": "Redstone Pulse Pillar",
+  "block.vfxsample.pilar_periodico": "Rhythm Pillar",
+  "command.vfxsample.zumbi.on": "Zombie beams on: zombies flash a beam when they hit.",
+  "command.vfxsample.zumbi.off": "Zombie beams off."
 }
