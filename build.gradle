@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'dev.calamidade_awakening'
-version = '0.7.0'
+version = '0.8.0'
 base { archivesName = 'calamidade_awakening' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
@@ -79,6 +79,72 @@ tasks.register('checkFrustum', JavaExec) {
     mainClass = 'dev.calamidade_awakening.client.FrustumCheck'
 }
 tasks.named('check') { dependsOn 'checkFrustum' }
+
+// 0.8.0: compila cada shader fx do motor e do vfx-sample com o glslangValidator, montado como a RimuLib 1.3.0 monta
+// (ShaderProgram.readSource, conferido com javap -c): common.glsl da RimuLib, "#line 1 1" e cada linha
+// '#include "arquivo"' trocada pelo arquivo de assets/<namespace>/shaders/fx/ (ou da RimuLib), sem recursão.
+// Sem o glslangValidator no PATH a task só avisa; com CI=true ou -PrequireShaders ela falha.
+tasks.register('checkShaders') {
+    group = 'verification'
+    description = 'Compila os shaders fx do motor e do vfx-sample com o glslangValidator (common.glsl + #include).'
+    dependsOn rimuLib
+    def roots = [layout.projectDirectory.dir('src/main/resources/assets').asFile,
+                 layout.projectDirectory.dir('examples/vfx-sample/src/main/resources/assets').asFile]
+    def out = layout.buildDirectory.dir('shader-check').get().asFile
+    def required = providers.environmentVariable('CI').map { it == 'true' }.orElse(false).get() || project.hasProperty('requireShaders')
+    def processes = providers
+    roots.each { inputs.dir(it) }
+    inputs.file(rimuLibJar)
+    outputs.dir(out)
+    doLast {
+        def validator = ['glslangValidator', 'glslangValidator.exe'].collect { name ->
+            System.getenv('PATH').split(File.pathSeparator).collect { new File(it, name) }.find { it.canExecute() }
+        }.find { it != null }
+        if (validator == null) {
+            if (required) throw new GradleException('checkShaders: glslangValidator não encontrado no PATH')
+            logger.warn('checkShaders: glslangValidator não encontrado; shaders não verificados (instale glslang-tools).')
+            return
+        }
+        def zip = new java.util.zip.ZipFile(rimuLibJar)
+        def rimu = { String path -> def e = zip.getEntry('assets/rimulib/shaders/fx/' + path); e == null ? null : zip.getInputStream(e).getText('UTF-8') }
+        def common = rimu('common.glsl')
+        out.mkdirs()
+        def checked = 0
+        roots.each { root ->
+            root.eachDir { ns ->
+                def fx = new File(ns, 'shaders/fx')
+                if (!fx.isDirectory()) return
+                fx.listFiles().findAll { it.name.endsWith('.fsh') }.sort().each { shader ->
+                    def lines = shader.getText('UTF-8').split('\n', -1)
+                    def body = new StringBuilder()
+                    lines.eachWithIndex { line, i ->
+                        def t = line.trim()
+                        if (t.startsWith('#include "') && t.endsWith('"') && t.length() > 11) {
+                            def name = t.substring(10, t.length() - 1)
+                            def local = new File(fx, name)
+                            def text = local.isFile() ? local.getText('UTF-8') : rimu(name)
+                            if (text == null) throw new GradleException("${shader}: #include \"${name}\" não encontrado em ${ns.name} nem na RimuLib")
+                            body.append(text).append('\n#line ').append(i + 2).append(' 1\n')
+                        } else body.append(line).append('\n')
+                    }
+                    def target = new File(out, "${ns.name}_${shader.name}.frag")
+                    target.setText(common + '\n#line 1 1\n' + body, 'UTF-8')
+                    def result = processes.exec {
+                        commandLine validator.absolutePath, '-S', 'frag', target.absolutePath
+                        ignoreExitValue = true
+                    }
+                    def text = result.standardOutput.asText.get() + result.standardError.asText.get()
+                    if (result.result.get().exitValue != 0)
+                        throw new GradleException("checkShaders: ${ns.name}:${shader.name} não compila:\n${text}")
+                    checked++
+                }
+            }
+        }
+        zip.close()
+        logger.lifecycle("checkShaders: ${checked} shaders compilados com ${validator.name}")
+    }
+}
+tasks.named('check') { dependsOn 'checkShaders' }
 
 // Copia o JAR compilado para dist/, de onde o exemplo vfx-sample e o pacote de entrega o consomem.
 tasks.register('dist', Copy) {

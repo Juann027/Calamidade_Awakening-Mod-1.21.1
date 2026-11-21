@@ -156,6 +156,30 @@ public final class StageScene {
         return new Plan(selected, volumes, quality);
     }
 
+    /**
+     * Atmosphere of every active instance that has one (0.8.0), resolved at the local age. Not limited by the
+     * frustum or the frame budget: turning away from the effect keeps its sky. The weight is the opacity envelope
+     * times a fade over the last quarter of the effect's range.
+     */
+    public List<dev.calamidade_awakening.api.v1.Atmosphere.State> atmospheres(Vec3 camera, float partial) {
+        if (level == null || active.isEmpty()) return List.of();
+        List<dev.calamidade_awakening.api.v1.Atmosphere.State> states = new ArrayList<>(2);
+        double now = level.getGameTime() + partial;
+        for (StageEvent effect : active.values()) {
+            VisualKind kind = VisualKind.byId(effect.visual());
+            var atmosphere = kind.atmosphere();
+            if (atmosphere == null) continue;
+            double age = now - effect.tick();
+            Vec3 origin = age < 0 ? null : center(effect, partial);
+            if (origin == null) continue;
+            double local = localAge(effect, age);
+            float weight = (float) FrameBudget.envelope(local, kind.duration)
+                * dev.calamidade_awakening.api.AtmosphereMath.rangeFade(origin.distanceTo(camera), kind.range);
+            states.add(atmosphere.sample(kind.clock().at(local), weight));
+        }
+        return states;
+    }
+
     static boolean isVisible(Frustum frustum, Vec3 center, double radius) {
         if (frustum == null) return true;
         double extent = Math.max(2.5, radius * 2.5);

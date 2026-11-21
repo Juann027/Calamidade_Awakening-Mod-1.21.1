@@ -40,9 +40,14 @@
   "command.calamidade_awakening.status": "Live instances on server: %s / 64",
   "calamidade_awakening.configuration.title": "Calamidade_Awakening",
   "calamidade_awakening.configuration.screenEffects": "Screen effect intensity",
-  "calamidade_awakening.configuration.screenEffects.tooltip": "Bloom, flashes, contrast, desaturation, aberration, vignette, grain, zoom blur and afterimage from this mod and its addons. 0 turns them off.",
+  "calamidade_awakening.configuration.screenEffects.tooltip": "Bloom, flashes, contrast, desaturation, aberration, vignette, grain, zoom blur, afterimage, atmosphere exposure and ambient tint from this mod and its addons. 0 turns them off.",
   "calamidade_awakening.configuration.cameraShake": "Screen shake",
   "calamidade_awakening.configuration.cameraShake.tooltip": "Screen shake from this mod and its addons.",
   "calamidade_awakening.configuration.motionEffects": "Motion effects",
-  "calamidade_awakening.configuration.motionEffects.tooltip": "Zoom blur and afterimage trails from this mod and its addons. Turn off if they cause motion sickness."
+  "calamidade_awakening.configuration.motionEffects.tooltip": "Zoom blur and afterimage trails from this mod and its addons. Turn off if they cause motion sickness.",
+  "perf.calamidade_awakening.atmosphere": "Atmosphere: %s active · pass %s",
+  "perf.calamidade_awakening.yes": "yes",
+  "perf.calamidade_awakening.no": "no",
+  "calamidade_awakening.configuration.vanillaFog": "Atmosphere fog through the game fog",
+  "calamidade_awakening.configuration.vanillaFog.tooltip": "Recommended. Terrain, entities, particles, water and clouds are fogged at their real distance. Turn off only if a shader pack ignores the game fog: the mod then draws the fog on the screen."
 }

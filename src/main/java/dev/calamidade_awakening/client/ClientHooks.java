@@ -38,7 +38,8 @@ public final class ClientHooks {
     private static final StageScene SCENE = new StageScene();
     private static final FrameCoordinator COORDINATOR = new FrameCoordinator(SCENE);
     private static final StageFilms FILMS = new StageFilms();
-    private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS);
+    private static final AtmosphereFrame ATMOSPHERE = new AtmosphereFrame(SCENE);
+    private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
     private static final Map<VisualKind, KeyMapping> DEMOS = new LinkedHashMap<>();
     private static final KeyMapping QUALITY = new KeyMapping("key.calamidade_awakening.quality",
@@ -168,6 +169,18 @@ public final class ClientHooks {
     public static void frame(RenderFrameEvent.Pre event) {
         PerfOverlay.frameStart(SCENE.size(), COORDINATOR.quality());
         COORDINATOR.invalidate();
+        ATMOSPHERE.invalidate();
+    }
+
+    // 0.8.0: atmosphere fog through the game's own fog. Lowest priority, so it applies after other mods' changes.
+    @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.LOWEST)
+    public static void fogColor(net.neoforged.neoforge.client.event.ViewportEvent.ComputeFogColor event) {
+        ATMOSPHERE.fogColor(event);
+    }
+
+    @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.LOWEST)
+    public static void fogDistances(net.neoforged.neoforge.client.event.ViewportEvent.RenderFog event) {
+        ATMOSPHERE.fogDistances(event);
     }
 
     /** /calamidade_client record <seconds>: grava tempos de quadro em calamidade_bench/*.csv. */

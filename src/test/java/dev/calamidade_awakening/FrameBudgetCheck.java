@@ -58,6 +58,7 @@ public final class FrameBudgetCheck {
         TimelineCheck.run();
         AtmosphereCheck.run();
         timelineRegistration();
+        atmosphereRegistration();
         meshBudget();
         closedPrimitives();
         System.out.println("FrameBudgetCheck PASS");
@@ -125,6 +126,44 @@ public final class FrameBudgetCheck {
         expectRejected(() -> new dev.calamidade_awakening.api.v1.Effects.Definition(12001, 4, 0xffffffff,
             dev.calamidade_awakening.api.v1.Effects.Shape.RINGS, dev.calamidade_awakening.api.v1.Effects.Material.NONE, null, null),
             "duration too long");
+    }
+
+    private static void atmosphereRegistration() {
+        var E = (java.util.function.Function<String, net.minecraft.resources.ResourceLocation>)
+            path -> net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("checkaddon", path);
+        var definition = new dev.calamidade_awakening.api.v1.Effects.Definition(100, 2, 0xffffffff,
+            dev.calamidade_awakening.api.v1.Effects.Shape.NONE, dev.calamidade_awakening.api.v1.Effects.Material.NONE, null, null);
+        var constant = dev.calamidade_awakening.api.v1.Atmosphere.builder().sky(0xff000000, 0xffff8000, .5f).build();
+        var animated = dev.calamidade_awakening.api.v1.Atmosphere.builder()
+            .track(dev.calamidade_awakening.api.v1.Atmosphere.Param.FOG_DENSITY, "nevoa").weightPhase("ceu").build();
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.atmosphere(E.apply("nowhere"), constant), "unknown atmosphere");
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.atmosphere(
+            net.minecraft.resources.ResourceLocation.parse("calamidade_awakening:nexus"), constant), "internal atmosphere");
+        // Constant atmosphere: no timeline needed.
+        dev.calamidade_awakening.api.v1.Effects.register(E.apply("dusk"), definition);
+        dev.calamidade_awakening.api.v1.Effects.atmosphere(E.apply("dusk"), constant);
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.atmosphere(E.apply("dusk"), constant), "duplicate atmosphere");
+        var dusk = VisualKind.byId(VisualKind.localId("checkaddon:dusk"));
+        require(dusk.atmosphere() == constant && dusk.timeline() == null, "constant atmosphere registered");
+        // Animated atmosphere: tracks and phase must exist in a timeline registered first.
+        dev.calamidade_awakening.api.v1.Effects.register(E.apply("storm"), definition);
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.atmosphere(E.apply("storm"), animated), "atmosphere before timeline");
+        dev.calamidade_awakening.api.v1.Effects.timeline(E.apply("storm"), dev.calamidade_awakening.api.v1.Timeline.builder(100)
+            .phase("ceu", 10, 90, 10, 10).track("outra", dev.calamidade_awakening.api.v1.Timeline.keyframe(0, 1f)).build());
+        expectRejected(() -> dev.calamidade_awakening.api.v1.Effects.atmosphere(E.apply("storm"), animated), "atmosphere with unknown track");
+        require(VisualKind.byId(VisualKind.localId("checkaddon:storm")).atmosphere() == null, "rejected atmosphere not kept");
+        dev.calamidade_awakening.api.v1.Effects.register(E.apply("rain"), definition);
+        dev.calamidade_awakening.api.v1.Effects.timeline(E.apply("rain"), dev.calamidade_awakening.api.v1.Timeline.builder(100)
+            .phase("ceu", 10, 90, 10, 10).track("nevoa", dev.calamidade_awakening.api.v1.Timeline.keyframe(0, 1f)).build());
+        dev.calamidade_awakening.api.v1.Effects.atmosphere(E.apply("rain"), animated);
+        // Cues still work after an atmosphere; the atmosphere does not touch the cue order rule.
+        dev.calamidade_awakening.api.v1.Effects.cue(E.apply("rain"), 5, context -> {});
+        var rain = VisualKind.byId(VisualKind.localId("checkaddon:rain"));
+        require(rain.atmosphere() == animated && rain.cues().size() == 1, "animated atmosphere registered");
+        var state = rain.atmosphere().sample(rain.clock().at(50), 1);
+        require(state.weight() == 1 && state.fogDensity() == 1, "registered atmosphere samples its timeline");
+        // Effects without an atmosphere keep none.
+        require(VisualKind.byId(VisualKind.localId("checkaddon:plain")).atmosphere() == null, "no atmosphere");
     }
 
     private static void timelineRegistration() {

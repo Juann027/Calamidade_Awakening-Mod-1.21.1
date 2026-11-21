@@ -32,9 +32,11 @@ public final class PerfOverlay {
     private static String renderer;
 
     // Written during the frame being rendered.
-    private static int effects, volumes, vertices, passes;
+    private static int effects, volumes, vertices, passes, atmospheres;
+    private static boolean atmospherePass;
     // Last complete frame.
-    private static int lastEffects, lastVolumes, lastVertices, lastPasses, lastResident;
+    private static int lastEffects, lastVolumes, lastVertices, lastPasses, lastResident, lastAtmospheres;
+    private static boolean lastAtmospherePass;
     private static Quality lastQuality = Quality.BALANCED;
 
     private static final long[] frames = new long[WINDOW];
@@ -53,6 +55,8 @@ public final class PerfOverlay {
     }
     static void vertices(int count) { vertices = count; }
     static void passes(int count) { passes = count; }
+    /** Active atmospheres and whether the atmosphere pass was queued (0.8.0); outside the addon budget. */
+    static void atmosphere(int active, boolean pass) { atmospheres = active; atmospherePass = pass; }
 
     /** Called from RenderFrameEvent.Pre. */
     static void frameStart(int resident, Quality quality) {
@@ -61,14 +65,17 @@ public final class PerfOverlay {
         previousFrame = now;
         lastEffects = effects; lastVolumes = volumes; lastVertices = vertices; lastPasses = passes;
         lastResident = resident; lastQuality = quality;
-        effects = volumes = vertices = passes = 0;
+        lastAtmospheres = atmospheres; lastAtmospherePass = atmospherePass;
+        effects = volumes = vertices = passes = atmospheres = 0;
+        atmospherePass = false;
         if (delta <= 0) return;
         frames[frameCursor] = delta;
         frameCursor = (frameCursor + 1) % WINDOW;
         frameCount = Math.min(frameCount + 1, WINDOW);
         if (recording != null) {
-            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s",
-                recording.size(), delta / 1e6, lastResident, lastEffects, lastVolumes, lastVertices, lastPasses, quality.name()));
+            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s,%d,%d",
+                recording.size(), delta / 1e6, lastResident, lastEffects, lastVolumes, lastVertices, lastPasses, quality.name(),
+                lastAtmospheres, lastAtmospherePass ? 1 : 0));
             if (System.currentTimeMillis() >= recordingEnds) finishRecording();
         }
     }
@@ -99,7 +106,7 @@ public final class PerfOverlay {
         lines.add("# renderer=" + renderer() + "; window=" + mc.getWindow().getWidth() + "x" + mc.getWindow().getHeight()
             + "; seconds=" + recordingSeconds + "; frameLimit=" + mc.options.framerateLimit().get()
             + "; renderDistance=" + mc.options.renderDistance().get() + "; graphics=" + mc.options.graphicsMode().get().name());
-        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality");
+        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality,atmospheres,atmospherePass");
         lines.addAll(rows);
         Component message;
         try {
@@ -129,6 +136,10 @@ public final class PerfOverlay {
             lastResident, lastEffects, lastVolumes));
         lines.add(Component.translatableWithFallback(PREFIX + "cost", "Vertices %s · post passes %s",
             lastVertices, lastPasses));
+        lines.add(Component.translatableWithFallback(PREFIX + "atmosphere", "Atmosphere: %s active · pass %s",
+            lastAtmospheres, lastAtmospherePass
+                ? Component.translatableWithFallback(PREFIX + "yes", "yes")
+                : Component.translatableWithFallback(PREFIX + "no", "no")));
         if (recording != null) lines.add(Component.translatableWithFallback(PREFIX + "recording", "Recording: %s s left",
             Math.max(0, (recordingEnds - System.currentTimeMillis() + 999) / 1000)));
         int width = 0;

@@ -131,6 +131,17 @@ public final class Effects {
     }
 
     /**
+     * Attaches an {@link Atmosphere} to a registered external effect (0.8.0): sky tint, fog, exposure, ambient
+     * tint and stars while its instances are active. Call during mod construction (common side, so a dedicated
+     * server validates it too), after {@link #register} and, when the atmosphere reads tracks or a phase, after
+     * {@link #timeline}. One per effect; only effects of your namespace. Effects without an atmosphere behave
+     * exactly as in 0.7. The client draws the result in one engine pass per frame, outside the addon pass budget.
+     */
+    public static void atmosphere(ResourceLocation id, Atmosphere atmosphere) {
+        VisualKind.setAtmosphere(Objects.requireNonNull(id), Objects.requireNonNull(atmosphere));
+    }
+
+    /**
      * Schedules a server callback at {@code tick} (0 .. duration-1) of every instance of a registered external effect.
      * Call during mod construction, after {@link #register} (and after {@link #timeline}, if any). Several cues per
      * effect and per tick are allowed and run in registration order. Exceptions are logged and do not stop the effect.

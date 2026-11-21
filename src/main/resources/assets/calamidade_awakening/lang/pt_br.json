@@ -40,9 +40,14 @@
   "command.calamidade_awakening.status": "Instâncias ativas no servidor: %s / 64",
   "calamidade_awakening.configuration.title": "Calamidade_Awakening",
   "calamidade_awakening.configuration.screenEffects": "Intensidade dos efeitos de tela",
-  "calamidade_awakening.configuration.screenEffects.tooltip": "Bloom, clarões, contraste, dessaturação, aberração, vinheta, grão, zoom blur e rastro deste mod e dos addons. 0 desliga.",
+  "calamidade_awakening.configuration.screenEffects.tooltip": "Bloom, clarões, contraste, dessaturação, aberração, vinheta, grão, zoom blur, rastro, exposição e tinta ambiente da atmosfera deste mod e dos addons. 0 desliga.",
   "calamidade_awakening.configuration.cameraShake": "Tremor de tela",
   "calamidade_awakening.configuration.cameraShake.tooltip": "Tremor de tela deste mod e dos addons.",
   "calamidade_awakening.configuration.motionEffects": "Efeitos de movimento",
-  "calamidade_awakening.configuration.motionEffects.tooltip": "Zoom blur e rastro (afterimage) deste mod e dos addons. Desligue se causarem enjoo de movimento."
+  "calamidade_awakening.configuration.motionEffects.tooltip": "Zoom blur e rastro (afterimage) deste mod e dos addons. Desligue se causarem enjoo de movimento.",
+  "perf.calamidade_awakening.atmosphere": "Atmosfera: %s ativas · passe %s",
+  "perf.calamidade_awakening.yes": "sim",
+  "perf.calamidade_awakening.no": "não",
+  "calamidade_awakening.configuration.vanillaFog": "Névoa da atmosfera pela névoa do jogo",
+  "calamidade_awakening.configuration.vanillaFog.tooltip": "Recomendado. Terreno, entidades, partículas, água e nuvens recebem a névoa na distância real. Desligue só se um shader pack ignorar a névoa do jogo: o mod passa a desenhar a névoa na tela."
 }

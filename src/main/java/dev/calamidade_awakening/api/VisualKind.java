@@ -81,6 +81,23 @@ public final class VisualKind {
         kind.timeline = Objects.requireNonNull(script);
     }
 
+    // 0.8.0: optional atmosphere of an external effect. Null means "no atmosphere".
+    private volatile dev.calamidade_awakening.api.v1.Atmosphere atmosphere;
+
+    /** Registered atmosphere, or null. */
+    public dev.calamidade_awakening.api.v1.Atmosphere atmosphere() { return atmosphere; }
+
+    /** Binds an atmosphere; tracks and phase it reads must exist in the timeline registered before it. */
+    public static synchronized void setAtmosphere(net.minecraft.resources.ResourceLocation id,
+            dev.calamidade_awakening.api.v1.Atmosphere value) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its atmosphere: " + id);
+        if (kind.atmosphere != null) throw new IllegalArgumentException("Duplicate atmosphere: " + id);
+        Objects.requireNonNull(value).validate(kind.timeline);
+        kind.atmosphere = value;
+    }
+
     /** Cue on a timeline marker; the marker tick is resolved now. */
     public static synchronized void addCue(net.minecraft.resources.ResourceLocation id, String marker,
             dev.calamidade_awakening.api.v1.Effects.Cue cue) {

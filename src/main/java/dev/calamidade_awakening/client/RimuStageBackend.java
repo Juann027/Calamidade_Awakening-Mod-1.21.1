@@ -7,18 +7,20 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 import java.util.List;
 
-/** One shared RimuLib layer, one pass for all selected marks. */
+/** One shared RimuLib layer, one pass for all selected marks, then the atmosphere pass (0.8.0). */
 public final class RimuStageBackend {
     private final FrameCoordinator coordinator;
     private final StageFilms films;
+    private final AtmosphereFrame atmosphere;
     private FxApi.Stage stage;
     private final FxApi.Layer layer = this::draw;
     private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
     private final java.util.Set<String> failedPosts = new java.util.HashSet<>();
 
-    public RimuStageBackend(FrameCoordinator coordinator, StageFilms films) {
+    RimuStageBackend(FrameCoordinator coordinator, StageFilms films, AtmosphereFrame atmosphere) {
         this.coordinator = coordinator;
         this.films = films;
+        this.atmosphere = atmosphere;
     }
 
     public void install() {
@@ -34,10 +36,18 @@ public final class RimuStageBackend {
         Vec3 camera = view.getPosition();
         var look = view.getLookVector();
         StageScene.Plan plan = coordinator.plan(camera, new Vec3(look.x(), look.y(), look.z()), frame.partial());
-        List<StageScene.Sample> marks = plan.volumes();
         float orbit = films.orbitalMix(frame.partial());
+        if (!plan.effects().isEmpty() || orbit > .001f) drawEffects(frame, plan, orbit);
+        // 0.8.0: one engine pass for the mixed atmosphere, last, so exposure and tint cover the whole scene.
+        // Not charged to the addon budget and independent of the frustum (the sky stays when you turn away).
+        boolean queued = atmosphere.draw(frame, camera, frame.partial());
+        PerfOverlay.atmosphere(atmosphere.active(), queued);
+    }
+
+    private void drawEffects(FxApi.Frame frame, StageScene.Plan plan, float orbit) {
+        Minecraft mc = Minecraft.getInstance();
+        List<StageScene.Sample> marks = plan.volumes();
         float time = films.seconds(frame.partial());
-        if (plan.effects().isEmpty() && orbit <= .001f) return;
         int passes = 0;
         if (!marks.isEmpty() || orbit > .001f) {
             passes++;

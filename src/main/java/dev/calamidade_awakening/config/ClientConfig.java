@@ -11,11 +11,12 @@ public final class ClientConfig {
     private static final ModConfigSpec.DoubleValue SCREEN_EFFECTS;
     private static final ModConfigSpec.BooleanValue CAMERA_SHAKE;
     private static final ModConfigSpec.BooleanValue MOTION_EFFECTS;
+    private static final ModConfigSpec.BooleanValue VANILLA_FOG;
 
     static {
         var builder = new ModConfigSpec.Builder();
         SCREEN_EFFECTS = builder
-            .comment("Intensity of bloom, flashes, contrast, desaturation, aberration, vignette, grain, zoom blur and afterimage from Calamidade_Awakening and its addons (0 = off, 1 = as designed).")
+            .comment("Intensity of bloom, flashes, contrast, desaturation, aberration, vignette, grain, zoom blur, afterimage, atmosphere exposure and ambient tint from Calamidade_Awakening and its addons (0 = off, 1 = as designed).")
             .translation("calamidade_awakening.configuration.screenEffects")
             .defineInRange("screenEffects", 1.0, 0.0, 1.0);
         CAMERA_SHAKE = builder
@@ -26,6 +27,10 @@ public final class ClientConfig {
             .comment("Zoom blur and afterimage trails from Calamidade_Awakening and its addons. Turn off if they cause motion sickness.")
             .translation("calamidade_awakening.configuration.motionEffects")
             .define("motionEffects", true);
+        VANILLA_FOG = builder
+            .comment("Atmosphere fog (0.8.0) through the game's own fog, so terrain, entities, particles, water and clouds are fogged at their real distance. Turn off only if a shader pack ignores the game fog: the engine then draws the fog on the screen from the depth buffer.")
+            .translation("calamidade_awakening.configuration.vanillaFog")
+            .define("vanillaFog", true);
         SPEC = builder.build();
     }
 
@@ -43,6 +48,15 @@ public final class ClientConfig {
     public static boolean cameraShake() {
         try {
             return CAMERA_SHAKE.get();
+        } catch (IllegalStateException notLoaded) {
+            return true;
+        }
+    }
+
+    /** Atmosphere fog through the game's fog events (0.8.0); true until the config file is loaded. */
+    public static boolean vanillaFog() {
+        try {
+            return VANILLA_FOG.get();
         } catch (IllegalStateException notLoaded) {
             return true;
         }
