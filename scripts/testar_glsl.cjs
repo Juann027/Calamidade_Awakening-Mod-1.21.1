@@ -75,6 +75,7 @@ const CASES = [
   ['onda: depois do alcance', 'caDistanceWave(30.0, 100.0, 0.3, 0.6, 24.0)', 0, 0],
   // céu
   ['estrelas: faixa 0..1', 'clamp(caStars(normalize(vec3(0.3, 0.8, 0.2)), 3.0), 0.0, 1.0) - caStars(normalize(vec3(0.3, 0.8, 0.2)), 3.0)', 0, 0],
+  ['estrelas: nada abaixo do horizonte', 'caStars(normalize(vec3(0.3, -0.2, 0.5)), 2.0)', 0, 0],
   ['estrelas: determinístico', 'caStars(normalize(vec3(-0.4, 0.7, 0.5)), 1.0) - caStars(normalize(vec3(-0.4, 0.7, 0.5)), 1.0)', 0, 0],
 ];
 

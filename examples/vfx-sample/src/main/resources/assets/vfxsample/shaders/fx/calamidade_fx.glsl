@@ -152,16 +152,18 @@ float caHash13(vec3 p) {
     return fract((p.x + p.y) * p.z);
 }
 
-// Campo de estrelas procedural na direção dir (normalizada): células de ~0,3 grau, uma em ~70 com estrela,
-// cintilando com seconds. Devolve 0..1. O passe de atmosfera do motor usa esta função.
+// Campo de estrelas procedural na direção dir (normalizada), só acima do horizonte. O hemisfério de cima vira um
+// losango contínuo (mapa octaédrico) dividido em células de ~0,35 grau; uma célula em 40 tem uma estrela, com o
+// centro sorteado longe das bordas (a estrela nunca é cortada) e raio de ~0,1 grau, cintilando com seconds.
+// Devolve 0..1. O passe de atmosfera do motor usa esta função.
 float caStars(vec3 dir, float seconds) {
-    vec3 p = dir * 180.0;
-    vec3 cell = floor(p);
-    float h = caHash13(cell);
-    if (h < 0.986) return 0.0;
-    vec3 jitter = vec3(caHash13(cell + 17.1), caHash13(cell + 31.7), caHash13(cell + 47.3)) * 0.6 + 0.2;
-    float d = length(p - (cell + jitter));
-    float core = max(0.0, 1.0 - d / 0.38);
-    float twinkle = 0.7 + 0.3 * sin(seconds * (1.5 + 5.0 * caHash13(cell + 5.3)) + h * 91.0);
-    return core * core * twinkle * (0.4 + 0.6 * (h - 0.986) / 0.014);
+    if (dir.y <= 0.0) return 0.0;
+    vec2 uv = dir.xz / (abs(dir.x) + abs(dir.y) + abs(dir.z)) * 300.0;
+    vec2 cell = floor(uv);
+    float h = caHash13(vec3(cell, 7.0));
+    if (h < 0.975) return 0.0;
+    vec2 centro = cell + 0.3 + 0.4 * vec2(caHash13(vec3(cell, 17.0)), caHash13(vec3(cell, 31.0)));
+    float core = 1.0 - smoothstep(0.05, 0.3, length(uv - centro));
+    float twinkle = 0.75 + 0.25 * sin(seconds * (1.5 + 5.0 * caHash13(vec3(cell, 5.0))) + h * 91.0);
+    return core * twinkle * (0.55 + 0.45 * (h - 0.975) / 0.025);
 }

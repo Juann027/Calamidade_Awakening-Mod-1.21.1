@@ -216,6 +216,39 @@ def recipeBlocks = ~/<!-- arquivo: (\S+) -->\n```(\w+)\n((?:(?!```)[\s\S])*)```/
 }
 tasks.named('check') { dependsOn 'checkRecipes' }
 
+// 0.8.0: a versão do manifesto do motor precisa ser a do build, e o exemplo precisa aceitá-la (a 0.8.0 saiu do
+// Gradle com o manifesto ainda em 0.7.0, e o vfx-sample 1.5.0 era recusado no jogo; o teste em jogo achou isso).
+tasks.register('checkModVersion') {
+    group = 'verification'
+    description = 'Confere a versão do neoforge.mods.toml do motor e o intervalo exigido pelo vfx-sample.'
+    def manifest = layout.projectDirectory.file('src/main/resources/META-INF/neoforge.mods.toml').asFile
+    def sampleManifest = layout.projectDirectory.file('examples/vfx-sample/src/main/resources/META-INF/neoforge.mods.toml').asFile
+    def sampleBuild = layout.projectDirectory.file('examples/vfx-sample/build.gradle').asFile
+    def engineVersion = project.version.toString()
+    inputs.files(manifest, sampleManifest, sampleBuild)
+    outputs.upToDateWhen { false }
+    doLast {
+        def declared = (manifest.getText('UTF-8') =~ /(?m)^version="([^"]+)"/)[0][1]
+        if (declared != engineVersion)
+            throw new GradleException("neoforge.mods.toml declara ${declared}, mas o build é ${engineVersion}")
+        def sample = sampleManifest.getText('UTF-8')
+        def sampleVersion = (sample =~ /(?m)^version="([^"]+)"/)[0][1]
+        def sampleGradle = (sampleBuild.getText('UTF-8') =~ /(?m)^version = '([^']+)'/)[0][1]
+        if (sampleVersion != sampleGradle)
+            throw new GradleException("vfx-sample: manifesto ${sampleVersion} e build.gradle ${sampleGradle} diferem")
+        def range = (sample =~ /(?s)modId="calamidade_awakening".*?versionRange="\[([^,]+),([^)]+)\)"/)[0]
+        def parse = { String v -> v.split('\\.').collect { it as int } }
+        def cmp = { List a, List b -> [a, b].transpose().collect { x, y -> x <=> y }.find { it != 0 } ?: (a.size() <=> b.size()) }
+        def v = parse(engineVersion)
+        if (cmp(v, parse(range[1])) < 0 || cmp(v, parse(range[2])) >= 0)
+            throw new GradleException("vfx-sample exige calamidade_awakening [${range[1]},${range[2]}), mas o motor é ${engineVersion}")
+        if (!sampleBuild.getText('UTF-8').contains("calamidade_awakening-${engineVersion}.jar"))
+            throw new GradleException("examples/vfx-sample/build.gradle não compila contra calamidade_awakening-${engineVersion}.jar")
+        logger.lifecycle("checkModVersion: motor ${engineVersion}, vfx-sample ${sampleVersion} exige [${range[1]},${range[2]})")
+    }
+}
+tasks.named('check') { dependsOn 'checkModVersion' }
+
 // Copia o JAR compilado para dist/, de onde o exemplo vfx-sample e o pacote de entrega o consomem.
 tasks.register('dist', Copy) {
     dependsOn tasks.named('build')
