@@ -24,7 +24,7 @@ Siga na ordem. Cada passo aponta para o capítulo e a receita que mostram o cód
 Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projeto <addon> [--cartao]` (compila sem edição, registra-se sozinho em `FMLConstructModEvent`, comando `/<namespace> efeito <nome>`). Ou copie a receita mais parecida.
 
 - `Effects.Definition(ticks, raio, argb, Shape, Material, partícula, som[, Impact])`, `.withRange(blocos)`.
-- Protagonista: `.withPriority(Effects.Priority.HERO)` só no efeito principal da cena (ataque de chefe, golpe final). Entra antes dos NORMAL, nunca é cortado pelo limite de desenhados (no máximo 2 HERO por quadro, os mais próximos) e tem orçamento de passes próprio (1/2/3). Não marque tudo como HERO: o terceiro HERO mais distante simplesmente não é desenhado.
+- Protagonista (capítulo `docs/PRIORIDADE-0.9.md`, receita 13): `.withPriority(Effects.Priority.HERO)` só no efeito principal da cena (ataque de chefe, golpe final). Entra antes dos NORMAL, nunca é cortado pelo limite de desenhados (no máximo 2 HERO por quadro, os mais próximos) e tem orçamento de passes próprio (1/2/3). Não marque tudo como HERO: o terceiro HERO mais distante simplesmente não é desenhado.
 - Raio: o teste de frustum usa 2,5 × raio em volta do centro. Cubra tudo o que o shader desenha (feixe alto, cubo grande), senão o efeito some quando o centro sai da tela.
 - Capítulos: `docs/API-0.3.md`, `docs/ADDONS-0.4.md` (cartão). Receitas: todas.
 
@@ -46,14 +46,14 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - `Beam.builder(Point.center(0, 0, 0), Point.center(0, 60, 0)).width(núcleo, halo).color(núcleo, halo).pulses(n, velocidade, tamanho).wave(amplitude, onda, velocidade).noise(x).reveal(0..1)`; `.track(Beam.Param.REVEAL, "trilha")`, `.weightPhase("fase")`; `Effects.beams(id, feixes...)` depois da timeline (até 16).
 - Pontas (`Point`): `center(dx,dy,dz)` (centro da instância), `world(x,y,z)`, `anchor`/`anchorEye`/`anchorAim(alcance)` (entidade de `Effects.follow`), `caster`/`casterEye`/`casterAim(alcance)` (quem conjurou). Sem a entidade carregada no cliente, o feixe não é desenhado.
 - Sem shader nem camada de cliente: o motor desenha todos os feixes num passe `beams`, com largura mínima de um pixel e oclusão pelo terreno. O raio da definição cobre o feixe (teste de frustum).
-- Capítulo: `docs/FEIXES-0.9.md`. Receitas: pilar, laser, teia.
+- Capítulo: `docs/FEIXES-0.9.md`. Receitas: 8 (pilar), 9 (laser), 10 (teia), 13 (protagonista).
 
 ### 3c. Luz no mundo (opcional, 0.9.0)
 
 - `Light.point(Point.center(0, .6, 0)).color(argb).intensity(x).radius(blocos).falloff(1..2).flicker(quantidade, velocidade)`; `Light.segment(a, b)`; `Light.along(feixe)` (segue um feixe do mesmo efeito: pontas, revelação, peso e cor do halo); `Light.disc(centro, raio)` e `Light.ring(centro, raio, largura).height(blocos)` para o chão (ondas de choque). `.track(Light.Param.RADIUS, "onda")`, `.weightPhase("fase")`. `Effects.lights(id, luzes...)` depois de `Effects.beams` (até 8).
 - Luz **visual**: clareia o que a câmera vê, com normal pela profundidade (só faces voltadas para a fonte), sem céu, sumindo com a névoa do jogo. Não muda o nível de luz, o spawn de mobs nem plantas; não faz sombra.
 - Calibre de noite: intensidade 2 a 3, alcance 8 a 12, queda 1,2 a 2. Cintilação some com intensidade dos efeitos de tela 0 e cai para 1/4 com "ocultar clarões".
-- Capítulo: `docs/LUZ-0.9.md`. Receitas: fogueira, onda_luz, pilar.
+- Capítulo: `docs/LUZ-0.9.md`. Receitas: 8 (pilar), 11 (fogueira), 12 (onda de luz).
 
 ### 4. Pós-processamento e shader
 
@@ -77,8 +77,8 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 
 ### 7. Teste
 
-1. `./gradlew build` (inclui `checkShaders`, `checkApiDocs`, `checkRecipes`), `./gradlew dist`, build do addon.
-2. No jogo: comando do efeito; **F7** (passes de pós, vértices, "Atmosfera: N ativas · passe sim/não"); **F8** em LOW, BALANCED e HIGH; intensidade dos efeitos de tela em 0; "ocultar clarões" ligado; "Efeitos de movimento" desligado.
+1. `./gradlew build` (inclui `checkShaders`, `checkApiDocs`, `checkRecipes`), `./gradlew dist`, build do addon. Feixes e luzes: `node scripts/previa_passes.cjs` mostra os passes reais numa cena sintética antes do jogo.
+2. No jogo: comando do efeito; **F7** (passes de pós, vértices, "Protagonistas (HERO)", "Feixes", "Luzes", "Atmosfera: N ativas · passe sim/não"); **F8** em LOW, BALANCED e HIGH; intensidade dos efeitos de tela em 0; "ocultar clarões" ligado; "Efeitos de movimento" desligado.
 3. Carga: `/calamidade bench <n> <efeito>` e `/calamidade_client record 30` (CSV em `calamidade_bench/`).
 4. Roteiro: `docs/TESTE-REAL.md`. Registre o que mediu em `docs/VALIDACAO.md`.
 

@@ -6,7 +6,7 @@ Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por
 
 | Ferramenta | Onde | Uso |
 |---|---|---|
-| F7 | Cliente | Painel com GPU, FPS, mediana e p95 do tempo de quadro, perfil, eventos residentes e desenhados, volumes, vértices e passes. |
+| F7 | Cliente | Painel com GPU, FPS, mediana e p95 do tempo de quadro, perfil, eventos residentes e desenhados, volumes, vértices e passes; desde a 0.9, protagonistas (HERO) e passes que usaram, feixes e luzes desenhados e qual orçamento pagou cada passe. |
 | `/calamidade_client record <s>` | Cliente | Grava cada quadro em `calamidade_bench/frames-AAAAMMDD-HHMMSS.csv` e mostra mediana e p95 no chat. Até 300 s. |
 | `/calamidade bench <n> [efeito]` | Servidor (permissão 2) | Cria n instâncias (1 a 64) num arco 14 blocos à frente do jogador, sem câmera. Padrão: `calamidade_awakening:nexus`. |
 | `/calamidade bench stop` | Servidor | Encerra as instâncias do benchmark. |
@@ -32,7 +32,7 @@ São 15 rodadas. Repita a carga 6 com `calamidade_awakening:prism` e com `vfxsam
 
 ## Parte 2 — dois clientes em servidor dedicado
 
-**Preparação.** Servidor dedicado NeoForge 21.1.267 com RimuLib, Calamidade 0.8.0 e o vfx-sample 1.5.0, os mesmos JARs nos dois clientes (o protocolo é o da 0.7.0, que acrescentou o canal `release`; use a mesma versão nos dois lados). Para testar sozinho no mesmo PC, use `./gradlew runServer` (ou o instalador de servidor do NeoForge), defina `online-mode=false` em `server.properties` **apenas para este teste local** e abra dois clientes com nomes diferentes: por exemplo, `./gradlew runClient` e uma instância do seu launcher com os mesmos mods. Dê permissão aos dois com `/op`. Chame os jogadores de A (conjura) e B (observa).
+**Preparação.** Servidor dedicado NeoForge 21.1.267 com RimuLib, Calamidade 0.9.0 e o vfx-sample 1.6.0, os mesmos JARs nos dois clientes (o protocolo é o da 0.7.0, que acrescentou o canal `release`; use a mesma versão nos dois lados). Para testar sozinho no mesmo PC, use `./gradlew runServer` (ou o instalador de servidor do NeoForge), defina `online-mode=false` em `server.properties` **apenas para este teste local** e abra dois clientes com nomes diferentes: por exemplo, `./gradlew runClient` e uma instância do seu launcher com os mesmos mods. Dê permissão aos dois com `/op`. Chame os jogadores de A (conjura) e B (observa).
 
 | # | Ação | Resultado esperado |
 |---|---|---|
@@ -83,6 +83,30 @@ Mesma preparação da parte 2 (pode ser um cliente só nos casos sem B). Mundo n
 | 36 | Opcional: `ceu` no Nether e no End. | Registre como o céu fica (a estimativa do céu do jogo foi feita para o Overworld). |
 
 Registre para cada caso o que viu e, nos casos 22, 24 e 25, uma captura de tela.
+
+## Parte 4 — feixes, luzes e protagonista (0.9.0)
+
+Mesma preparação. O que só uma GPU de verdade mostra vem primeiro: a **aparência** dos feixes e da luz (cor, brilho, bordas, cintilação) e o **custo sob carga**. Deixe o F7 aberto: linhas "Protagonistas (HERO)", "Feixes" e "Luzes". Capítulos: [FEIXES-0.9.md](FEIXES-0.9.md), [LUZ-0.9.md](LUZ-0.9.md), [PRIORIDADE-0.9.md](PRIORIDADE-0.9.md).
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 37 | De noite (`/time set midnight`), A roda `/vfxsample receita pilar`. | O feixe desce do céu em menos de 1 s, núcleo branco e halo âmbar, três pulsos descendo. Ao tocar o chão, o terreno em volta acende em âmbar (até ~12 blocos do feixe) e aparece um disco de luz. F7: "Feixes: 1 … passe comum", "Luzes: 2 … passe comum". Captura. |
+| 38 | O mesmo de dia. | O feixe aparece (mais claro sobre o céu); a luz no chão é discreta, como uma tocha de dia. |
+| 39 | A se posiciona com um morro ou parede entre ele e o pilar. | A parte do feixe atrás do terreno some; a borda do terreno recorta o feixe sem halo "vazando" por cima. O chão escondido não é iluminado. |
+| 40 | A roda `/vfxsample receita laser` e vira a câmera devagar e depressa, mirando parede, chão e céu; B observa de lado. | O laser sai abaixo da mira e acompanha a câmera sem atraso visível; o ponto de impacto brilha e cintila. B vê o mesmo laser seguindo a cabeça de A. Em primeira pessoa, o trecho junto aos olhos não cobre a tela. |
+| 41 | `/vfxsample receita teia`, de perto e de longe (60 blocos). | Oito fios saem do centro e chegam às pontas; pulsos ciano correm para fora; ondulação leve presa nas pontas. De longe, os fios ficam com um pixel, sem serrilhar nem piscar. Nenhum anel em volta de fios que apontam para a câmera. |
+| 42 | De noite, `/vfxsample receita fogueira`, depois `release`. | Chão e blocos até ~10 blocos em laranja, cintilando; faces de costas para a luz escuras; o céu nunca iluminado. Mobs continuam nascendo em volta (luz visual). `release` apaga em 2 s. |
+| 43 | `/vfxsample receita onda_luz`. | O anel de luz no chão acompanha a frente da onda dourada até ~22 blocos; paredes no caminho acendem quando a onda passa. |
+| 44 | A mergulha na água e roda `fogueira` e `pilar` com o centro debaixo d'água e depois na margem. | Debaixo d'água a luz some na distância da névoa da água (não atravessa a água turva); o feixe continua visível de perto. Nada fica "aceso" além da névoa. |
+| 45 | `/calamidade bench 60` e, logo depois, `/vfxsample receita protagonista`, em BALANCED. | F7: 6 desenhados, "Protagonistas (HERO): 1 desenhadas · 2/2 passes", "Feixes: 7 … passe HERO", "Luzes: 3 … passe HERO". O protagonista aparece inteiro (lança, raios, disco, anel, céu vermelho). `/calamidade_client record 8` com e sem o protagonista: anote mediana e p95. |
+| 46 | Repita o 45 em LOW e em HIGH (F8). | LOW: "1/1 passes", feixes sim, luzes não. HIGH: "2/3 passes", tudo. |
+| 47 | Dois jogadores rodam `protagonista` em lugares diferentes e um terceiro HERO mais longe. | Os dois mais próximos da câmera são desenhados; o terceiro não (F7: "2 desenhadas"). |
+| 48 | Em Configurar, intensidade dos efeitos de tela 0; A roda `pilar`, `teia` e `fogueira`. | Feixes só com o núcleo (sem halo nem pulsos); a luz no chão continua, firme (sem cintilação). |
+| 49 | "Ocultar clarões" ligado; A roda `fogueira` e conjura o Sinal de Maré. | A cintilação da fogueira cai para quase nada; a luz verde-água do Sinal sobe em alguns ticks, sem piscar. |
+| 50 | Em HIGH, `/calamidade bench 12 vfxsample:receita_teia` (96 feixes) e `/calamidade bench 12 vfxsample:receita_fogueira` (12 luzes); depois `bench 64 vfxsample:receita_teia`. | F7: até 96 feixes e 12 luzes; com 64 teias, "Feixes: 96 desenhados (máx. 128)" (12 desenhados × 8). Anote mediana e p95: é o pior caso realista do passe de feixes. |
+| 51 | Com Sodium/Embeddium e Iris/Oculus (se o público usa). | Anote se feixes e luzes aparecem; shader packs que trocam o pipeline podem não passar pelo pós-processamento. |
+
+Registre para cada caso o que viu e, nos casos 37, 40, 42, 45 e 50, uma captura e (45 e 50) os tempos de quadro.
 
 ## Registro dos resultados
 

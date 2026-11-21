@@ -76,6 +76,15 @@
 - Verificações de build: `checkShaders`, `checkApiDocs`, `checkRecipes`. RimuLib baixada do CurseForge com SHA-256, fora do repositório e dos releases.
 - vfx-sample 1.5.0: receitas, céu dourado no impacto do Sinal de Maré e névoa no Farol.
 
+### 0.9.0 — Beam API, Light API e prioridade protagonista
+
+- `Effects.Priority.HERO` (`withPriority`): o efeito principal da cena entra antes dos NORMAL, nunca é cortado pelo limite de desenhados (no máximo 2 HERO por quadro, os mais próximos) e tem orçamento de passes próprio (1/2/3). Consulte PRIORIDADE-0.9.md.
+- `Beam` e `Point`: feixes entre pontos (centro, mundo, âncora, conjurador, olhos, mira) com núcleo e halo, pulsos, ondulação, ruído e revelação, por trilhas da Timeline; um passe `beams` para todos os feixes do quadro (16/48/128), com largura mínima por pixel e oclusão. Consulte FEIXES-0.9.md.
+- `Light`: luz visual pontual, de segmento (ou seguindo um feixe), de disco ou de anel no chão, com cintilação; um passe `lights` antes dos efeitos e da atmosfera (8/24/64), com normal pela profundidade e a névoa do jogo. Não muda o nível de luz do jogo. Consulte LUZ-0.9.md.
+- `calamidade_fx.glsl` versão 2 (11 funções novas, 106 casos no WebGL2) e `scripts/previa_passes.cjs` (prévia dos passes sem o jogo).
+- F7 e CSV com HERO, feixes e luzes.
+- vfx-sample 1.6.0: receitas pilar, laser, teia, fogueira, onda de luz e protagonista; luz breve no impacto do Sinal de Maré.
+
 ## Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -83,20 +92,21 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 - Tempo de quadro com 1, 3, 6 e 12 eventos em GPU física, em 1080p e 1440p, nos três perfis de qualidade.
 - Sincronização entre dois clientes em servidor dedicado: observador, entrada tardia, saída e retorno ao alcance, troca de dimensão.
 - Pipeline em Fast, Fancy, Fabulous e com mods de renderização (Sodium/Embeddium, Iris/Oculus).
+- Aparência dos feixes e da luz numa GPU física (de dia, de noite, debaixo d'água) e custo dos passes `beams` e `lights` com o teto de HIGH (128 feixes, 64 luzes).
 
 ## Próximas versões
 
-### 0.9 — Beam API e Light API sobre superfícies
+### 0.10 — Trail API e títulos e HUD cinematográficos
 
 Próxima versão planejada.
 
-- **Beam API:** feixes e raios como objetos do motor (pontos, largura, núcleo e halo, ramificações), desenhados em lote num passe, com oclusão pelo terreno e largura mínima por pixel, em vez de cada addon reescrever `caSegmentGlow`.
-- **Light API sobre superfícies:** luz colorida de efeitos projetada no terreno e nas entidades próximas (pela profundidade e normais reconstruídas), com orçamento de luzes por quadro e mistura com a atmosfera.
+- **Trail API (rastros e marcas):** rastros de entidades, projéteis e pontas de feixe (fitas com histórico de posições, largura e cor por idade), e marcas que ficam no chão por um tempo (queimaduras, runas, crateras de luz), com orçamento de vértices e de marcas por quadro.
+- **Títulos e HUD cinematográficos:** cartões de título e legendas de habilidade sincronizados à Timeline (nome do golpe, fase do chefe), barras de cinema e enquadramento, com acessibilidade de tamanho, contraste e duração.
 
-### Depois da 0.9
+### Depois da 0.10
 
-- **Trail API:** rastros de entidades e projéteis (fitas com histórico de posições), com orçamento de vértices.
-- **Títulos:** cartões de título e legendas de habilidade sincronizados à Timeline (nome do golpe, fase do chefe), com acessibilidade de tamanho e duração.
+- Ramificações de feixes (raios que se dividem) e feixes curvos.
+- Sombras simples para a Light (oclusão por profundidade na direção da fonte).
 
 ### Evolução da API, sem versão definida
 

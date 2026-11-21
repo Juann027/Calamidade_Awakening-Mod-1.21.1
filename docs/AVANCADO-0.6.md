@@ -39,7 +39,7 @@ AddonLayers.post(id, post -> {
 
 Regras:
 
-- **Orçamento por passe.** O quadro tem 1, 2 ou 4 passes de addon (LOW, BALANCED, HIGH). Shaders de cartão e cada `pass` dos posts consomem esse total na ordem de prioridade dos efeitos. Um efeito com shader de cartão e post já gasta uma vaga no cartão. Desde a 0.6.2, o callback é chamado mesmo sem vaga: `pass` retorna false, mas bloom, tremor, contraste e clarão continuam valendo. O painel F7 mostra os passes realmente enfileirados.
+- **Orçamento por passe.** O quadro tem 1, 2 ou 4 passes de addon (LOW, BALANCED, HIGH). Shaders de cartão e cada `pass` dos posts consomem esse total na ordem de prioridade dos efeitos. Desde a 0.9.0, efeitos HERO têm um orçamento próprio (1, 2 ou 3) e os passes de feixes e de luzes do motor são pagos antes dos posts (seção "Prioridade protagonista", abaixo). Um efeito com shader de cartão e post já gasta uma vaga no cartão. Desde a 0.6.2, o callback é chamado mesmo sem vaga: `pass` retorna false, mas bloom, tremor, contraste e clarão continuam valendo. O painel F7 mostra os passes realmente enfileirados.
 - **Outros efeitos de tela (0.7.0).** `aberration(f)`, `zoomBlur(f)`, `vignette(argb, f)`, `afterimage(f)` e `grain(f)` escrevem nos campos do ScreenFx da RimuLib 1.3.0. Combinam pelo máximo e passam pela intensidade configurada; a vinheta usa `addVignette`, que mantém a cor do pedido mais forte. Zoom blur e afterimage são ignorados quando o jogador desliga **Efeitos de movimento** (`motionEffects`).
 - **Arrays de uniforms.** Veja a seção abaixo.
 
@@ -55,6 +55,10 @@ O `Uniforms` que o `pass` entrega é a classe interna `PostFxRenderer$Binder`. P
 
 Isso foi conferido no bytecode; o comportamento do driver continua a ser confirmado em jogo (TESTE-REAL.md).
 - **Falhas.** Uma exceção no callback desativa aquele post até reiniciar o jogo e é registrada uma vez no log. Os passes enfileirados antes da falha continuam contados.
+
+### Prioridade protagonista (0.9.0)
+
+`Effects.Definition.withPriority(Effects.Priority.HERO)` marca o efeito principal de uma cena. Instâncias HERO são escolhidas antes das NORMAL, nunca são cortadas pelo limite de efeitos desenhados (no máximo 2 por quadro, as mais próximas) e gastam um orçamento de passes próprio, 1/2/3 por quadro, separado do comum (1/2/4). Num callback de `post`, `passesLeft()` já devolve o orçamento da classe do efeito. Os passes compartilhados `beams` e `lights` são pagos primeiro, pelo orçamento HERO quando um HERO desenhado tem feixes ou luzes. O F7 mostra "Protagonistas (HERO): N desenhadas · X/Y passes". Capítulo completo, com a explicação para leigos de "limite de desenhados" contra "complexidade": [PRIORIDADE-0.9.md](PRIORIDADE-0.9.md).
 
 ## AddonLayers.film: câmera própria
 

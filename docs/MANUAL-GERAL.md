@@ -1,4 +1,4 @@
-# Manual geral do Calamidade_Awakening 0.8.0
+# Manual geral do Calamidade_Awakening 0.9.0
 
 Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
@@ -10,15 +10,15 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
 **Para criar seu primeiro efeito**, comece pelo capítulo 2. Use uma posição fixa para um portal ou uma âncora de entidade para acompanhar um personagem. Para que o efeito cause dano ou outra consequência no mundo, registre um cue (capítulo 3). Para publicar um cartão, adicionar uma câmera ou fornecer um shader pelo JAR do seu mod, siga o capítulo 4. O Sinal de Maré é o exemplo executável de todo esse fluxo.
 
-**Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 5. Para escrever o roteiro do efeito uma vez só (fases, trilhas e marcadores que servidor, shader e câmera compartilham) e para efeitos ambientes em loop, use a Timeline do capítulo 6. Para mudar o clima da cena (céu, névoa, exposição, tinta e estrelas) sem escrever shader, use a Atmosphere do capítulo 7.
+**Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 5. Para escrever o roteiro do efeito uma vez só (fases, trilhas e marcadores que servidor, shader e câmera compartilham) e para efeitos ambientes em loop, use a Timeline do capítulo 6. Para mudar o clima da cena (céu, névoa, exposição, tinta e estrelas) sem escrever shader, use a Atmosphere do capítulo 7. Para feixes (lasers, pilares, teias) e para luz que clareia o terreno em volta do efeito, também sem shader, use o Beam e a Light dos capítulos 8 e 9. Para que o efeito principal de uma cena apareça inteiro com dezenas de outros na tela, marque-o como protagonista (HERO, capítulo 10, que também explica para leigos a diferença entre quantos efeitos são desenhados e quanto cada um custa).
 
-**Para IAs e agentes**, comece por `AGENTS.md` na raiz do repositório e pelo material de `docs/ai/`: referência da API gerada do JAR, guia de GLSL com a biblioteca `calamidade_fx.glsl` e sete receitas completas (`/vfxsample receita <nome>`). `python3 scripts/novo_efeito.py <namespace> <nome>` gera o esqueleto de um efeito novo.
+**Para IAs e agentes**, comece por `AGENTS.md` na raiz do repositório e pelo material de `docs/ai/`: referência da API gerada do JAR, guia de GLSL com a biblioteca `calamidade_fx.glsl` e treze receitas completas (`/vfxsample receita <nome>`). `python3 scripts/novo_efeito.py <namespace> <nome>` gera o esqueleto de um efeito novo.
 
-**Para modificar o motor**, consulte os capítulos 8 e 9. O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256; ela não é versionada. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
+**Para modificar o motor**, consulte os capítulos 11 e 12. O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256; ela não é versionada. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
 
-**Para medir e validar**, use o capítulo 10 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 11.
+**Para medir e validar**, use o capítulo 13 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 14.
 
-**Escopo.** As cinco habilidades internas são cosméticas. O motor oferece iluminação visual por materiais e shaders e, desde a 0.8, tingimento do céu e névoa por efeito (Atmosphere); alterar a iluminação de blocos da simulação ou substituir o skybox por texturas próprias exige implementação adicional. Consequências de gameplay pertencem aos addons, pelos cues de servidor.
+**Escopo.** As cinco habilidades internas são cosméticas. O motor oferece iluminação visual por materiais e shaders, desde a 0.8 tingimento do céu e névoa por efeito (Atmosphere) e, desde a 0.9, feixes e luz visual sobre o que a câmera vê (Beam e Light); a luz da 0.9 não muda o nível de luz da simulação (spawn de mobs, plantas), e substituir o skybox por texturas próprias exige implementação adicional. Consequências de gameplay pertencem aos addons, pelos cues de servidor.
 
 
 1. [Jogar e instalar](#cap1)
@@ -28,11 +28,14 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 5. [Ganchos avançados: pós-processamento, câmera e início](#cap5)
 6. [Timeline: fases, trilhas, marcadores e sustain](#cap6)
 7. [Atmosphere: céu, névoa, exposição e tinta](#cap7)
-8. [Arquitetura do motor](#cap8)
-9. [Criar habilidades dentro do motor](#cap9)
-10. [Testes em GPU real e multiplayer](#cap10)
-11. [Validação, medições e limites](#cap11)
-12. [Histórico e evolução prevista](#cap12)
+8. [Beam: feixes de luz](#cap8)
+9. [Light: luz visual sobre o mundo](#cap9)
+10. [Prioridade protagonista e orçamento por quadro](#cap10)
+11. [Arquitetura do motor](#cap11)
+12. [Criar habilidades dentro do motor](#cap12)
+13. [Testes em GPU real e multiplayer](#cap13)
+14. [Validação, medições e limites](#cap14)
+15. [Histórico e evolução prevista](#cap15)
 
 Leitura complementar, fora do manual: [estudo técnico da integração da SA Series](ESTUDO-SA-SERIES.md).
 
@@ -40,11 +43,11 @@ Leitura complementar, fora do manual: [estudo técnico da integração da SA Ser
 
 ## 1. Jogar e instalar
 
-Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.8.0 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor.
+Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.9.0 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor.
 
 ### Instalação
 
-Coloque o JAR `dist/calamidade_awakening-0.8.0.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes. Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
+Coloque o JAR `dist/calamidade_awakening-0.9.0.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes. Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
 
 A interface usa inglês como padrão e tem tradução para português do Brasil pela opção de idioma do Minecraft.
 
@@ -101,7 +104,7 @@ O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256 (task `ri
 
 ## 2. API de efeitos e impact frames
 
-Este documento descreve a API introduzida na 0.3, que continua válida na 0.8.0. Para o exemplo incluído no pacote atual, caminhos de instalação e publicação de cartões, abra [Addons 0.4](ADDONS-0.4.md).
+Este documento descreve a API introduzida na 0.3, que continua válida na 0.9.0. Para o exemplo incluído no pacote atual, caminhos de instalação e publicação de cartões, abra [Addons 0.4](ADDONS-0.4.md).
 
 Para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A interface pública desta versão é `dev.calamidade_awakening.api.v1.Effects` e seus tipos internos. O pacote contém um JAR de motor e conteúdo. O consumidor instala seu próprio JAR junto dele e da RimuLib 1.3.0 em ambos os lados.
 
@@ -114,13 +117,13 @@ O projeto Gradle independente em [examples/vfx-sample](../examples/vfx-sample/) 
 ./gradlew -p examples/vfx-sample runClient
 ```
 
-No Windows use `gradlew.bat`. O primeiro build precisa baixar os artefatos de desenvolvimento do NeoForge. Para testar sem compilar, gere o consumidor com `./gradlew -p examples/vfx-sample build`; o JAR `vfx-sample-1.5.0.jar` fica em `examples/vfx-sample/build/libs/`. Também é possível instalar o JAR produzido em `examples/vfx-sample/build/libs/` em um perfil NeoForge com os dois mods. Em um mundo com comandos habilitados:
+No Windows use `gradlew.bat`. O primeiro build precisa baixar os artefatos de desenvolvimento do NeoForge. Para testar sem compilar, gere o consumidor com `./gradlew -p examples/vfx-sample build`; o JAR `vfx-sample-1.6.0.jar` fica em `examples/vfx-sample/build/libs/`. Também é possível instalar o JAR produzido em `examples/vfx-sample/build/libs/` em um perfil NeoForge com os dois mods. Em um mundo com comandos habilitados:
 
 1. Use `/vfxsample at`. O sinal aparece quatro blocos à frente. Ande para ver que ele fica parado.
 2. Use `/vfxsample follow`. O exemplo encerra o sinal anterior e cria um novo na sua entidade. Use F5 e caminhe para ver o movimento.
 3. Use `/vfxsample stop` durante os seis segundos do efeito. A emissão e a geometria cessam; partículas já emitidas completam a própria vida.
 
-Para usar em outro repositório, copie o modelo de dependências de build.gradle, adapte os caminhos locais e leve a dependência obrigatória de calamidade_awakening do neoforge.mods.toml para o manifesto do seu mod. O exemplo atual declara o intervalo [0.8.0,0.9.0). As chamadas desta página existem desde a 0.3.0. O mod de exemplo é opcional.
+Para usar em outro repositório, copie o modelo de dependências de build.gradle, adapte os caminhos locais e leve a dependência obrigatória de calamidade_awakening do neoforge.mods.toml para o manifesto do seu mod. O exemplo atual declara o intervalo [0.9.0,0.10.0). As chamadas desta página existem desde a 0.3.0. O mod de exemplo é opcional.
 
 ![Sinal do mod consumidor antes do impacto](gameplay/vfxsample-signal.png)
 
@@ -244,7 +247,7 @@ O projeto independente em [examples/vfx-sample](../examples/vfx-sample/) impleme
 
 ### Teste de cinco minutos
 
-1. Em Minecraft Java 1.21.1 com NeoForge, instale RimuLib 1.3.0 e o JAR 0.8.0 da pasta dist (gerado por `./gradlew dist`). Para experimentar o addon, acrescente o vfx-sample-1.5.0.jar gerado por `./gradlew -p examples/vfx-sample build` em examples/vfx-sample/build/libs. No multiplayer, instale as mesmas versões no servidor e nos clientes.
+1. Em Minecraft Java 1.21.1 com NeoForge, instale RimuLib 1.3.0 e o JAR 0.9.0 da pasta dist (gerado por `./gradlew dist`). Para experimentar o addon, acrescente o vfx-sample-1.6.0.jar gerado por `./gradlew -p examples/vfx-sample build` em examples/vfx-sample/build/libs. No multiplayer, instale as mesmas versões no servidor e nos clientes.
 2. Pressione **N** olhando para um espaço livre. A página inicial contém as cinco habilidades internas. Use o botão **Usar item** (direito por padrão) para passar às páginas dos addons. Mire no Sinal de Maré e pressione **Atacar** (esquerdo por padrão). A tecla O interrompe a câmera.
 3. Para o menu compartilhado, obtenha o Focus com `/give @s calamidade_awakening:focus`, segure-o e pressione **H**. Selecione o Sinal de Maré. Sua linha tem descrição, arte e controle de potência. O painel do addon explica o parâmetro. Aumentar a potência eleva o ponto da conjuração seguinte. Feche o menu, mire e use o Focus com o botão direito para conjurar a habilidade selecionada. A recarga do cartão é de 130 ticks. No tick 40, o impacto causa dano leve e empurra as criaturas a até três blocos (veja o capítulo de gameplay).
 4. Os comandos `/vfxsample at`, `follow` e `stop` continuam disponíveis com permissão de comandos. Eles exercitam as instâncias diretamente. Para testar recarga, seleção do item e callback de conjuração, use o cartão.
@@ -318,7 +321,7 @@ Há até 1/2/4 passes de addon por quadro em LOW/BALANCED/HIGH, além do passe c
 - Cartão aparece com textura ausente: verifique o caminho de sprite do Focus no JAR do addon, inclusive addon/namespace e caixa das letras.
 - A habilidade aparece e o clique não conjura: confirme a recarga, os requisitos do callback e a mesma instalação nos dois lados. O destaque do Atlas indica o envio do pedido; a execução começa com a aceitação do servidor.
 - Geometria aparece mas o shader falha: verifique namespace, shaders/fx e mensagens do compilador GLSL no log do cliente. Um shader de core do Minecraft tem outro contrato. Teste primeiro um passe que apenas devolve a cor de entrada.
-- Ao publicar uma versão, teste o mod-base sozinho e com dois addons que escolham o mesmo nome de efeito em namespaces diferentes. Atualize cliente e servidor juntos: o pedido de conjuração da 0.4 inclui potência e usa o canal request_v2. A 0.5.0 mantém o mesmo protocolo de rede; a 0.6.0 também. A 0.7.0 acrescenta o canal release (efeitos com sustain), então servidor e clientes precisam estar na 0.7.0. Addons da 0.4 a 0.6 funcionam sem mudança no código após ampliar o intervalo de dependência para incluir 0.7. A 0.8.0 mantém o protocolo da 0.7.0 (a atmosfera não usa rede); addons da 0.7 só precisam ampliar o intervalo para incluir 0.8. Para começar um addon novo, `python3 scripts/novo_efeito.py <namespace> <nome>` gera um efeito que compila sem edição, e `docs/ai/receitas/` traz sete efeitos completos.
+- Ao publicar uma versão, teste o mod-base sozinho e com dois addons que escolham o mesmo nome de efeito em namespaces diferentes. Atualize cliente e servidor juntos: o pedido de conjuração da 0.4 inclui potência e usa o canal request_v2. A 0.5.0 mantém o mesmo protocolo de rede; a 0.6.0 também. A 0.7.0 acrescenta o canal release (efeitos com sustain), então servidor e clientes precisam estar na 0.7.0. Addons da 0.4 a 0.6 funcionam sem mudança no código após ampliar o intervalo de dependência para incluir 0.7. A 0.8.0 mantém o protocolo da 0.7.0 (a atmosfera não usa rede); addons da 0.7 só precisam ampliar o intervalo para incluir 0.8. A 0.9.0 também mantém o protocolo (feixes, luzes e prioridade não usam rede); addons da 0.8 só precisam ampliar o intervalo para incluir 0.9. Para começar um addon novo, `python3 scripts/novo_efeito.py <namespace> <nome>` gera um efeito que compila sem edição, e `docs/ai/receitas/` traz treze efeitos completos.
 
 <a id="cap5"></a>
 
@@ -363,7 +366,7 @@ AddonLayers.post(id, post -> {
 
 Regras:
 
-- **Orçamento por passe.** O quadro tem 1, 2 ou 4 passes de addon (LOW, BALANCED, HIGH). Shaders de cartão e cada `pass` dos posts consomem esse total na ordem de prioridade dos efeitos. Um efeito com shader de cartão e post já gasta uma vaga no cartão. Desde a 0.6.2, o callback é chamado mesmo sem vaga: `pass` retorna false, mas bloom, tremor, contraste e clarão continuam valendo. O painel F7 mostra os passes realmente enfileirados.
+- **Orçamento por passe.** O quadro tem 1, 2 ou 4 passes de addon (LOW, BALANCED, HIGH). Shaders de cartão e cada `pass` dos posts consomem esse total na ordem de prioridade dos efeitos. Desde a 0.9.0, efeitos HERO têm um orçamento próprio (1, 2 ou 3) e os passes de feixes e de luzes do motor são pagos antes dos posts (seção "Prioridade protagonista", abaixo). Um efeito com shader de cartão e post já gasta uma vaga no cartão. Desde a 0.6.2, o callback é chamado mesmo sem vaga: `pass` retorna false, mas bloom, tremor, contraste e clarão continuam valendo. O painel F7 mostra os passes realmente enfileirados.
 - **Outros efeitos de tela (0.7.0).** `aberration(f)`, `zoomBlur(f)`, `vignette(argb, f)`, `afterimage(f)` e `grain(f)` escrevem nos campos do ScreenFx da RimuLib 1.3.0. Combinam pelo máximo e passam pela intensidade configurada; a vinheta usa `addVignette`, que mantém a cor do pedido mais forte. Zoom blur e afterimage são ignorados quando o jogador desliga **Efeitos de movimento** (`motionEffects`).
 - **Arrays de uniforms.** Veja a seção abaixo.
 
@@ -379,6 +382,10 @@ O `Uniforms` que o `pass` entrega é a classe interna `PostFxRenderer$Binder`. P
 
 Isso foi conferido no bytecode; o comportamento do driver continua a ser confirmado em jogo (TESTE-REAL.md).
 - **Falhas.** Uma exceção no callback desativa aquele post até reiniciar o jogo e é registrada uma vez no log. Os passes enfileirados antes da falha continuam contados.
+
+#### Prioridade protagonista (0.9.0)
+
+`Effects.Definition.withPriority(Effects.Priority.HERO)` marca o efeito principal de uma cena. Instâncias HERO são escolhidas antes das NORMAL, nunca são cortadas pelo limite de efeitos desenhados (no máximo 2 por quadro, as mais próximas) e gastam um orçamento de passes próprio, 1/2/3 por quadro, separado do comum (1/2/4). Num callback de `post`, `passesLeft()` já devolve o orçamento da classe do efeito. Os passes compartilhados `beams` e `lights` são pagos primeiro, pelo orçamento HERO quando um HERO desenhado tem feixes ou luzes. O F7 mostra "Protagonistas (HERO): N desenhadas · X/Y passes". Capítulo completo, com a explicação para leigos de "limite de desenhados" contra "complexidade": [PRIORIDADE-0.9.md](PRIORIDADE-0.9.md).
 
 ### AddonLayers.film: câmera própria
 
@@ -728,7 +735,366 @@ O painel F7 ganha a linha **"Atmosfera: N ativas · passe sim/não"** (N = inst�
 
 <a id="cap8"></a>
 
-## 8. Arquitetura do motor
+## 8. Beam: feixes de luz
+
+Até a 0.8, cada addon que queria um feixe (um laser, um pilar do céu, uma teia de energia) escrevia o próprio shader com `caSegmentGlow`, gastava uma vaga do orçamento de passes **por efeito** e repetia as mesmas contas de largura por pixel e oclusão. A 0.9 transforma o feixe num objeto do motor, o **Beam**: o addon descreve as pontas, as larguras, as cores e o movimento, e o motor desenha os feixes de todos os efeitos do quadro **num passe só**.
+
+O Beam é Java puro, sem tipos do Minecraft, como a Timeline e a Atmosphere. Efeitos sem feixes se comportam exatamente como na 0.8: sem passe novo.
+
+### Conceitos
+
+| Parâmetro | Unidade e faixa | Efeito |
+|---|---|---|
+| `from`, `to` | `Point` (veja abaixo) | Início e fim do feixe. |
+| `coreWidth`, `haloWidth` | blocos (largura inteira), 0..16 e 0..64 | Núcleo nítido e halo suave em volta. |
+| `coreColor`, `haloColor` | ARGB (alfa ignorado) | Núcleo branco e halo saturado leem como luz quente. Padrão: núcleo branco, halo ciano. |
+| `intensity` | 0..8 | Brilho do feixe inteiro (1 = normal). |
+| `pulses(count, speed, size)` | 0..16 pulsos; blocos por tick (−8..8); blocos | Contas de luz que correm pelo feixe, igualmente espaçadas no comprimento. Velocidade negativa corre do fim para o início. |
+| `wave(amplitude, wavelength, speed)` | blocos; blocos (0,25..256); blocos por tick | Ondulação lateral que corre pelo feixe. |
+| `noise(amplitude)` | blocos, 0..8 | Tremor lateral (feixe instável, eletricidade). |
+| `reveal` | 0..1 | Fração desenhada a partir do início: o feixe "nasce" do início ao fim, com a ponta acesa enquanto cresce. |
+
+- **Pontas presas.** Ondulação e ruído somem nos 2 blocos de cada ponta, então um feixe que liga a mão de alguém a um alvo não "solta" das pontas.
+- **Trilhas.** Todo parâmetro numérico pode vir de uma trilha da Timeline: `.track(Beam.Param.REVEAL, "nascer")`. O valor é limitado à faixa do parâmetro (`OVERSHOOT` não passa de 1 na revelação). `PULSE_COUNT` é arredondado. `FROM_X`…`TO_Z` **somam** um deslocamento (blocos, eixos do mundo) às pontas resolvidas.
+- **Peso.** Envelope da instância (a mesma entrada e saída suaves da opacidade) × peso de uma fase opcional (`.weightPhase("golpe")`) × trilha `Param.WEIGHT` opcional.
+- **Movimento contínuo.** Pulsos, ondulação e ruído andam com a idade **real** da instância, então não saltam na volta de um loop (sustain). Velocidade vinda de trilha muda a posição dos pulsos de uma vez; para pulsos suaves, use velocidade constante.
+
+### Pontas: `Point`
+
+Cada ponta é um `Point`, resolvido no cliente a cada quadro (nada vai pela rede):
+
+| Fábrica | Onde fica |
+|---|---|
+| `Point.center(dx, dy, dz)` | Deslocamento do centro da instância (que já segue a entidade de `Effects.follow`). |
+| `Point.world(x, y, z)` | Posição fixa no mundo, igual para toda instância (peças de arena). |
+| `Point.anchor(dx, dy, dz)`, `anchorEye(...)` | Pés ou olhos da entidade de `Effects.follow`, mais o deslocamento. |
+| `Point.anchorAim(alcance)` | Primeiro bloco que a entidade de `Effects.follow` mira, até `alcance` blocos (0,5..256); a ponta do alcance se não acertar nada. |
+| `Point.caster(...)`, `casterEye(...)`, `casterAim(alcance)` | O mesmo para quem conjurou (`Effects.start(id, jogador, posição)` ou cartão). |
+
+Deslocamentos usam os eixos do mundo, em blocos (até 1024). Pontas de entidade usam a posição interpolada, então acompanham o movimento sem tremer. **Enquanto a entidade não está carregada num cliente** (longe da visão dele, ou a instância não tem âncora ou conjurador), o feixe não é desenhado nesse cliente. A mira é calculada pela rotação da cabeça que o jogo já sincroniza: um laser mirado acompanha a câmera de quem atira em todos os clientes.
+
+### Exemplo completo
+
+O pilar da receita 8 desce do céu, ilumina o chão (capítulo [Luz](LUZ-0.9.md)) e não tem shader nem camada de cliente:
+
+```java
+static final Timeline TIMELINE = Timeline.builder(140)
+    .phase("chao", 16, 140, 4, 50)
+    .track("nascer", keyframe(0, 0f), keyframe(18, 1f, Easing.EASE_IN))
+    .track("brilho", keyframe(0, 1f), keyframe(18, 1.8f, Easing.OVERSHOOT), keyframe(40, 1.2f, Easing.SMOOTH))
+    .marker("chegada", 18)
+    .build();
+
+static final Beam FEIXE = Beam.builder(Point.center(0, 120, 0), Point.center(0, 0, 0))  // do céu ao chão
+    .width(.7f, 5f)
+    .color(0xffffffff, 0xffffb347)
+    .pulses(3, 2f, 10f)                      // três pulsos descendo, 2 blocos por tick
+    .track(Beam.Param.REVEAL, "nascer")
+    .track(Beam.Param.INTENSITY, "brilho")
+    .build();
+
+// Construtor comum do mod. Ordem: register, timeline, beams, lights, cues.
+Effects.register(ID, new Effects.Definition(140, 48, 0xffffb347, Effects.Shape.NONE, Effects.Material.NONE,
+    null, null).withRange(384));             // raio 48: o frustum (2,5 × raio) cobre os 120 blocos
+Effects.timeline(ID, TIMELINE);
+Effects.beams(ID, FEIXE);
+```
+
+Outros: [laser](ai/receitas/09-laser.md) (dos olhos até a mira, preso ao jogador), [teia](ai/receitas/10-teia.md) (8 feixes com pulsos), [protagonista](ai/receitas/13-protagonista.md) (7 feixes num efeito HERO).
+
+### API
+
+#### Montagem (`Beam.builder(de, até)`)
+
+| Chamada | Regras |
+|---|---|
+| `Beam.builder(de, até)` | Dois `Point` diferentes. |
+| `width(núcleo, halo)` | Larguras inteiras em blocos: núcleo 0..16, halo 0..64. Padrão 0,2 e 1,2. |
+| `color(núcleo, halo)`, `color(halo)` | ARGB. A segunda forma mantém o núcleo branco. |
+| `intensity(x)` | 0..8. |
+| `pulses(n, velocidade, tamanho)` | n 0..16; velocidade −8..8 blocos por tick; tamanho 0..32 blocos. |
+| `wave(amplitude, onda, velocidade)` | 0..8 blocos; 0,25..256 blocos; −8..8 blocos por tick. |
+| `noise(amplitude)` | 0..8 blocos. |
+| `reveal(fração)` | 0..1 (padrão 1). |
+| `track(Param, "trilha")` | Um parâmetro por trilha. `Param`: `CORE_WIDTH`, `HALO_WIDTH`, `INTENSITY`, `PULSE_COUNT`, `PULSE_SPEED`, `PULSE_SIZE`, `WAVE_AMPLITUDE`, `WAVE_LENGTH`, `WAVE_SPEED`, `NOISE`, `REVEAL`, `WEIGHT`, `FROM_X/Y/Z`, `TO_X/Y/Z`. |
+| `weightPhase("fase")` | Uma vez só. |
+| `build()` | Beam imutável. |
+
+#### Registro (`Effects`)
+
+| Chamada | Regras |
+|---|---|
+| `Effects.beams(id, feixes...)` | 1 a 16 feixes, uma vez por efeito, só no seu namespace. Depois de `register` e, se algum feixe lê trilhas ou fase, depois de `timeline` (senão `IllegalArgumentException`, também no servidor dedicado). Antes de `Effects.lights` quando uma luz segue um feixe. |
+
+#### Consultas
+
+| Membro | Resultado |
+|---|---|
+| `sample(amostrador, envelope)` | `Beam.State`: parâmetros resolvidos, peso e deslocamentos das pontas. `State.visible()` diz se o motor desenha. |
+| `from()`, `to()`, `coreWidth()`… `weightPhase()`, `animated()`, `validate(timeline)` | Inspeção. |
+| `Point.source()`, `x()`, `y()`, `z()`, `reach()` | Inspeção de uma ponta. |
+
+Assinaturas completas: [ai/API-REFERENCIA.md](ai/API-REFERENCIA.md).
+
+### Como o motor desenha
+
+**Um passe para todos.** A cada quadro, o motor percorre os efeitos desenhados (os HERO primeiro, depois por peso), resolve as pontas e amostra os feixes. Os que passam do teto do quadro (**16 / 48 / 128** em LOW / BALANCED / HIGH) ficam de fora, começando pelos efeitos menos importantes; um efeito que não cabe inteiro fica com os primeiros feixes. Os dados vão numa textura RGBA32F (6 texels por feixe), porque 128 feixes em uniforms passariam do mínimo que o OpenGL garante. O passe `calamidade_awakening:beams` desenha todos de uma vez, depois dos passes de addon e antes da atmosfera.
+
+**Por pixel**, para cada feixe: pontos mais próximos entre o raio do pixel e o segmento (`caRaySegment`), deslocamento lateral (ondulação e ruído), núcleo com **largura mínima de um pixel** (`caBeamCore`: de longe, o feixe fica com um pixel e mais fraco, em vez de engordar ou sumir), halo cortado entre 2,5 e 5 meias-larguras (`caBeamHalo`, para vários feixes não acenderem a tela inteira), pulsos (`caPulseTrain`) e **oclusão pela profundidade** (`caDepthFade`: o terreno na frente esconde o feixe; um feixe que entra no chão some suave). As funções estão em `calamidade_fx.glsl` (versão 2) e têm testes no WebGL2.
+
+**Perto da câmera.** O trecho a menos de ~1 bloco da câmera some aos poucos: um laser que sai dos olhos de quem atira não cobre a tela dele.
+
+**Vistos de frente.** Quando um feixe aponta quase para a câmera, a ondulação e o ruído diminuem sozinhos (entre ~30 e ~12 graus). Sem isso, a posição ao longo do feixe fica mal definida pixel a pixel e a onda vira anéis em volta dele; a prévia em WebGL2 (`scripts/previa_passes.cjs`) achou esse defeito antes do teste em jogo.
+
+**Orçamento.** O passe conta como passe do efeito, uma vez por quadro: é pago pelo **orçamento HERO** quando algum efeito HERO desenhado tem feixes, senão pelo **comum**, quando algum NORMAL tem. Um orçamento nunca paga pelo outro. Pago, o passe desenha os feixes das duas classes. Os passes de feixes e de luzes são pagos antes dos passes de cartão e de `post.pass`, porque um passe serve todos os efeitos. Detalhes em [Prioridade protagonista](PRIORIDADE-0.9.md).
+
+### Acessibilidade
+
+- **Intensidade dos efeitos de tela** (`screenEffects`) multiplica o halo e os pulsos. Em 0, só o núcleo fica: o feixe continua legível como parte do efeito, sem brilho em volta.
+- Pulsos não piscam (correm) e não há clarão; "ocultar clarões" não muda o feixe. O clarão do motor no impacto (Impact) segue as regras de sempre.
+
+### Diagnóstico
+
+O F7 ganha a linha **"Feixes: N desenhados (máx. M) · passe HERO/comum/não"**. O CSV de `/calamidade_client record` ganha as colunas `beams` e `beamPass`. O passe de feixes entra na contagem "passes de pós-processamento".
+
+### Custo
+
+- **Sem feixes:** nada.
+- **Com feixes:** um passe de tela cheia com um laço de até 16/48/128 feixes; cada feixe custa algumas dezenas de operações por pixel e sai cedo quando o pixel está longe dele. No processador: uma amostragem por feixe, a resolução das pontas (um raio de mira por entidade e alcance por quadro, compartilhado) e o envio de até 3 KB de dados.
+- **Rede:** nada. Feixes são registrados nos dois lados e derivados do relógio da instância.
+
+### Limites e cuidados
+
+- **Frustum.** O teste de visibilidade usa o centro da instância e 2,5 × o raio da definição. Um feixe longo precisa de raio grande (o pilar de 120 blocos usa 48), senão o efeito inteiro some quando o centro sai da tela.
+- Feixes são aditivos: sobre o céu claro de dia, cores fortes viram quase branco. De noite e contra o terreno, a cor aparece inteira.
+- Feixes não fazem sombra nem iluminam nada sozinhos: para isso, `Light.along(feixe)` ([Luz](LUZ-0.9.md)).
+- A oclusão usa a profundidade que a RimuLib entrega ao passe: blocos e entidades escondem o feixe; partículas e parte da geometria translúcida (água, vidro) podem não esconder.
+- Coberto por testes de lógica (`BeamCheck`), pela biblioteca no WebGL2, pela prévia sintética e por um roteiro automatizado em jogo com renderização por software ([VALIDACAO.md](VALIDACAO.md)). GPU física: [TESTE-REAL.md](TESTE-REAL.md), parte 4.
+
+<a id="cap9"></a>
+
+## 9. Light: luz visual sobre o mundo
+
+Um fogo, um pilar de energia ou uma onda de choque que não ilumina nada em volta parece colado na tela. Até a 0.8, o motor não tinha como clarear o terreno em volta de um efeito; um addon precisaria de um shader próprio que reconstruísse a cena. A 0.9 traz a **Light**: luzes que clareiam os blocos, as entidades e o terreno que a câmera vê, desenhadas pelo motor num passe único por quadro.
+
+> **É luz visual.** A Light muda só a imagem. Ela **não** altera o nível de luz do jogo: mobs continuam nascendo no escuro em volta de uma fogueira da Light, plantas não crescem por causa dela, e o servidor não sabe que ela existe. Ela também não faz sombra e não ilumina o que está fora da tela.
+
+A Light é Java puro, como a Timeline, a Atmosphere e o Beam. Efeitos sem luzes se comportam exatamente como na 0.8: sem passe novo.
+
+### Conceitos
+
+| Forma | Fábrica | Ilumina |
+|---|---|---|
+| Ponto | `Light.point(ponto)` | Em todas as direções até `radius` blocos. |
+| Segmento | `Light.segment(de, até)` | A partir do ponto mais próximo do segmento, até `radius` blocos dele. |
+| Feixe | `Light.along(feixe)` | Como o segmento, usando as pontas, a revelação, o peso e a cor do halo de um `Beam` do mesmo efeito: a luz cresce e some junto com o feixe. |
+| Disco no chão | `Light.disc(centro, raio)` | Um disco de `raio` blocos em volta do centro, com borda suave de `width` blocos (padrão 25% do raio). |
+| Anel no chão | `Light.ring(centro, raio, largura)` | Uma faixa de `largura` blocos no `raio`: ondas de choque, com o raio vindo de uma trilha. |
+
+| Parâmetro | Unidade e faixa | Efeito |
+|---|---|---|
+| `color` | ARGB (alfa ignorado) | Cor da luz. Padrão branco; em `along`, a cor do halo do feixe. |
+| `intensity` | 0..8 | Brilho. De noite, 2 a 3 ficam legíveis. |
+| `radius` | blocos, 0..128 | Alcance (ponto, segmento, feixe) ou raio (disco, anel). |
+| `falloff` | 0,25..4 | Expoente de `(1 − distância / alcance)`: 1 linear, 2 suave (padrão), 4 concentrado. |
+| `width`, `height` | blocos | Largura do anel ou borda do disco; alcance vertical do disco e do anel acima e abaixo do centro (padrão 3). |
+| `flicker(quantidade, velocidade)` | 0..1; mudanças por segundo, 0..20 | Cintilação por ruído suave (fogo, energia instável); a intensidade fica entre `1 − quantidade` e 1. |
+
+- **Posições** são `Point` (os mesmos das pontas de feixe: centro, mundo, âncora, conjurador, olhos, mira); veja [Feixes](FEIXES-0.9.md#pontas-point). `Param.X/Y/Z` somam um deslocamento vindo de trilha.
+- **Trilhas.** Todo parâmetro numérico pode vir de uma trilha: `.track(Light.Param.RADIUS, "onda")`, limitado à faixa. Cores são constantes.
+- **Peso.** Envelope da instância × fase opcional (`.weightPhase`) × trilha `WEIGHT` opcional; em `along`, também × o peso do feixe.
+- **Faces.** Ponto, segmento e feixe iluminam as faces voltadas para a fonte (cosseno com um envolvimento leve, para o chão em ângulo rasante não ficar preto); faces de costas ficam escuras. Disco e anel iluminam por inteiro as faces voltadas para cima, 40% das paredes e nada dos tetos.
+
+### Exemplo completo
+
+A fogueira da receita 11 é só uma luz, sem geometria, partícula ou shader, acesa até o release:
+
+```java
+static final Timeline TIMELINE = Timeline.builder(200)
+    .track("chama", keyframe(0, 0f), keyframe(30, 1f, Easing.EASE_OUT), keyframe(40, 1f), keyframe(160, 1f),
+        keyframe(200, 0f, Easing.SMOOTH))
+    .marker("estalo", 70)
+    .sustain(40, 160)
+    .build();
+
+static final Light CHAMA = Light.point(Point.center(0, .6, 0))
+    .color(0xffff9a40).intensity(3f).radius(10).falloff(1.2f)
+    .flicker(.35f, 6)                       // até 35% mais escura, 6 vezes por segundo
+    .track(Light.Param.WEIGHT, "chama")
+    .build();
+
+// Construtor comum. Ordem: register, timeline, (beams), lights, cues.
+Effects.register(ID, new Effects.Definition(200, 4, 0xffff9a40, Effects.Shape.NONE, Effects.Material.NONE, null, null));
+Effects.timeline(ID, TIMELINE);
+Effects.lights(ID, CHAMA);
+```
+
+Uma luz que segue um feixe e uma onda de choque:
+
+```java
+Effects.beams(ID, FEIXE);                                                    // primeiro o feixe
+Effects.lights(ID,
+    Light.along(FEIXE).radius(12).intensity(2f).falloff(1.4f).build(),       // cresce com a revelação do feixe
+    Light.ring(Point.center(0, .2, 0), 0, 3).track(Light.Param.RADIUS, "raio").build()); // raio = frente da onda
+```
+
+Receitas: [pilar](ai/receitas/08-pilar-de-luz.md), [laser](ai/receitas/09-laser.md) (luz no ponto de impacto), [fogueira](ai/receitas/11-fogueira.md), [onda de luz](ai/receitas/12-onda-de-luz.md), [protagonista](ai/receitas/13-protagonista.md). O Sinal de Maré 1.6.0 ganha uma luz breve verde-água no impacto.
+
+### API
+
+#### Montagem
+
+| Chamada | Regras |
+|---|---|
+| `Light.point(ponto)` | Padrão: branca, intensidade 1, alcance 8, queda 2. |
+| `Light.segment(de, até)` | Dois `Point` diferentes; alcance padrão 4. |
+| `Light.along(feixe)` | O feixe precisa estar em `Effects.beams` do mesmo efeito, registrado antes. |
+| `Light.disc(centro, raio)`, `Light.ring(centro, raio, largura)` | Raio 0..128; largura 0..64. |
+| `color`, `intensity`, `radius`, `falloff`, `width`, `height`, `flicker` | Faixas da tabela acima; erro imediato fora delas. |
+| `track(Param, "trilha")`, `weightPhase("fase")` | `Param`: `INTENSITY`, `RADIUS`, `FALLOFF`, `WIDTH`, `HEIGHT`, `FLICKER`, `FLICKER_SPEED`, `X`, `Y`, `Z`, `WEIGHT`. |
+| `build()` | Light imutável. |
+
+#### Registro (`Effects`)
+
+| Chamada | Regras |
+|---|---|
+| `Effects.lights(id, luzes...)` | 1 a 8 luzes, uma vez por efeito, só no seu namespace. Depois de `register`; depois de `timeline` se alguma luz lê trilhas ou fase; depois de `beams` se alguma segue um feixe (senão `IllegalArgumentException`, também no servidor dedicado). |
+
+#### Consultas
+
+| Membro | Resultado |
+|---|---|
+| `sample(amostrador, envelope, segundos, seed, escalaDaCintilação)` | `Light.State` com parâmetros resolvidos, cintilação aplicada e peso. |
+| `Light.flickerFactor(quantidade, velocidade, segundos, seed)` | Multiplicador da cintilação, puro e determinístico. |
+| `shape()`, `from()`, `to()`, `beam()`, `color()`… `animated()`, `validate(timeline)` | Inspeção. |
+
+### Como o motor desenha
+
+**Um passe, antes dos efeitos.** A cada quadro, o motor resolve as luzes dos efeitos desenhados (HERO primeiro, depois por peso), até o teto de **8 / 24 / 64** luzes (LOW / BALANCED / HIGH), e enfileira o passe `calamidade_awakening:lights` **antes** do passe do motor, dos passes de addon, dos feixes e da atmosfera. Assim os efeitos ficam por cima da luz e a atmosfera (exposição, tinta, névoa na tela) a cobre na distância. Os dados vão numa textura RGBA32F (4 texels por luz).
+
+**Por pixel:**
+
+1. **Céu:** nunca é iluminado (`skyAt`).
+2. **Posição:** `scenePosAt` reconstrói o ponto do mundo que o pixel mostra.
+3. **Normal pela profundidade:** a posição dos quatro vizinhos dá a inclinação da superfície; em cada eixo vale a diferença menor, a do lado da mesma superfície, então bordas de blocos e o céu ao lado não estragam a normal (`caNormalFromNeighbors`).
+4. **Luz:** atenuação por distância e cosseno com a normal (`caPointLight`, `caSegmentLight`, `caGroundLight`), somadas.
+5. **Cor:** a luz é somada sobre um albedo estimado da cena (`caLitColor`: cor^0,4 × 0,8). De noite a cor da cena é quase preta, mas a superfície não; a estimativa realça superfícies escuras sem apagar a textura.
+6. **Névoa do jogo:** a luz some junto com a névoa que o jogo usou no quadro (início, fim e forma registrados no evento `RenderFog`, depois de todos os ouvintes). Debaixo d'água, a luz some na distância da água; com a atmosfera, na névoa dela.
+
+**Orçamento.** Igual ao dos feixes: um passe por quadro, pago pelo orçamento HERO quando algum efeito HERO desenhado tem luzes, senão pelo comum; os dois passes do motor (feixes primeiro, depois luzes) são pagos antes dos passes de addon. Em LOW, um efeito com feixe e luz e uma única vaga fica com o feixe. Detalhes em [Prioridade protagonista](PRIORIDADE-0.9.md).
+
+### Acessibilidade
+
+- A luz em si não muda com a intensidade dos efeitos de tela: ela é o aspecto do mundo, como o céu e a névoa da atmosfera.
+- A **cintilação** é multiplicada pela intensidade dos efeitos de tela (0 deixa a luz firme) e cai para 1/4 com **"ocultar clarões"**.
+- Luzes de impacto (o Sinal de Maré, a onda de luz) sobem em alguns ticks por trilha ou fase, não num degrau.
+
+### Calibre
+
+| Situação | Intensidade | Alcance | Queda |
+|---|---|---|---|
+| Fogueira, tocha mágica, de noite | 2 a 3 | 8 a 12 | 1,2 a 2 |
+| Impacto curto | 2,5 a 3 | 6 a 9 | 1,5 |
+| Pilar ou feixe grande (`along`) | 2 | 10 a 16 | 1,3 a 1,5 |
+| Onda de choque (`ring`) | 2 a 3 caindo a 0 | frente da onda | largura 2 a 4 |
+
+De dia, a mesma luz quase não aparece, como uma tocha ao sol. Para uma luz que precisa aparecer de dia, aumente a intensidade só numa fase curta.
+
+### Diagnóstico
+
+O F7 ganha a linha **"Luzes: N desenhadas (máx. M) · passe HERO/comum/não"**. O CSV ganha `lights` e `lightPass`. O passe de luzes entra na contagem "passes de pós-processamento".
+
+### Custo
+
+- **Sem luzes:** nada.
+- **Com luzes:** um passe de tela cheia com 5 leituras de profundidade por pixel e um laço de até 8/24/64 luzes de poucas operações cada; pixels de céu e já cobertos pela névoa saem cedo.
+- **Rede:** nada.
+
+### Limites e cuidados
+
+- **Só o que está na tela:** a luz clareia o que a câmera vê (blocos atrás de outros blocos ou atrás da câmera não existem para o passe) e **não faz sombra**: uma luz do outro lado de um muro também clareia o chão que aparece além dele, se estiver no alcance.
+- **Frustum:** como nos feixes, o raio da definição precisa cobrir o alcance da luz (2,5 × raio em volta do centro), senão a luz some quando o centro sai da tela.
+- Geometria translúcida (água, vidro) pode receber a luz do que está atrás dela, conforme a profundidade que a RimuLib entrega.
+- Shader packs que substituem o pipeline do jogo podem não passar pelo pós-processamento da RimuLib.
+- Coberto por testes de lógica (`LightCheck`), pela biblioteca no WebGL2, pela prévia sintética e por um roteiro automatizado em jogo com renderização por software ([VALIDACAO.md](VALIDACAO.md)). GPU física: [TESTE-REAL.md](TESTE-REAL.md), parte 4.
+
+<a id="cap10"></a>
+
+## 10. Prioridade protagonista e orçamento por quadro
+
+Num servidor cheio, dezenas de efeitos disputam a mesma tela. O motor sempre limitou quanto desenha por quadro, e isso protege o FPS. Mas o limite não sabia qual efeito era o principal da cena: o golpe final de um chefe podia perder o lugar para seis faíscas mais perto da câmera. A 0.9 deixa o addon dizer **"este efeito é o protagonista"**.
+
+### Para quem não é programador: quantidade e complexidade
+
+Dois números diferentes decidem o custo dos efeitos na tela:
+
+- **Limite de efeitos desenhados ao mesmo tempo:** quantos efeitos o motor desenha num quadro. Os outros continuam existindo (estão sincronizados, tocam som, causam dano), só não são desenhados naquele quadro. O limite é 3, 6 ou 12 (qualidade LOW, BALANCED ou HIGH).
+- **Complexidade de um efeito:** quanto trabalho a placa de vídeo tem para desenhar **um** efeito. O que mais pesa são os **passes**: cada passe é uma passada de shader pela tela inteira. Malhas (vértices), feixes e luzes também contam.
+
+Pense numa cozinha de restaurante: o limite de desenhados é quantas mesas são servidas ao mesmo tempo; a complexidade é quanto trabalho dá cada prato. O orçamento de passes é o número de fogões: por mais mesas que cheguem, só cabem 1, 2 ou 4 panelas ao fogo (o orçamento comum dos addons).
+
+O teste do autor na 0.8.0, numa RTX 4060 em BALANCED, mostra os dois limites funcionando:
+
+| Carga | F7 | Resultado |
+|---|---|---|
+| 60 × receita de quadro de duas cores | 60 residentes · 6 desenhados · 2 passes de pós | FPS praticamente igual ao do mundo vazio: 60 efeitos chegaram, mas só 6 foram desenhados e só 2 passes rodaram. |
+| 6 × céu tingido | 6 atmosferas · 1 passe de atmosfera | Mediana 8,37 ms, p95 11,29 ms: seis céus misturados num único passe custam o mesmo que seis Núcleos do Horizonte da 0.6.2 (8,40 ms e 11,56 ms). |
+
+Ou seja: **mais efeitos não deixam o jogo mais lento depois do limite**; o que pesa é a complexidade dos que são desenhados. A prioridade HERO não muda esses números para os efeitos comuns; ela só garante que o protagonista esteja entre os desenhados e tenha os seus próprios fogões.
+
+### O que HERO faz
+
+```java
+Effects.register(ID, new Effects.Definition(240, 80, 0xffffb030, Effects.Shape.NONE, Effects.Material.NONE,
+    null, null).withRange(512).withPriority(Effects.Priority.HERO));
+```
+
+| Regra | NORMAL (padrão) | HERO |
+|---|---|---|
+| Seleção | Disputa as vagas por intensidade sobre distância. | Entra **antes** de todos os NORMAL, os mais próximos primeiro. |
+| Limite de desenhados (3/6/12) | Pode ser cortado. | **Nunca é cortado**: ocupa vaga, mas o limite mínimo (3) é maior que o teto de HERO. |
+| Teto | — | **No máximo 2 HERO desenhados por quadro**, os mais próximos. Um terceiro HERO, mais longe, não é desenhado naquele quadro. Assim, um servidor cheio de HERO não derruba o FPS de novo. |
+| Passes (cartão, `post.pass`, feixes, luzes) | Orçamento **comum**: 1/2/4 por quadro, dividido entre os NORMAL. | Orçamento **HERO próprio**: 1/2/3 por quadro (LOW/BALANCED/HIGH), dividido entre os HERO desenhados. |
+| Sem nenhum HERO | Exatamente como na 0.8. | — |
+
+- Os dois orçamentos são separados: os HERO nunca gastam do comum, e os NORMAL nunca gastam do HERO.
+- `post.passesLeft()` informa o orçamento da classe do efeito.
+- Use HERO com moderação: um ou dois efeitos por addon, os que definem a cena.
+
+### Ordem e pagamento dos passes num quadro
+
+| Ordem na tela | Passe | Quem paga |
+|---|---|---|
+| 1 | `lights` (0.9) | HERO se algum HERO desenhado tem luzes; senão comum, se algum NORMAL tem. |
+| 2 | `awakening_field` (volumes do motor) | Fora dos orçamentos de addon. |
+| 3 | Shaders de cartão e `post.pass`, na ordem do plano (HERO primeiro) | O orçamento da classe do efeito. |
+| 4 | `beams` (0.9) | HERO se algum HERO desenhado tem feixes; senão comum, se algum NORMAL tem. |
+| 5 | `atmosphere` (0.8) | Fora dos orçamentos. |
+
+Os passes de feixes e de luzes **são pagos primeiro** (feixes, depois luzes), antes dos cartões e de `post.pass`, porque um único passe serve todos os efeitos do quadro. Um orçamento nunca paga pelo outro; uma vez pago, o passe desenha os feixes ou as luzes das duas classes (HERO primeiro), até o teto do quadro (16/48/128 feixes, 8/24/64 luzes).
+
+Exemplos em BALANCED (2 comuns, 2 HERO):
+
+- Um HERO com feixes, luzes e um `post.pass`: feixes e luzes gastam os 2 HERO; o `post.pass` é recusado (`pass` devolve false; os ajustes de tela do callback continuam valendo). Em HIGH (3 HERO), os três cabem.
+- Um NORMAL com feixes e luzes e outro NORMAL com shader de cartão: feixes e luzes gastam os 2 comuns; o cartão fica sem vaga naquele quadro.
+- Um HERO com feixes e um NORMAL com feixes: o passe é pago pelo HERO e desenha os dois; o comum fica livre para cartões e `post.pass`.
+
+### Diagnóstico
+
+O F7 ganha a linha **"Protagonistas (HERO): N desenhadas · X/Y passes"**: quantos HERO foram desenhados e quantos passes do orçamento HERO (de Y = 1/2/3) foram usados, incluindo feixes e luzes pagos por ele. As linhas "Feixes" e "Luzes" dizem qual orçamento pagou cada passe. O CSV de `/calamidade_client record` ganha `heroes`, `heroPasses`, `beams`, `beamPass`, `lights` e `lightPass`.
+
+### Como testar
+
+1. `/calamidade bench 60` (60 Núcleos do Horizonte num arco à frente) e, logo depois, `/vfxsample receita protagonista`.
+2. F7 em BALANCED: "6 desenhados", "Protagonistas (HERO): 1 desenhadas · 2/2 passes", "Feixes: 7 … passe HERO", "Luzes: 3 … passe HERO".
+3. F8 para LOW: "1/1 passes", os feixes ficam e as luzes somem. F8 para HIGH: "2/3 passes".
+4. `/calamidade_client record 8` com e sem o protagonista, para comparar o custo (TESTE-REAL.md, parte 4).
+
+Coberto por testes puros no `checkBudget` (`PriorityCheck`: HERO nunca cortado, teto de 2, orçamento separado e seleção NORMAL idêntica à da 0.8 quando não há HERO; `BeamCheck`: pagamento dos passes compartilhados).
+
+<a id="cap11"></a>
+
+## 11. Arquitetura do motor
 
 ```mermaid
 flowchart TD
@@ -767,6 +1133,8 @@ O servidor mantém até 64 sequências ativas. Envia ao conjurador e observadore
 Desde a 0.7.0, um efeito de addon pode ter uma Timeline (TIMELINE-0.7.md). Servidor e cliente convertem a idade real em idade local com a mesma função pura (`Timeline.localAge`); cues, progresso, opacidade, acento de impacto e camadas de addon usam a idade local. Com sustain, a instância repete o trecho em loop e não expira pela duração. `Handle.release()` grava no servidor a idade de liberação, que vai aos clientes no pacote `release` (ReleaseEffect), também logo depois do StageEvent para quem entra mais tarde. A instância expira quando a saída termina. Os canais são event, end_effect, release e request_v2; cliente e servidor precisam estar na mesma versão.
 
 Desde a 0.8.0, um efeito de addon pode ter uma Atmosphere (ATMOSFERA-0.8.md), registrada nos dois lados como a Timeline e sem tráfego de rede. A cada quadro, `StageScene.atmospheres` resolve a atmosfera de toda instância ativa (sem frustum nem orçamento) na idade local, com peso pelo envelope e um fade no fim do alcance; `AtmosphereFrame` mistura as duas de maior peso, aplica a acessibilidade, alimenta os eventos de névoa do NeoForge (`ComputeFogColor` e `RenderFog`) e enfileira o passe `atmosphere` depois dos passes de efeito, fora do orçamento de addons. O shader do passe usa a biblioteca `calamidade_fx.glsl`, incluída pela RimuLib.
+
+Desde a 0.9.0, a seleção (`FrameBudget.select`) põe as instâncias HERO na frente (no máximo 2, as mais próximas) e preenche o resto pelas NORMAL como antes; o orçamento de passes (`PassBudget`) tem dois montantes, comum e HERO. Efeitos de addon podem ter feixes (`Beam`) e luzes (`Light`), registrados nos dois lados e sem rede. A cada quadro, `BeamFrame` e `LightFrame` percorrem os efeitos desenhados em ordem de prioridade, resolvem os `Point` em `StageScene.point` (centro, mundo, âncora, conjurador, olhos ou mira, com um raio de mira por entidade e alcance), amostram as trilhas, aplicam o teto do quadro (`EnginePasses.cap`) e enviam os dados numa textura RGBA32F (`DataTexture`, ligada por `Uniforms.glTexture`). `RimuStageBackend` paga os dois passes (`EnginePasses.pay`: HERO se um HERO os usa, senão comum) antes dos passes de addon e os enfileira nesta ordem: `lights`, `awakening_field`, cartões e `post.pass`, `beams`, `atmosphere`. O passe de luzes recebe a névoa de terreno que o jogo usou no quadro (`ViewportEvent.RenderFog`, registrada depois de todos os ouvintes).
 
 ### Cliente e orçamento
 
@@ -822,9 +1190,9 @@ O Atlas interpola coordenadas locais na abertura e usa a mesma função de posi�
 
 PerfOverlay (tecla F7) mostra o renderizador OpenGL, FPS, mediana e percentil 95 dos últimos 240 quadros, perfil de qualidade, sequências residentes, efeitos e volumes desenhados, vértices emitidos e passes de pós-processamento. Os renderizadores escrevem os contadores durante o quadro e o painel publica os valores no início do quadro seguinte, então ele sempre mostra o último quadro completo. `/calamidade_client record <segundos>` grava os mesmos dados por quadro em `calamidade_bench/frames-*.csv` na pasta do jogo. No servidor, `/calamidade bench <n> [efeito]` cria uma carga reproduzível e `/calamidade status` informa as instâncias ativas. O roteiro de uso está em [TESTE-REAL.md](TESTE-REAL.md).
 
-<a id="cap9"></a>
+<a id="cap12"></a>
 
-## 9. Criar habilidades dentro do motor
+## 12. Criar habilidades dentro do motor
 
 Para publicar uma habilidade em um JAR separado, use o [tutorial de criação de addons 0.4](ADDONS-0.4.md).
 
@@ -903,9 +1271,9 @@ Para consumidores da 0.3.x, comece pelo [guia da API pública](API-0.3.md) e pel
 
 Ao documentar uma nova camada, inclua o registro completo, o evento que a inicia, as unidades e os limites dos parâmetros, o comportamento para observadores e um comando para reproduzir o resultado. Para eventos luminosos, descreva também o resultado com a redução de clarões ligada. Faça o exemplo compilar contra o JAR que será distribuído.
 
-<a id="cap10"></a>
+<a id="cap13"></a>
 
-## 10. Testes em GPU real e multiplayer
+## 13. Testes em GPU real e multiplayer
 
 Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por software) com servidor integrado. Este roteiro cobre o que faltava: desempenho em placa de vídeo física e sincronização entre dois clientes. Ele usa as ferramentas da 0.5.0 e leva cerca de 40 minutos.
 
@@ -913,7 +1281,7 @@ Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por
 
 | Ferramenta | Onde | Uso |
 |---|---|---|
-| F7 | Cliente | Painel com GPU, FPS, mediana e p95 do tempo de quadro, perfil, eventos residentes e desenhados, volumes, vértices e passes. |
+| F7 | Cliente | Painel com GPU, FPS, mediana e p95 do tempo de quadro, perfil, eventos residentes e desenhados, volumes, vértices e passes; desde a 0.9, protagonistas (HERO) e passes que usaram, feixes e luzes desenhados e qual orçamento pagou cada passe. |
 | `/calamidade_client record <s>` | Cliente | Grava cada quadro em `calamidade_bench/frames-AAAAMMDD-HHMMSS.csv` e mostra mediana e p95 no chat. Até 300 s. |
 | `/calamidade bench <n> [efeito]` | Servidor (permissão 2) | Cria n instâncias (1 a 64) num arco 14 blocos à frente do jogador, sem câmera. Padrão: `calamidade_awakening:nexus`. |
 | `/calamidade bench stop` | Servidor | Encerra as instâncias do benchmark. |
@@ -939,7 +1307,7 @@ São 15 rodadas. Repita a carga 6 com `calamidade_awakening:prism` e com `vfxsam
 
 ### Parte 2 — dois clientes em servidor dedicado
 
-**Preparação.** Servidor dedicado NeoForge 21.1.267 com RimuLib, Calamidade 0.8.0 e o vfx-sample 1.5.0, os mesmos JARs nos dois clientes (o protocolo é o da 0.7.0, que acrescentou o canal `release`; use a mesma versão nos dois lados). Para testar sozinho no mesmo PC, use `./gradlew runServer` (ou o instalador de servidor do NeoForge), defina `online-mode=false` em `server.properties` **apenas para este teste local** e abra dois clientes com nomes diferentes: por exemplo, `./gradlew runClient` e uma instância do seu launcher com os mesmos mods. Dê permissão aos dois com `/op`. Chame os jogadores de A (conjura) e B (observa).
+**Preparação.** Servidor dedicado NeoForge 21.1.267 com RimuLib, Calamidade 0.9.0 e o vfx-sample 1.6.0, os mesmos JARs nos dois clientes (o protocolo é o da 0.7.0, que acrescentou o canal `release`; use a mesma versão nos dois lados). Para testar sozinho no mesmo PC, use `./gradlew runServer` (ou o instalador de servidor do NeoForge), defina `online-mode=false` em `server.properties` **apenas para este teste local** e abra dois clientes com nomes diferentes: por exemplo, `./gradlew runClient` e uma instância do seu launcher com os mesmos mods. Dê permissão aos dois com `/op`. Chame os jogadores de A (conjura) e B (observa).
 
 | # | Ação | Resultado esperado |
 |---|---|---|
@@ -991,15 +1359,101 @@ Mesma preparação da parte 2 (pode ser um cliente só nos casos sem B). Mundo n
 
 Registre para cada caso o que viu e, nos casos 22, 24 e 25, uma captura de tela.
 
+### Parte 4 — feixes, luzes e protagonista (0.9.0)
+
+Mesma preparação. O que só uma GPU de verdade mostra vem primeiro: a **aparência** dos feixes e da luz (cor, brilho, bordas, cintilação) e o **custo sob carga**. Deixe o F7 aberto: linhas "Protagonistas (HERO)", "Feixes" e "Luzes". Capítulos: [FEIXES-0.9.md](FEIXES-0.9.md), [LUZ-0.9.md](LUZ-0.9.md), [PRIORIDADE-0.9.md](PRIORIDADE-0.9.md).
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 37 | De noite (`/time set midnight`), A roda `/vfxsample receita pilar`. | O feixe desce do céu em menos de 1 s, núcleo branco e halo âmbar, três pulsos descendo. Ao tocar o chão, o terreno em volta acende em âmbar (até ~12 blocos do feixe) e aparece um disco de luz. F7: "Feixes: 1 … passe comum", "Luzes: 2 … passe comum". Captura. |
+| 38 | O mesmo de dia. | O feixe aparece (mais claro sobre o céu); a luz no chão é discreta, como uma tocha de dia. |
+| 39 | A se posiciona com um morro ou parede entre ele e o pilar. | A parte do feixe atrás do terreno some; a borda do terreno recorta o feixe sem halo "vazando" por cima. O chão escondido não é iluminado. |
+| 40 | A roda `/vfxsample receita laser` e vira a câmera devagar e depressa, mirando parede, chão e céu; B observa de lado. | O laser sai abaixo da mira e acompanha a câmera sem atraso visível; o ponto de impacto brilha e cintila. B vê o mesmo laser seguindo a cabeça de A. Em primeira pessoa, o trecho junto aos olhos não cobre a tela. |
+| 41 | `/vfxsample receita teia`, de perto e de longe (60 blocos). | Oito fios saem do centro e chegam às pontas; pulsos ciano correm para fora; ondulação leve presa nas pontas. De longe, os fios ficam com um pixel, sem serrilhar nem piscar. Nenhum anel em volta de fios que apontam para a câmera. |
+| 42 | De noite, `/vfxsample receita fogueira`, depois `release`. | Chão e blocos até ~10 blocos em laranja, cintilando; faces de costas para a luz escuras; o céu nunca iluminado. Mobs continuam nascendo em volta (luz visual). `release` apaga em 2 s. |
+| 43 | `/vfxsample receita onda_luz`. | O anel de luz no chão acompanha a frente da onda dourada até ~22 blocos; paredes no caminho acendem quando a onda passa. |
+| 44 | A mergulha na água e roda `fogueira` e `pilar` com o centro debaixo d'água e depois na margem. | Debaixo d'água a luz some na distância da névoa da água (não atravessa a água turva); o feixe continua visível de perto. Nada fica "aceso" além da névoa. |
+| 45 | `/calamidade bench 60` e, logo depois, `/vfxsample receita protagonista`, em BALANCED. | F7: 6 desenhados, "Protagonistas (HERO): 1 desenhadas · 2/2 passes", "Feixes: 7 … passe HERO", "Luzes: 3 … passe HERO". O protagonista aparece inteiro (lança, raios, disco, anel, céu vermelho). `/calamidade_client record 8` com e sem o protagonista: anote mediana e p95. |
+| 46 | Repita o 45 em LOW e em HIGH (F8). | LOW: "1/1 passes", feixes sim, luzes não. HIGH: "2/3 passes", tudo. |
+| 47 | Dois jogadores rodam `protagonista` em lugares diferentes e um terceiro HERO mais longe. | Os dois mais próximos da câmera são desenhados; o terceiro não (F7: "2 desenhadas"). |
+| 48 | Em Configurar, intensidade dos efeitos de tela 0; A roda `pilar`, `teia` e `fogueira`. | Feixes só com o núcleo (sem halo nem pulsos); a luz no chão continua, firme (sem cintilação). |
+| 49 | "Ocultar clarões" ligado; A roda `fogueira` e conjura o Sinal de Maré. | A cintilação da fogueira cai para quase nada; a luz verde-água do Sinal sobe em alguns ticks, sem piscar. |
+| 50 | Em HIGH, `/calamidade bench 12 vfxsample:receita_teia` (96 feixes) e `/calamidade bench 12 vfxsample:receita_fogueira` (12 luzes); depois `bench 64 vfxsample:receita_teia`. | F7: até 96 feixes e 12 luzes; com 64 teias, "Feixes: 96 desenhados (máx. 128)" (12 desenhados × 8). Anote mediana e p95: é o pior caso realista do passe de feixes. |
+| 51 | Com Sodium/Embeddium e Iris/Oculus (se o público usa). | Anote se feixes e luzes aparecem; shader packs que trocam o pipeline podem não passar pelo pós-processamento. |
+
+Registre para cada caso o que viu e, nos casos 37, 40, 42, 45 e 50, uma captura e (45 e 50) os tempos de quadro.
+
 ### Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
 
-<a id="cap11"></a>
+<a id="cap14"></a>
 
-## 11. Validação, medições e limites
+## 14. Validação, medições e limites
 
-### Versão 0.8.0 — Atmosphere API e kit para IAs (estado atual)
+### Versão 0.9.0 — Beam API, Light API e prioridade protagonista (estado atual)
+
+**Compilada e coberta pelos testes de build; executada em jogo por um roteiro automatizado em renderização por software (Mesa llvmpipe), num cliente. GPU física, multiplayer e os casos manuais de TESTE-REAL.md (37 a 51) continuam pendentes.**
+
+#### Build
+
+Minecraft Java 1.21.1, NeoForge 21.1.267, RimuLib 1.3.0 (`rimulib-1.3.0-neoforge.jar`, baixada do CurseForge pela task `rimulib`, SHA-256 `15ccd4958a0412cbcf618a10962b0b6a7e1683fd66b94d07e10bc7cabeedb774`), OpenJDK 21.0.13, Gradle 9.2.1, glslangValidator 15.1.0.
+
+- `./gradlew clean build`: passou, com `checkBudget` (`FrameBudgetCheck PASS`, incluindo `TimelineCheck`, `AtmosphereCheck` e os novos `PriorityCheck`, `BeamCheck` e `LightCheck`), `checkFrustum`, `checkShaders` (11 shaders compilados), `checkApiDocs`, `checkRecipes` e `checkModVersion`. Cada etapa da 0.9.0 foi compilada e testada antes do seu commit.
+- `./gradlew dist`: passou e gerou `dist/calamidade_awakening-0.9.0.jar`.
+- `./gradlew -p examples/vfx-sample build`: passou, sem avisos, e gerou `vfx-sample-1.6.0.jar`.
+
+SHA-256: veja "Entrega" abaixo.
+
+#### Escolhas desta versão
+
+- **Dados dos passes por textura, não por uniforms.** 128 feixes × 6 vec4 passariam do mínimo de uniforms de fragmento que o OpenGL 3.2 garante (1024 componentes). Os feixes (6 texels cada) e as luzes (4 texels) vão numa textura RGBA32F por passe, lida com `texelFetch`. `Uniforms.glTexture(nome, id)` (conferido com `javap -c` em `PostFxRenderer$Binder`) liga a textura numa unidade própria, com `glBindSampler(unidade, 0)`, até 16 unidades; o upload (`DataTexture`) restaura a textura ligada, o buffer de pixel-unpack e os parâmetros de unpack que mexe, para o cache de estado do Minecraft continuar válido.
+- **Ordem dos passes:** `lights`, `awakening_field`, cartões e `post.pass`, `beams`, `atmosphere`. As luzes vêm antes para os efeitos ficarem por cima delas e a atmosfera as cobrir na distância.
+- **Pagamento:** feixes e luzes são pagos antes dos passes de addon, feixes primeiro; HERO paga quando um HERO desenhado os usa, senão o comum; um orçamento nunca paga pelo outro.
+- **Seleção HERO:** os HERO ocupam vagas do limite de desenhados (o total continua 3/6/12) e são no máximo 2; como o menor limite é 3, um HERO nunca é cortado.
+- **Névoa no passe de luzes:** `ViewportEvent.RenderFog` (`getNearPlaneDistance`, `getFarPlaneDistance`, `getFogShape`, conferidos com javap) registrado depois do ajuste da atmosfera, só no modo `FOG_TERRAIN`; o shader usa a mesma curva do `fog.glsl` do jogo (smoothstep, forma esférica ou cilíndrica).
+- **Mira (`*_AIM`):** `Level.clip(new ClipContext(olho, olho + olhar × alcance, Block.OUTLINE, Fluid.NONE, entidade))` (conferido com javap), com cache por entidade e alcance no quadro.
+- **Albedo estimado da luz:** `cor^0,4 × 0,8`. A prévia mostrou que `sqrt(cor) × 0,7` e um cosseno sem envolvimento deixavam uma fogueira quase invisível de noite.
+
+#### Testes novos
+
+- **`PriorityCheck`** (Java puro): HERO nunca cortado (em LOW, BALANCED e HIGH, contra 40 NORMAL mais fortes e mais próximos), teto de 2 HERO (os mais próximos; empate pela ordem; 60 HERO desenham 2), filtros de alcance e intensidade, seleção NORMAL idêntica à da 0.8 em 500 conjuntos aleatórios sem HERO, orçamentos separados (gastar o HERO não toca o comum), `charge` limitado, `Definition` com prioridade (construtor da 0.8, `withRange` mantém a prioridade).
+- **`BeamCheck`**: `Point` (fábricas, validação, igualdade), builder (padrões, faixas, nomes, trilha e fase duplas, pontas iguais), `validate`, amostragem (peso = envelope × fase × trilha; revelação limitada a 1 com OVERSHOOT; contagem de pulsos arredondada; deslocamento de ponta limitado a 256; NaN), registro (efeito desconhecido ou interno, 0 e 17 feixes, duplicado, antes da timeline, cues depois, lista imutável) e os passes compartilhados (teto por prioridade; HERO paga primeiro; nenhum orçamento paga pelo outro).
+- **`LightCheck`**: formas e padrões, faixas, `along` (pontas e cor do feixe; cor explícita vence), validação, amostragem com trilhas e fase, cintilação (sempre entre `1 − quantidade` e 1, suave, determinística, diferente por seed, escalada pela intensidade e por "ocultar clarões"), registro (8 e 9 luzes, duplicado, feixe não registrado ou igual mas diferente, luz animada antes da timeline) e tetos 8/24/64.
+- **GLSL:** `node scripts/testar_glsl.cjs` executou 106 casos (51 novos) de `calamidade_fx.glsl` versão 2 em WebGL2 (ANGLE/SwiftShader): 106/106. O `checkShaders` compila os 11 shaders do motor e do exemplo em GLSL 1.50 com o `common.glsl` real.
+- **Prévia dos passes:** `node scripts/previa_passes.cjs` rodou `beams.fsh` e `lights.fsh` reais (com o `common.glsl` da RimuLib) sobre uma cena sintética. Achou três defeitos antes do jogo: anéis falsos na ondulação de feixes vistos de frente (o eixo lateral e a posição ao longo do feixe ficam mal definidos; a ondulação agora diminui entre ~30 e ~12 graus), halo forte demais (agora 55% da cor no eixo) e luz noturna fraca (albedo e cosseno ajustados).
+- **Receitas, fora do jogo:** o registro real das 13 receitas e da luz do Sinal de Maré rodou com o classpath do jogo; todos os feixes, luzes e atmosferas foram amostrados em cada tick; o raio do anel de `onda_luz` é igual a 0,45 × (idade − 12), a frente da onda do shader.
+
+#### Compatibilidade
+
+- O exemplo 1.5.0 da 0.8.0, sem mudança no código, compila contra o JAR 0.9.0.
+- O mesmo exemplo compilado contra o JAR 0.8.0 (reconstruído da tag `v0.8.0`, com o mesmo SHA-256 do release, `786ac7f9…`): as 128 referências a classes, métodos e campos do motor, em 30 classes, existem no JAR 0.9.0 com a mesma assinatura (javap -v e javap -s). Contraprova: o exemplo 1.6.0 contra o JAR 0.8.0 acusa as 11 referências novas (Beam, Light, Point, `withPriority`, `Effects.beams` e `Effects.lights`).
+- `Effects.Definition` ganhou o componente `priority`; o construtor canônico da 0.8 (9 parâmetros) continua existindo e dá `NORMAL`.
+- Protocolo de rede igual ao da 0.7.0 e da 0.8.0 (event, end_effect, request_v2, release).
+- Um addon cujo manifesto declara `[0.8.0,0.9.0)` não carrega com a 0.9.0 até ampliar o intervalo.
+
+#### Integração conferida no JAR (javap)
+
+RimuLib 1.3.0: `Uniforms.glTexture(String, int)` e o `Binder` de `PostFxRenderer` (unidade própria, `glBindSampler(unidade, 0)`, até 16 unidades), `FxApi$Stage.render` (camadas desenhadas e passes executados no mesmo quadro).
+
+NeoForge 21.1.267: `ViewportEvent.RenderFog.getFogShape()`, `com.mojang.blaze3d.shaders.FogShape` (`SPHERE`, `CYLINDER`).
+
+Minecraft 1.21.1: `ClipContext(Vec3, Vec3, ClipContext.Block, ClipContext.Fluid, Entity)`, `BlockGetter.clip`, `HitResult.getType`/`getLocation`, `HitResult.Type.MISS`, `Entity.getEyePosition(float)`, `getPosition(float)`, `getViewVector(float)`, `getId()`, `EntityGetter.getPlayerByUUID`, e os `SoundEvents` das receitas (todos `SoundEvent`; `TRIDENT_THUNDER` e `GENERIC_EXPLODE` são `Holder` e não foram usados).
+
+LWJGL 3.3.3: `GL30.GL_RGBA32F`, `GL21.GL_PIXEL_UNPACK_BUFFER(_BINDING)`, `GL11.glTexSubImage2D(…, FloatBuffer)`, `GL12.GL_TEXTURE_MAX_LEVEL`.
+
+#### Em jogo (roteiro automatizado, Mesa llvmpipe)
+
+_Preenchido na Etapa 6._
+
+#### Pendente
+
+- Testes manuais de TESTE-REAL.md, casos 37 a 51, em GPU física: aparência dos feixes e da luz de dia, de noite e debaixo d'água, e custo dos passes sob carga (casos 45 e 50).
+- Teste com dois jogadores num servidor dedicado (0.8.0 e 0.9.0).
+
+---
+
+### Versão 0.8.0 — Atmosphere API e kit para IAs
 
 **Compilada e coberta pelos testes de build; executada em jogo por um roteiro automatizado em renderização por software (Mesa llvmpipe), num cliente. GPU física, multiplayer e os casos manuais de TESTE-REAL.md (13 a 36) continuam pendentes.**
 
@@ -1050,6 +1504,21 @@ Cliente de desenvolvimento do NeoForge 21.1.267 sob Xvfb 1280 × 720, Mesa llvmp
 Nenhum erro de compilação ou ligação de shader no log, nenhuma camada desativada por falha. O roteiro rodou duas vezes; a segunda, com os JARs finais (hashes acima), repetiu os resultados. A 2 a 9 FPS, a leitura do F7, feita um tick depois da captura, às vezes cai fora de janelas curtas (na segunda rodada, 1 atmosfera e 2 passes no impacto do Sinal, e 0 passes no quadro de duas cores), sem diferença no que as capturas mostram. Na resolução cheia, as estrelas aparecem como pontos pequenos e cintilantes.
 
 Capturas da segunda rodada: [céu tingido](gameplay/atmosfera-ceu-080.jpg) · [céu tingido + Sinal de Maré no impacto](gameplay/atmosfera-mistura-080.jpg) · [receitas anel, cubo, bolha, impacto, feixe e ambiente](gameplay/receitas-080.jpg).
+
+#### Em jogo, GPU física (teste do autor, registrado em 21/11/2026)
+
+NVIDIA GeForce RTX 4060, qualidade BALANCED, com outros programas abertos no computador. Motor 0.8.0 e vfx-sample 1.5.0.
+
+| Carga | Resultado |
+|---|---|
+| 60 × `vfxsample:receita_quadro` | F7: 60 residentes, 6 desenhados (o teto do BALANCED), 2 passes de pós (o orçamento de addons do BALANCED). FPS praticamente inalterado. |
+| 6 × `vfxsample:receita_ceu` (`/calamidade bench 6 vfxsample:receita_ceu`) | Tempo de quadro: mediana 8,37 ms, p95 11,29 ms, em 933 quadros. |
+| Referência: 6 × `nexus` na 0.6.2 | Mediana 8,40 ms, p95 11,56 ms. |
+
+Leitura: o orçamento corta como projetado (60 residentes viram 6 desenhados e 2 passes), e seis atmosferas simultâneas (que somam um único passe de motor) custam o mesmo que seis Nexus da 0.6.2, dentro da variação de uma máquina com outros programas abertos.
+
+- Teste visual detalhado (céu tingido, névoa, estrelas, Sinal de Maré e Farol com atmosfera, receitas): feito pelo autor, **sem problemas** encontrados. Nada foi corrigido antes da 0.9.0 por causa dele.
+- Teste com dois jogadores num servidor dedicado: pendente.
 
 **O que quebrou e foi corrigido por causa do teste em jogo:**
 
@@ -1294,9 +1763,9 @@ As outras quatro habilidades foram acionadas pelas teclas padrão U, I, V e Y. F
 
 O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servidor integrado. Continuam pendentes multiplayer com dois clientes e medições de desempenho em GPU física.
 
-<a id="cap12"></a>
+<a id="cap15"></a>
 
-## 12. Histórico e evolução prevista
+## 15. Histórico e evolução prevista
 
 ### Versões publicadas
 
@@ -1374,6 +1843,15 @@ O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servid
 - Verificações de build: `checkShaders`, `checkApiDocs`, `checkRecipes`. RimuLib baixada do CurseForge com SHA-256, fora do repositório e dos releases.
 - vfx-sample 1.5.0: receitas, céu dourado no impacto do Sinal de Maré e névoa no Farol.
 
+#### 0.9.0 — Beam API, Light API e prioridade protagonista
+
+- `Effects.Priority.HERO` (`withPriority`): o efeito principal da cena entra antes dos NORMAL, nunca é cortado pelo limite de desenhados (no máximo 2 HERO por quadro, os mais próximos) e tem orçamento de passes próprio (1/2/3). Consulte PRIORIDADE-0.9.md.
+- `Beam` e `Point`: feixes entre pontos (centro, mundo, âncora, conjurador, olhos, mira) com núcleo e halo, pulsos, ondulação, ruído e revelação, por trilhas da Timeline; um passe `beams` para todos os feixes do quadro (16/48/128), com largura mínima por pixel e oclusão. Consulte FEIXES-0.9.md.
+- `Light`: luz visual pontual, de segmento (ou seguindo um feixe), de disco ou de anel no chão, com cintilação; um passe `lights` antes dos efeitos e da atmosfera (8/24/64), com normal pela profundidade e a névoa do jogo. Não muda o nível de luz do jogo. Consulte LUZ-0.9.md.
+- `calamidade_fx.glsl` versão 2 (11 funções novas, 106 casos no WebGL2) e `scripts/previa_passes.cjs` (prévia dos passes sem o jogo).
+- F7 e CSV com HERO, feixes e luzes.
+- vfx-sample 1.6.0: receitas pilar, laser, teia, fogueira, onda de luz e protagonista; luz breve no impacto do Sinal de Maré.
+
 ### Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -1381,20 +1859,21 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 - Tempo de quadro com 1, 3, 6 e 12 eventos em GPU física, em 1080p e 1440p, nos três perfis de qualidade.
 - Sincronização entre dois clientes em servidor dedicado: observador, entrada tardia, saída e retorno ao alcance, troca de dimensão.
 - Pipeline em Fast, Fancy, Fabulous e com mods de renderização (Sodium/Embeddium, Iris/Oculus).
+- Aparência dos feixes e da luz numa GPU física (de dia, de noite, debaixo d'água) e custo dos passes `beams` e `lights` com o teto de HIGH (128 feixes, 64 luzes).
 
 ### Próximas versões
 
-#### 0.9 — Beam API e Light API sobre superfícies
+#### 0.10 — Trail API e títulos e HUD cinematográficos
 
 Próxima versão planejada.
 
-- **Beam API:** feixes e raios como objetos do motor (pontos, largura, núcleo e halo, ramificações), desenhados em lote num passe, com oclusão pelo terreno e largura mínima por pixel, em vez de cada addon reescrever `caSegmentGlow`.
-- **Light API sobre superfícies:** luz colorida de efeitos projetada no terreno e nas entidades próximas (pela profundidade e normais reconstruídas), com orçamento de luzes por quadro e mistura com a atmosfera.
+- **Trail API (rastros e marcas):** rastros de entidades, projéteis e pontas de feixe (fitas com histórico de posições, largura e cor por idade), e marcas que ficam no chão por um tempo (queimaduras, runas, crateras de luz), com orçamento de vértices e de marcas por quadro.
+- **Títulos e HUD cinematográficos:** cartões de título e legendas de habilidade sincronizados à Timeline (nome do golpe, fase do chefe), barras de cinema e enquadramento, com acessibilidade de tamanho, contraste e duração.
 
-#### Depois da 0.9
+#### Depois da 0.10
 
-- **Trail API:** rastros de entidades e projéteis (fitas com histórico de posições), com orçamento de vértices.
-- **Títulos:** cartões de título e legendas de habilidade sincronizados à Timeline (nome do golpe, fase do chefe), com acessibilidade de tamanho e duração.
+- Ramificações de feixes (raios que se dividem) e feixes curvos.
+- Sombras simples para a Light (oclusão por profundidade na direção da fonte).
 
 #### Evolução da API, sem versão definida
 

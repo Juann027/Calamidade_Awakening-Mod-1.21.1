@@ -2,7 +2,7 @@
 // no JAR compilado, pelo ToolProvider do próprio JDK) com uma linha de descrição por membro, tirada do Javadoc dos
 // fontes. Programa Java de arquivo único (Java 21), sem dependências:
 //
-//   java scripts/ApiReferencia.java --jar build/libs/calamidade_awakening-0.8.0.jar --src src/main/java \
+//   java scripts/ApiReferencia.java --jar build/libs/calamidade_awakening-0.9.0.jar --src src/main/java \
 //        --out docs/ai/API-REFERENCIA.md [--check]
 //
 // No Gradle: ./gradlew apiDocs (regenera) e checkApiDocs (parte do build; falha se o arquivo estiver desatualizado).
