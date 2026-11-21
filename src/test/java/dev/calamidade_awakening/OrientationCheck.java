@@ -141,6 +141,12 @@ final class OrientationCheck {
         Placement below = Placement.at(new Vec3(0, 10, 0)).facing(new Vec3(0, 0, 10));
         require(Math.abs(below.pitch() - 45) < 1e-3 && Math.abs(below.yaw()) < 1e-4, "facing down at 45 degrees");
         require(Placement.at(Vec3.ZERO, 30, 5).facing(Vec3.ZERO).yaw() == 30, "facing the start keeps the orientation");
+        Placement hit = Placement.at(new Vec3(0, 1, 10)).arrivingFrom(new Vec3(0, 1, 0));
+        require(Math.abs(hit.yaw()) < 1e-4 && hit.pitch() == 0, "a hit from the north travels south (yaw 0)");
+        Placement fromEast = Placement.at(Vec3.ZERO).arrivingFrom(new Vec3(4, 4, 0));
+        require(Math.abs(fromEast.yaw() - 90) < 1e-4 && Math.abs(fromEast.pitch() - 45) < 1e-3,
+            "a hit from the east and above travels west and down");
+        require(Placement.at(Vec3.ZERO, 10, 0).arrivingFrom(Vec3.ZERO).yaw() == 10, "arriving from the position keeps the orientation");
         expectRejected(() -> Placement.on(null), "null anchor");
     }
 

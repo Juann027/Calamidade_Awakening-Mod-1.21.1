@@ -10,8 +10,8 @@ import java.util.Objects;
 /**
  * Where and how an instance starts (0.10.0): a fixed position or an anchor entity, an orientation (yaw and pitch),
  * the player who cast it, its {@link EffectSource source}, an optional cooldown per source and an optional block entity
- * that bounds its life. Immutable: every {@code with...}, {@link #facing}, {@link #shifted} and
- * {@link #followingBody} call returns a copy. Start it with
+ * that bounds its life. Immutable: every {@code with...}, {@link #facing}, {@link #arrivingFrom}, {@link #shifted},
+ * {@link #followingBody} and {@link #boundTo} call returns a copy. Start it with
  * {@link Effects#start(net.minecraft.resources.ResourceLocation, net.minecraft.server.level.ServerLevel, Placement)}
  * on the server thread.
  *
@@ -28,8 +28,8 @@ import java.util.Objects;
  * Effects.start(ID, level, Placement.at(player.position(), player.getYRot(), 0).withCaster(player));
  * // A mob attack that keeps facing where the mob's body faces:
  * Effects.start(ID, level, Placement.on(mob).shifted(0, 1.2, .6).followingBody());
- * // A strike from attacker to victim:
- * Effects.start(ID, level, Placement.at(victim.position()).facing(attacker.getEyePosition()));
+ * // A strike from attacker to victim, forward along the hit:
+ * Effects.start(ID, level, Placement.at(victim.getBoundingBox().getCenter()).arrivingFrom(attacker.getEyePosition()));
  * }</pre>
  *
  * Invalid input (non-finite numbers, offsets beyond {@value Point#MAX_OFFSET} blocks, {@link #followingBody} without
@@ -106,6 +106,23 @@ public final class Placement {
         finite(target, "target");
         Vec3 from = anchor == null ? position : anchor.getEyePosition();
         Vec3 d = target.subtract(from);
+        if (d.lengthSqr() < 1e-12) return this;
+        return withOrientation(Basis.yawTowards(d.x, d.z), Basis.pitchTowards(d.x, d.y, d.z));
+    }
+
+    /**
+     * Copy oriented along the path of something that arrives here from {@code origin} (blocks): forward points from
+     * {@code origin} to the position (or to the anchor's eyes for anchored placements). The direction of a hit, from
+     * the attacker to the victim. Keeps the current orientation when {@code origin} is the position itself.
+     *
+     * <pre>{@code
+     * Placement.at(victim.getBoundingBox().getCenter()).arrivingFrom(attacker.getEyePosition())
+     * }</pre>
+     */
+    public Placement arrivingFrom(Vec3 origin) {
+        finite(origin, "origin");
+        Vec3 to = anchor == null ? position : anchor.getEyePosition();
+        Vec3 d = to.subtract(origin);
         if (d.lengthSqr() < 1e-12) return this;
         return withOrientation(Basis.yawTowards(d.x, d.z), Basis.pitchTowards(d.x, d.y, d.z));
     }

@@ -843,6 +843,7 @@ Where and how an instance starts (0.10.0): a fixed position or an anchor entity,
 | `Placement withYaw(float yaw)` | Copy with this yaw (degrees), keeping the pitch. |
 | `Placement withLookOf(Entity entity)` | Copy with the yaw and pitch an entity is looking with (`getYRot()`, `getXRot()`). |
 | `Placement facing(Vec3 target)` | Copy oriented to look at `target` (blocks): from the position, or from the anchor's eyes for anchored placements. |
+| `Placement arrivingFrom(Vec3 origin)` | Copy oriented along the path of something that arrives here from `origin` (blocks): forward points from `origin` to the position (or to the anchor's eyes for anchored placements). |
 | `Placement shifted(double right, double up, double forward)` | Copy moved by `right`, `up` and `forward` blocks in the placement's frame. |
 | `Placement followingBody()` | Copy whose yaw follows the anchor's body every tick and every frame (0.10.0): the body yaw of a living entity (`yBodyRot`, interpolated on clients), or the entity's yaw for other entities, plus this placement's yaw as an offset. |
 | `Placement withCaster(ServerPlayer caster)` | Copy cast by this player: their client plays the effect's camera (card shots or `AddonLayers.film`), cues receive them as `caster` and caster points resolve to them. |
