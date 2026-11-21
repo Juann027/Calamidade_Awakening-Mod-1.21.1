@@ -93,6 +93,15 @@
 - Consumo como biblioteca sem Maven: modelo de `build.gradle` (release do GitHub com SHA-256) e `examples/consumidor`, conferidos pelo build; conferida com o NeoForge 21.1.265.
 - vfx-sample 1.7.0: leque orientado, cajado, pilares de redstone e periódico, zumbi com feixe.
 
+### 0.11.0 — Terrain API
+
+- Formas de escavação (`TerrainShape`: esfera, cratera com perfil, trincheira, cilindro, união e subtração) com borda irregular por ruído determinístico da seed da instância, viradas pela `Placement`. Consulte TERRENO-0.11.md.
+- Paleta de queimado por faixas (`TerrainPalette`: fundo, parede, borda) numa casca que veda fluidos e queima plantas; preenchimento real no centro (`Fill`) e estruturas `.nbt` giradas em 90°.
+- Plano puro numa thread de trabalho (sem ler o mundo) e commit no marcador da Timeline, escrevendo direto nas seções dos chunks com orçamento de blocos por tick, sem drops, vizinhos nem física; reenvio por seção no fim de cada lote. Decisão do Passo 0: a `CarveApi` da RimuLib não é usada (cortes só de coluna, orçamento de tempo compartilhado, sem desfazer).
+- Segurança na config do servidor (liga e desliga, volume, blocos por tick, dimensões, mobGriefing, BlockEntity só com opção explícita, tag `terrain_protected`), `TerrainEditEvent` cancelável e `/calamidade terrain undo|list` com snapshot compacto.
+- Cliente: passe `terrain` com o calor (brasa, fissuras, fumaça, tremor de calor, faixa incandescente nas trincheiras) calculado da mesma forma analítica e seed, luzes que esfriam, dublês esféricos e malhas de estrutura em cache; canal novo `terrain_v1`.
+- vfx-sample 1.8.0: raio que abre trincheira, meteoro que vira blocos reais, cratera simples e torre que cai e fica.
+
 ## Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -105,17 +114,21 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 ## Próximas versões
 
-### 0.11 — Trail API e títulos e HUD cinematográficos
+### 0.12 — Bosses
 
 Próxima versão planejada.
 
-- **Trail API (rastros e marcas):** rastros de entidades, projéteis e pontas de feixe (fitas com histórico de posições, largura e cor por idade), e marcas que ficam no chão por um tempo (queimaduras, runas, crateras de luz), com orçamento de vértices e de marcas por quadro.
-- **Títulos e HUD cinematográficos:** cartões de título e legendas de habilidade sincronizados à Timeline (nome do golpe, fase do chefe), barras de cinema e enquadramento, com acessibilidade de tamanho, contraste e duração.
+- **Pontos presos a ossos:** `Point` resolvido pelo cliente a partir de ossos de rigs (GeckoLib ou outro) por um gancho registrado pelo mod do rig, sem o Calamidade depender do GeckoLib; feixes, luzes e dublês saindo da mão ou da boca do chefe.
+- **BossBar API:** barra do chefe sincronizada às fases da Timeline (nome do golpe, fase, vulnerabilidade), com estilo próprio e acessibilidade de tamanho e contraste.
+- **Qualidade automática:** o cliente ajusta LOW/BALANCED/HIGH pelo tempo de quadro medido (com histerese), respeitando o perfil escolhido como teto.
 
-### Depois da 0.11
+### Depois da 0.12
 
+- Trail API (rastros e marcas): fitas com histórico de posições para entidades, projéteis e pontas de feixe; marcas que ficam no chão por um tempo.
+- Títulos e HUD cinematográficos sincronizados à Timeline.
 - Ramificações de feixes (raios que se dividem) e feixes curvos.
 - Sombras simples para a Light (oclusão por profundidade na direção da fonte).
+- Terrain API: edições em cadeia por trilha (um rasgo que cresce ao longo de vários ticks junto com o raio) e paletas por bioma.
 
 ### Evolução da API, sem versão definida
 
@@ -123,7 +136,6 @@ Próxima versão planejada.
 - Editor de sequências e previsão de custo.
 - Trilha de áudio sincronizada e poses ligadas às fases da Timeline.
 - Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos, força de um golpe) para os ganchos de cliente.
-- Pontos resolvidos pelo cliente a partir de ossos de rigs (GeckoLib ou outro), por um gancho de cliente registrado pelo mod do rig, sem o Calamidade depender do GeckoLib.
 - Orientação seguindo o olhar (yaw e pitch da cabeça) além do corpo.
 - Transição suave (crossfade) opcional no release, para loops cujas bordas não coincidem.
 - Cache de malhas estáticas e LOD adaptativo ao frametime.

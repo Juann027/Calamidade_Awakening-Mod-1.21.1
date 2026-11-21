@@ -1,6 +1,6 @@
 ---
 name: calamidade-efeitos
-description: Cria ou altera efeitos visuais do Calamidade_Awakening (motor de VFX para Minecraft 1.21.1, NeoForge, RimuLib) e de seus addons — definição, prioridade HERO, Timeline, Atmosphere (céu, névoa, exposição), Beam (feixes), Light (luz no mundo), passes de pós-processamento com shader GLSL, malha de mundo, câmera, cues de gameplay no servidor e testes com F7 e bench. Use quando pedirem um efeito, habilidade, ataque, shader, feixe, anel, bolha, impact frame, céu ou névoa para o Calamidade, ou um addon que use a API dev.calamidade_awakening.api.v1.
+description: Cria ou altera efeitos visuais do Calamidade_Awakening (motor de VFX para Minecraft 1.21.1, NeoForge, RimuLib) e de seus addons — definição, prioridade HERO, Timeline, Atmosphere (céu, névoa, exposição), Beam (feixes), Light (luz no mundo), Terrain API (crateras, trincheiras, borda queimada, meteoro que vira bloco, estrutura que cai), passes de pós-processamento com shader GLSL, malha de mundo, câmera, cues de gameplay no servidor e testes com F7 e bench. Use quando pedirem um efeito, habilidade, ataque, shader, feixe, anel, bolha, impact frame, céu, névoa, cratera ou destruição de terreno para o Calamidade, ou um addon que use a API dev.calamidade_awakening.api.v1.
 ---
 
 # Criar efeitos no Calamidade_Awakening
@@ -66,6 +66,15 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - **GeckoLib/rigs:** a animação roda no cliente, o efeito começa no servidor no mesmo tick do `triggerAnim`; alinhe marcadores da Timeline aos keyframes (segundos × 20). O Calamidade não depende de GeckoLib.
 - Capítulo: `docs/INTEGRACAO-0.10.md`. Receitas: 14 (leque orientado), 15 (cajado), 16 (pilares), 17 (zumbi). Dependência sem Maven: `docs/ai/usar-como-dependencia.md`.
 
+### 3e. Terreno (opcional, 0.11.0)
+
+- `Effects.terrain(id, TerrainEdit.carve(forma).commitAt("marcador")...build())` depois de `register` e `timeline` (até 4 por efeito). Formas (`TerrainShape`, referencial da instância): `sphere(r)`, `crater(r, fundo).profile(2).clearance(h)`, `trench(comprimento, r)` (ao longo da frente: gira com o yaw), `cylinder(r, altura)`, `union`, `minus`, `offset(direita, cima, frente)` e, na forma final, `rough(amplitude, célula)`.
+- Borda queimada: `.burn(TerrainPalette.burnt(), 1..4)` (ou um `TerrainPalette.builder()` com faixas FLOOR, WALL, RIM e pesos). Blocos reais no centro: `.fill(TerrainEdit.Fill.solid("minecraft:raw_gold_block", r).at(0, -3, 0))`. Estrutura: `.structure("ns:caminho")` (`data/ns/structure/caminho.nbt`, girada em 90° pelo yaw) e `.structureOffset(...)`.
+- Dublê que cai: `.standIn(TerrainEdit.StandIn.sphere(r).from(direita, cima, frente).fall(tick).reveal(ticks).build())` ou `StandIn.structure()`; o motor desenha esfera, rastro, malha, poeira e luz. Calor: `.cooling(ticks)` ou `.heatTrack("trilha")`, `.glow`, `.smoke`, `.cracks`, `.noHeat()`.
+- **Sob o impact frame:** ponha o marcador no tick do `Effects.Impact` da definição, com 4 a 8 ticks. O raio da definição cobre a queda e a cratera (frustum 2,5 × raio).
+- Servidor: regras da config `terrain` (volume 150 000, 16 384 blocos por tick, dimensões, `mobGriefing`, block entities só com `.replacingBlockEntities()` e permissão), tag `calamidade_awakening:terrain_protected`, `TerrainEditEvent` cancelável, `/calamidade terrain undo|list`. Não troque blocos em massa num cue com `setBlock`: use a API.
+- Capítulo: `docs/TERRENO-0.11.md`. Receitas: 18 (raio e trincheira), 19 (meteoro), 20 (cratera simples), 21 (torre que cai).
+
 ### 4. Pós-processamento e shader
 
 - Cliente (`FMLClientSetupEvent`): `AddonLayers.post(id, post -> { var t = post.timeline(); post.pass("ns:programa", u -> {...}); post.bloom(...); })`.
@@ -89,7 +98,7 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 ### 7. Teste
 
 1. `./gradlew build` (inclui `checkShaders`, `checkApiDocs`, `checkRecipes`), `./gradlew dist`, build do addon. Feixes e luzes: `node scripts/previa_passes.cjs` mostra os passes reais numa cena sintética antes do jogo.
-2. No jogo: comando do efeito; **F7** (passes de pós, vértices, "Fontes", "Protagonistas (HERO)", "Feixes", "Luzes", "Atmosfera: N ativas · passe sim/não"); **F8** em LOW, BALANCED e HIGH; intensidade dos efeitos de tela em 0; "ocultar clarões" ligado; "Efeitos de movimento" desligado. Efeitos orientados: teste virado para vários lados; gatilhos: `/calamidade status` (ativas por fonte e recusas).
+2. No jogo: comando do efeito; **F7** (passes de pós, vértices, "Fontes", "Protagonistas (HERO)", "Feixes", "Luzes", "Terreno: zonas quentes · dublês · passe", "Malhas de dublê", "Atmosfera: N ativas · passe sim/não"); **F8** em LOW, BALANCED e HIGH; intensidade dos efeitos de tela em 0; "ocultar clarões" ligado; "Efeitos de movimento" desligado. Efeitos orientados: teste virado para vários lados; gatilhos: `/calamidade status` (ativas por fonte e recusas).
 3. Carga: `/calamidade bench <n> <efeito>` e `/calamidade_client record 30` (CSV em `calamidade_bench/`).
 4. Roteiro: `docs/TESTE-REAL.md`. Registre o que mediu em `docs/VALIDACAO.md`.
 
@@ -108,6 +117,7 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - Passe de atmosfera: 1 por quadro, do motor, fora do orçamento.
 - Passe de feixes: 1 por quadro para todos os feixes (16/48/128), cobrado do orçamento HERO se houver efeito HERO com feixes, senão do comum.
 - Passe de luzes: 1 por quadro para todas as luzes (8/24/64), antes dos efeitos e da atmosfera, mesmo esquema de orçamento. Os passes de feixes e luzes são pagos antes dos passes de addon; um efeito NORMAL com feixe e luz em LOW (1 vaga comum) só tem o feixe.
+- Passe `terrain` (0.11.0): 1 por quadro para o calor e os dublês (2/4/8 zonas, 4/8/8 dublês), pago depois dos feixes e antes das luzes; malhas de estrutura 1/2/4 por quadro.
 - Duração até 12000 ticks; raio até 512; alcance 16..1024; 64 instâncias por servidor (0.10: 16 por jogador, 4 por mob, 2 por bloco e 16 vagas reservadas para jogadores, configuráveis no servidor).
 - Acessibilidade obrigatória: passes próprios de tela inteira × `post.screenEffects()`; nada de piscar com `!post.flashAllowed()`; nada de zoom ou borrão com `!post.motionEffects()`.
 
@@ -122,3 +132,5 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - Escrever "frente" com `Point.center(0, 0, d)` esperando a direção do olhar sem passar orientação: sem `Placement`/yaw, a frente é o sul.
 - Ignorar o `Optional` vazio de um `start` (limite por fonte, reserva, recarga): não é erro, é recusa.
 - Começar efeitos ou dano a partir de keyframes de animação no cliente: o efeito começa no servidor.
+- Terreno sem marcador no impact frame (a troca dos blocos fica visível) ou raio da definição menor que a queda do dublê (o dublê some quando o centro sai da tela).
+- Esperar que a Terrain API carregue chunks: chunks sem ninguém perto são pulados (`/forceload` em testes).

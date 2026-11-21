@@ -128,6 +128,27 @@ Mesma preparação (servidor dedicado, dois clientes A e B). Deixe o F7 aberto: 
 
 Registre para cada caso o que viu e, nos casos 52, 53, 55 e 58, uma captura.
 
+## Parte 6 — Terrain API (0.11.0)
+
+Mesma preparação (servidor dedicado, dois clientes A e B, operador nos dois). Use um mundo de teste ou faça backup: os casos mexem no terreno. Deixe o F7 aberto: linhas novas "Terreno: N zonas quentes · N dublês · passe …" e "Malhas de dublê: N · vértices · última montagem". Capítulo: [TERRENO-0.11.md](TERRENO-0.11.md); receitas 18 a 21. Depois de cada caso, `/calamidade terrain undo` devolve o terreno.
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 63 | A roda `/vfxsample receita cratera_simples` num campo; B observa de 20 blocos. | No clarão monocromático do tick 10, o chão vira uma cratera de raio ~7 com borda de blackstone, terra grossa, basalto, magma, pedregulho, tufo e andesito; brasa e fissuras luminosas nas faces, luz laranja, fumaça leve; em ~10 s esfria e fica a cratera queimada. B vê a mesma cratera e o mesmo desenho de borda (mesma seed). Não sobra um quadro com o céu aparecendo no buraco. |
+| 64 | `/calamidade terrain list`, depois `/calamidade terrain undo` (e `undo último`, `undo <id>`). | A lista mostra a edição (efeito, posição, blocos, há quantos segundos, quem); o undo devolve exatamente o terreno de antes, com a luz certa. Um bloco que A colocou dentro da cratera antes do undo continua lá. |
+| 65 | A roda `meteoro`, `raio_trincheira` (virado para três direções) e `torre_caindo` (virado para dois lados). | Meteoro: esfera em chamas com rastro cai, cratera, esfera de ouro bruto no centro, o dublê esmaece sobre ela. Raio: o rasgo segue a direção do olhar, faixa incandescente no fundo. Torre: a malha cai, a torre fica de pé girada com o olhar (porta para o lado de A), poeira no pouso. F7 na queda: "1 dublês"; torre: "Malhas de dublê: 1". |
+| 66 | Antes da cratera, A coloca um baú com itens, uma fornalha acesa, um bloco de bedrock, `reinforced_deepslate` e água ao lado do ponto de impacto; roda `cratera_simples` em cima. | Baú, fornalha (com itens e fogo), bedrock e reinforced deepslate continuam no lugar (podem ficar flutuando); a água da borda fica presa atrás da casca, nada escorre para a cratera. |
+| 67 | `/gamerule mobGriefing false`; um mod de teste ou um comando de addon começa uma edição com fonte mob (por exemplo um chefe). Depois `true`. | Com a regra desligada, nenhum bloco muda (`/calamidade status`: recusa por mobGriefing); ligada, a cratera aparece. Edições de jogadores não são afetadas. |
+| 68 | Na config do servidor, `terrainEnabled = false`; depois `terrainDimensions = ["minecraft:the_nether"]` no overworld; depois `terrainMaxVolume = 500`. | Cada caso: o efeito toca, nenhum bloco muda, `/calamidade status` conta a recusa (config, dimensão, volume). |
+| 69 | Um mod de proteção de terreno (claims) que escute `TerrainEditEvent`, ou um claim existente sobre a área. | A edição dentro do claim é recusada inteira (nenhum bloco); fora dele, normal. |
+| 70 | A roda `meteoro` e sai do alcance (mais de 256 blocos, ou troca de dimensão) antes do impacto; volta 3 s depois. B fica perto o tempo todo. | Com B perto, o chunk continua carregado e o commit acontece; A, ao voltar, vê a cratera com a esfera de ouro e o calor ainda esfriando (entrada tardia). |
+| 71 | B entra no servidor (login) depois do commit de um `meteoro` de A, ainda no calor. | B recebe o chunk já com a cratera e vê o calor do ponto em que está; nenhum clarão nem dublê "atrasado". |
+| 72 | Carga: 5 `cratera_simples` em sequência rápida em lugares diferentes, e uma edição grande (`raio 24`, por exemplo pelo mod de teste ou um addon) perto de A e B. | O servidor não trava (`/calamidade status` mostra "em escrita" por poucos ticks); o terreno aparece em poucos ticks, sob o clarão; nenhum chunk fica com buracos de luz preta. Anote o MSPT (`/tick query` ou F3) e o tempo de quadro de A e B. |
+| 73 | Intensidade dos efeitos de tela 0; "ocultar clarões"; "efeitos de movimento" desligado. | Intensidade 0: a cratera ainda aparece com os blocos queimados e o dublê desenhado, mas sem brasa, fumaça, aura nem rastro. Ocultar clarões: sem pulso da brasa nem cintilação do rastro (o clarão do impacto também some, então a troca dos blocos fica visível). Movimento desligado: sem tremor de calor. |
+| 74 | Com Sodium/Embeddium (se o público usa). | Anote se as seções reenviadas aparecem na hora (a troca por seção usa o pacote do jogo) e se o passe `terrain` aparece. |
+
+Registre para cada caso o que viu e, nos casos 63, 65, 66 e 72, uma captura e (72) os tempos.
+
 ## Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.

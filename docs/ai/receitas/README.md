@@ -1,6 +1,6 @@
 # Receitas de efeitos
 
-Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `Receitas.java` e testável no jogo com `/vfxsample receita <nome>` (permissão de comandos); as receitas 15 a 17 (gatilhos de item, bloco e mob) são testadas com o item, os blocos e o mob do exemplo. O código dos arquivos `.md` é o mesmo dos arquivos do exemplo: `./gradlew checkRecipes` (parte do build) falha se divergirem, e `./gradlew syncRecipes` os copia de novo.
+Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `Receitas.java` e testável no jogo com `/vfxsample receita <nome>` (permissão de comandos); as receitas 15 a 17 (gatilhos de item, bloco e mob) são testadas com o item, os blocos e o mob do exemplo; as 18 a 21 (Terrain API) mexem no terreno e se desfazem com `/calamidade terrain undo`. O código dos arquivos `.md` é o mesmo dos arquivos do exemplo: `./gradlew checkRecipes` (parte do build) falha se divergirem, e `./gradlew syncRecipes` os copia de novo.
 
 | # | Receita | Comando | Mostra |
 |---|---|---|---|
@@ -21,5 +21,9 @@ Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `
 | 15 | [Cajado](15-cajado.md) | `/give @s vfxsample:cajado` | gatilho de item: uso, ataque, recarga, durabilidade, cue com `ctx.forward()` |
 | 16 | [Pilares](16-pilares.md) | `/give @s vfxsample:pilar_redstone` | gatilho de block entity: REDSTONE e PERIODIC, facing, fim ao quebrar ou descarregar |
 | 17 | [Zumbi com feixe](17-zumbi.md) | `/summon zombie` | gatilho de entidade num mob vanilla (`LivingDamageEvent.Post`), limite por mob |
+| 18 | [Raio que abre uma trincheira](18-raio-trincheira.md) | `raio_trincheira` | Terrain API: `trench` virada pelo yaw, commit sob o impact frame, borda queimada, faixa incandescente (0.11.0) |
+| 19 | [Meteoro que vira bloco real](19-meteoro.md) | `meteoro` | dublê → real: esfera em chamas que cai, cratera, esfera de blocos reais, revelação, calor |
+| 20 | [Cratera simples](20-cratera-simples.md) | `cratera_simples` | só escavação e borda queimada, para estudo; desfazer e listar |
+| 21 | [Torre que cai e fica](21-torre-caindo.md) | `torre_caindo` | estrutura `.nbt` girada em 90°, malha do dublê em cache, cratera sob ela, poeira |
 
 Para começar um efeito novo do zero: `python3 scripts/novo_efeito.py <namespace> <nome>` (veja [AGENTS.md](../../../AGENTS.md)). Funções GLSL usadas aqui: `calamidade_fx.glsl`, documentadas em [glsl.md](../glsl.md). Assinaturas da API: [API-REFERENCIA.md](../API-REFERENCIA.md).

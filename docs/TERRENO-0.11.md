@@ -1,10 +1,199 @@
 # Terrain API: destruição, crateras e objetos que viram blocos reais (0.11)
 
-> Capítulo em construção durante a 0.11.0. Esta primeira parte registra a decisão do Passo 0; o restante do capítulo
-> (formas, paleta, commit sob o impact frame, dublê → real, estruturas, segurança, desfazer e custo medido) entra nas
-> etapas seguintes.
+Até a 0.10, o motor era cosmético: um meteoro do Calamidade caía, explodia em luz e deixava o chão intacto. Para cavar uma cratera, um addon teria de chamar `level.setBlock` milhares de vezes num cue (caro e sem desfazer) ou acender TNT (ainda mais caro: raios, drops, física, entidades e luz bloco a bloco, e nenhuma forma controlada). A 0.11 traz a **Terrain API**: o efeito declara uma escavação, uma borda queimada e o que fica no lugar, e o motor troca os blocos em massa, direto nas seções dos chunks, **dentro do impact frame**, como um `/fill` com ar, enquanto o clarão esconde o instante em que os blocos somem e as seções são reenviadas. Depois, um calor desenhado pelo cliente cobre a área por alguns segundos e esfria.
 
-## Passo 0 — CarveApi da RimuLib 1.3.0 ou escrita direta nas seções?
+Quatro usos, todos com a mesma API:
+
+1. **Crateras e rasgos:** a forma (esfera, tigela, cápsula, cilindro e combinações) com borda irregular, e uma casca de blocos "queimados" em volta.
+2. **Dublê → real:** o objeto que cai é só desenho (uma esfera em chamas do motor); no impacto ele vira blocos reais no centro da cratera, e o desenho esmaece por cima.
+3. **Construções que caem:** uma estrutura `.nbt` cai como malha de blocos e fica posicionada no mundo, girada com o yaw do efeito.
+4. **Segurança e desfazer:** regras do servidor, um evento cancelável para mods de proteção e `/calamidade terrain undo`.
+
+> **Mexe no mundo de verdade.** Diferente da Light e da Atmosphere, a Terrain API muda blocos no servidor: é salvo, vale para todos os jogadores e só volta com o desfazer (por 10 minutos, padrão). Use mundos de teste ao experimentar e confira as regras do servidor (seção [Segurança](#segurança)).
+
+O protocolo de rede ganhou um canal (`terrain_v1`): **servidor e clientes precisam da mesma versão do motor.** Addons da 0.10 continuam funcionando sem mudança no código: quem não chama `Effects.terrain` não muda nada.
+
+## Exemplo completo
+
+O meteoro da receita 19: uma esfera em chamas cai do céu, abre uma cratera com borda queimada e vira uma esfera de ouro bruto.
+
+```java
+static final Timeline TIMELINE = Timeline.builder(320)
+    .phase("queda", 0, 60, 4, 2)
+    .phase("revelacao", 60, 110, 2, 20)
+    .marker("impacto", 60)
+    .build();
+
+static final TerrainEdit CRATERA = TerrainEdit.carve(TerrainShape.crater(8, 5).profile(2.2f)
+        .union(TerrainShape.sphere(3.5f).offset(0, -3, 0)).rough(1.2f, 3))
+    .commitAt("impacto")                                        // marcador da Timeline
+    .burn(TerrainPalette.burnt(), 2)                            // casca queimada de 2 blocos
+    .fill(TerrainEdit.Fill.solid("minecraft:raw_gold_block", 2.5f).at(0, -3.5f, 0))   // o meteoro real
+    .standIn(TerrainEdit.StandIn.sphere(2.5f).from(-18, 90, -30).fall(4).reveal(40).trail(22).color(0xffff7a24).build())
+    .cooling(240)                                               // calor esfria em 12 s
+    .build();
+
+public static void register() {
+    // Impact no MESMO tick do marcador, com 7 ticks: o clarão esconde a troca dos blocos.
+    Effects.register(ID, new Effects.Definition(320, 40, 0xffff7a24, Effects.Shape.NONE, Effects.Material.NONE,
+        null, null, new Effects.Impact(60, 7, .85f, Effects.ImpactStyle.TINTED_FLASH)).withRange(256));
+    Effects.timeline(ID, TIMELINE);
+    Effects.terrain(ID, CRATERA);                               // depois da timeline
+}
+
+// Servidor: começa no chão, virado com o olhar do jogador (a queda vem de trás e da esquerda dele).
+Effects.start(ID, player.serverLevel(), Placement.at(posicao, player.getYRot(), 0).withCaster(player));
+```
+
+Nenhum shader, nenhuma camada de cliente: o motor desenha o dublê, o rastro, o calor, as luzes e a poeira.
+
+## Formas (`TerrainShape`)
+
+Todas as formas ficam no **referencial da instância** (o da `Placement` da 0.10): `x` à esquerda, `y` para cima, `z` para a frente, centradas na origem (o centro da instância). Sem orientação, a frente é o sul. Um bloco é cavado quando a distância com sinal no **centro** do bloco é ≤ 0.
+
+| Fábrica | Forma | Limites |
+|---|---|---|
+| `sphere(raio)` | Bola em volta da origem. | raio (0, 64] |
+| `crater(raio, fundo)` | Tigela: fundo `fundo` blocos abaixo da origem no centro, subindo até a origem na borda; profundidade a `r` do centro = `fundo × (1 − (r/raio)^perfil)`. Tudo acima do fundo até `clearance` blocos acima da origem também sai (morros e árvores dentro da borda). | raio e fundo (0, 64]; `profile(1..16)`, padrão 2 (1 cone, 2 parábola, 8+ fundo plano); `clearance(0..64)`, padrão = fundo |
+| `trench(comprimento, raio)` | Cápsula de `raio` em volta de um segmento ao longo da frente local, centrada: o rasgo de um raio. Girada pelo yaw, segue o olhar; o pitch a enterra. | comprimento (0, 128], raio (0, 64] |
+| `cylinder(raio, altura)` | Cilindro vertical (eixo local para cima), centrado. | raio (0, 64], altura (0, 128] |
+| `a.union(b)`, `union(a, b, ...)` | Soma de formas. | até 8 primitivas no total |
+| `a.minus(b)` | `a` sem `b` (um pilar poupado no meio da cratera). | `b` sem subtrações próprias |
+| `offset(direita, cima, frente)` | Move a forma no referencial da instância. | ±64 por eixo |
+| `rough(amplitude, célula)` | Borda irregular: a superfície entra e sai até `amplitude` blocos, com duas oitavas de ruído de valor de células de `célula` blocos, da **seed da instância**. Só na forma final (depois de `union`/`minus`). | amplitude [0, 8], célula [0,5, 64] |
+
+O alcance total (`extent()`, raio em volta da origem que contém tudo, borda incluída) vai até 128 blocos.
+
+**Mesma conta nos dois lados.** A distância é Java puro (`TerrainShape.distance`) e o ruído é aritmética inteira de 32 bits (`TerrainNoise`: hash de rede com viés de 32768, valor com interpolação suave, duas oitavas). O passe do cliente tem uma cópia fiel em `calamidade_terrain.glsl`; `node scripts/testar_glsl.cjs` compara 33 casos com valores calculados pelo Java (hash exato, ruído em 2 × 10⁻⁶, primitivas em 2 × 10⁻⁵). Por isso o cliente desenha o calor exatamente sobre a área cavada **sem receber a lista de blocos**.
+
+## Paleta de queimado (`TerrainPalette`)
+
+`TerrainEdit.Builder.burn(paleta, espessura)` cria uma **casca** de 1 a 4 blocos em volta da escavação. Faixas:
+
+| Faixa | Onde |
+|---|---|
+| `FLOOR` | Blocos da casca com espaço cavado logo acima (o fundo) e as camadas mais fundas sob ele. |
+| `WALL` | Os outros blocos da casca que tocam o espaço cavado (paredes e tetos) e as camadas atrás deles. |
+| `RIM` | Camadas mais externas no nível da origem ou acima: o anel queimado no chão em volta da cratera. |
+
+Cada faixa é uma lista de blocos (ID do registro) com pesos; a escolha de cada posição vem de um hash da posição e da seed (determinística, diferente por instância). `TerrainPalette.burnt()` é a paleta padrão, só vanilla: fundo de blackstone, terra grossa, basalto, magma e pedregulho de ardósia; paredes de blackstone, pedregulho, tufo, andesito, pedregulho de ardósia e um pouco de magma; borda de terra grossa, pedregulho, andesito, tufo e blackstone. Uma faixa vazia usa a lista de `WALL`.
+
+**O que a casca troca:** só blocos **sólidos** ganham a paleta. Fluidos na casca são **vedados** com a paleta (a água e a lava da borda ficam presas atrás dela, sem escorrer para a cratera e sem atualização em cascata). Plantas, neve, tochas e outros blocos não sólidos que tocam a cratera queimam (viram ar). Folhas viram ar; troncos ficam. Ar continua ar. Sem `burn`, o motor ainda veda os fluidos que tocam a cratera (pedra para água, obsidiana para lava) e queima o que não é sólido.
+
+**Por que fica estável:** todo bloco que toca o espaço cavado por uma face está na casca (o planejador garante, e o `TerrainCheck` confere). Então nenhum bloco de areia ou cascalho fica suspenso por causa da escavação; se a própria paleta, o preenchimento ou a estrutura escreverem um bloco de gravidade sobre o ar, o motor o assenta (pedregulho) no fim do commit, sem física.
+
+## A edição (`TerrainEdit`)
+
+```java
+TerrainEdit.carve(forma)
+    .commitAt("impacto")                  // obrigatório: marcador da Timeline
+    .burn(TerrainPalette.burnt(), 2)      // casca queimada (opcional)
+    .fill(TerrainEdit.Fill.solid("minecraft:raw_gold_block", 2.5f).at(0, -3, 0))   // blocos reais no centro (opcional)
+    .structure("meumod:torre").structureOffset(0, -2, 0)                         // estrutura .nbt (opcional)
+    .standIn(TerrainEdit.StandIn.sphere(2.5f).from(0, 80, -20).fall(5).reveal(40).build())  // dublê (opcional)
+    .blocksPerTick(4096)                  // menos que o padrão do servidor (opcional)
+    .replacingBlockEntities()             // trocar baús etc., se o servidor também permitir (opcional)
+    .cooling(200).glow(0xffff5a14).smoke(.5f).cracks(.8f)                        // calor (padrões)
+    .build();
+Effects.terrain(ID, edicao1, edicao2);    // até 4 por efeito, depois de register e timeline
+```
+
+| Peça | Detalhe |
+|---|---|
+| `Fill.solid(bloco, raio)` / `Fill.shell(bloco, raio)` | Esfera sólida ou casca de 1 bloco, raio até 16, em `at(direita, cima, frente)`. Escrita depois da escavação (sobrescreve o ar). |
+| `structure(id)` | `data/<ns>/structure/<caminho>.nbt`: centro horizontal na origem, camada mais baixa no nível da origem (mais `structureOffset`), girada `round(yaw / 90)` passos no sentido horário. Estados giram junto; block entities do template recebem seus dados; ar do template limpa o interior; `structure_void` é ignorado. Até `terrainMaxStructure` (32) por eixo. |
+| `commitAt(marcador)` | O commit é um cue do motor nesse marcador: roda **uma vez por instância**, quando o relógio passa pelo tick (um release que pula o marcador não comita; num sustain, só a primeira volta). |
+| Calor | `cooling(ticks)` (padrão 200): calor `(1 − t/cooling)^1,6` depois do commit; ou `heatTrack("trilha")` com valores 0..1. `noHeat()` desliga. |
+
+Várias edições num mesmo efeito (até 4) comitam cada uma no seu marcador: um rasgo no tick 20 e a cratera final no 40, por exemplo.
+
+## Commit sob o impact frame
+
+```
+início ──► regras + plano numa thread de trabalho ──► plano pronto: volume + TerrainEditEvent ──► marcador: commit em lotes
+   (tick 0)           (sem ler o mundo)                     (1–2 ticks depois)                  (sob o clarão)
+```
+
+1. **Início da instância (servidor):** regras da config (ligado, dimensão, `mobGriefing` para fontes mob) e o plano numa thread de trabalho. O plano é **puro**: forma, origem, orientação, seed e estrutura viram uma lista ordenada de posições e ações, em lotes por seção de chunk (a seção da origem primeiro, depois pela distância). Nenhum acesso ao mundo fora da thread do servidor; não há cópia de seções porque o plano não precisa do mundo.
+2. **Plano pronto:** volume máximo (`terrainMaxVolume`) e **um** `TerrainEditEvent` com a área exata (`BoundingBox` de todas as posições) e o volume. Instâncias presas a uma entidade só sabem a origem no marcador: planejam e disparam o evento ali.
+3. **Marcador:** o commit começa no mesmo tick e escreve até `terrainBlocksPerTick` blocos por tick (padrão 16 384, **dividido** entre todas as edições em andamento; uma edição pode pedir menos com `blocksPerTick`). As decisões que dependem do mundo (sólido, fluido, protegido, block entity) acontecem aqui, na thread do servidor.
+4. **Escrita direta:** `LevelChunkSection.setBlockState(x, y, z, estado, false)`, mais o essencial do `LevelChunk.setBlockState` (heightmaps, fontes de luz do céu, estado da seção no motor de luz, `checkBlock` só quando a luz muda, pontos de interesse, chunk marcado para salvar). **Sem** drops, `onRemove`/`onPlace`, atualização de vizinhos e de forma, nem física. Uma edição de raio 12 (7 200 blocos) cabe num tick; a de raio 24 (73 000) em cinco.
+5. **Fim de cada lote:** cada seção alterada vai **uma vez** aos jogadores que veem o chunk (`ClientboundSectionBlocksUpdatePacket`, só as posições alteradas); o cliente recalcula a luz local e remonta só as seções tocadas.
+6. **Fim do commit:** blocos de gravidade escritos sobre o ar são assentados, o snapshot de desfazer fica guardado e `/calamidade terrain list` mostra o relatório (blocos, ticks, tempo na thread do servidor, pacotes).
+
+**Para esconder a troca:** ponha o `Effects.Impact` da definição no tick do marcador, com 4 a 8 ticks (o pacote leva ~1 tick e o cliente remonta as seções nos quadros seguintes). Nos primeiros 1,5 s depois do commit, o passe `terrain` ainda pinta o fundo quente da cratera nos pixels em que o raio atravessa a forma cavada e só acha céu (as seções sendo remontadas), então nem sem clarão aparece um buraco para o céu. Com "ocultar clarões" ligado, o clarão do impacto some e a troca fica visível: acessibilidade vem antes do truque.
+
+## Visual da destruição (cliente)
+
+Um passe do motor por quadro, `terrain`, logo depois do passe de luzes, para todas as instâncias desenhadas:
+
+| Elemento | Como |
+|---|---|
+| **Brasa e fissuras** | Cada pixel vira posição no mundo (profundidade), recua 0,3 bloco para dentro da face e mede a distância à forma: faces da casca (distância até a espessura) e o que ficou dentro (o preenchimento) brilham na cor da brasa, com manchas e fissuras finas de ruído; o brilho segue o calor (amarelo-alaranjado no auge, vermelho escuro esfriando) e escurece a superfície enquanto está quente. |
+| **Faixa incandescente** | Em cada primitiva `trench`, uma faixa clara no fundo, ao longo do eixo: o rastro do raio. |
+| **Fumaça leve** | Corda do raio de visão numa esfera sobre a cratera, cortada pela cena, com ruído subindo devagar, proporcional ao calor e a `smoke`. |
+| **Tremor de calor** | Desvio leve da imagem sobre a área quente (efeito de movimento). |
+| **Luz** | Cada zona quente soma um disco da Light API (laranja que esfria, alcance ≈ o da forma); cada dublê, uma luz de fogo. Contam no teto de luzes e no passe `lights`. |
+| **Dublê esférico** | Esfera em chamas (crosta escura, magma correndo, frente incandescente, borda clara), aura e rastro de fogo ao longo da queda (`caSegmentGlow`); depois do commit, fica sobre os blocos reais e esmaece em `reveal` ticks. |
+| **Dublê de estrutura** | A malha da estrutura (montada uma vez por template a partir dos blocos que o servidor envia, faces entre vizinhos sólidos cortadas, sombra por direção, brilho máximo) desenhada em movimento depois dos blocos translúcidos; no pouso, ganha precedência de profundidade sobre a estrutura real idêntica e esmaece. Aura e rastro no passe `terrain`. |
+| **Poeira** | No pouso de um dublê ou estrutura, uma rajada de fumaça, nuvens e partículas do bloco do chão (seguem a opção de partículas do jogo). |
+
+**Orçamento:** o passe é pago como os de feixes e luzes, uma vez por quadro, do orçamento HERO quando um efeito HERO desenhado precisa dele, senão do comum, **antes** do passe de luzes (o dublê é o próprio objeto; a luz é um extra). Até 2/4/8 zonas quentes e 4/8/8 dublês por quadro (LOW/BALANCED/HIGH); malhas de estrutura 1/2/4. O raio da definição precisa cobrir a queda e a cratera (o teste de frustum usa 2,5 × raio).
+
+**Acessibilidade:** brasa, fissuras, escurecimento, fumaça, aura e rastro seguem a intensidade dos efeitos de tela (0 desliga; o dublê esférico continua desenhado, porque é o objeto). "Ocultar clarões" para o pulso da brasa e a cintilação do rastro. "Efeitos de movimento" desligado tira o tremor de calor.
+
+**F7:** "Terreno: N zonas quentes · N dublês · passe HERO/comum/não" e "Malhas de dublê: N · vértices · última montagem X ms"; o CSV ganha `terrainZones`, `standIns`, `terrainPass`, `meshes` e `meshVertices`.
+
+## Segurança
+
+Config do servidor, seção `terrain` de `serverconfig/calamidade_awakening-server.toml` (por mundo; editável pela lista de mods no singleplayer). Padrões conservadores:
+
+| Opção | Padrão | Efeito |
+|---|---|---|
+| `terrainEnabled` | `true` | Desligada, nenhuma edição roda (os efeitos tocam sem cratera). |
+| `terrainMaxVolume` | 150 000 | Blocos planejados por edição (escavação, casca, preenchimento, estrutura). Acima: recusada inteira. |
+| `terrainBlocksPerTick` | 16 384 | Blocos escritos por tick, divididos entre as edições em andamento. |
+| `terrainDimensions` | overworld, nether, end | Dimensões permitidas (`"*"` para todas). |
+| `terrainBlockEntities` | `false` | Só com isto **e** `replacingBlockEntities()` na edição um bloco com block entity é trocado (os dados vão para o snapshot). |
+| `terrainMobGriefing` | `true` | Edições cuja fonte é um mob seguem a regra `mobGriefing`. |
+| `terrainUndoMinutes` / `terrainUndoEdits` | 10 / 16 | Quanto tempo e quantos snapshots ficam para desfazer (0 não guarda). |
+| `terrainMaxStructure` | 32 | Maior estrutura por eixo. |
+
+**Nunca tocados:** bedrock, blocos indestrutíveis (dureza < 0), blocos com block entity (baús, fornalhas, blocos de outros mods; salvo as duas opções acima) e a tag de blocos `calamidade_awakening:terrain_protected` (padrão: `#minecraft:wither_immune`, portais, molduras do End, reinforced deepslate, spawners, trial spawners e vaults). Datapacks podem estender a tag. Entidades dentro da área **não** são apagadas: dano e empurrão continuam nos cues.
+
+**`TerrainEditEvent`** (`NeoForge.EVENT_BUS`, thread do servidor, cancelável), uma vez por edição, com nível, efeito, índice, edição, origem, área, volume, fonte e entidade por trás da fonte. Mods de proteção (claims, regiões, spawn) cancelam para recusar:
+
+```java
+@SubscribeEvent
+public static void protect(TerrainEditEvent event) {
+    if (Claims.anyIn(event.level(), event.area())) event.setCanceled(true);
+}
+```
+
+Recusas (config, dimensão, `mobGriefing`, evento, volume, estrutura) não escrevem nada; o cliente recebe a recusa e não desenha o calor (o dublê, se houver, ainda cai e esmaece). `/calamidade status` mostra as edições em escrita, os snapshots e as recusas por motivo.
+
+## Desfazer
+
+Cada commit guarda um **snapshot compacto**: por seção, os índices alterados e os IDs de estado de antes e depois (cerca de 10 bytes por bloco; a cratera de raio 24 ocupa ~700 KB), mais os dados das block entities trocadas.
+
+- `/calamidade terrain list` (permissão 2): snapshots do mais novo ao mais velho (número, efeito, posição, dimensão, blocos, idade, quem), edições em escrita e o relatório da última.
+- `/calamidade terrain undo` ou `undo último` (ou `ultimo`): desfaz o mais novo; `undo <id>`: um específico.
+
+O desfazer usa o mesmo escritor em lotes (sem física, reenvio por seção) e só devolve o estado antigo onde o bloco ainda é o que a edição escreveu: o que um jogador construiu depois fica. O snapshot sai da lista ao ser desfeito ou ao vencer o prazo.
+
+## Rede
+
+Canal novo `terrain_v1` (`TerrainSync`), nunca por tick:
+
+| Estado | Quando | Leva |
+|---|---|---|
+| `COMMITTED` | No marcador e a quem chega depois | tick do commit, origem, yaw e pitch (o cliente calcula o resto da forma registrada e da seed) |
+| `REFUSED` | Na recusa e a quem chega depois | nada |
+| `STRUCTURE` | No início (dublê de estrutura) e a quem chega depois | estados girados (IDs) e posições relativas ao canto, uma vez por jogador e instância |
+
+Antes do `COMMITTED` chegar, o cliente prevê o commit no marcador (instâncias fixas). Um motor 0.10 no cliente não registra o canal e só não desenha o calor; versões misturadas não são suportadas.
+
+## Passo 0 — a decisão
 
 A RimuLib 1.3.0 traz uma `CarveApi` (`cyou.rimuru.rimulib.mc1211.api.CarveApi`) para cortar terreno em massa. Antes de
 escrever código, ela foi conferida com `javap -p` e `javap -c` (bytecode de `CarveApi`, `CarveApi$Cut` e da classe
@@ -54,4 +243,29 @@ resolver luz e reenvio por lote. A implementação é nossa:
   recalcula a luz local como faz com qualquer bloco recebido; a luz dos jogadores na borda da distância de visão segue o
   caminho normal do jogo (`ChunkHolder.broadcastChanges` envia as seções de luz que o motor de luz marcou).
 
-O detalhamento (formas, paleta, segurança, desfazer, custo medido) segue nas próximas seções deste capítulo.
+## Custo medido
+
+Teste automatizado em jogo (Etapa 7 da 0.11.0; detalhes e método em [VALIDACAO.md](VALIDACAO.md#medição-etapa-7)), mundo plano, Mesa llvmpipe, mesmo volume nos três casos (esfera de raio 12, ~7 200 blocos):
+
+| Técnica | Thread do servidor | Pior tick | Ticks > 50 ms |
+|---|---|---|---|
+| **Terrain API** (commit no marcador) | 10,7 a 13,6 ms, 1 tick | 12,1 a 15,2 ms | 0 |
+| `/fill` de ar equivalente (19 × 20 × 19) | 16,0 a 44,7 ms | 21,1 a 51,6 ms | 0 a 1 |
+| TNT empilhada (125 blocos, 5 701 destruídos) | ~1,1 s em 140 ticks | 107,8 ms | 3 |
+| **Terrain API**, esfera r24 + casca (71 494 blocos) | 63,5 ms em 5 lotes | 24,6 ms | 0 |
+
+O commit é mais barato que o `/fill` porque escreve na seção sem trava, sem `updateFromNeighbourShapes`, sem `blockUpdated` em cada posição e sem pacote por bloco (um por seção); e muito mais barato que a TNT, que gasta em explosões, entidades, drops e física durante segundos. No cliente, o custo é o da remontagem das seções tocadas, como qualquer troca de blocos; a cratera grande pesa alguns quadros enquanto 56 seções são remontadas (meça na sua GPU: TESTE-REAL.md, caso 72). Por instância, o plano roda fora da thread do servidor (a esfera r24 com casca leva ~12 ms numa thread de trabalho) e o snapshot de desfazer guarda ~10 bytes por bloco escrito.
+
+## Limites e cuidados
+
+- **Chunks não carregados são pulados:** o commit nunca carrega chunks. Se ninguém estiver perto quando o marcador chega, as seções daquele chunk ficam como estão (o relatório conta "sections unloaded"). Para edições longe de jogadores, mantenha os chunks carregados (`/forceload`).
+- **Sem física de propósito:** água fora da casca não escorre, areia não cai, redstone não atualiza. Blocos protegidos podem ficar flutuando.
+- **Mobs:** a navegação recalcula quando trava; não é avisada bloco a bloco.
+- **Instâncias presas a entidades** planejam no marcador (na thread do servidor), não durante a cena.
+- **Mods de renderização:** com Sodium/Embeddium, as seções chegam pelo pacote do jogo e devem aparecer igual; shader packs (Iris/Oculus) podem não desenhar o passe `terrain` (como os outros passes de pós). Veja TESTE-REAL.md, parte 6.
+- **Não copie o mundo de outros mods.** A técnica (troca em massa sob o impact frame, dublê que vira bloco, calor que esfria) foi observada em mods de terceiros; a implementação, os shaders, as formas, a paleta e a torre do exemplo são deste projeto, só com blocos vanilla.
+
+## Receitas
+
+[18 — raio que abre uma trincheira](ai/receitas/18-raio-trincheira.md), [19 — meteoro que vira bloco real](ai/receitas/19-meteoro.md), [20 — cratera simples](ai/receitas/20-cratera-simples.md), [21 — torre que cai e fica](ai/receitas/21-torre-caindo.md). Testes: `TerrainCheck` no `checkBudget` (volumes, determinismo pela seed, vedação da casca, orientação da trincheira, ordem estável dos lotes, paleta, preenchimento, estrutura girada, registro) e os casos 63 a 74 de TESTE-REAL.md.
+

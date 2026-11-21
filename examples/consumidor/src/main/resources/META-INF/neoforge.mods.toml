@@ -13,7 +13,7 @@ description="Exemplo mínimo de um mod que depende do Calamidade_Awakening sem M
 [[dependencies.consumidor]]
 modId="calamidade_awakening"
 type="required"
-versionRange="[0.10.0,0.11.0)"
+versionRange="[0.11.0,0.12.0)"
 ordering="AFTER"
 side="BOTH"
 
