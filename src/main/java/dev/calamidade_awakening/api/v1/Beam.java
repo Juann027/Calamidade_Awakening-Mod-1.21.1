@@ -30,8 +30,9 @@ import java.util.regex.Pattern;
  * </ul>
  *
  * <p>Every numeric parameter can come from a track of the effect's {@link Timeline} ({@link Builder#track}), clamped
- * to the parameter range; {@link Param#FROM_X} and the other offset parameters add a track offset (blocks, world
- * axes) to the resolved ends. The beam weight is the instance's opacity envelope, times an optional phase
+ * to the parameter range; {@link Param#FROM_X} and the other offset parameters add a track offset (blocks, in the
+ * instance frame since 0.10.0: x left, y up, z forward, which are the world axes for an instance without orientation)
+ * to the resolved ends. The beam weight is the instance's opacity envelope, times an optional phase
  * ({@link Builder#weightPhase}) and an optional {@link Param#WEIGHT} track. Pulses, wave and noise move with the
  * instance's real age, so they do not jump at sustain loops.
  *

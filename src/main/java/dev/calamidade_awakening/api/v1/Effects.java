@@ -18,7 +18,8 @@ import java.util.Optional;
  *
  * <p>Register during mod construction, on both sides (the common mod constructor), in this order:
  * {@link #register}, then optionally {@link #timeline}, {@link #atmosphere}, {@link #beams} and {@link #lights}
- * (0.9.0) and the cues ({@link #cue}, {@link #onImpact}). Start, follow and stop instances on the server thread. Times are in game ticks (20 per
+ * (0.9.0) and the cues ({@link #cue}, {@link #onImpact}). Start, follow and stop instances on the server thread; since
+ * 0.10.0 an instance can be turned by a yaw and a pitch or started from a {@link Placement}. Times are in game ticks (20 per
  * second), distances in blocks, colors in ARGB ints. Invalid input throws {@link IllegalArgumentException}.
  *
  * <pre>{@code
@@ -211,13 +212,21 @@ public final class Effects {
      * @param timeline registered timeline, or null (0.7.0)
      * @param localAge local age when the cue runs, equal to {@code tick} (0.7.0)
      * @param age      real age in ticks, which keeps growing across sustain loops (0.7.0)
+     * @param yaw      instance yaw in degrees when the cue runs, [-180, 180) (0.10.0): the {@link Placement} yaw, plus
+     *                 the anchor's body yaw when the instance follows it; 0 without orientation
+     * @param pitch    instance pitch in degrees, [-90, 90], positive looks down (0.10.0); 0 without orientation
      */
     public record Context(ServerLevel level, Vec3 center, ServerPlayer caster,
                           Entity anchor, long seed, int tick, Handle handle,
-                          Timeline timeline, double localAge, long age) {
+                          Timeline timeline, double localAge, long age, float yaw, float pitch) {
         /** 0.6 form, kept for compatibility: no timeline, local and real age equal to the tick. */
         public Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Handle handle) {
             this(level, center, caster, anchor, seed, tick, handle, null, tick, tick);
+        }
+        /** 0.7 to 0.9 form, kept for compatibility: no orientation (yaw 0, pitch 0, the world axes). */
+        public Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick,
+                       Handle handle, Timeline timeline, double localAge, long age) {
+            this(level, center, caster, anchor, seed, tick, handle, timeline, localAge, age, 0, 0);
         }
         /** Living entities whose bounding box center lies within the radius, excluding the caster and the anchor. */
         public List<LivingEntity> living(double radius) {
@@ -228,6 +237,21 @@ public final class Effects {
                 entity -> entity.isAlive() && entity != caster && entity != anchor
                     && entity.getBoundingBox().getCenter().distanceToSqr(center) <= squared);
         }
+        /**
+         * World offset (blocks) of {@code right}, {@code up} and {@code forward} in the instance frame (0.10.0); add it
+         * to {@link #center()} for a point in front of the effect. Without orientation, forward is south (+Z).
+         *
+         * <pre>{@code
+         * Vec3 tip = ctx.center().add(ctx.facing(0, 0, 6));   // 6 blocks ahead of the effect
+         * }</pre>
+         */
+        public Vec3 facing(double right, double up, double forward) {
+            var basis = dev.calamidade_awakening.api.Basis.of(yaw, pitch);
+            return new Vec3(basis.worldX(-right, up, forward), basis.worldY(-right, up, forward),
+                basis.worldZ(-right, up, forward));
+        }
+        /** Unit vector the instance faces (0.10.0); (0, 0, 1) without orientation. */
+        public Vec3 forward() { return facing(0, 0, 1); }
     }
 
     /**
@@ -336,11 +360,45 @@ public final class Effects {
     }
 
     /**
+     * Starts an instance at a fixed world position (blocks) turned by {@code yaw} and {@code pitch} (degrees,
+     * Minecraft convention: yaw 0 faces south, pitch positive looks down, within [-90, 90]) (0.10.0). Center points,
+     * {@link Point#facing facing points} and the track offsets of beams and lights use that frame. Server thread.
+     *
+     * <pre>{@code
+     * Effects.start(ID, level, position, player.getYRot(), 0);   // turned to where the player looks
+     * }</pre>
+     */
+    public static Optional<Handle> start(ResourceLocation id, ServerLevel level, Vec3 position, float yaw, float pitch) {
+        return start(id, level, Placement.at(position, yaw, pitch));
+    }
+
+    /**
      * Starts an instance at a position for a caster: the caster's client plays the effect's camera (card shots or
      * {@code AddonLayers.film}) and cues receive the player as {@code caster}. Server thread.
      */
     public static Optional<Handle> start(ResourceLocation id, net.minecraft.server.level.ServerPlayer caster, Vec3 position) {
         return StageNetwork.start(id, caster.serverLevel(), position, null, caster.getUUID());
+    }
+
+    /**
+     * Starts an instance for a caster at a position turned by {@code yaw} and {@code pitch} in degrees (0.10.0); see
+     * {@link #start(ResourceLocation, ServerLevel, Vec3, float, float)}. Server thread.
+     */
+    public static Optional<Handle> start(ResourceLocation id, ServerPlayer caster, Vec3 position, float yaw, float pitch) {
+        return start(id, caster.serverLevel(), Placement.at(position, yaw, pitch).withCaster(caster));
+    }
+
+    /**
+     * Starts an instance from a {@link Placement} (0.10.0): fixed position or anchor entity, yaw and pitch, the yaw
+     * optionally following the anchor's body, and the caster. Server thread. Empty (no error) when the chunk is not
+     * loaded, the anchor is removed or in another level than {@code level}, or the server already runs 64 instances.
+     *
+     * <pre>{@code
+     * Effects.start(ID, level, Placement.on(mob).shifted(0, 1.2, .5).followingBody());
+     * }</pre>
+     */
+    public static Optional<Handle> start(ResourceLocation id, ServerLevel level, Placement placement) {
+        return StageNetwork.start(id, Objects.requireNonNull(level), Objects.requireNonNull(placement));
     }
 
     /**
@@ -352,5 +410,19 @@ public final class Effects {
         if (!(entity.level() instanceof ServerLevel level))
             throw new IllegalArgumentException("Expected a server entity");
         return StageNetwork.start(id, level, offset, entity, null);
+    }
+
+    /**
+     * Starts an instance anchored to a server entity whose yaw follows the entity's body when {@code followBody} is
+     * true (0.10.0): the body yaw of a living entity, interpolated on clients, or the yaw of other entities. The
+     * {@code offset} (blocks) is then in the body frame (x left, y up, z forward), so {@code new Vec3(0, 1.2, .8)} stays
+     * in front of the chest while the mob turns. With {@code followBody} false this is
+     * {@link #follow(ResourceLocation, Entity, Vec3)}. Server thread.
+     */
+    public static Optional<Handle> follow(ResourceLocation id, Entity entity, Vec3 offset, boolean followBody) {
+        if (!(entity.level() instanceof ServerLevel level))
+            throw new IllegalArgumentException("Expected a server entity");
+        Placement placement = Placement.on(entity, offset);
+        return start(id, level, followBody ? placement.followingBody() : placement);
     }
 }

@@ -1,4 +1,4 @@
-# Referência da API pública (api.v1) — Calamidade_Awakening 0.9.0
+# Referência da API pública (api.v1) — Calamidade_Awakening 0.10.0
 
 > Gerado por `scripts/ApiReferencia.java` a partir do `javap -public` do JAR compilado e do Javadoc dos fontes. Não edite à mão: rode `./gradlew apiDocs`. O build (`checkApiDocs`) falha se este arquivo estiver desatualizado ou se um membro público ficar sem Javadoc.
 
@@ -37,6 +37,7 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Light.Param`](#lightparam)
 - [`Light.Shape`](#lightshape)
 - [`Light.State`](#lightstate)
+- [`Placement`](#placement)
 - [`Point`](#point)
 - [`Point.Source`](#pointsource)
 - [`Timeline`](#timeline)
@@ -402,8 +403,12 @@ Public common-side API: register effects, schedule server cues and start or stop
 | `static void cue(ResourceLocation id, String marker, Effects.Cue cue)` | Schedules a cue on a marker of the effect's timeline (0.7.0). |
 | `static void onImpact(ResourceLocation id, Effects.Cue cue)` | Schedules a cue at the definition's `Impact` tick, keeping visual contact and gameplay in sync. |
 | `static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Vec3 position)` | Starts an instance at a fixed world position (blocks). |
+| `static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Vec3 position, float yaw, float pitch)` | Starts an instance at a fixed world position (blocks) turned by `yaw` and `pitch` (degrees, Minecraft convention: yaw 0 faces south, pitch positive looks down, within [-90, 90]) (0.10.0). |
 | `static Optional<Effects.Handle> start(ResourceLocation id, ServerPlayer caster, Vec3 position)` | Starts an instance at a position for a caster: the caster's client plays the effect's camera (card shots or `AddonLayers.film`) and cues receive the player as `caster`. |
+| `static Optional<Effects.Handle> start(ResourceLocation id, ServerPlayer caster, Vec3 position, float yaw, float pitch)` | Starts an instance for a caster at a position turned by `yaw` and `pitch` in degrees (0.10.0); see ServerLevel, Vec3, float, float). |
+| `static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Placement placement)` | Starts an instance from a `Placement` (0.10.0): fixed position or anchor entity, yaw and pitch, the yaw optionally following the anchor's body, and the caster. |
 | `static Optional<Effects.Handle> follow(ResourceLocation id, Entity entity, Vec3 offset)` | Starts an instance anchored to a server entity: the center follows the entity's feet plus `offset` (world axes, blocks). |
+| `static Optional<Effects.Handle> follow(ResourceLocation id, Entity entity, Vec3 offset, boolean followBody)` | Starts an instance anchored to a server entity whose yaw follows the entity's body when `followBody` is true (0.10.0): the body yaw of a living entity, interpolated on clients, or the yaw of other entities. |
 
 ## Effects.Context
 
@@ -414,8 +419,11 @@ Server-side moment of a live instance, delivered to a `Cue` on the server thread
 | Membro | Descrição |
 |---|---|
 | `new Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Effects.Handle handle)` | 0.6 form, kept for compatibility: no timeline, local and real age equal to the tick. |
-| `new Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Effects.Handle handle, Timeline timeline, double localAge, long age)` | Canonical constructor: level, center, caster, anchor, seed, tick, handle, timeline, localAge, age. |
+| `new Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Effects.Handle handle, Timeline timeline, double localAge, long age)` | 0.7 to 0.9 form, kept for compatibility: no orientation (yaw 0, pitch 0, the world axes). |
+| `new Context(ServerLevel level, Vec3 center, ServerPlayer caster, Entity anchor, long seed, int tick, Effects.Handle handle, Timeline timeline, double localAge, long age, float yaw, float pitch)` | Canonical constructor: level, center, caster, anchor, seed, tick, handle, timeline, localAge, age, yaw, pitch. |
 | `List<LivingEntity> living(double radius)` | Living entities whose bounding box center lies within the radius, excluding the caster and the anchor. |
+| `Vec3 facing(double right, double up, double forward)` | World offset (blocks) of `right`, `up` and `forward` in the instance frame (0.10.0); add it to `center()` for a point in front of the effect. |
+| `Vec3 forward()` | Unit vector the instance faces (0.10.0); (0, 0, 1) without orientation. |
 | `ServerLevel level()` | Server level of the instance. |
 | `Vec3 center()` | Current center (blocks); includes the entity offset for anchored instances. |
 | `ServerPlayer caster()` | Player who cast it, or null (started without a player, or the player left). |
@@ -426,6 +434,8 @@ Server-side moment of a live instance, delivered to a `Cue` on the server thread
 | `Timeline timeline()` | Registered timeline, or null (0.7.0). |
 | `double localAge()` | Local age when the cue runs, equal to `tick` (0.7.0). |
 | `long age()` | Real age in ticks, which keeps growing across sustain loops (0.7.0). |
+| `float yaw()` | Instance yaw in degrees when the cue runs, [-180, 180) (0.10.0): the `Placement` yaw, plus the anchor's body yaw when the instance follows it; 0 without orientation. |
+| `float pitch()` | Instance pitch in degrees, [-90, 90], positive looks down (0.10.0); 0 without orientation. |
 
 ## Effects.Cue
 
@@ -611,8 +621,8 @@ Numeric parameters that can be driven by a timeline track, each with the range u
 | `FLICKER` | Flicker amount, 0..1 (0 steady, 1 may go fully dark). |
 | `FLICKER_SPEED` | Flicker speed, changes per second. |
 | `X` | Offset added to the position (all ends and the center), x, blocks. |
-| `Y` | Offset added to the position, y, blocks. |
-| `Z` | Offset added to the position, z, blocks. |
+| `Y` | Offset added to the position, y (up), blocks. |
+| `Z` | Offset added to the position, z (forward in the instance frame), blocks. |
 | `WEIGHT` | Extra multiplier of the light weight, 0..1 (the envelope and the phase still apply). |
 | `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
 | `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
@@ -652,6 +662,34 @@ Resolved light at one moment: parameters taken from tracks and clamped, flicker 
 | `float width()` | Ring band width or disc edge, blocks. |
 | `float height()` | Vertical reach of a disc or ring, blocks. |
 
+## Placement
+
+`dev.calamidade_awakening.api.v1.Placement` · class
+
+Where and how an instance starts (0.10.0): a fixed position or an anchor entity, an orientation (yaw and pitch) and the player who cast it.
+
+| Membro | Descrição |
+|---|---|
+| `static Placement at(Vec3 position)` | Fixed world position in blocks, no orientation (world axes). |
+| `static Placement at(Vec3 position, float yaw, float pitch)` | Fixed world position in blocks, turned by `yaw` and `pitch` (degrees). |
+| `static Placement on(Entity anchor)` | Anchored to an entity: the center follows the entity's feet. |
+| `static Placement on(Entity anchor, Vec3 offset)` | Anchored to an entity with an offset from its feet, in blocks, in the instance frame (x left, y up, z forward; the world axes while the placement has no orientation, as in `Effects.follow`). |
+| `Placement withOrientation(float yaw, float pitch)` | Copy with this orientation: yaw in degrees (any finite value, wrapped to [-180, 180)) and pitch in degrees ([-90, 90], positive looks down). |
+| `Placement withYaw(float yaw)` | Copy with this yaw (degrees), keeping the pitch. |
+| `Placement withLookOf(Entity entity)` | Copy with the yaw and pitch an entity is looking with (`getYRot()`, `getXRot()`). |
+| `Placement facing(Vec3 target)` | Copy oriented to look at `target` (blocks): from the position, or from the anchor's eyes for anchored placements. |
+| `Placement shifted(double right, double up, double forward)` | Copy moved by `right`, `up` and `forward` blocks in the placement's frame. |
+| `Placement followingBody()` | Copy whose yaw follows the anchor's body every tick and every frame (0.10.0): the body yaw of a living entity (`yBodyRot`, interpolated on clients), or the entity's yaw for other entities, plus this placement's yaw as an offset. |
+| `Placement withCaster(ServerPlayer caster)` | Copy cast by this player: their client plays the effect's camera (card shots or `AddonLayers.film`), cues receive them as `caster` and caster points resolve to them. |
+| `Vec3 position()` | World position in blocks (fixed placements), or the offset from the anchor's feet in the instance frame. |
+| `Entity anchor()` | Anchor entity, or null for a fixed position. |
+| `boolean anchored()` | True when anchored to an entity. |
+| `float yaw()` | Yaw in degrees, [-180, 180); an offset added to the body yaw when `followBody()` is true. |
+| `float pitch()` | Pitch in degrees, [-90, 90] (positive looks down). |
+| `boolean followBody()` | True when the yaw follows the anchor's body (`followingBody`). |
+| `ServerPlayer caster()` | Player who cast the instance, or null. |
+| `String toString()` | Readable form with the position or anchor, orientation and options. |
+
 ## Point
 
 `dev.calamidade_awakening.api.v1.Point` · class
@@ -664,7 +702,8 @@ Immutable place in the world used by `Beam` ends and `Light` positions (0.9.0).
 | `static double MAX_REACH` | Largest aim distance, in blocks. |
 | `static double MAX_WORLD` | Largest horizontal world coordinate, in blocks (the world border). |
 | `static Point center()` | The instance center. |
-| `static Point center(double dx, double dy, double dz)` | Offset in blocks from the instance center (world axes). |
+| `static Point center(double dx, double dy, double dz)` | Offset in blocks from the instance center, in the instance frame: `dx` to the left, `dy` up, `dz` forward (0.10.0). |
+| `static Point facing(double right, double up, double forward)` | Offset from the instance center written as `right`, `up` and `forward` blocks in the instance frame (0.10.0). |
 | `static Point world(double x, double y, double z)` | Fixed world position in blocks, the same for every instance (\|x\| and \|z\| up to `MAX_WORLD`, \|y\| up to `MAX_OFFSET`). |
 | `static Point anchor(double dx, double dy, double dz)` | Feet of the anchor entity (`Effects.follow`) plus an offset in blocks. |
 | `static Point anchorEye(double dx, double dy, double dz)` | Eyes of the anchor entity plus an offset in blocks. |
@@ -689,7 +728,7 @@ What a point is attached to.
 
 | Membro | Descrição |
 |---|---|
-| `CENTER` | Instance center plus offset. |
+| `CENTER` | Instance center plus offset in the instance frame (world axes without orientation). |
 | `WORLD` | Fixed world position. |
 | `ANCHOR` | Feet of the anchor entity (`Effects.follow`) plus offset. |
 | `ANCHOR_EYE` | Eyes of the anchor entity plus offset. |
@@ -868,7 +907,11 @@ Post-processing access for one visible instance (0.6.1).
 | Membro | Descrição |
 |---|---|
 | `new Post(FxApi.Frame frame, AddonLayers.Time time, Vec3 center, double distance, double age, long instance, Quality quality, boolean flashAllowed, int passBudget)` | Engine use (0.6 form, kept for compatibility: local and real age are equal). |
-| `new Post(FxApi.Frame frame, AddonLayers.Time time, Vec3 center, double distance, double age, double realAge, long instance, Quality quality, boolean flashAllowed, int passBudget)` | Engine use. |
+| `new Post(FxApi.Frame frame, AddonLayers.Time time, Vec3 center, double distance, double age, double realAge, long instance, Quality quality, boolean flashAllowed, int passBudget)` | Engine use (0.7 to 0.9 form, kept for compatibility: no orientation). |
+| `new Post(FxApi.Frame frame, AddonLayers.Time time, Vec3 center, double distance, double age, double realAge, long instance, Quality quality, boolean flashAllowed, int passBudget, float yaw, float pitch)` | Engine use (0.10.0): with the instance yaw and pitch of this frame, in degrees. |
+| `float yaw()` | Instance yaw in degrees this frame, [-180, 180) (0.10.0); 0 without orientation. |
+| `float pitch()` | Instance pitch in degrees this frame, [-90, 90], positive looks down (0.10.0). |
+| `Vec3 facing(double right, double up, double forward)` | Offset in world axes (blocks) of `right`, `up` and `forward` in the instance frame (0.10.0). |
 | `boolean pass(String program, Consumer<Uniforms> uniforms)` | Queues a shader pass from assets/&lt;namespace&gt;/shaders/fx. |
 | `void uploadTracks(Uniforms uniforms, String prefix)` | Sends every track of the timeline, at the current local age, as a float uniform named `prefix + trackName` (0.7.0). |
 | `int passesLeft()` | Passes that still fit in this frame's budget for this effect: the shared addon budget (1/2/4 for LOW/BALANCED/HIGH) or, for a HERO effect, the HERO budget (1/2/3). |
@@ -936,7 +979,11 @@ Additive world mesh of one instance, drawn after particles in one batch with the
 
 | Membro | Descrição |
 |---|---|
-| `new World(Mesh mesh, Vec3 origin, AddonLayers.Time time)` | Engine use. |
+| `new World(Mesh mesh, Vec3 origin, AddonLayers.Time time)` | Engine use (0.6 form, kept for compatibility: no orientation). |
+| `new World(Mesh mesh, Vec3 origin, AddonLayers.Time time, float yaw, float pitch)` | Engine use (0.10.0): with the instance yaw and pitch of this frame, in degrees. |
+| `float yaw()` | Instance yaw in degrees this frame, [-180, 180) (0.10.0); 0 without orientation. |
+| `float pitch()` | Instance pitch in degrees this frame, [-90, 90], positive looks down (0.10.0). |
+| `Vec3 facing(double right, double up, double forward)` | Offset in world axes (blocks) of `right`, `up` and `forward` in the instance frame (0.10.0), to pass to `triangle` and `ribbon`. |
 | `AddonLayers.Time time()` | Clock of the instance. |
 | `Timeline.Sampler timeline()` | Timeline sampler of the instance (0.7.0). |
 | `int remainingVertices()` | Vertices left in this instance's share of the frame budget. |

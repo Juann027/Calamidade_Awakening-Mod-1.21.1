@@ -71,17 +71,31 @@ public final class AddonLayers {
     /**
      * Additive world mesh of one instance, drawn after particles in one batch with the engine geometry (no depth
      * write, not fogged, so it reads as emissive light). Coordinates are offsets in blocks from the interpolated
-     * instance center. Vertices are capped per frame by the quality profile and shared among visible effects;
-     * calls beyond the cap are dropped. Alpha is multiplied by the instance opacity.
+     * instance center, in world axes; {@link #facing} turns an offset written as right, up and forward by the
+     * instance orientation (0.10.0). Vertices are capped per frame by the quality profile and shared among visible
+     * effects; calls beyond the cap are dropped. Alpha is multiplied by the instance opacity.
      */
     public static final class World {
         private final Mesh mesh;
         private final Vec3 origin;
         private final Time time;
-        /** Engine use. */
-        public World(Mesh mesh, Vec3 origin, Time time) {
+        private final dev.calamidade_awakening.api.Basis basis;
+        /** Engine use (0.6 form, kept for compatibility: no orientation). */
+        public World(Mesh mesh, Vec3 origin, Time time) { this(mesh, origin, time, 0, 0); }
+        /** Engine use (0.10.0): with the instance yaw and pitch of this frame, in degrees. */
+        public World(Mesh mesh, Vec3 origin, Time time, float yaw, float pitch) {
             this.mesh = mesh; this.origin = origin; this.time = time;
+            this.basis = dev.calamidade_awakening.api.Basis.of(yaw, pitch);
         }
+        /** Instance yaw in degrees this frame, [-180, 180) (0.10.0); 0 without orientation. */
+        public float yaw() { return basis.yaw; }
+        /** Instance pitch in degrees this frame, [-90, 90], positive looks down (0.10.0). */
+        public float pitch() { return basis.pitch; }
+        /**
+         * Offset in world axes (blocks) of {@code right}, {@code up} and {@code forward} in the instance frame
+         * (0.10.0), to pass to {@link #triangle} and {@link #ribbon}. Without orientation, forward is south (+Z).
+         */
+        public Vec3 facing(double right, double up, double forward) { return turn(basis, right, up, forward); }
         /** Clock of the instance. */
         public Time time() { return time; }
         /** Timeline sampler of the instance (0.7.0). */
@@ -122,6 +136,7 @@ public final class AddonLayers {
         private final long instance;
         private final Quality quality;
         private final boolean flashAllowed;
+        private final dev.calamidade_awakening.api.Basis basis;
         private int passesLeft, used;
 
         /** Engine use (0.6 form, kept for compatibility: local and real age are equal). */
@@ -130,13 +145,31 @@ public final class AddonLayers {
             this(frame, time, center, distance, age, age, instance, quality, flashAllowed, passBudget);
         }
 
-        /** Engine use. */
+        /** Engine use (0.7 to 0.9 form, kept for compatibility: no orientation). */
         public Post(FxApi.Frame frame, Time time, Vec3 center, double distance, double age, double realAge,
                     long instance, Quality quality, boolean flashAllowed, int passBudget) {
+            this(frame, time, center, distance, age, realAge, instance, quality, flashAllowed, passBudget, 0, 0);
+        }
+
+        /** Engine use (0.10.0): with the instance yaw and pitch of this frame, in degrees. */
+        public Post(FxApi.Frame frame, Time time, Vec3 center, double distance, double age, double realAge,
+                    long instance, Quality quality, boolean flashAllowed, int passBudget, float yaw, float pitch) {
             this.frame = frame; this.time = time; this.center = center; this.distance = distance; this.age = age;
             this.realAge = realAge; this.instance = instance; this.quality = quality; this.flashAllowed = flashAllowed;
             this.passesLeft = Math.max(0, passBudget);
+            this.basis = dev.calamidade_awakening.api.Basis.of(yaw, pitch);
         }
+
+        /** Instance yaw in degrees this frame, [-180, 180) (0.10.0); 0 without orientation. */
+        public float yaw() { return basis.yaw; }
+        /** Instance pitch in degrees this frame, [-90, 90], positive looks down (0.10.0). */
+        public float pitch() { return basis.pitch; }
+        /**
+         * Offset in world axes (blocks) of {@code right}, {@code up} and {@code forward} in the instance frame
+         * (0.10.0). Add it to {@link #center()} to place something in front of the effect in a shader, or send
+         * {@code facing(0, 0, 1)} as the forward axis. Without orientation, forward is south (+Z).
+         */
+        public Vec3 facing(double right, double up, double forward) { return turn(basis, right, up, forward); }
 
         /** Queues a shader pass from assets/&lt;namespace&gt;/shaders/fx. Returns false, without drawing, when the budget is spent. */
         public boolean pass(String program, Consumer<Uniforms> uniforms) {
@@ -289,6 +322,11 @@ public final class AddonLayers {
      * @param partial  partial tick, 0..1
      */
     public record Panel(GuiGraphics graphics, float partial) {}
+
+    private static Vec3 turn(dev.calamidade_awakening.api.Basis basis, double right, double up, double forward) {
+        double x = right == 0 ? 0 : -right;
+        return new Vec3(basis.worldX(x, up, forward), basis.worldY(x, up, forward), basis.worldZ(x, up, forward));
+    }
 
     private static final Map<String,Consumer<World>> world = new ConcurrentHashMap<>();
     private static final Map<String,Consumer<Hud>> hud = new ConcurrentHashMap<>();

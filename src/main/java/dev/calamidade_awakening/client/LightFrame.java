@@ -55,21 +55,22 @@ final class LightFrame {
             for (Light light : list) {
                 Light.State state = light.sample(sampler, sample.opacity(), sample.age() / 20.0, sample.seed(), flickerScale);
                 if (!state.visible()) continue;
-                Vec3 offset = new Vec3(state.x(), state.y(), state.z());
-                Vec3 a = scene.point(sample.event(), center, light.from(), partial);
+                // 0.10.0: track offsets are in the instance frame (world axes without orientation).
+                Vec3 offset = sample.turn(state.x(), state.y(), state.z());
+                Vec3 a = scene.point(sample.event(), center, sample.basis(), light.from(), partial);
                 if (a == null) continue;
                 Vec3 b = a;
                 float weight = state.weight();
                 if (light.shape() == Light.Shape.SEGMENT) {
-                    b = scene.point(sample.event(), center, light.to(), partial);
+                    b = scene.point(sample.event(), center, sample.basis(), light.to(), partial);
                     if (b == null) continue;
                     Beam beam = light.beam();
                     if (beam != null) {
                         // Follows the beam: its track offsets, reveal and weight.
                         Beam.State bs = beam.sample(sampler, sample.opacity());
                         if (!bs.visible()) continue;
-                        a = a.add(bs.fromX(), bs.fromY(), bs.fromZ());
-                        b = b.add(bs.toX(), bs.toY(), bs.toZ());
+                        a = a.add(sample.turn(bs.fromX(), bs.fromY(), bs.fromZ()));
+                        b = b.add(sample.turn(bs.toX(), bs.toY(), bs.toZ()));
                         b = a.add(b.subtract(a).scale(bs.reveal()));
                         weight *= bs.weight();
                     }

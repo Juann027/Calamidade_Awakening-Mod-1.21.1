@@ -40,7 +40,7 @@ public final class MeshRenderer {
             GeometryEffects.render(new Frame(mesh, camera.getPosition(), right, vertical, partial), sample, plan.quality());
             var layer = AddonLayers.world(sample.kind().networkKey());
             if (layer != null) layer.accept(new AddonLayers.World(mesh,camera.getPosition().add(sample.relative()),
-                sample.time()));
+                sample.time(), sample.basis().yaw, sample.basis().pitch));
             emitted += slice - mesh.remaining();
         }
         lastVertices = emitted;

@@ -1,5 +1,6 @@
 package dev.calamidade_awakening.client;
 
+import dev.calamidade_awakening.api.Basis;
 import dev.calamidade_awakening.api.FrameBudget;
 import dev.calamidade_awakening.api.Quality;
 import dev.calamidade_awakening.api.VisualKind;
@@ -15,10 +16,13 @@ import java.util.*;
 public final class StageScene {
     /**
      * {@code age} is the real age with the partial tick; {@code localAge} the timeline age (equal without sustain).
-     * Progress, opacity and the impact accent follow the local age (0.7.0).
+     * Progress, opacity and the impact accent follow the local age (0.7.0). {@code basis} is the instance frame of this
+     * frame (0.10.0): the start orientation, or the anchor's interpolated body yaw plus the yaw offset.
      */
     public record Sample(StageEvent event, VisualKind kind, Vec3 relative, float progress,
-                         float opacity, float seed, double distance, double age, double localAge) {
+                         float opacity, float seed, double distance, double age, double localAge, Basis basis) {
+        /** World vector of a local one (x left, y up, z forward) in this instance's frame. */
+        public Vec3 turn(double x, double y, double z) { return StageScene.turn(basis, x, y, z); }
         /** Public clock handed to addon layers, with the timeline sampled at the local age. */
         public dev.calamidade_awakening.api.v1.client.AddonLayers.Time time() {
             return new dev.calamidade_awakening.api.v1.client.AddonLayers.Time(progress, opacity, seed, kind.radius,
@@ -73,7 +77,28 @@ public final class StageScene {
         if (event.entityId() < 0) return event.center();
         var entity = level.getEntity(event.entityId());
         if (entity == null || !entity.getUUID().equals(event.anchorUuid()) || entity.isRemoved()) return null;
-        return entity.getPosition(partial).add(event.offset());
+        Vec3 o = event.offset();
+        return entity.getPosition(partial).add(turn(basis(event, partial), o.x, o.y, o.z));
+    }
+
+    /**
+     * Frame of an instance this frame (0.10.0): the start orientation, or, when the yaw follows the anchor's body, the
+     * body yaw interpolated like the entity renderer does ({@code Mth.rotLerp} of {@code yBodyRotO} and
+     * {@code yBodyRot}) plus the yaw offset. Falls back to the start orientation while the anchor is not loaded.
+     */
+    public Basis basis(StageEvent event, float partial) {
+        if (!event.followBody()) return event.basis();
+        var entity = anchor(event);
+        if (entity == null) return event.basis();
+        float body = entity instanceof net.minecraft.world.entity.LivingEntity living
+            ? net.minecraft.util.Mth.rotLerp(partial, living.yBodyRotO, living.yBodyRot) : entity.getViewYRot(partial);
+        return Basis.of(body + event.yaw(), event.pitch());
+    }
+
+    /** World vector of a local one (x left, y up, z forward); no work for the identity frame. */
+    static Vec3 turn(Basis basis, double x, double y, double z) {
+        if (basis.identity()) return new Vec3(x, y, z);
+        return new Vec3(basis.worldX(x, y, z), basis.worldY(x, y, z), basis.worldZ(x, y, z));
     }
 
     /** Aim rays already cast this frame, by entity id and reach (several beams may share one). */
@@ -84,11 +109,12 @@ public final class StageScene {
 
     /**
      * World position of a {@link dev.calamidade_awakening.api.v1.Point} of an instance (0.9.0), or null when the
-     * entity it needs (anchor or caster) is not loaded on this client. {@code center} is the interpolated center.
+     * entity it needs (anchor or caster) is not loaded on this client. {@code center} is the interpolated center and
+     * {@code basis} the instance frame (0.10.0), which turns the offsets of center points.
      */
-    public Vec3 point(StageEvent event, Vec3 center, dev.calamidade_awakening.api.v1.Point point, float partial) {
+    public Vec3 point(StageEvent event, Vec3 center, Basis basis, dev.calamidade_awakening.api.v1.Point point, float partial) {
         var source = point.source();
-        if (source == dev.calamidade_awakening.api.v1.Point.Source.CENTER) return center.add(point.x(), point.y(), point.z());
+        if (source == dev.calamidade_awakening.api.v1.Point.Source.CENTER) return center.add(turn(basis, point.x(), point.y(), point.z()));
         if (source == dev.calamidade_awakening.api.v1.Point.Source.WORLD) return new Vec3(point.x(), point.y(), point.z());
         net.minecraft.world.entity.Entity entity = source.caster() ? caster(event) : anchor(event);
         if (entity == null) return null;
@@ -192,7 +218,8 @@ public final class StageScene {
             double distance = relative.length();
             if (!isVisible(frustum, origin, kind.radius)) continue;
             float seed = (effect.seed() & 0xFFFFL) / 65535f;
-            Sample mark = new Sample(effect, kind, relative, (float) p, (float) alpha, seed, distance, age, local);
+            Sample mark = new Sample(effect, kind, relative, (float) p, (float) alpha, seed, distance, age, local,
+                basis(effect, partial));
             candidates.add(new FrameBudget.Candidate<>(mark, distance, alpha, effect.order(), kind.range, kind.hero()));
         }
         // 0.9.0: HERO instances first (nearest 2), never cut by the effect limit; NORMAL ones fill the rest.

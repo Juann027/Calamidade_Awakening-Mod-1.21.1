@@ -113,7 +113,7 @@ public final class RimuStageBackend {
             // Local age drives phases and tracks (equal to the real age without sustain, as in 0.6).
             var context = new dev.calamidade_awakening.api.v1.client.AddonLayers.Post(frame, sample.time(),
                 sample.relative(), sample.distance(), sample.localAge(), sample.age(), sample.event().order(),
-                plan.quality(), flashAllowed, budget.left(hero));
+                plan.quality(), flashAllowed, budget.left(hero), sample.basis().yaw, sample.basis().pitch);
             try {
                 post.accept(context);
             } catch (RuntimeException failure) {

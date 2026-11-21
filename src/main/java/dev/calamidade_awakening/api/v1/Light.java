@@ -30,7 +30,8 @@ import java.util.regex.Pattern;
  * the ends, reveal, weight and halo color of a beam of the same effect, so the light grows and fades with it.</li>
  * <li>{@link #disc} and {@link #ring}: light on the ground around a center: a disc of {@code radius} blocks with a
  * soft edge {@code width} blocks wide, or a band {@code width} blocks wide at {@code radius}; it reaches
- * {@code height} blocks above and below the center and lights faces turned up more than walls.</li>
+ * {@code height} blocks above and below the center and lights faces turned up more than walls. Discs and rings stay
+ * horizontal when the instance is oriented (0.10.0): only their center turns with it.</li>
  * </ul>
  *
  * <p>Every numeric parameter can come from a track of the effect's {@link Timeline} ({@link Builder#track}), clamped
@@ -91,11 +92,14 @@ public final class Light {
         FLICKER(0, 1),
         /** Flicker speed, changes per second. */
         FLICKER_SPEED(0, 20),
-        /** Offset added to the position (all ends and the center), x, blocks. */
+        /**
+         * Offset added to the position (all ends and the center), x, blocks. Since 0.10.0 the X, Y and Z offsets are in
+         * the instance frame (x left, y up, z forward), the world axes for an instance without orientation.
+         */
         X(-MAX_TRACK_OFFSET, MAX_TRACK_OFFSET),
-        /** Offset added to the position, y, blocks. */
+        /** Offset added to the position, y (up), blocks. */
         Y(-MAX_TRACK_OFFSET, MAX_TRACK_OFFSET),
-        /** Offset added to the position, z, blocks. */
+        /** Offset added to the position, z (forward in the instance frame), blocks. */
         Z(-MAX_TRACK_OFFSET, MAX_TRACK_OFFSET),
         /** Extra multiplier of the light weight, 0..1 (the envelope and the phase still apply). */
         WEIGHT(0, 1);
@@ -113,7 +117,8 @@ public final class Light {
 
     /**
      * Resolved light at one moment: parameters taken from tracks and clamped, flicker applied to the intensity, and
-     * the weight (0..1). The client adds the offset to the resolved points.
+     * the weight (0..1). The client turns the offset by the instance frame (0.10.0) and adds it to the resolved
+     * points.
      *
      * @param weight    light weight, 0..1 (for {@link #along(Beam)}, times the beam weight on the client)
      * @param x         track offset, x, blocks

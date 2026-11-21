@@ -48,11 +48,12 @@ final class BeamFrame {
                 Beam beam = list.get(i);
                 Beam.State state = beam.sample(sampler, sample.opacity());
                 if (!state.visible()) continue;
-                Vec3 from = scene.point(sample.event(), center, beam.from(), partial);
-                Vec3 to = scene.point(sample.event(), center, beam.to(), partial);
+                Vec3 from = scene.point(sample.event(), center, sample.basis(), beam.from(), partial);
+                Vec3 to = scene.point(sample.event(), center, sample.basis(), beam.to(), partial);
                 if (from == null || to == null) continue;
-                from = from.add(state.fromX(), state.fromY(), state.fromZ()).subtract(camera);
-                to = to.add(state.toX(), state.toY(), state.toZ()).subtract(camera);
+                // 0.10.0: track offsets are in the instance frame (world axes without orientation).
+                from = from.add(sample.turn(state.fromX(), state.fromY(), state.fromZ())).subtract(camera);
+                to = to.add(sample.turn(state.toX(), state.toY(), state.toZ())).subtract(camera);
                 if (from.distanceToSqr(to) < 1e-6) continue;
                 resolved.add(new Resolved(sample, i, from, to, state));
             }

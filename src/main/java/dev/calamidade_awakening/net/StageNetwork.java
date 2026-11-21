@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import cyou.rimuru.rimulib.mc1211.api.AimApi;
 import cyou.rimuru.rimulib.mc1211.api.NetApi;
 import dev.calamidade_awakening.CalamidadeAwakening;
+import dev.calamidade_awakening.api.Basis;
 import dev.calamidade_awakening.api.Cooldowns;
 import dev.calamidade_awakening.api.VisualKind;
 import dev.calamidade_awakening.api.v1.Effects;
@@ -13,6 +14,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -69,7 +71,10 @@ public final class StageNetwork {
             return releasedAt >= 0 && age() >= kind.timeline().endAge(releasedAt, kind.duration);
         }
 
-        Vec3 center() { return anchor == null ? event.center() : anchor.position().add(event.offset()); }
+        /** Current frame (0.10.0): the start orientation, or the anchor's body yaw plus the yaw offset. */
+        Basis basis() { return basisOf(event, anchor); }
+
+        Vec3 center() { return anchor == null ? event.center() : anchoredCenter(anchor, event.offset(), basis()); }
 
         void dispatch() {
             Vec3 center = center();
@@ -126,8 +131,9 @@ public final class StageNetwork {
 
         private void run(VisualKind.ScheduledCue scheduled, ServerPlayer caster, Vec3 center, double local, long real) {
             try {
+                Basis basis = basis();
                 scheduled.cue().run(new Effects.Context(level, center, caster, anchor, event.seed(), scheduled.tick(),
-                    handle, kind.timeline(), local, real));
+                    handle, kind.timeline(), local, real, basis.yaw, basis.pitch));
             } catch (RuntimeException failure) {
                 LOGGER.error("Cue at tick {} of {} failed", scheduled.tick(), kind.networkKey(), failure);
             }
@@ -161,23 +167,61 @@ public final class StageNetwork {
         if (!level.getServer().isSameThread()) throw new IllegalStateException("Call on the server thread");
     }
 
+    /**
+     * What a start asks for (0.10.0): fixed position or anchor (then {@code position} is the offset in the instance
+     * frame), caster (null for none), yaw and pitch in degrees and whether the yaw follows the anchor's body.
+     */
+    record Spawn(Vec3 position, Entity anchor, UUID caster, float yaw, float pitch, boolean followBody) {}
+
+    /** Body yaw of an entity on the server: {@code yBodyRot} for living entities, the yaw for the others. */
+    static float bodyYaw(Entity entity) { return entity instanceof LivingEntity living ? living.yBodyRot : entity.getYRot(); }
+
+    /** Frame of an instance on the server: fixed, or the anchor's body yaw plus the yaw offset. */
+    static Basis basisOf(StageEvent event, Entity anchor) {
+        return event.followBody() && anchor != null ? Basis.of(bodyYaw(anchor) + event.yaw(), event.pitch()) : event.basis();
+    }
+
+    /** Anchor feet plus the offset turned by the instance frame (world axes when the frame is the identity). */
+    static Vec3 anchoredCenter(Entity anchor, Vec3 offset, Basis basis) {
+        if (basis.identity()) return anchor.position().add(offset);
+        return anchor.position().add(basis.worldX(offset.x, offset.y, offset.z), basis.worldY(offset.x, offset.y, offset.z),
+            basis.worldZ(offset.x, offset.y, offset.z));
+    }
+
     public static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Vec3 position, Entity anchor, UUID caster) {
+        if (!Double.isFinite(position.x) || !Double.isFinite(position.y) || !Double.isFinite(position.z))
+            throw new IllegalArgumentException("Non-finite anchor coordinates");
+        return start(id, level, new Spawn(position, anchor, caster, 0, 0, false));
+    }
+
+    /** 0.10.0: start from a public {@link dev.calamidade_awakening.api.v1.Placement} (already validated). */
+    public static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, dev.calamidade_awakening.api.v1.Placement placement) {
+        return start(id, level, new Spawn(placement.position(), placement.anchor(),
+            placement.caster() == null ? null : placement.caster().getUUID(), placement.yaw(), placement.pitch(),
+            placement.followBody()));
+    }
+
+    private static Optional<Effects.Handle> start(ResourceLocation id, ServerLevel level, Spawn spawn) {
         serverThread(level);
         VisualKind kind = VisualKind.byId(VisualKind.localId(id.toString()));
         if (kind == null) throw new IllegalArgumentException("Unknown effect " + id);
-        if (!Double.isFinite(position.x) || !Double.isFinite(position.y) || !Double.isFinite(position.z))
-            throw new IllegalArgumentException("Non-finite anchor coordinates");
-        return start(kind, level, position, anchor, caster == null ? new UUID(0, 0) : caster);
+        return start(kind, level, spawn);
     }
 
-    private static Optional<Effects.Handle> start(VisualKind kind, ServerLevel level, Vec3 position, Entity anchor, UUID caster) {
+    private static Optional<Effects.Handle> start(VisualKind kind, ServerLevel level, Spawn spawn) {
+        Entity anchor = spawn.anchor();
+        UUID caster = spawn.caster() == null ? new UUID(0, 0) : spawn.caster();
         if (ACTIVE.size() >= MAX_LIVE || (anchor != null && (anchor.isRemoved() || anchor.level() != level))) return Optional.empty();
-        Vec3 center = anchor == null ? position : anchor.position().add(position);
+        boolean follow = spawn.followBody() && anchor != null;
+        Basis basis = follow ? Basis.of(bodyYaw(anchor) + spawn.yaw(), spawn.pitch()) : Basis.of(spawn.yaw(), spawn.pitch());
+        Vec3 position = spawn.position();
+        Vec3 center = anchor == null ? position : anchoredCenter(anchor, position, basis);
         if (!level.hasChunkAt(BlockPos.containing(center))) return Optional.empty();
         long order = nextOrder++;
         StageEvent event = new StageEvent(kind.id, order, level.getGameTime(), caster,
             level.dimension().location(), center, level.getRandom().nextLong(),
-            anchor == null ? -1 : anchor.getId(), anchor == null ? null : anchor.getUUID(), anchor == null ? Vec3.ZERO : position);
+            anchor == null ? -1 : anchor.getId(), anchor == null ? null : anchor.getUUID(), anchor == null ? Vec3.ZERO : position,
+            spawn.yaw(), spawn.pitch(), follow);
         Live live = new Live(level, event, kind, anchor);
         var serverRef = new java.lang.ref.WeakReference<>(level.getServer());
         live.handle = new Effects.Handle() {

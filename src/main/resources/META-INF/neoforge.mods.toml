@@ -3,11 +3,11 @@ loaderVersion="[4,)"
 license="MIT"
 [[mods]]
 modId="calamidade_awakening"
-version="0.9.0"
+version="0.10.0"
 displayName="Calamidade_Awakening"
 description="Modular procedural visual effects for Minecraft, powered by the RimuLib API."
 # Must match version in build.gradle (checkModVersion fails the build otherwise).
-# Network protocol of 0.7.0 (release channel for sustained timelines): run the same engine version on the server and on every client.
+# Network protocol of 0.10.0 (event_v2 carries orientation and source): run the same engine version on the server and on every client.
 [[dependencies.calamidade_awakening]]
 modId="minecraft"
 type="required"

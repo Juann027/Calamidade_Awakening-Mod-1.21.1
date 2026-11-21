@@ -17,12 +17,18 @@ import java.util.Objects;
  * net.minecraft.world.phys.Vec3)} or a card).</li>
  * </ul>
  *
- * <p>Offsets use world axes, in blocks (|offset| up to {@value #MAX_OFFSET}). Entity points use the entity's
- * interpolated position, so they follow it smoothly. While the entity is not loaded on a client (out of its view,
+ * <p>Offsets are in blocks (|offset| up to {@value #MAX_OFFSET}). Since 0.10.0 the offsets of {@link #center center
+ * points} are in the <b>instance frame</b> set by the {@link Placement} (or the yaw and pitch given to
+ * {@link Effects#start}): x to the left, y up, z forward, like Minecraft's {@code ^x ^y ^z}. An instance started without
+ * orientation has yaw 0 and pitch 0, whose frame is the world axes, so effects written for 0.9 look the same.
+ * {@link #facing(double, double, double)} writes the same offset as right, up and forward. Offsets of entity points
+ * (anchor and caster) stay in world axes. Entity points use the entity's interpolated position, so they follow it
+ * smoothly. While the entity is not loaded on a client (out of its view,
  * or the instance has no anchor or caster), the beam or light that uses the point is not drawn there.
  *
  * <pre>{@code
  * Point.center(0, 40, 0)        // 40 blocks above the instance center
+ * Point.facing(0, 1.5, 6)       // 6 blocks ahead of the center and 1.5 up, turned with the instance (0.10.0)
  * Point.casterEye(0, -0.2, 0)   // just below the caster's eyes
  * Point.casterAim(48)           // first block the caster looks at, up to 48 blocks away
  * }</pre>
@@ -37,7 +43,7 @@ public final class Point {
 
     /** What a point is attached to. */
     public enum Source {
-        /** Instance center plus offset. */
+        /** Instance center plus offset in the instance frame (world axes without orientation). */
         CENTER,
         /** Fixed world position. */
         WORLD,
@@ -74,8 +80,24 @@ public final class Point {
     /** The instance center. */
     public static Point center() { return new Point(Source.CENTER, 0, 0, 0, 0); }
 
-    /** Offset in blocks from the instance center (world axes). */
+    /**
+     * Offset in blocks from the instance center, in the instance frame: {@code dx} to the left, {@code dy} up,
+     * {@code dz} forward (0.10.0). Without orientation (yaw 0, pitch 0) these are the world axes, as in 0.9.
+     */
     public static Point center(double dx, double dy, double dz) { return offset(Source.CENTER, dx, dy, dz); }
+
+    /**
+     * Offset from the instance center written as {@code right}, {@code up} and {@code forward} blocks in the instance
+     * frame (0.10.0). The same point as {@code center(-right, up, forward)}: it turns with the yaw and pitch of the
+     * {@link Placement}. Without orientation "forward" is south (+Z) and "right" is west (-X).
+     *
+     * <pre>{@code
+     * Beam.builder(Point.facing(.3, 1.4, .5), Point.facing(0, 1.4, 24))  // a bolt straight ahead
+     * }</pre>
+     */
+    public static Point facing(double right, double up, double forward) {
+        return offset(Source.CENTER, right == 0 ? 0 : -right, up, forward);
+    }
 
     /**
      * Fixed world position in blocks, the same for every instance (|x| and |z| up to {@value #MAX_WORLD}, |y| up to
