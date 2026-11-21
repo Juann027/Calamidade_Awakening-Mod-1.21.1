@@ -1,5 +1,6 @@
 package example.vfxsample;
 
+import dev.calamidade_awakening.api.v1.Atmosphere;
 import dev.calamidade_awakening.api.v1.Effects;
 import dev.calamidade_awakening.api.v1.Timeline;
 import dev.calamidade_awakening.api.v1.Timeline.Easing;
@@ -45,6 +46,18 @@ public final class Sample {
         .build();
 
     /**
+     * 1.5.0 — atmosfera curta do Sinal de Maré: céu levemente dourado, exposição um pouco acima e um toque quente,
+     * só enquanto a fase "impacto" (ticks 38 a 54) tem peso. O motor mistura com outras atmosferas e limita a
+     * exposição para quem oculta clarões.
+     */
+    static final Atmosphere SIGNAL_ATMOSPHERE = Atmosphere.builder()
+        .sky(0xff4a3008, 0xffffc060, .35f)
+        .exposure(1.18f)
+        .ambient(0xffffd8a0, .12f)
+        .weightPhase("impacto")
+        .build();
+
+    /**
      * 1.4.0 — Farol: efeito ambiente. Acende em 40 ticks, repete o trecho [40, 80) até receber release e então
      * apaga de 80 a 140. As trilhas valem o mesmo nas duas bordas do loop (40 e 80), então a volta não tem salto.
      */
@@ -54,9 +67,18 @@ public final class Sample {
         .phase("apagar", 80, 140, 0, 50)
         .track("feixe", keyframe(0, 0f), keyframe(40, 1f, Easing.EASE_OUT), keyframe(80, 1f), keyframe(140, 0f, Easing.SMOOTH))
         .track("pulso", keyframe(40, 0f), keyframe(60, 1f, Easing.SMOOTH), keyframe(80, 0f, Easing.SMOOTH))
+        // 1.5.0 — névoa do sustain: sobe ao acender, fica igual em 40 e 80 (loop e release sem salto), some ao apagar.
+        .track("nevoa", keyframe(0, 0f), keyframe(40, .55f, Easing.SMOOTH), keyframe(80, .55f), keyframe(140, 0f, Easing.SMOOTH))
         .marker("pico", 60)
         .marker("apagar", 80)
         .sustain(40, 80)
+        .build();
+
+    /** 1.5.0 — névoa âmbar em volta do farol enquanto ele está aceso; a densidade vem da trilha "nevoa". */
+    static final Atmosphere BEACON_ATMOSPHERE = Atmosphere.builder()
+        .fog(0xffe0a050, .55f, 6, 48)
+        .ambient(0xffffc080, .08f)
+        .track(Atmosphere.Param.FOG_DENSITY, "nevoa")
         .build();
 
     private final Map<UUID, Effects.Handle> last = new HashMap<>();
@@ -68,8 +90,9 @@ public final class Sample {
             Effects.Shape.RINGS, Effects.Material.CRYSTAL,
             ResourceLocation.withDefaultNamespace("end_rod"), SIGNAL,
             new Effects.Impact(40, 3, .75f, Effects.ImpactStyle.MONOCHROME)));
-        // Ordem exigida: register, timeline, cues.
+        // Ordem exigida: register, timeline, atmosphere, cues.
         Effects.timeline(SIGNAL, SIGNAL_TIMELINE);
+        Effects.atmosphere(SIGNAL, SIGNAL_ATMOSPHERE);
         dev.calamidade_awakening.api.v1.Addons.publish(SIGNAL,new dev.calamidade_awakening.api.v1.Addons.Card(
             "ability.vfxsample.signal", "Tidal Signal", "RESONANCE", 130, SIGNAL,
             java.util.List.of(new dev.calamidade_awakening.api.v1.Addons.Shot(30,new Vec3(4,2,6),62),
@@ -82,6 +105,7 @@ public final class Sample {
         Effects.register(BEACON, new Effects.Definition(140, 3, 0xffffd27a,
             Effects.Shape.NONE, Effects.Material.NONE, null, null).withRange(256));
         Effects.timeline(BEACON, BEACON_TIMELINE);
+        Effects.atmosphere(BEACON, BEACON_ATMOSPHERE);
         // "pico" fica dentro do loop: toca a cada volta. "apagar" é o início do release: toca uma vez.
         Effects.cue(BEACON, "pico", ctx -> ctx.level().playSound(null, BlockPos.containing(ctx.center()),
             SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.BLOCKS, 1.2f, .7f));
