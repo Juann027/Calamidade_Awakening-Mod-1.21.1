@@ -56,6 +56,7 @@ public final class FrameBudgetCheck {
         cues();
         rangeAndDuration();
         TimelineCheck.run();
+        AtmosphereCheck.run();
         timelineRegistration();
         meshBudget();
         closedPrimitives();
