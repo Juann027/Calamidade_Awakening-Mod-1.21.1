@@ -97,6 +97,8 @@ public final class StageNetwork {
                     NetApi.send(player, event);
                     // Late arrivals of a released instance get the release right after the start.
                     if (releasedAt >= 0) sendRelease(player);
+                    // 0.11.0: and the state of its terrain edits (refused, structure stand-in, committed).
+                    dev.calamidade_awakening.terrain.TerrainWorks.sendState(player, event.order());
                 }
             }
         }
@@ -169,6 +171,7 @@ public final class StageNetwork {
 
         void end() {
             ended = true;
+            dev.calamidade_awakening.terrain.TerrainWorks.ended(event.order());
             for (ServerPlayer player : recipients) if (level.players().contains(player)) sendEnd(player);
             recipients.clear();
         }
@@ -256,7 +259,7 @@ public final class StageNetwork {
         Live live = new Live(level, event, kind, anchor, source, block);
         if (spawn.cooldown() > 0) COOLDOWNS.start(source, kind.id, now, spawn.cooldown());
         var serverRef = new java.lang.ref.WeakReference<>(level.getServer());
-        live.handle = new Effects.Handle() {
+        live.handle = new LiveHandle(order) {
             @Override public boolean stop() {
                 Live target = find(serverRef.get(), order);
                 if (target == null) return false;
@@ -278,8 +281,25 @@ public final class StageNetwork {
             }
         };
         ACTIVE.add(live);
+        // 0.11.0: safety rules and the plan of its terrain edits, before the first dispatch sends their state.
+        dev.calamidade_awakening.terrain.TerrainWorks.started(level, kind, event, anchor, source);
         live.dispatch();
         return Optional.of(live.handle);
+    }
+
+    /** Handle of a live instance; the order identifies it for the terrain engine (0.11.0). */
+    private abstract static class LiveHandle implements Effects.Handle {
+        final long order;
+        LiveHandle(long order) { this.order = order; }
+    }
+
+    /** Order of the instance behind a handle from {@link #start}, or -1 for other handles (0.11.0). */
+    public static long orderOf(Effects.Handle handle) { return handle instanceof LiveHandle live ? live.order : -1; }
+
+    /** Players that received a live instance, empty when it is gone (0.11.0, terrain state broadcasts). */
+    public static java.util.Collection<ServerPlayer> recipients(long order) {
+        for (Live live : ACTIVE) if (live.event().order() == order) return List.copyOf(live.recipients);
+        return List.of();
     }
 
     /** Live instance with this order, or null when the server is gone or the instance already ended. */
@@ -339,6 +359,7 @@ public final class StageNetwork {
         NetApi.toClient(StageEvent.PACKET);
         NetApi.toClient(EndEffect.PACKET);
         NetApi.toClient(ReleaseEffect.PACKET);
+        NetApi.toClient(TerrainSync.PACKET);
         NetApi.receive(CastRequest.PACKET, (request, ctx) -> ctx.server().execute(() -> {
             if (ctx.player() != null) AwakeningSkills.cast(ctx.player(), request.visual(), request.power());
         }));
@@ -366,6 +387,8 @@ public final class StageNetwork {
     public static void tick(ServerTickEvent.Post event) {
         // Snapshot: a cue may stop its own instance or start new ones.
         for (Live live : List.copyOf(ACTIVE)) if (!live.ended) live.runCues();
+        // 0.11.0: terrain plans, events and commits, after the cues so a commit writes in its marker's tick.
+        dev.calamidade_awakening.terrain.TerrainWorks.tick(event.getServer());
         ACTIVE.removeIf(live -> {
             if (!live.finished()) return false;
             live.end();

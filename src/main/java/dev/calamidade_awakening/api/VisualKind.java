@@ -174,6 +174,12 @@ public final class VisualKind {
                 + " terrain edits per effect: " + id);
         for (var edit : list) edit.validate(kind.timeline, kind.duration);
         kind.terrain = list;
+        // The commit is an engine cue at the marker: it runs once per instance, when the clock walks that tick.
+        for (int i = 0; i < list.size(); i++) {
+            int index = i;
+            kind.cues.add(new ScheduledCue(kind.timeline.tick(list.get(i).marker()),
+                ctx -> dev.calamidade_awakening.terrain.TerrainWorks.commitCue(ctx, index)));
+        }
     }
 
     /** Cue on a timeline marker; the marker tick is resolved now. */

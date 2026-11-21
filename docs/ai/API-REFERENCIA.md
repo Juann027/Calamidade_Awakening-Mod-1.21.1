@@ -56,6 +56,7 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`TerrainEdit.StandIn`](#terraineditstandin)
 - [`TerrainEdit.StandIn.Builder`](#terraineditstandinbuilder)
 - [`TerrainEdit.StandIn.Kind`](#terraineditstandinkind)
+- [`TerrainEditEvent`](#terraineditevent)
 - [`TerrainPalette`](#terrainpalette)
 - [`TerrainPalette.Band`](#terrainpaletteband)
 - [`TerrainPalette.Builder`](#terrainpalettebuilder)
@@ -1070,6 +1071,25 @@ Look of the stand-in.
 |---|---|
 | `SPHERE` | A burning ball drawn by the engine's shader. |
 | `STRUCTURE` | The edit's structure template as a moving block mesh. |
+
+## TerrainEditEvent
+
+`dev.calamidade_awakening.api.v1.TerrainEditEvent` · class
+
+Posted once per `TerrainEdit` of an instance (0.11.0), on `NeoForge.EVENT_BUS` and the server thread, before any block changes: terrain protection mods (claims, spawn protection, regions) cancel it to refuse the edit.
+
+| Membro | Descrição |
+|---|---|
+| `new TerrainEditEvent(ServerLevel level, ResourceLocation effect, int index, TerrainEdit edit, Vec3 origin, BoundingBox area, int blocks, EffectSource source, Entity entity)` | Event of one edit. |
+| `ServerLevel level()` | Server level of the edit. |
+| `ResourceLocation effect()` | Effect ID. |
+| `int index()` | Index of the edit among the effect's edits (0-based). |
+| `TerrainEdit edit()` | The edit (shape, shell, fill, structure). |
+| `Vec3 origin()` | Edit origin, blocks (the instance center when planned). |
+| `BoundingBox area()` | Box of every planned position, inclusive block coordinates. |
+| `int blocks()` | Planned volume, blocks (carved, shell, fill and structure; air positions included). |
+| `EffectSource source()` | Who started the instance (player, entity, block or script). |
+| `Entity entity()` | The player or entity behind the source (caster, anchor or source entity), or null for blocks and scripts. |
 
 ## TerrainPalette
 

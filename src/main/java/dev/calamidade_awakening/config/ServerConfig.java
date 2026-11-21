@@ -6,7 +6,8 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 /**
  * Server limits by source (0.10.0), in {@code serverconfig/calamidade_awakening-server.toml} of each world (also
  * editable from the mod list in single player). Starts above a limit are refused without error: the start returns an
- * empty Optional.
+ * empty Optional. Since 0.11.0 also the safety rules of the Terrain API (section {@code terrain}), with conservative
+ * defaults.
  */
 public final class ServerConfig {
     public static final ModConfigSpec SPEC;
@@ -14,6 +15,38 @@ public final class ServerConfig {
     private static final ModConfigSpec.IntValue PER_ENTITY;
     private static final ModConfigSpec.IntValue PER_BLOCK;
     private static final ModConfigSpec.IntValue PLAYER_RESERVE;
+    private static final ModConfigSpec.BooleanValue TERRAIN_ENABLED;
+    private static final ModConfigSpec.IntValue TERRAIN_MAX_VOLUME;
+    private static final ModConfigSpec.IntValue TERRAIN_BLOCKS_PER_TICK;
+    private static final ModConfigSpec.ConfigValue<java.util.List<? extends String>> TERRAIN_DIMENSIONS;
+    private static final ModConfigSpec.BooleanValue TERRAIN_BLOCK_ENTITIES;
+    private static final ModConfigSpec.BooleanValue TERRAIN_MOB_GRIEFING;
+    private static final ModConfigSpec.IntValue TERRAIN_UNDO_MINUTES;
+    private static final ModConfigSpec.IntValue TERRAIN_UNDO_EDITS;
+    private static final ModConfigSpec.IntValue TERRAIN_MAX_STRUCTURE;
+
+    /** Defaults of the terrain rules (0.11.0). */
+    public static final Terrain TERRAIN_DEFAULT = new Terrain(true, 150_000, 16_384,
+        java.util.List.of("minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"), false, true, 10, 16, 32);
+
+    /**
+     * Terrain API rules (0.11.0).
+     *
+     * @param enabled           terrain edits run at all
+     * @param maxVolume         most planned blocks in one edit (carved, shell, fill and structure); larger edits are refused
+     * @param blocksPerTick     blocks written per server tick, shared by all running edits (an edit may ask for less)
+     * @param dimensions        dimensions where edits run ({@code "*"} for all)
+     * @param blockEntities     edits that ask for it may replace blocks with a block entity
+     * @param mobGriefing       edits whose source is a mob follow the {@code mobGriefing} game rule
+     * @param undoMinutes       minutes a committed edit can be undone (0 keeps no snapshot)
+     * @param undoEdits         most snapshots kept
+     * @param maxStructure      largest structure template per axis, blocks
+     */
+    public record Terrain(boolean enabled, int maxVolume, int blocksPerTick, java.util.List<String> dimensions,
+                          boolean blockEntities, boolean mobGriefing, int undoMinutes, int undoEdits, int maxStructure) {
+        /** True when edits may run in this dimension. */
+        public boolean allows(String dimension) { return dimensions.contains("*") || dimensions.contains(dimension); }
+    }
 
     static {
         var builder = new ModConfigSpec.Builder();
@@ -36,6 +69,37 @@ public final class ServerConfig {
             .translation("calamidade_awakening.configuration.playerReserve")
             .defineInRange("playerReserve", SourceLimits.Rules.DEFAULT.playerReserve(), 0, SourceLimits.TOTAL);
         builder.pop();
+        builder.comment("Terrain API (0.11.0): craters, burnt shells and blocks placed by effects. Conservative defaults.")
+            .translation("calamidade_awakening.configuration.terrain").push("terrain");
+        TERRAIN_ENABLED = builder.comment("Terrain edits run at all.")
+            .translation("calamidade_awakening.configuration.terrainEnabled")
+            .define("terrainEnabled", TERRAIN_DEFAULT.enabled());
+        TERRAIN_MAX_VOLUME = builder.comment("Most planned blocks in one edit (carved, shell, fill, structure); larger edits are refused.")
+            .translation("calamidade_awakening.configuration.terrainMaxVolume")
+            .defineInRange("terrainMaxVolume", TERRAIN_DEFAULT.maxVolume(), 1, 2_000_000);
+        TERRAIN_BLOCKS_PER_TICK = builder.comment("Blocks written per server tick, shared by all running edits; an edit may ask for less.")
+            .translation("calamidade_awakening.configuration.terrainBlocksPerTick")
+            .defineInRange("terrainBlocksPerTick", TERRAIN_DEFAULT.blocksPerTick(), 64, 1_000_000);
+        TERRAIN_DIMENSIONS = builder.comment("Dimensions where terrain edits run (\"*\" for all).")
+            .translation("calamidade_awakening.configuration.terrainDimensions")
+            .defineListAllowEmpty("terrainDimensions", TERRAIN_DEFAULT.dimensions(), () -> "minecraft:overworld",
+                value -> value instanceof String text && (text.equals("*") || text.matches("[a-z0-9_.-]+:[a-z0-9_./-]+")));
+        TERRAIN_BLOCK_ENTITIES = builder.comment("Edits that explicitly ask for it may replace blocks with a block entity (their contents go to the undo snapshot).")
+            .translation("calamidade_awakening.configuration.terrainBlockEntities")
+            .define("terrainBlockEntities", TERRAIN_DEFAULT.blockEntities());
+        TERRAIN_MOB_GRIEFING = builder.comment("Edits started by a mob follow the mobGriefing game rule.")
+            .translation("calamidade_awakening.configuration.terrainMobGriefing")
+            .define("terrainMobGriefing", TERRAIN_DEFAULT.mobGriefing());
+        TERRAIN_UNDO_MINUTES = builder.comment("Minutes a committed edit can be undone with /calamidade terrain undo (0 keeps no snapshot).")
+            .translation("calamidade_awakening.configuration.terrainUndoMinutes")
+            .defineInRange("terrainUndoMinutes", TERRAIN_DEFAULT.undoMinutes(), 0, 1440);
+        TERRAIN_UNDO_EDITS = builder.comment("Most undo snapshots kept (the oldest go first).")
+            .translation("calamidade_awakening.configuration.terrainUndoEdits")
+            .defineInRange("terrainUndoEdits", TERRAIN_DEFAULT.undoEdits(), 0, 256);
+        TERRAIN_MAX_STRUCTURE = builder.comment("Largest structure template an edit may place, blocks per axis.")
+            .translation("calamidade_awakening.configuration.terrainMaxStructure")
+            .defineInRange("terrainMaxStructure", TERRAIN_DEFAULT.maxStructure(), 1, 64);
+        builder.pop();
         SPEC = builder.build();
     }
 
@@ -47,6 +111,17 @@ public final class ServerConfig {
             return new SourceLimits.Rules(PER_PLAYER.get(), PER_ENTITY.get(), PER_BLOCK.get(), PLAYER_RESERVE.get());
         } catch (IllegalStateException notLoaded) {
             return SourceLimits.Rules.DEFAULT;
+        }
+    }
+
+    /** Current terrain rules (0.11.0); the defaults until the world config loads. */
+    public static Terrain terrain() {
+        try {
+            return new Terrain(TERRAIN_ENABLED.get(), TERRAIN_MAX_VOLUME.get(), TERRAIN_BLOCKS_PER_TICK.get(),
+                java.util.List.copyOf(TERRAIN_DIMENSIONS.get()), TERRAIN_BLOCK_ENTITIES.get(), TERRAIN_MOB_GRIEFING.get(),
+                TERRAIN_UNDO_MINUTES.get(), TERRAIN_UNDO_EDITS.get(), TERRAIN_MAX_STRUCTURE.get());
+        } catch (IllegalStateException notLoaded) {
+            return TERRAIN_DEFAULT;
         }
     }
 }

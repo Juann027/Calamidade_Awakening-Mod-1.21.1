@@ -97,6 +97,14 @@ public final class BenchCommand {
             "Limits: %s per player · %s per mob · %s per block · %s slots reserved for players · refused %s (full %s, reserve %s, per source %s)",
             rules.perPlayer(), rules.perEntity(), rules.perBlock(), rules.playerReserve(), refusedTotal,
             refused[1], refused[2], refused[3]), false);
+        // 0.11.0: terrain edits writing, snapshots kept, totals and refusals by reason.
+        int[] t = dev.calamidade_awakening.terrain.TerrainWorks.counters();
+        int terrainRefused = 0;
+        for (int i = 5; i < t.length; i++) terrainRefused += t[i];
+        int refusedSum = terrainRefused;
+        ctx.getSource().sendSuccess(() -> Component.translatableWithFallback(PREFIX + "status.terrain",
+            "Terrain: %s writing · %s undoable · %s commits · %s blocks written · refused %s (config %s, dimension %s, mobGriefing %s, event %s, volume %s, structure %s, error %s)",
+            t[1], t[0], t[2], t[4], refusedSum, t[5], t[6], t[7], t[8], t[9], t[10], t[11]), false);
         return live;
     }
 
