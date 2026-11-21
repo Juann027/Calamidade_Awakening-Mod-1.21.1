@@ -67,6 +67,15 @@
 - Conclusão sobre arrays de uniforms registrada em AVANCADO-0.6.md; fim do atributo obsoleto `EventBusSubscriber.Bus`.
 - vfx-sample 1.4.0: Sinal de Maré roteirizado pela timeline e o Farol, efeito ambiente em loop.
 
+### 0.8.0 — Atmosphere API e kit para IAs
+
+- `Atmosphere`: céu (gradiente e mistura), névoa por distância, exposição, tinta ambiente e estrelas, com parâmetros vindos de trilhas da Timeline e peso pelo envelope. Mistura das duas de maior peso. Consulte ATMOSFERA-0.8.md.
+- Um passe `atmosphere` por quadro, fora do orçamento de addons; névoa pela névoa do jogo (eventos do NeoForge) com plano B na tela; acessibilidade de exposição e tinta; linha nova no F7.
+- Biblioteca GLSL `calamidade_fx.glsl` por `#include`, testada numa GPU.
+- Kit para IAs: AGENTS.md, skill de projeto, referência da API gerada do JAR, guia de GLSL, 7 receitas executáveis e `scripts/novo_efeito.py`.
+- Verificações de build: `checkShaders`, `checkApiDocs`, `checkRecipes`. RimuLib baixada do CurseForge com SHA-256, fora do repositório e dos releases.
+- vfx-sample 1.5.0: receitas, céu dourado no impacto do Sinal de Maré e névoa no Farol.
+
 ## Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -77,9 +86,17 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 ## Próximas versões
 
-### 0.8 — Atmosphere API
+### 0.9 — Beam API e Light API sobre superfícies
 
-Próxima versão planejada. O escopo será detalhado quando o trabalho começar.
+Próxima versão planejada.
+
+- **Beam API:** feixes e raios como objetos do motor (pontos, largura, núcleo e halo, ramificações), desenhados em lote num passe, com oclusão pelo terreno e largura mínima por pixel, em vez de cada addon reescrever `caSegmentGlow`.
+- **Light API sobre superfícies:** luz colorida de efeitos projetada no terreno e nas entidades próximas (pela profundidade e normais reconstruídas), com orçamento de luzes por quadro e mistura com a atmosfera.
+
+### Depois da 0.9
+
+- **Trail API:** rastros de entidades e projéteis (fitas com histórico de posições), com orçamento de vértices.
+- **Títulos:** cartões de título e legendas de habilidade sincronizados à Timeline (nome do golpe, fase do chefe), com acessibilidade de tamanho e duração.
 
 ### Evolução da API, sem versão definida
 

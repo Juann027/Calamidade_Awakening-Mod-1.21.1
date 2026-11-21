@@ -38,13 +38,14 @@ Versão atual: motor **0.8.0**; exemplo `examples/vfx-sample` **1.5.0** (depende
 5. **Git.** Rode `git status` antes de todo `git add` e adicione arquivos pelo nome. Nunca `git add -A` às cegas, nunca commit de `build/`, `run/`, `libs/*.jar`, `dist/*.jar`. Um commit por etapa de trabalho, com mensagem que diga o porquê.
 6. **Acessibilidade.** Efeitos de tela passam pelos métodos de `AddonLayers.Post` (que aplicam intensidade, tremor, clarões e movimento). Passes próprios que mudam a tela inteira multiplicam a força por `post.screenEffects()`, evitam piscar quando `!post.flashAllowed()` e pulam zoom/borrão quando `!post.motionEffects()`. A exposição da atmosfera já é limitada pelo motor.
 7. **Orçamento.** Não contorne o orçamento por quadro (tabela abaixo). Prefira shaders analíticos (raio-caixa, raio-esfera, segmentos) a raymarch, e reduza passos em `post.quality() == LOW`.
-8. **Build verde.** `./gradlew build` precisa passar ao fim de cada etapa, e o exemplo também (`./gradlew dist` e `./gradlew -p examples/vfx-sample build`).
+8. **Versão.** Ao mudar a versão do motor, mude também `version` em `src/main/resources/META-INF/neoforge.mods.toml`, o JAR que o exemplo usa em `examples/vfx-sample/build.gradle` e o intervalo do manifesto do exemplo; o `checkModVersion` falha se não baterem.
+9. **Build verde.** `./gradlew build` precisa passar ao fim de cada etapa, e o exemplo também (`./gradlew dist` e `./gradlew -p examples/vfx-sample build`).
 
 ## Comandos
 
 | Comando | O que faz |
 |---|---|
-| `./gradlew build` | Compila e roda `checkBudget` (Java puro: orçamento, timeline, atmosfera, cues, registro), `checkFrustum`, `checkShaders` (glslangValidator em todo shader fx do motor e do exemplo; só avisa se o glslang não estiver instalado, exceto no CI), `checkApiDocs` e `checkRecipes`. Baixa a RimuLib se faltar. |
+| `./gradlew build` | Compila e roda `checkBudget` (Java puro: orçamento, timeline, atmosfera, cues, registro), `checkFrustum`, `checkShaders` (glslangValidator em todo shader fx do motor e do exemplo; só avisa se o glslang não estiver instalado, exceto no CI), `checkApiDocs`, `checkRecipes` e `checkModVersion` (versão do `neoforge.mods.toml` igual à do `build.gradle` e aceita pelo exemplo). Baixa a RimuLib se faltar. |
 | `./gradlew dist` | Build + copia o JAR para `dist/` (de onde o exemplo compila). |
 | `./gradlew -p examples/vfx-sample build` | Compila o exemplo contra `dist/calamidade_awakening-0.8.0.jar`. |
 | `./gradlew apiDocs` | Regenera `docs/ai/API-REFERENCIA.md` (javap no JAR + Javadoc). |

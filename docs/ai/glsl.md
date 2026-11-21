@@ -52,7 +52,7 @@ Arquivo: `src/main/resources/assets/calamidade_awakening/shaders/fx/calamidade_f
 | `float caDistanceWave(dist, tempo, velocidade, largura, alcance)` | 0..1 | Anel na distância velocidade × tempo, que some perto do alcance; 0 antes de tempo 0. |
 | `float caStars(dir, segundos)` | 0..1 | Campo de estrelas procedural na direção `dir`; usado pelo passe de atmosfera. |
 
-Testes: `node scripts/testar_glsl.cjs` compila a biblioteca em GLSL ES 3.00 e executa 54 casos numa GPU (WebGL2 no Chromium headless), comparando com valores esperados. O `checkShaders` do Gradle compila cada shader do motor e do exemplo em GLSL 1.50, com o `common.glsl` real e os `#include` resolvidos como a RimuLib faz.
+Testes: `node scripts/testar_glsl.cjs` compila a biblioteca em GLSL ES 3.00 e executa 55 casos numa GPU (WebGL2 no Chromium headless), comparando com valores esperados. O `checkShaders` do Gradle compila cada shader do motor e do exemplo em GLSL 1.50, com o `common.glsl` real e os `#include` resolvidos como a RimuLib faz.
 
 ## Convenções
 

@@ -1,6 +1,21 @@
 # Mudanças
 
-**Estado: 0.7.0 compilada (motor e vfx-sample 1.4.0); testes em jogo da 0.7.0 pendentes.** Veja docs/VALIDACAO.md e o roteiro em docs/TESTE-REAL.md.
+**Estado: 0.8.0 compilada (motor e vfx-sample 1.5.0); testes em jogo da 0.7.0 e da 0.8.0 pendentes.** Veja docs/VALIDACAO.md e o roteiro em docs/TESTE-REAL.md.
+
+# 0.8.0 — Atmosphere API e kit para IAs
+
+- **Atmosphere** (`dev.calamidade_awakening.api.v1.Atmosphere`, docs/ATMOSFERA-0.8.md): objeto imutável, montado por builder, com céu (topo, horizonte e mistura), névoa por distância (cor, densidade, início e fim em blocos), exposição, tinta ambiente e estrelas procedurais. Todo parâmetro numérico pode vir de uma trilha da Timeline (`track(Param.FOG_DENSITY, "nevoa")`); o peso segue o envelope da instância, uma fase opcional (`weightPhase`) e uma trilha `WEIGHT`. `Atmosphere.mix` mistura as duas de maior peso por interpolação ponderada. Java puro, coberto pelo `AtmosphereCheck`.
+- **Integração.** `Effects.atmosphere(id, atmosfera)` depois de `register` (e da timeline, se lê trilhas). O cliente resolve a atmosfera de toda instância ativa (sem frustum), com fade nos últimos 25% do alcance, e desenha um único passe `atmosphere` por quadro, depois dos passes de efeito e fora do orçamento de addons, só quando há atmosfera ativa. Céu por diferença sobre o céu estimado do jogo (sol, lua, nuvens e efeitos preservados), estrelas, névoa no horizonte, exposição e tinta.
+- **Névoa pela névoa do jogo.** O NeoForge 21.1.267 oferece `ViewportEvent.ComputeFogColor` e `ViewportEvent.RenderFog`; o motor usa os dois (prioridade LOWEST, só sem fluido, cegueira ou escuridão, nunca mais rala que a do jogo), então terreno, entidades, partículas, água e nuvens recebem a névoa na distância real. Nova opção **"Névoa da atmosfera pela névoa do jogo"** (`vanillaFog`): desligada, o passe desenha a névoa pela profundidade, para shader packs que ignoram a névoa do jogo.
+- **Acessibilidade.** Exposição e tinta seguem a intensidade dos efeitos de tela; com "ocultar clarões", a exposição muda no máximo 0,025 por tick. Novos `Post.screenEffects()` e `Post.motionEffects()` para passes próprios.
+- **F7:** "Atmosfera: N ativas · passe sim/não"; o CSV ganha `atmospheres` e `atmospherePass`.
+- **Biblioteca GLSL** `calamidade_fx.glsl` (via `#include` da RimuLib, conferido com `javap -c`): raio-caixa, raio-esfera, brilho de segmento com largura mínima por pixel, grades sem moiré, arco-íris, envelope, onda por distância e estrelas. 55 testes executados numa GPU (`scripts/testar_glsl.cjs`).
+- **Kit para IAs.** `AGENTS.md` e `CLAUDE.md` na raiz; skill de projeto `.claude/skills/calamidade-efeitos`; `docs/ai/` com a referência da API gerada do JAR (`API-REFERENCIA.md`), o guia de GLSL e 7 receitas que são efeitos reais do exemplo (`/vfxsample receita <nome>`); `scripts/novo_efeito.py` gera o esqueleto de um efeito que compila sem edição. Javadoc revisado em toda a api.v1.
+- **Verificações novas no build:** `checkShaders` (glslangValidator em todo shader fx do motor e do exemplo, montado como a RimuLib monta), `checkApiDocs` (referência atualizada e todo membro público com Javadoc) e `checkRecipes` (código das receitas igual ao do exemplo) e `checkModVersion` (versão do manifesto do motor igual à do build e aceita pelo exemplo).
+- **Correção:** o `neoforge.mods.toml` do motor ainda declarava `0.7.0`; com isso o exemplo 1.5.0 (que exige `[0.8.0,0.9.0)`) era recusado no carregamento. O teste em jogo automatizado achou o problema; agora o manifesto declara `0.8.0` e o `checkModVersion` impede a divergência.
+- **RimuLib fora do repositório.** O JAR deixou de ser versionado e de ser anexado a releases; o build o baixa do CurseForge e confere o SHA-256. O release v0.7.0 foi limpo.
+- **Exemplo 1.5.0.** As 7 receitas; atmosfera curta e dourada no impacto do Sinal de Maré; névoa âmbar no sustain do Farol (trilha `nevoa`). Dependência `[0.8.0,0.9.0)`.
+- **Compatibilidade.** O protocolo de rede é o da 0.7.0 (canais event, end_effect, request_v2 e release); a atmosfera não envia nada pela rede. Efeitos sem atmosfera se comportam como na 0.7. O exemplo 1.4.0 compila sem mudança contra a 0.8.0, e as 107 referências ao motor do seu bytecode (compilado contra a 0.7.0) existem no JAR 0.8.0. Addons com intervalo `[0.7.0,0.8.0)` só precisam ampliá-lo.
 
 # 0.7.0 — Timeline API
 

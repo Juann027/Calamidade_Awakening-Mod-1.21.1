@@ -35,6 +35,7 @@ AddonLayers.post(id, post -> {
 | distance(), instance() | Distância até a câmera e identificador da instância. |
 | quality() | LOW, BALANCED ou HIGH. Reduza passos de raymarch nos perfis menores. |
 | flashAllowed() | Falso quando o jogador oculta clarões. Evite também estrobos e mudanças fortes de exposição no shader. |
+| screenEffects(), motionEffects() | 0.8.0: intensidade dos efeitos de tela (0 a 1) e a opção "Efeitos de movimento". Multiplique por `screenEffects()` qualquer mudança de tela inteira feita no seu próprio shader (impact frames, gradação de cor) e pule zoom ou borrão com `motionEffects()` falso. Exemplo: receita [impact frame](ai/receitas/04-impact-frame.md). |
 
 Regras:
 
@@ -90,4 +91,4 @@ Roda uma vez em cada cliente que aceita a instância, inclusive quem entra atras
 
 ## Exemplo completo
 
-O Sinal de Maré 1.4.0 usa os três ganchos, agora guiados pela Timeline. Em `SampleClient.java`: um passe `signal_ripple` com uniforms próprios e a trilha `intensidade` enviada por `uploadTracks` (anéis dourados que saem do impacto, pedidos a partir de dois ticks antes da fase `impacto` e omitidos em LOW porque o cartão já usa a única vaga), bloom, tremor, zoom blur e aberração no impacto; uma câmera com cortes alinhados às fases; e um som para quem assiste de fora. O shader está em `assets/vfxsample/shaders/fx/signal_ripple.fsh`.
+O Sinal de Maré (1.4.0 em diante) usa os três ganchos, guiados pela Timeline; na 1.5.0 ele também tem uma atmosfera curta no impacto (ATMOSFERA-0.8.md). Em `SampleClient.java`: um passe `signal_ripple` com uniforms próprios e a trilha `intensidade` enviada por `uploadTracks` (anéis dourados que saem do impacto, pedidos a partir de dois ticks antes da fase `impacto` e omitidos em LOW porque o cartão já usa a única vaga), bloom, tremor, zoom blur e aberração no impacto; uma câmera com cortes alinhados às fases; e um som para quem assiste de fora. O shader está em `assets/vfxsample/shaders/fx/signal_ripple.fsh`.

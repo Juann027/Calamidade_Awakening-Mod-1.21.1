@@ -1,4 +1,4 @@
-# Manual geral do Calamidade_Awakening 0.7.0
+# Manual geral do Calamidade_Awakening 0.8.0
 
 Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
@@ -10,13 +10,15 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
 **Para criar seu primeiro efeito**, comece pelo capítulo 2. Use uma posição fixa para um portal ou uma âncora de entidade para acompanhar um personagem. Para que o efeito cause dano ou outra consequência no mundo, registre um cue (capítulo 3). Para publicar um cartão, adicionar uma câmera ou fornecer um shader pelo JAR do seu mod, siga o capítulo 4. O Sinal de Maré é o exemplo executável de todo esse fluxo.
 
-**Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 5. Para escrever o roteiro do efeito uma vez só (fases, trilhas e marcadores que servidor, shader e câmera compartilham) e para efeitos ambientes em loop, use a Timeline do capítulo 6.
+**Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 5. Para escrever o roteiro do efeito uma vez só (fases, trilhas e marcadores que servidor, shader e câmera compartilham) e para efeitos ambientes em loop, use a Timeline do capítulo 6. Para mudar o clima da cena (céu, névoa, exposição, tinta e estrelas) sem escrever shader, use a Atmosphere do capítulo 7.
 
-**Para modificar o motor**, consulte os capítulos 7 e 8. O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256; ela não é versionada. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
+**Para IAs e agentes**, comece por `AGENTS.md` na raiz do repositório e pelo material de `docs/ai/`: referência da API gerada do JAR, guia de GLSL com a biblioteca `calamidade_fx.glsl` e sete receitas completas (`/vfxsample receita <nome>`). `python3 scripts/novo_efeito.py <namespace> <nome>` gera o esqueleto de um efeito novo.
 
-**Para medir e validar**, use o capítulo 9 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 10.
+**Para modificar o motor**, consulte os capítulos 8 e 9. O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256; ela não é versionada. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
 
-**Escopo.** As cinco habilidades internas são cosméticas. O motor oferece iluminação visual por materiais e shaders; alterar a iluminação de blocos da simulação ou substituir globalmente o skybox exige implementação adicional. Consequências de gameplay pertencem aos addons, pelos cues de servidor.
+**Para medir e validar**, use o capítulo 10 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 11.
+
+**Escopo.** As cinco habilidades internas são cosméticas. O motor oferece iluminação visual por materiais e shaders e, desde a 0.8, tingimento do céu e névoa por efeito (Atmosphere); alterar a iluminação de blocos da simulação ou substituir o skybox por texturas próprias exige implementação adicional. Consequências de gameplay pertencem aos addons, pelos cues de servidor.
 
 
 1. [Jogar e instalar](#cap1)
@@ -25,11 +27,12 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 4. [Criar addons e publicar cartões](#cap4)
 5. [Ganchos avançados: pós-processamento, câmera e início](#cap5)
 6. [Timeline: fases, trilhas, marcadores e sustain](#cap6)
-7. [Arquitetura do motor](#cap7)
-8. [Criar habilidades dentro do motor](#cap8)
-9. [Testes em GPU real e multiplayer](#cap9)
-10. [Validação, medições e limites](#cap10)
-11. [Histórico e evolução prevista](#cap11)
+7. [Atmosphere: céu, névoa, exposição e tinta](#cap7)
+8. [Arquitetura do motor](#cap8)
+9. [Criar habilidades dentro do motor](#cap9)
+10. [Testes em GPU real e multiplayer](#cap10)
+11. [Validação, medições e limites](#cap11)
+12. [Histórico e evolução prevista](#cap12)
 
 Leitura complementar, fora do manual: [estudo técnico da integração da SA Series](ESTUDO-SA-SERIES.md).
 
@@ -37,11 +40,11 @@ Leitura complementar, fora do manual: [estudo técnico da integração da SA Ser
 
 ## 1. Jogar e instalar
 
-Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.7.0 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor.
+Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.8.0 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor.
 
 ### Instalação
 
-Coloque o JAR `dist/calamidade_awakening-0.7.0.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes. Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
+Coloque o JAR `dist/calamidade_awakening-0.8.0.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes. Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
 
 A interface usa inglês como padrão e tem tradução para português do Brasil pela opção de idioma do Minecraft.
 
@@ -98,7 +101,7 @@ O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256 (task `ri
 
 ## 2. API de efeitos e impact frames
 
-Este documento descreve a API introduzida na 0.3, que continua válida na 0.7.0. Para o exemplo incluído no pacote atual, caminhos de instalação e publicação de cartões, abra [Addons 0.4](ADDONS-0.4.md).
+Este documento descreve a API introduzida na 0.3, que continua válida na 0.8.0. Para o exemplo incluído no pacote atual, caminhos de instalação e publicação de cartões, abra [Addons 0.4](ADDONS-0.4.md).
 
 Para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A interface pública desta versão é `dev.calamidade_awakening.api.v1.Effects` e seus tipos internos. O pacote contém um JAR de motor e conteúdo. O consumidor instala seu próprio JAR junto dele e da RimuLib 1.3.0 em ambos os lados.
 
@@ -111,13 +114,13 @@ O projeto Gradle independente em [examples/vfx-sample](../examples/vfx-sample/) 
 ./gradlew -p examples/vfx-sample runClient
 ```
 
-No Windows use `gradlew.bat`. O primeiro build precisa baixar os artefatos de desenvolvimento do NeoForge. Para testar sem compilar, gere o consumidor com `./gradlew -p examples/vfx-sample build`; o JAR `vfx-sample-1.4.0.jar` fica em `examples/vfx-sample/build/libs/`. Também é possível instalar o JAR produzido em `examples/vfx-sample/build/libs/` em um perfil NeoForge com os dois mods. Em um mundo com comandos habilitados:
+No Windows use `gradlew.bat`. O primeiro build precisa baixar os artefatos de desenvolvimento do NeoForge. Para testar sem compilar, gere o consumidor com `./gradlew -p examples/vfx-sample build`; o JAR `vfx-sample-1.5.0.jar` fica em `examples/vfx-sample/build/libs/`. Também é possível instalar o JAR produzido em `examples/vfx-sample/build/libs/` em um perfil NeoForge com os dois mods. Em um mundo com comandos habilitados:
 
 1. Use `/vfxsample at`. O sinal aparece quatro blocos à frente. Ande para ver que ele fica parado.
 2. Use `/vfxsample follow`. O exemplo encerra o sinal anterior e cria um novo na sua entidade. Use F5 e caminhe para ver o movimento.
 3. Use `/vfxsample stop` durante os seis segundos do efeito. A emissão e a geometria cessam; partículas já emitidas completam a própria vida.
 
-Para usar em outro repositório, copie o modelo de dependências de build.gradle, adapte os caminhos locais e leve a dependência obrigatória de calamidade_awakening do neoforge.mods.toml para o manifesto do seu mod. O exemplo atual declara o intervalo [0.6.1,0.7.0). As chamadas desta página existem desde a 0.3.0. O mod de exemplo é opcional.
+Para usar em outro repositório, copie o modelo de dependências de build.gradle, adapte os caminhos locais e leve a dependência obrigatória de calamidade_awakening do neoforge.mods.toml para o manifesto do seu mod. O exemplo atual declara o intervalo [0.8.0,0.9.0). As chamadas desta página existem desde a 0.3.0. O mod de exemplo é opcional.
 
 ![Sinal do mod consumidor antes do impacto](gameplay/vfxsample-signal.png)
 
@@ -241,7 +244,7 @@ O projeto independente em [examples/vfx-sample](../examples/vfx-sample/) impleme
 
 ### Teste de cinco minutos
 
-1. Em Minecraft Java 1.21.1 com NeoForge, instale RimuLib 1.3.0 e o JAR 0.7.0 da pasta dist (gerado por `./gradlew dist`). Para experimentar o addon, acrescente o vfx-sample-1.4.0.jar gerado por `./gradlew -p examples/vfx-sample build` em examples/vfx-sample/build/libs. No multiplayer, instale as mesmas versões no servidor e nos clientes.
+1. Em Minecraft Java 1.21.1 com NeoForge, instale RimuLib 1.3.0 e o JAR 0.8.0 da pasta dist (gerado por `./gradlew dist`). Para experimentar o addon, acrescente o vfx-sample-1.5.0.jar gerado por `./gradlew -p examples/vfx-sample build` em examples/vfx-sample/build/libs. No multiplayer, instale as mesmas versões no servidor e nos clientes.
 2. Pressione **N** olhando para um espaço livre. A página inicial contém as cinco habilidades internas. Use o botão **Usar item** (direito por padrão) para passar às páginas dos addons. Mire no Sinal de Maré e pressione **Atacar** (esquerdo por padrão). A tecla O interrompe a câmera.
 3. Para o menu compartilhado, obtenha o Focus com `/give @s calamidade_awakening:focus`, segure-o e pressione **H**. Selecione o Sinal de Maré. Sua linha tem descrição, arte e controle de potência. O painel do addon explica o parâmetro. Aumentar a potência eleva o ponto da conjuração seguinte. Feche o menu, mire e use o Focus com o botão direito para conjurar a habilidade selecionada. A recarga do cartão é de 130 ticks. No tick 40, o impacto causa dano leve e empurra as criaturas a até três blocos (veja o capítulo de gameplay).
 4. Os comandos `/vfxsample at`, `follow` e `stop` continuam disponíveis com permissão de comandos. Eles exercitam as instâncias diretamente. Para testar recarga, seleção do item e callback de conjuração, use o cartão.
@@ -315,7 +318,7 @@ Há até 1/2/4 passes de addon por quadro em LOW/BALANCED/HIGH, além do passe c
 - Cartão aparece com textura ausente: verifique o caminho de sprite do Focus no JAR do addon, inclusive addon/namespace e caixa das letras.
 - A habilidade aparece e o clique não conjura: confirme a recarga, os requisitos do callback e a mesma instalação nos dois lados. O destaque do Atlas indica o envio do pedido; a execução começa com a aceitação do servidor.
 - Geometria aparece mas o shader falha: verifique namespace, shaders/fx e mensagens do compilador GLSL no log do cliente. Um shader de core do Minecraft tem outro contrato. Teste primeiro um passe que apenas devolve a cor de entrada.
-- Ao publicar uma versão, teste o mod-base sozinho e com dois addons que escolham o mesmo nome de efeito em namespaces diferentes. Atualize cliente e servidor juntos: o pedido de conjuração da 0.4 inclui potência e usa o canal request_v2. A 0.5.0 mantém o mesmo protocolo de rede; a 0.6.0 também. A 0.7.0 acrescenta o canal release (efeitos com sustain), então servidor e clientes precisam estar na 0.7.0. Addons da 0.4 a 0.6 funcionam sem mudança no código após ampliar o intervalo de dependência para incluir 0.7.
+- Ao publicar uma versão, teste o mod-base sozinho e com dois addons que escolham o mesmo nome de efeito em namespaces diferentes. Atualize cliente e servidor juntos: o pedido de conjuração da 0.4 inclui potência e usa o canal request_v2. A 0.5.0 mantém o mesmo protocolo de rede; a 0.6.0 também. A 0.7.0 acrescenta o canal release (efeitos com sustain), então servidor e clientes precisam estar na 0.7.0. Addons da 0.4 a 0.6 funcionam sem mudança no código após ampliar o intervalo de dependência para incluir 0.7. A 0.8.0 mantém o protocolo da 0.7.0 (a atmosfera não usa rede); addons da 0.7 só precisam ampliar o intervalo para incluir 0.8. Para começar um addon novo, `python3 scripts/novo_efeito.py <namespace> <nome>` gera um efeito que compila sem edição, e `docs/ai/receitas/` traz sete efeitos completos.
 
 <a id="cap5"></a>
 
@@ -356,6 +359,7 @@ AddonLayers.post(id, post -> {
 | distance(), instance() | Distância até a câmera e identificador da instância. |
 | quality() | LOW, BALANCED ou HIGH. Reduza passos de raymarch nos perfis menores. |
 | flashAllowed() | Falso quando o jogador oculta clarões. Evite também estrobos e mudanças fortes de exposição no shader. |
+| screenEffects(), motionEffects() | 0.8.0: intensidade dos efeitos de tela (0 a 1) e a opção "Efeitos de movimento". Multiplique por `screenEffects()` qualquer mudança de tela inteira feita no seu próprio shader (impact frames, gradação de cor) e pule zoom ou borrão com `motionEffects()` falso. Exemplo: receita [impact frame](ai/receitas/04-impact-frame.md). |
 
 Regras:
 
@@ -411,7 +415,7 @@ Roda uma vez em cada cliente que aceita a instância, inclusive quem entra atras
 
 ### Exemplo completo
 
-O Sinal de Maré 1.4.0 usa os três ganchos, agora guiados pela Timeline. Em `SampleClient.java`: um passe `signal_ripple` com uniforms próprios e a trilha `intensidade` enviada por `uploadTracks` (anéis dourados que saem do impacto, pedidos a partir de dois ticks antes da fase `impacto` e omitidos em LOW porque o cartão já usa a única vaga), bloom, tremor, zoom blur e aberração no impacto; uma câmera com cortes alinhados às fases; e um som para quem assiste de fora. O shader está em `assets/vfxsample/shaders/fx/signal_ripple.fsh`.
+O Sinal de Maré (1.4.0 em diante) usa os três ganchos, guiados pela Timeline; na 1.5.0 ele também tem uma atmosfera curta no impacto (ATMOSFERA-0.8.md). Em `SampleClient.java`: um passe `signal_ripple` com uniforms próprios e a trilha `intensidade` enviada por `uploadTracks` (anéis dourados que saem do impacto, pedidos a partir de dois ticks antes da fase `impacto` e omitidos em LOW porque o cartão já usa a única vaga), bloom, tremor, zoom blur e aberração no impacto; uma câmera com cortes alinhados às fases; e um som para quem assiste de fora. O shader está em `assets/vfxsample/shaders/fx/signal_ripple.fsh`.
 
 <a id="cap6"></a>
 
@@ -585,7 +589,146 @@ Efeitos sem timeline recebem um amostrador de uma timeline vazia: `localAge()` f
 
 <a id="cap7"></a>
 
-## 7. Arquitetura do motor
+## 7. Atmosphere: céu, névoa, exposição e tinta
+
+Até a 0.7, um addon que quisesse escurecer a cena numa luta de chefe ou tingir o céu num ritual escrevia um shader de tela inteira próprio: gastava uma vaga do orçamento de passes, não conversava com a névoa do jogo e brigava com qualquer outro efeito que fizesse o mesmo. A 0.8 junta isso num objeto só, a **Atmosphere**: o clima da cena enquanto o efeito está ativo. O motor mistura as atmosferas ativas, desenha o resultado num passe único por quadro, fora do orçamento de addons, e usa a própria névoa do jogo para que terreno, entidades, partículas, água e nuvens fiquem coerentes.
+
+A Atmosphere é Java puro, sem tipos do Minecraft, como a Timeline. Efeitos sem atmosfera se comportam exatamente como na 0.7: sem passe novo e sem mudança na névoa.
+
+### Conceitos
+
+| Parâmetro | Unidade e faixa | Efeito |
+|---|---|---|
+| `skyTop`, `skyHorizon` | ARGB (alfa ignorado) | Gradiente vertical do céu: horizonte até ~37° de elevação, zênite acima. |
+| `skyBlend` | 0..1 | Quanto o gradiente substitui a cor do céu do jogo. Sol, lua, nuvens e efeitos desenhados sobre o céu continuam visíveis. |
+| `fogColor` | ARGB (alfa ignorado) | Cor da névoa. |
+| `fogStart`, `fogEnd` | blocos, 0 ≤ início < fim ≤ 2048 | Onde a névoa começa (limpa) e onde fica opaca. |
+| `fogDensity` | 0..1 | 0 deixa a névoa do jogo como está; 1 faz a névoa ir exatamente de `fogStart` a `fogEnd` na cor `fogColor`; valores intermediários aproximam a névoa do jogo das suas distâncias e da sua cor nessa proporção. No céu, é a névoa junto ao horizonte. |
+| `exposure` | multiplicador, 0..4 | Brilho da cena inteira (1 = sem mudança). |
+| `ambientTint`, `ambientStrength` | ARGB e 0..1 | Tinta que multiplica a cena inteira, normalizada para manter o brilho. |
+| `stars` | 0..1 | Campo de estrelas procedural no céu, cintilando. |
+
+- **Trilhas.** Todo parâmetro numérico pode vir de uma trilha da Timeline do efeito: `.track(Atmosphere.Param.FOG_DENSITY, "nevoa")`. O valor da trilha é limitado à faixa do parâmetro (uma trilha com `OVERSHOOT` não passa de 1 na densidade). Cores são constantes.
+- **Peso.** Cada instância tem um peso global de 0 a 1: o **envelope** da instância (a mesma entrada e saída suaves da opacidade), vezes o peso de uma **fase** opcional (`.weightPhase("impacto")`), vezes uma trilha `Param.WEIGHT` opcional, vezes um fade por distância (1 até 75% do alcance da definição, caindo a 0 no alcance). A atmosfera não depende de o efeito estar na tela: virar de costas não apaga o céu.
+- **Mistura.** Com várias atmosferas ativas, o motor usa as **duas de maior peso** (empate: a mais antiga) e as interpola pelo peso:
+  - peso final = `min(1, pa + pb)`, então uma troca (uma saindo enquanto a outra entra) mantém a força total;
+  - quantidades (`skyBlend`, `fogDensity`, `ambientStrength`, `stars`, `exposure − 1`) = média ponderada × peso final; uma atmosfera sozinha com peso p vale suas quantidades × p;
+  - cores e distâncias de névoa = média ponderada por quanto cada uma usa o recurso (peso × quantidade), então uma atmosfera sem névoa não puxa a cor da névoa da outra.
+
+Nomes de trilha e de fase seguem as regras da Timeline (`[a-z0-9_]`, até 64).
+
+### Exemplo completo
+
+O Sinal de Maré 1.5.0 ganha um céu dourado curto, só na fase `impacto` da sua timeline (ticks 38 a 54, pico no 40, junto do dano):
+
+```java
+static final Atmosphere SIGNAL_ATMOSPHERE = Atmosphere.builder()
+    .sky(0xff4a3008, 0xffffc060, .35f)   // zênite, horizonte, mistura
+    .exposure(1.18f)
+    .ambient(0xffffd8a0, .12f)
+    .weightPhase("impacto")
+    .build();
+
+// Construtor comum do mod. Ordem: register, timeline, atmosphere, cues.
+Effects.register(SIGNAL, definicao);
+Effects.timeline(SIGNAL, SIGNAL_TIMELINE);
+Effects.atmosphere(SIGNAL, SIGNAL_ATMOSPHERE);
+Effects.cue(SIGNAL, "impacto", Sample::impact);
+```
+
+O Farol, efeito ambiente em loop, ganha névoa âmbar enquanto está aceso. A densidade vem de uma trilha com o mesmo valor nas bordas do loop e no início da saída, então nem a volta nem o release saltam:
+
+```java
+.track("nevoa", keyframe(0, 0f), keyframe(40, .55f, Easing.SMOOTH), keyframe(80, .55f), keyframe(140, 0f, Easing.SMOOTH))
+
+static final Atmosphere BEACON_ATMOSPHERE = Atmosphere.builder()
+    .fog(0xffe0a050, .55f, 6, 48)          // a densidade constante é trocada pela trilha
+    .ambient(0xffffc080, .08f)
+    .track(Atmosphere.Param.FOG_DENSITY, "nevoa")
+    .build();
+```
+
+Um efeito pode ter **só** atmosfera, sem camada de cliente nem shader: veja a receita [céu tingido](ai/receitas/07-ceu-tingido.md) (`/vfxsample receita ceu`).
+
+### API
+
+#### Montagem (`Atmosphere.builder()`)
+
+| Chamada | Regras |
+|---|---|
+| `sky(topo, horizonte, mistura)` | Cores ARGB; mistura 0..1. |
+| `fog(cor, densidade, início, fim)` | Densidade 0..1; `0 <= início < fim <= 2048` blocos. |
+| `exposure(x)` | 0..4. |
+| `ambient(cor, força)` | Força 0..1. |
+| `stars(x)` | 0..1. |
+| `track(Param, "trilha")` | Um parâmetro por trilha; uma trilha pode alimentar vários parâmetros. `Param`: `SKY_BLEND`, `FOG_DENSITY`, `FOG_START`, `FOG_END`, `EXPOSURE`, `AMBIENT_STRENGTH`, `STARS`, `WEIGHT`. |
+| `weightPhase("fase")` | Multiplica o peso pelo peso da fase (0 fora dela). Uma vez só. |
+| `build()` | Atmosphere imutável. Tudo começa neutro: sem céu, sem névoa, exposição 1, sem tinta, sem estrelas. |
+
+#### Registro (`Effects`)
+
+| Chamada | Regras |
+|---|---|
+| `Effects.atmosphere(id, atmosfera)` | Depois de `register`. Se a atmosfera lê trilhas ou fase, depois de `timeline`, e elas precisam existir nela (senão `IllegalArgumentException` no registro, também no servidor dedicado). Uma por efeito; só efeitos do seu namespace. Não muda a ordem dos cues. |
+
+#### Consultas e matemática pura
+
+| Membro | Resultado |
+|---|---|
+| `sample(amostrador, envelope)` | `Atmosphere.State` da instância naquele instante: parâmetros resolvidos e peso. |
+| `Atmosphere.mix(lista)` | Estado misturado (as duas de maior peso). `State.NEUTRAL` sem nenhuma com peso. |
+| `State.fogNear(perto)`, `State.fogFar(perto, longe)` | Distâncias que o motor entrega à névoa do jogo. Nunca mais longe que as do jogo. |
+| `State.fogColorOver(cor)` | Cor que o motor entrega à névoa do jogo. |
+| `State.screenFog(distância)` | Fração de névoa quando o motor a desenha na tela (opção `vanillaFog` desligada). |
+| `validate(timeline)`, `animated()`, `track(Param)`, `tracks()`, `weightPhase()` | Inspeção. |
+
+A referência completa, gerada do JAR, está em [ai/API-REFERENCIA.md](ai/API-REFERENCIA.md).
+
+### Como o motor desenha
+
+**Um passe, no fim.** A cada quadro, o motor resolve a atmosfera de toda instância ativa que tem uma (sem frustum nem orçamento) e mistura. Se o peso final passa de 0,001, ele enfileira o passe `calamidade_awakening:atmosphere` **depois** do passe do motor e dos passes de addons, para que exposição e tinta cubram a cena inteira. O passe não consome vaga do orçamento de addons (1/2/4). Sem atmosfera ativa, não há passe.
+
+**Céu.** Nos pixels de céu (`skyAt`), o shader estima a cor que o jogo pintou ali (a cor do céu na câmera, `ClientLevel.getSkyColor`, no alto, e a névoa do quadro junto ao horizonte, como o disco de céu com a névoa `FOG_SKY`) e soma a diferença até o gradiente da atmosfera. Por isso o sol, a lua, as nuvens e efeitos de addon desenhados sobre o céu continuam lá. Estrelas são somadas (`caStars`), e a névoa da atmosfera cobre o céu perto do horizonte (some até ~27° de elevação).
+
+**Névoa: a escolha.** O NeoForge 21.1.267 tem os eventos `ViewportEvent.ComputeFogColor` (cor) e `ViewportEvent.RenderFog` (distâncias, que só valem se o evento for cancelado; conferido no código do `ClientHooks.onFogRender`). O motor usa os dois, com prioridade `LOWEST` (depois dos outros mods):
+
+- `ComputeFogColor`: a cor da névoa do jogo vai em direção a `fogColor` por `fogDensity`. Isso também colore o horizonte do céu, as nuvens e a cor de fundo.
+- `RenderFog`, só no modo `FOG_TERRAIN`: início e fim vão em direção a `fogStart` e `fogEnd` por `fogDensity`, nunca mais longe que os do jogo.
+- Nenhum dos dois age debaixo d'água, na lava, na neve em pó ou com cegueira ou escuridão: ali a névoa do jogo prevalece.
+
+Por que a névoa do jogo e não só a do passe: o jogo aplica a névoa em cada fragmento, na distância real de cada coisa, inclusive em geometria translúcida (água, partículas, vidro, nuvens). Um passe de tela só conhece a profundidade do que está atrás, então um vaga-lume ou um feixe a 5 blocos na frente de um morro a 60 receberia a névoa do morro. Com os eventos, a névoa fica coerente com a do jogo e as malhas emissivas do motor (que não usam a névoa do jogo) continuam legíveis.
+
+**Plano B na tela.** Alguns shader packs ignoram a névoa do jogo. Para esses casos há a opção de cliente **"Névoa da atmosfera pela névoa do jogo"** (`vanillaFog`, padrão ligado). Desligada, o motor não mexe nas distâncias do jogo e o próprio passe aplica a névoa pela profundidade (`scenePosAt`): `fogDensity × smoothstep(fogStart, fogEnd, distância)`. Nesse modo, geometria translúcida recebe a névoa do que está atrás dela.
+
+**Exposição e tinta.** Depois do céu e da névoa, o passe multiplica a cena pela exposição e mistura a tinta normalizada pela força.
+
+### Acessibilidade
+
+- **Intensidade dos efeitos de tela** (`screenEffects`) escala a exposição (`1 + (exposição − 1) × intensidade`) e a força da tinta. Em 0, a atmosfera não muda o brilho nem a cor da cena; céu, estrelas e névoa continuam, porque são o aspecto do mundo e não um clarão.
+- **Ocultar clarões**: a exposição exibida muda no máximo 0,025 por tick (meio ponto de brilho leva cerca de um segundo). Uma exposição de impacto curta, como a do Sinal de Maré, quase não aparece; uma atmosfera longa chega ao valor normal aos poucos. O passe continua até a exposição voltar a 1, mesmo depois de a atmosfera acabar.
+- **Névoa da atmosfera pela névoa do jogo**: veja acima.
+
+### Diagnóstico
+
+O painel F7 ganha a linha **"Atmosfera: N ativas · passe sim/não"** (N = instâncias com atmosfera de peso maior que 0,001 no quadro anterior). O CSV de `/calamidade_client record` ganha as colunas `atmospheres` e `atmospherePass`. O passe de atmosfera não entra na contagem "passes de pós-processamento", que continua medindo o motor e os addons.
+
+### Custo
+
+- **Sem atmosfera:** nenhum passe. Os eventos de névoa percorrem a lista de instâncias ativas (até 96) uma vez por quadro e não mudam nada.
+- **Com atmosfera:** um passe de tela cheia com poucas operações por pixel; nos pixels de céu com estrelas, quatro hashes. No processador, uma amostragem por instância com atmosfera e uma mistura por quadro, sem alocação além de uma lista pequena.
+- **Rede:** nada. A atmosfera é registrada nos dois lados e derivada do relógio da instância, como a Timeline.
+
+### Limites e cuidados
+
+- Só as duas atmosferas de maior peso contam. Uma terceira entra quando uma das duas perde peso.
+- A atmosfera vale para todos os jogadores dentro do alcance da definição (`withRange`). Para um clima de área grande, use alcance grande; o fade nos últimos 25% evita um corte seco ao sair.
+- A estimativa do céu do jogo é aproximada: cores de nascer e pôr do sol e o céu de outras dimensões podem deixar uma diferença leve no `skyBlend` alto.
+- A névoa da atmosfera não age em fluidos, neve em pó, cegueira e escuridão.
+- Coberto por testes de lógica (`AtmosphereCheck`, registro e mistura) e por um roteiro automatizado em jogo com renderização por software (VALIDACAO.md). GPU física, multiplayer e os demais casos estão no roteiro de [TESTE-REAL.md](TESTE-REAL.md), casos 21 a 36.
+
+<a id="cap8"></a>
+
+## 8. Arquitetura do motor
 
 ```mermaid
 flowchart TD
@@ -622,6 +765,8 @@ StageNetwork usa a API pública NetApi da RimuLib. CastRequest contém a chave c
 O servidor mantém até 64 sequências ativas. Envia ao conjurador e observadores dentro do alcance da definição (128 blocos nos efeitos internos, 16 a 1024 nos de addons), inclusive quem entra durante a execução. O cliente deduplica por order, descarta eventos expirados e verifica a dimensão. Ele calcula progresso a partir do relógio de mundo, produzindo a mesma fase sem pacotes por quadro.
 
 Desde a 0.7.0, um efeito de addon pode ter uma Timeline (TIMELINE-0.7.md). Servidor e cliente convertem a idade real em idade local com a mesma função pura (`Timeline.localAge`); cues, progresso, opacidade, acento de impacto e camadas de addon usam a idade local. Com sustain, a instância repete o trecho em loop e não expira pela duração. `Handle.release()` grava no servidor a idade de liberação, que vai aos clientes no pacote `release` (ReleaseEffect), também logo depois do StageEvent para quem entra mais tarde. A instância expira quando a saída termina. Os canais são event, end_effect, release e request_v2; cliente e servidor precisam estar na mesma versão.
+
+Desde a 0.8.0, um efeito de addon pode ter uma Atmosphere (ATMOSFERA-0.8.md), registrada nos dois lados como a Timeline e sem tráfego de rede. A cada quadro, `StageScene.atmospheres` resolve a atmosfera de toda instância ativa (sem frustum nem orçamento) na idade local, com peso pelo envelope e um fade no fim do alcance; `AtmosphereFrame` mistura as duas de maior peso, aplica a acessibilidade, alimenta os eventos de névoa do NeoForge (`ComputeFogColor` e `RenderFog`) e enfileira o passe `atmosphere` depois dos passes de efeito, fora do orçamento de addons. O shader do passe usa a biblioteca `calamidade_fx.glsl`, incluída pela RimuLib.
 
 ### Cliente e orçamento
 
@@ -677,9 +822,9 @@ O Atlas interpola coordenadas locais na abertura e usa a mesma função de posi�
 
 PerfOverlay (tecla F7) mostra o renderizador OpenGL, FPS, mediana e percentil 95 dos últimos 240 quadros, perfil de qualidade, sequências residentes, efeitos e volumes desenhados, vértices emitidos e passes de pós-processamento. Os renderizadores escrevem os contadores durante o quadro e o painel publica os valores no início do quadro seguinte, então ele sempre mostra o último quadro completo. `/calamidade_client record <segundos>` grava os mesmos dados por quadro em `calamidade_bench/frames-*.csv` na pasta do jogo. No servidor, `/calamidade bench <n> [efeito]` cria uma carga reproduzível e `/calamidade status` informa as instâncias ativas. O roteiro de uso está em [TESTE-REAL.md](TESTE-REAL.md).
 
-<a id="cap8"></a>
+<a id="cap9"></a>
 
-## 8. Criar habilidades dentro do motor
+## 9. Criar habilidades dentro do motor
 
 Para publicar uma habilidade em um JAR separado, use o [tutorial de criação de addons 0.4](ADDONS-0.4.md).
 
@@ -758,9 +903,9 @@ Para consumidores da 0.3.x, comece pelo [guia da API pública](API-0.3.md) e pel
 
 Ao documentar uma nova camada, inclua o registro completo, o evento que a inicia, as unidades e os limites dos parâmetros, o comportamento para observadores e um comando para reproduzir o resultado. Para eventos luminosos, descreva também o resultado com a redução de clarões ligada. Faça o exemplo compilar contra o JAR que será distribuído.
 
-<a id="cap9"></a>
+<a id="cap10"></a>
 
-## 9. Testes em GPU real e multiplayer
+## 10. Testes em GPU real e multiplayer
 
 Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por software) com servidor integrado. Este roteiro cobre o que faltava: desempenho em placa de vídeo física e sincronização entre dois clientes. Ele usa as ferramentas da 0.5.0 e leva cerca de 40 minutos.
 
@@ -794,7 +939,7 @@ São 15 rodadas. Repita a carga 6 com `calamidade_awakening:prism` e com `vfxsam
 
 ### Parte 2 — dois clientes em servidor dedicado
 
-**Preparação.** Servidor dedicado NeoForge 21.1.267 com RimuLib, Calamidade 0.7.0 e o vfx-sample 1.4.0, os mesmos JARs nos dois clientes (a 0.7.0 tem um canal de rede novo). Para testar sozinho no mesmo PC, use `./gradlew runServer` (ou o instalador de servidor do NeoForge), defina `online-mode=false` em `server.properties` **apenas para este teste local** e abra dois clientes com nomes diferentes: por exemplo, `./gradlew runClient` e uma instância do seu launcher com os mesmos mods. Dê permissão aos dois com `/op`. Chame os jogadores de A (conjura) e B (observa).
+**Preparação.** Servidor dedicado NeoForge 21.1.267 com RimuLib, Calamidade 0.8.0 e o vfx-sample 1.5.0, os mesmos JARs nos dois clientes (o protocolo é o da 0.7.0, que acrescentou o canal `release`; use a mesma versão nos dois lados). Para testar sozinho no mesmo PC, use `./gradlew runServer` (ou o instalador de servidor do NeoForge), defina `online-mode=false` em `server.properties` **apenas para este teste local** e abra dois clientes com nomes diferentes: por exemplo, `./gradlew runClient` e uma instância do seu launcher com os mesmos mods. Dê permissão aos dois com `/op`. Chame os jogadores de A (conjura) e B (observa).
 
 | # | Ação | Resultado esperado |
 |---|---|---|
@@ -821,13 +966,117 @@ São 15 rodadas. Repita a carga 6 com `calamidade_awakening:prism` e com `vfxsam
 
 Anote qualquer diferença entre A e B: posição, fase, som, momento do impacto e, no farol, a fase do anel e o momento em que começa a apagar. Uma diferença de até um tick (50 ms) entre clientes é esperada pela latência.
 
+### Parte 3 — atmosfera e receitas (0.8.0)
+
+Mesma preparação da parte 2 (pode ser um cliente só nos casos sem B). Mundo no Overworld, de dia, com terreno variado e água à vista. Deixe o F7 aberto: a linha **"Atmosfera: N ativas · passe sim/não"** é a referência. Capítulo: [ATMOSFERA-0.8.md](ATMOSFERA-0.8.md); receitas: [ai/receitas/](ai/receitas/README.md).
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 21 | A roda `/vfxsample receita ceu` e espera 10 s. | Em ~4 s o céu fica roxo no alto e laranja no horizonte; o sol, a lua e as nuvens continuam visíveis. A névoa quente engrossa até ~8 s e as estrelas aparecem até ~10 s, cintilando. A cena fica um pouco mais escura e quente. F7: "1 ativas · passe sim"; ao fim dos 30 s, volta suave a "0 ativas · passe não". |
+| 22 | Durante o caso 21, A olha para o terreno a 30–100 blocos, para a água e para mobs e partículas próximos. | Terreno, água e nuvens distantes recebem a névoa laranja na distância real; mobs e partículas próximos continuam nítidos. Nenhum "contorno" de outra cor no fim da distância de renderização. |
+| 23 | Durante o caso 21, A vira de costas para o ponto onde rodou o comando. | O céu continua tingido (a atmosfera não depende do efeito estar na tela). |
+| 24 | Com o `ceu` ativo, A conjura o Sinal de Maré. | No impacto (2 s), o céu puxa para o dourado e a cena clareia por cerca de 1 s, depois volta ao roxo e laranja sem salto. F7: "2 ativas" durante o impacto. |
+| 25 | `/calamidade bench 6 vfxsample:receita_ceu`. | F7: "6 ativas · passe sim" (só as duas mais fortes entram na mistura, o resultado é o mesmo céu). Anote mediana e p95 com `/calamidade_client record 8` e compare com a carga 0. |
+| 26 | B está a 20 blocos de A no caso 21; depois B se afasta além de 384 blocos e, por fim, de 512. | Perto, B vê o mesmo céu que A. Entre 384 e 512 blocos o efeito some aos poucos; além de 512, B vê o céu normal. |
+| 27 | Em Configurar, B põe a intensidade dos efeitos de tela em 0; A repete o caso 21 e o 24. | B não vê a cena escurecer nem a tinta quente, nem o clarão do Sinal; vê o céu tingido, as estrelas e a névoa. |
+| 28 | B liga "ocultar clarões" (Acessibilidade) e repete o caso 24. | No impacto do Sinal, o brilho de B quase não muda; nenhuma piscada. No `ceu`, a cena escurece aos poucos (cerca de meio segundo), não de uma vez. |
+| 29 | B desliga **Névoa da atmosfera pela névoa do jogo** e repete o caso 22. | A névoa continua laranja, agora desenhada na tela: o terreno fica igual, mas partículas e vaga-lumes na frente de terreno distante ficam com a névoa do fundo (esperado nesse modo). Religue depois. |
+| 30 | Com o `ceu` ativo, A mergulha na água; depois roda `/effect give @s minecraft:blindness 5`. | Debaixo d'água e cego, vale a névoa do jogo (azul da água, escuridão da cegueira), sem a laranja. O céu tingido volta ao sair da água. |
+| 31 | A roda `/vfxsample farol start`, espera 10 s, roda `release`. | Névoa âmbar sobe em ~2 s e fica constante durante o loop (sem pulsar na volta); no release ela some junto com o feixe, sem salto. |
+| 32 | A roda cada receita: `/vfxsample receita anel`, `cubo`, `bolha`, `impacto`, `feixe`, `ambiente` (e depois `release` e `stop`). | Cada uma conforme a seção "O que conferir no jogo" do seu arquivo em `docs/ai/receitas/`. Nenhuma mensagem de shader que não compila no log (`latest.log`). |
+| 33 | Em LOW (F8), A roda `cubo` e, ao mesmo tempo, conjura o Sinal de Maré. | F7: passes de pós no máximo 1 (orçamento LOW), o resto recusado sem erro; a atmosfera do Sinal não conta no orçamento. |
+| 34 | Intensidade 0 com as receitas `impacto` e `feixe`. | `impacto`: nenhum quadro de duas cores e nenhuma vinheta; o tremor segue a opção de tremor. `feixe`: o feixe aparece (é visual do efeito), sem bloom. |
+| 35 | **Efeitos de movimento** desligado; A conjura o Sinal de Maré e roda `impacto`. | O Sinal perde o zoom blur (como na 0.7); as receitas não mudam (nenhuma usa zoom ou rastro). |
+| 36 | Opcional: `ceu` no Nether e no End. | Registre como o céu fica (a estimativa do céu do jogo foi feita para o Overworld). |
+
+Registre para cada caso o que viu e, nos casos 22, 24 e 25, uma captura de tela.
+
 ### Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
 
-<a id="cap10"></a>
+<a id="cap11"></a>
 
-## 10. Validação, medições e limites
+## 11. Validação, medições e limites
+
+### Versão 0.8.0 — Atmosphere API e kit para IAs (estado atual)
+
+**Compilada e coberta pelos testes de build; executada em jogo por um roteiro automatizado em renderização por software (Mesa llvmpipe), num cliente. GPU física, multiplayer e os casos manuais de TESTE-REAL.md (13 a 36) continuam pendentes.**
+
+#### Build
+
+Minecraft Java 1.21.1, NeoForge 21.1.267, RimuLib 1.3.0 (`rimulib-1.3.0-neoforge.jar`, baixada do CurseForge pela task `rimulib`, SHA-256 `15ccd4958a0412cbcf618a10962b0b6a7e1683fd66b94d07e10bc7cabeedb774`), OpenJDK 21.0.13, Gradle 9.2.1, glslangValidator 15.1.0.
+
+- `./gradlew clean build`: passou, com `checkBudget` (`FrameBudgetCheck PASS`, incluindo `TimelineCheck` e o novo `AtmosphereCheck`), `checkFrustum`, `checkShaders` (9 shaders compilados), `checkApiDocs`, `checkRecipes` e `checkModVersion`. Cada etapa da 0.8.0 foi compilada e testada antes do seu commit.
+- `./gradlew dist`: passou e gerou `dist/calamidade_awakening-0.8.0.jar`.
+- `./gradlew -p examples/vfx-sample build`: passou, sem avisos, e gerou `vfx-sample-1.5.0.jar`.
+
+SHA-256 de `dist/calamidade_awakening-0.8.0.jar`: `786ac7f9ebc1643be96c6028835421ef5da1c70f4f4c8fc29b1f7a21085bdc84`
+
+SHA-256 de `examples/vfx-sample/build/libs/vfx-sample-1.5.0.jar`: `0a70b44990df526909c7e014bab28948ec2136830b8a08ff40ef6ca549cbadb2`
+
+#### Escolhas desta versão
+
+- **`#include` de GLSL: sim.** `ShaderProgram.readSource` (javap -c) antepõe `common.glsl` e `#line 1 1`; `includes` troca cada linha que, aparada, começa com `#include "` e termina com `"` pelo arquivo `shaders/fx/<nome>` do namespace do shader e, se faltar, do namespace `rimulib`, seguido de `#line <n+2> 1`. Não há recursão. `Assets.open` monta o caminho `/assets/<namespace>/...` e o procura no módulo do mod daquele namespace, na RimuLib e nos demais mods, sempre com o mesmo caminho: um addon **não** alcança o namespace do motor, então copia a biblioteca para o seu. A biblioteca é `calamidade_fx.glsl`; não foi preciso o plano B (`docs/ai/glsl-snippets.md`).
+- **Eventos de névoa do NeoForge: sim, os dois.** `ViewportEvent.ComputeFogColor` (get/setRed, Green, Blue) e `ViewportEvent.RenderFog` (`getMode`, `getType`, distâncias; `ICancellableEvent`). No código do `ClientHooks.onFogRender`, as distâncias só valem se o evento for cancelado; `FogRenderer.setupFog` dispara o evento depois de calcular cegueira, escuridão, fluidos e névoa grossa, então o `min` do motor nunca deixa a névoa mais rala. Prioridade `LOWEST`. A opção `vanillaFog` (padrão ligado) desliga as distâncias pelo jogo e faz o passe desenhar a névoa pela profundidade.
+- **Exposição com "ocultar clarões":** no máximo 0,025 por tick (`AtmosphereMath.CALM_EXPOSURE_PER_TICK`).
+- **Registro automático do esqueleto gerado:** o bytecode do FML 4.0.45 (`ModLoader.lambda$constructMods$3`) chama `constructMod` (que injeta os `@EventBusSubscriber` em `AutomaticEventSubscriber.inject`) e só depois envia `FMLConstructModEvent` ao barramento do mod. Por isso `scripts/novo_efeito.py` registra o efeito num assinante estático desse evento, sem editar a classe `@Mod`. `Rimulib.register` devolve o registro existente para um namespace já conectado, então `Addons.resources` pode ser repetido.
+
+#### Testes novos
+
+- **`AtmosphereCheck`** (Java puro, no `checkBudget`): validação do builder (faixas, NaN, nomes, ligação dupla, fase dupla), `validate` contra a timeline, constantes e cores (alfa ignorado), trilhas (clamp na faixa, peso por fase e trilha `WEIGHT`, distâncias de névoa vindas de trilhas sempre com fim depois do início), peso zero e limiar de atividade, mistura (estado único, dois cheios, troca com força total, cores ponderadas, só as duas mais pesadas, empate pela ordem, simetria, distâncias pelo uso da névoa), `fogNear`, `fogFar`, `fogColorOver` e `screenFog`, extremos da mistura e os auxiliares do motor (fade por alcance, rampa de exposição: 1 → 2,5 leva 60 ticks, exposição pela intensidade).
+- **Registro:** atmosfera para efeito desconhecido, interno ou duplicado; antes da timeline; trilha inexistente (rejeitada e não guardada); cues depois da atmosfera; amostragem da atmosfera registrada.
+- **GLSL:** `node scripts/testar_glsl.cjs` executou 55 casos de `calamidade_fx.glsl` em WebGL2 (GLSL ES 3.00, ANGLE/SwiftShader no Chromium headless): 55/55. O `checkShaders` compila os 9 shaders do motor e do exemplo em GLSL 1.50 com o `common.glsl` real.
+- **Receitas e exemplo, fora do jogo:** o registro real das 7 receitas, a validação das atmosferas do Sinal e do Farol contra as timelines e a mistura céu tingido + Sinal rodaram com o classpath do jogo e passaram.
+- **Gerador:** `scripts/novo_efeito.py` gerou dois efeitos no vfx-sample (com e sem cartão); o exemplo compilou com eles, o `checkShaders` compilou os dois shaders novos e a recusa a sobrescrever funcionou. Os arquivos gerados foram removidos.
+
+#### Em jogo (roteiro automatizado, Mesa llvmpipe)
+
+Cliente de desenvolvimento do NeoForge 21.1.267 sob Xvfb 1280 × 720, Mesa llvmpipe (LLVM 20.1.2, 256 bits), 2 a 10 FPS, com os JARs desta versão, a RimuLib e um mod temporário de teste (fora do repositório) que cria um mundo, roda os comandos como jogador, lê os contadores do F7 por reflexão e tira capturas. Não há som (sem dispositivo OpenAL) nem rede da Mojang.
+
+| Passo | F7 (atmosferas · passe · passes de pós · vértices) | Visto na captura |
+|---|---|---|
+| Sem efeito | 0 · não · 0 · 0 | Céu e cena normais. |
+| `/vfxsample receita ceu` (11 s) | 1 · sim · 0 · 0 | Céu roxo no alto e laranja no horizonte, nuvens preservadas, cena mais escura e quente, névoa laranja nas árvores distantes. |
+| + `/vfxsample at` no impacto | 2 · sim · 3 · 1746 | Céu puxado para o dourado e mais claro; anéis dourados e lâminas do Sinal. |
+| Depois de `receita stop` | 0 · não · 0 · 0 | Céu normal de novo. |
+| `/vfxsample farol start` (6 s) | 1 · sim · 0 · 180 | Névoa âmbar no horizonte; o feixe continua nítido. |
+| `farol release` (+4 s) | 0 · não · 0 · 0 | Apagado. |
+| Receitas `anel`, `cubo`, `bolha`, `impacto`, `feixe` | 0 · não · 1 · 0 | Anel dourado no chão; cubo de grade com arestas e oclusão pelo terreno; bolha iridescente; quadro em duas cores; feixe com núcleo e halo. |
+| Receita `ambiente` (+ `release`) | 0 · não · 0 · 576 | Vaga-lumes; depois do release, nada residente. |
+| `ceu` com intensidade dos efeitos de tela 0 | 1 · sim · 0 · 0 | Céu e névoa mantidos, sem escurecimento nem tinta. |
+| `ceu` com `vanillaFog` desligado | 1 · sim · 0 · 0 | Névoa desenhada pelo passe, pela profundidade. |
+
+Nenhum erro de compilação ou ligação de shader no log, nenhuma camada desativada por falha. O roteiro rodou duas vezes; a segunda, com os JARs finais (hashes acima), repetiu os resultados. A 2 a 9 FPS, a leitura do F7, feita um tick depois da captura, às vezes cai fora de janelas curtas (na segunda rodada, 1 atmosfera e 2 passes no impacto do Sinal, e 0 passes no quadro de duas cores), sem diferença no que as capturas mostram. Na resolução cheia, as estrelas aparecem como pontos pequenos e cintilantes.
+
+Capturas da segunda rodada: [céu tingido](gameplay/atmosfera-ceu-080.jpg) · [céu tingido + Sinal de Maré no impacto](gameplay/atmosfera-mistura-080.jpg) · [receitas anel, cubo, bolha, impacto, feixe e ambiente](gameplay/receitas-080.jpg).
+
+**O que quebrou e foi corrigido por causa do teste em jogo:**
+
+- O `neoforge.mods.toml` do motor ainda declarava a versão `0.7.0` (desde a 0.7.0 o arquivo não acompanhava o `build.gradle`). O exemplo 1.5.0, que exige `[0.8.0,0.9.0)`, era recusado no carregamento. Corrigido, com a task `checkModVersion` no build.
+- O campo de estrelas era esparso e pequeno demais para aparecer (0,27% do hemisfério aceso no teste por GPU): o centro sorteado em células 3D muitas vezes ficava longe da superfície da esfera. `caStars` passou a usar um mapa octaédrico 2D do hemisfério de cima, com o centro sempre dentro da célula (0,68% do hemisfério, brilho médio 10 vezes maior).
+
+#### Compatibilidade
+
+- O exemplo 1.4.0 da 0.7.0, sem mudança no código, compila contra o JAR 0.8.0 (o `build.gradle` dele só precisa apontar para o JAR novo).
+- O mesmo exemplo compilado contra o JAR 0.7.0: as 107 referências a classes, métodos e campos do motor no bytecode existem no JAR 0.8.0 com a mesma assinatura (javap -v e javap -s).
+- Protocolo de rede igual ao da 0.7.0 (event, end_effect, request_v2, release); a atmosfera não usa rede.
+- Um addon cujo manifesto declara `[0.7.0,0.8.0)` não carrega com a 0.8.0 até ampliar o intervalo.
+
+#### Integração conferida no JAR (javap)
+
+RimuLib 1.3.0: `ShaderProgram.readSource`, `includes` e `read`; `Assets.open`, `exists` e `split`; `Rimulib.register` (namespace repetido devolve o existente); `FxApi$Stage.render` envia `GTime = (tempo do mundo mod 24000 + fração) / 20`; `Uniforms.f3`.
+
+NeoForge 21.1.267 e FML 4.0.45: `ViewportEvent.ComputeFogColor`, `ViewportEvent.RenderFog`, `FogRenderer$FogMode`, `FogType`, `EventPriority.LOWEST`, `SubscribeEvent.priority`, `FMLConstructModEvent` e a ordem de construção acima.
+
+Minecraft 1.21.1: `ClientLevel.getSkyColor(Vec3, float)`, `GameRenderer.getRenderDistance()`, `Camera.getFluidInCamera()`, `MobEffects.BLINDNESS` e `DARKNESS` (`Holder<MobEffect>`), `LivingEntity.hasEffect(Holder)`, e os campos de `SoundEvents` usados pelas receitas (todos `SoundEvent`, não `Holder`).
+
+#### Pendente
+
+- Testes manuais de TESTE-REAL.md, casos 13 a 36, em GPU física e com dois clientes num servidor dedicado; resposta do autor em 21/11/2026: a 0.7.0 ainda não foi testada em jogo.
+- O JAR da RimuLib saiu do índice, mas continua no histórico do git (commit `2ec9d14`). Apagá-lo do histórico exige reescrever a `main` com push forçado; não foi feito sem autorização.
+
+---
 
 ### Dependência RimuLib: fora do repositório e dos releases (21/11/2026)
 
@@ -1045,9 +1294,9 @@ As outras quatro habilidades foram acionadas pelas teclas padrão U, I, V e Y. F
 
 O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servidor integrado. Continuam pendentes multiplayer com dois clientes e medições de desempenho em GPU física.
 
-<a id="cap11"></a>
+<a id="cap12"></a>
 
-## 11. Histórico e evolução prevista
+## 12. Histórico e evolução prevista
 
 ### Versões publicadas
 
@@ -1116,6 +1365,15 @@ O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servid
 - Conclusão sobre arrays de uniforms registrada em AVANCADO-0.6.md; fim do atributo obsoleto `EventBusSubscriber.Bus`.
 - vfx-sample 1.4.0: Sinal de Maré roteirizado pela timeline e o Farol, efeito ambiente em loop.
 
+#### 0.8.0 — Atmosphere API e kit para IAs
+
+- `Atmosphere`: céu (gradiente e mistura), névoa por distância, exposição, tinta ambiente e estrelas, com parâmetros vindos de trilhas da Timeline e peso pelo envelope. Mistura das duas de maior peso. Consulte ATMOSFERA-0.8.md.
+- Um passe `atmosphere` por quadro, fora do orçamento de addons; névoa pela névoa do jogo (eventos do NeoForge) com plano B na tela; acessibilidade de exposição e tinta; linha nova no F7.
+- Biblioteca GLSL `calamidade_fx.glsl` por `#include`, testada numa GPU.
+- Kit para IAs: AGENTS.md, skill de projeto, referência da API gerada do JAR, guia de GLSL, 7 receitas executáveis e `scripts/novo_efeito.py`.
+- Verificações de build: `checkShaders`, `checkApiDocs`, `checkRecipes`. RimuLib baixada do CurseForge com SHA-256, fora do repositório e dos releases.
+- vfx-sample 1.5.0: receitas, céu dourado no impacto do Sinal de Maré e névoa no Farol.
+
 ### Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -1126,9 +1384,17 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 ### Próximas versões
 
-#### 0.8 — Atmosphere API
+#### 0.9 — Beam API e Light API sobre superfícies
 
-Próxima versão planejada. O escopo será detalhado quando o trabalho começar.
+Próxima versão planejada.
+
+- **Beam API:** feixes e raios como objetos do motor (pontos, largura, núcleo e halo, ramificações), desenhados em lote num passe, com oclusão pelo terreno e largura mínima por pixel, em vez de cada addon reescrever `caSegmentGlow`.
+- **Light API sobre superfícies:** luz colorida de efeitos projetada no terreno e nas entidades próximas (pela profundidade e normais reconstruídas), com orçamento de luzes por quadro e mistura com a atmosfera.
+
+#### Depois da 0.9
+
+- **Trail API:** rastros de entidades e projéteis (fitas com histórico de posições), com orçamento de vértices.
+- **Títulos:** cartões de título e legendas de habilidade sincronizados à Timeline (nome do golpe, fase do chefe), com acessibilidade de tamanho e duração.
 
 #### Evolução da API, sem versão definida
 
