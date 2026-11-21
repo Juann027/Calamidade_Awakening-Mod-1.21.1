@@ -18,7 +18,7 @@ import java.util.Optional;
  *
  * <p>Register during mod construction, on both sides (the common mod constructor), in this order:
  * {@link #register}, then optionally {@link #timeline}, {@link #atmosphere}, {@link #beams} and {@link #lights}
- * (0.9.0) and the cues ({@link #cue}, {@link #onImpact}). Start, follow and stop instances on the server thread; since
+ * (0.9.0), {@link #terrain} (0.11.0) and the cues ({@link #cue}, {@link #onImpact}). Start, follow and stop instances on the server thread; since
  * 0.10.0 an instance can be turned by a yaw and a pitch or started from a {@link Placement}. Times are in game ticks (20 per
  * second), distances in blocks, colors in ARGB ints. Invalid input throws {@link IllegalArgumentException}.
  *
@@ -338,6 +338,23 @@ public final class Effects {
      */
     public static void lights(ResourceLocation id, Light... lights) {
         VisualKind.setLights(Objects.requireNonNull(id), List.of(Objects.requireNonNull(lights)));
+    }
+
+    /**
+     * Attaches 1..{@value TerrainEdit#MAX_PER_EFFECT} {@link TerrainEdit terrain edits} to a registered external effect
+     * (0.11.0): excavation, burnt shell, real blocks or a structure placed at a marker of the effect's timeline, with
+     * the heat and the falling stand-in drawn by the client. Call once per effect during mod construction on both sides
+     * (the client draws the heat from the same shape and seed), after {@link #register} and {@link #timeline}. Only
+     * effects of your namespace. The server runs each edit once per instance, the first time the instance clock reaches
+     * the marker, under the safety rules of the server config; see {@link TerrainEdit}.
+     *
+     * <pre>{@code
+     * Effects.terrain(ID, TerrainEdit.carve(TerrainShape.crater(8, 4).rough(1, 3)).commitAt("impacto")
+     *     .burn(TerrainPalette.burnt(), 2).build());
+     * }</pre>
+     */
+    public static void terrain(ResourceLocation id, TerrainEdit... edits) {
+        VisualKind.setTerrain(Objects.requireNonNull(id), List.of(Objects.requireNonNull(edits)));
     }
 
     /**

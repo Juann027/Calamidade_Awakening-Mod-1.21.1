@@ -152,6 +152,30 @@ public final class VisualKind {
         kind.lights = list;
     }
 
+    // 0.11.0: optional terrain edits of an external effect (server commit, client heat and stand-in). Empty: none.
+    private volatile java.util.List<dev.calamidade_awakening.api.v1.TerrainEdit> terrain = java.util.List.of();
+
+    /** Registered terrain edits, in registration order (empty when none). */
+    public java.util.List<dev.calamidade_awakening.api.v1.TerrainEdit> terrain() { return terrain; }
+
+    /**
+     * Binds 1..4 terrain edits once. The effect needs its timeline registered before (the commit is a marker); the
+     * markers, tracks and stand-ins are validated against it.
+     */
+    public static synchronized void setTerrain(net.minecraft.resources.ResourceLocation id,
+            java.util.List<dev.calamidade_awakening.api.v1.TerrainEdit> value) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its terrain edits: " + id);
+        if (!kind.terrain.isEmpty()) throw new IllegalArgumentException("Duplicate terrain edits: " + id);
+        var list = java.util.List.copyOf(value);
+        if (list.isEmpty() || list.size() > dev.calamidade_awakening.api.v1.TerrainEdit.MAX_PER_EFFECT)
+            throw new IllegalArgumentException("Expected 1.." + dev.calamidade_awakening.api.v1.TerrainEdit.MAX_PER_EFFECT
+                + " terrain edits per effect: " + id);
+        for (var edit : list) edit.validate(kind.timeline, kind.duration);
+        kind.terrain = list;
+    }
+
     /** Cue on a timeline marker; the marker tick is resolved now. */
     public static synchronized void addCue(net.minecraft.resources.ResourceLocation id, String marker,
             dev.calamidade_awakening.api.v1.Effects.Cue cue) {

@@ -1,4 +1,4 @@
-# Referência da API pública (api.v1) — Calamidade_Awakening 0.10.0
+# Referência da API pública (api.v1) — Calamidade_Awakening 0.11.0
 
 > Gerado por `scripts/ApiReferencia.java` a partir do `javap -public` do JAR compilado e do Javadoc dos fontes. Não edite à mão: rode `./gradlew apiDocs`. O build (`checkApiDocs`) falha se este arquivo estiver desatualizado ou se um membro público ficar sem Javadoc.
 
@@ -49,6 +49,20 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Placement`](#placement)
 - [`Point`](#point)
 - [`Point.Source`](#pointsource)
+- [`TerrainEdit`](#terrainedit)
+- [`TerrainEdit.Builder`](#terraineditbuilder)
+- [`TerrainEdit.Fill`](#terraineditfill)
+- [`TerrainEdit.FillKind`](#terraineditfillkind)
+- [`TerrainEdit.StandIn`](#terraineditstandin)
+- [`TerrainEdit.StandIn.Builder`](#terraineditstandinbuilder)
+- [`TerrainEdit.StandIn.Kind`](#terraineditstandinkind)
+- [`TerrainPalette`](#terrainpalette)
+- [`TerrainPalette.Band`](#terrainpaletteband)
+- [`TerrainPalette.Builder`](#terrainpalettebuilder)
+- [`TerrainPalette.Entry`](#terrainpaletteentry)
+- [`TerrainShape`](#terrainshape)
+- [`TerrainShape.Kind`](#terrainshapekind)
+- [`TerrainShape.Primitive`](#terrainshapeprimitive)
 - [`Timeline`](#timeline)
 - [`Timeline.Builder`](#timelinebuilder)
 - [`Timeline.Easing`](#timelineeasing)
@@ -559,6 +573,7 @@ Public common-side API: register effects, schedule server cues and start or stop
 | `static void atmosphere(ResourceLocation id, Atmosphere atmosphere)` | Attaches an `Atmosphere` to a registered external effect (0.8.0): sky tint, fog, exposure, ambient tint and stars while its instances are active. |
 | `static void beams(ResourceLocation id, Beam... beams)` | Attaches 1..`Beam.MAX_PER_EFFECT` beams to a registered external effect (0.9.0). |
 | `static void lights(ResourceLocation id, Light... lights)` | Attaches 1..`Light.MAX_PER_EFFECT` visual lights to a registered external effect (0.9.0). |
+| `static void terrain(ResourceLocation id, TerrainEdit... edits)` | Attaches 1..`TerrainEdit.MAX_PER_EFFECT` terrain edits to a registered external effect (0.11.0): excavation, burnt shell, real blocks or a structure placed at a marker of the effect's timeline, with the heat and the falling stand-in drawn by the client. |
 | `static void cue(ResourceLocation id, int tick, Effects.Cue cue)` | Schedules a server callback at `tick` (0 .. duration-1) of every instance of a registered external effect. |
 | `static void cue(ResourceLocation id, String marker, Effects.Cue cue)` | Schedules a cue on a marker of the effect's timeline (0.7.0). |
 | `static void onImpact(ResourceLocation id, Effects.Cue cue)` | Schedules a cue at the definition's `Impact` tick, keeping visual contact and gameplay in sync. |
@@ -912,6 +927,273 @@ What a point is attached to.
 | `boolean caster()` | True for the caster's points. |
 | `boolean aim()` | True for the look-ray points (`*_AIM`). |
 | `boolean eye()` | True for the eye points (`*_EYE`). |
+
+## TerrainEdit
+
+`dev.calamidade_awakening.api.v1.TerrainEdit` · class
+
+Immutable terrain edit of one effect (0.11.0): an excavation (`TerrainShape`) with an optional burnt shell (`TerrainPalette`), real blocks placed in the middle (a `Fill` or a structure template), the moment of the commit (a marker of the effect's `Timeline`, normally the impact frame) and the client visuals that go with it: the cooling heat over the edited area and an optional falling stand-in (`StandIn`).
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_PER_EFFECT` | Most terrain edits per effect (`Effects.terrain`). |
+| `static int MAX_THICKNESS` | Thickest burnt shell, blocks. |
+| `static int MAX_BLOCKS_PER_TICK` | Largest blocks-per-tick value an edit may ask for (the server config caps it too). |
+| `static int MAX_COOLING` | Longest cooling, ticks. |
+| `static float MAX_FILL_RADIUS` | Largest fill radius, blocks. |
+| `static float MAX_OFFSET` | Largest offset of a fill, a structure or a stand-in start, blocks per axis. |
+| `static TerrainEdit.Builder carve(TerrainShape shape)` | New edit that carves `shape`; call `Builder.commitAt` before `Builder.build`. |
+| `TerrainShape shape()` | Excavation shape. |
+| `String marker()` | Timeline marker of the commit. |
+| `TerrainPalette palette()` | Burnt shell palette, or null for no shell. |
+| `int thickness()` | Shell thickness, blocks (0 without a shell). |
+| `TerrainEdit.Fill fill()` | Real blocks placed in the middle, or null. |
+| `String structure()` | Structure template ID (`data/<namespace>/structure/<path>.nbt`), or null. |
+| `float structureX()` | Structure offset to the left of the origin, blocks (instance frame snapped to 90°). |
+| `float structureY()` | Structure offset up from the origin, blocks. |
+| `float structureZ()` | Structure offset forward from the origin, blocks (instance frame snapped to 90°). |
+| `int blocksPerTick()` | Blocks written per tick at the commit, or 0 for the server default (capped by the server config). |
+| `boolean replacesBlockEntities()` | True when blocks with a block entity may be replaced (the server config must allow it too). |
+| `boolean heat()` | True when the client draws the heat after the commit. |
+| `int cooling()` | Ticks the heat takes to cool down without a heat track. |
+| `int glow()` | Ember color of the heat, ARGB (alpha ignored). |
+| `String heatTrack()` | Track giving the heat 0..1 after the commit, or null for the default cooling. |
+| `float smoke()` | Smoke amount over the hot area, 0..1. |
+| `float cracks()` | Strength of the glowing cracks, 0..1. |
+| `TerrainEdit.StandIn standIn()` | Falling stand-in, or null. |
+| `float heatAt(Timeline timeline, double localAge, double sinceCommit)` | Heat 0..1 at a local age, `sinceCommit` ticks after the commit (negative before it): 0 before the commit; then the `heatTrack()` value, or `(1 - sinceCommit / cooling)^1.6` down to 0. |
+| `void validate(Timeline timeline, int duration)` | Checks the edit against the effect's timeline and duration: the commit marker and the tracks exist, the stand-in starts falling before the marker, and the structure stand-in has a structure. |
+| `String toString()` | Readable form with the shape, the marker and the structure. |
+
+## TerrainEdit.Builder
+
+`dev.calamidade_awakening.api.v1.TerrainEdit.Builder` · class
+
+Builder of a `TerrainEdit`.
+
+| Membro | Descrição |
+|---|---|
+| `TerrainEdit.Builder commitAt(String marker)` | Timeline marker of the commit (required), normally the impact frame tick. |
+| `TerrainEdit.Builder burn(TerrainPalette palette, int thickness)` | Burnt shell of `thickness` blocks (1..`MAX_THICKNESS`) around the excavation, from `palette`. |
+| `TerrainEdit.Builder fill(TerrainEdit.Fill fill)` | Real blocks placed in the middle at the commit (see `Fill`). |
+| `TerrainEdit.Builder structure(String id)` | Structure template placed at the commit, after the excavation: `id` is `data/<namespace>/structure/<path>.nbt` as `namespace:path`. |
+| `TerrainEdit.Builder structureOffset(float right, float up, float forward)` | Moves the structure `right`, `up` and `forward` blocks (instance yaw snapped to 90°). |
+| `TerrainEdit.Builder blocksPerTick(int blocks)` | Blocks written per tick at the commit, 1..`MAX_BLOCKS_PER_TICK` (0, the default, uses the server's; the server caps it). |
+| `TerrainEdit.Builder replacingBlockEntities()` | Explicitly allows replacing blocks with a block entity (chests, furnaces, blocks of other mods): their contents are lost (saved in the undo snapshot). |
+| `TerrainEdit.Builder cooling(int ticks)` | Cooling time of the heat without a track, 1..`MAX_COOLING` ticks (default 200). |
+| `TerrainEdit.Builder heatTrack(String track)` | Heat after the commit from a timeline track (values 0..1) instead of the default cooling. |
+| `TerrainEdit.Builder glow(int argb)` | Ember color of the heat, ARGB (alpha ignored; default 0xffff5a14). |
+| `TerrainEdit.Builder smoke(float amount)` | Smoke amount over the hot area, 0..1 (default 0.5). |
+| `TerrainEdit.Builder cracks(float amount)` | Strength of the glowing cracks, 0..1 (default 0.8). |
+| `TerrainEdit.Builder noHeat()` | No heat visuals after the commit (the edit is invisible apart from the blocks). |
+| `TerrainEdit.Builder standIn(TerrainEdit.StandIn standIn)` | Falling stand-in drawn by the client before the commit (see `StandIn`). |
+| `TerrainEdit build()` | The edit; throws when the commit marker is missing. |
+
+## TerrainEdit.Fill
+
+`dev.calamidade_awakening.api.v1.TerrainEdit.Fill` · record
+
+Real blocks placed at the commit, after the excavation: the stand-in becoming real (a meteor turning into a ball of ore).
+
+| Membro | Descrição |
+|---|---|
+| `new Fill(TerrainEdit.FillKind kind, float radius, String block, float x, float y, float z)` | Canonical constructor: kind, radius, block, x, y, z. |
+| `static TerrainEdit.Fill solid(String block, float radius)` | Solid ball of `block` with `radius` blocks at the origin. |
+| `static TerrainEdit.Fill shell(String block, float radius)` | Hollow ball (one block thick) of `block` with `radius` blocks at the origin. |
+| `TerrainEdit.Fill at(float right, float up, float forward)` | Copy centered `right`, `up` and `forward` blocks from the origin (instance frame). |
+| `boolean contains(double px, double py, double pz)` | True when the local point (blocks, instance frame) is inside the fill. |
+| `TerrainEdit.FillKind kind()` | Solid or hollow ball. |
+| `float radius()` | Radius, blocks, (0, `MAX_FILL_RADIUS`]. |
+| `String block()` | Registry ID of the block (`namespace:path`); a block with a block entity is placed without its data. |
+| `float x()` | Center offset to the left, blocks. |
+| `float y()` | Center offset up, blocks. |
+| `float z()` | Center offset forward, blocks. |
+
+## TerrainEdit.FillKind
+
+`dev.calamidade_awakening.api.v1.TerrainEdit.FillKind` · enum
+
+What a `Fill` places.
+
+| Membro | Descrição |
+|---|---|
+| `SOLID` | A solid ball of the block. |
+| `SHELL` | A hollow ball one block thick. |
+
+## TerrainEdit.StandIn
+
+`dev.calamidade_awakening.api.v1.TerrainEdit.StandIn` · class
+
+Visual stand-in of a falling object (0.11.0): drawn by the client while it falls from `Builder.from` to the impact point, between `Builder.fall` and the commit marker (or along a 0..1 track), with a fire trail.
+
+| Membro | Descrição |
+|---|---|
+| `static TerrainEdit.StandIn.Builder sphere(float radius)` | Burning ball of `radius` blocks, (0, `MAX_FILL_RADIUS`]; it lands on the fill center, or on the origin. |
+| `static TerrainEdit.StandIn.Builder structure()` | The edit's structure template as a falling block mesh; it lands where the structure is placed. |
+| `TerrainEdit.StandIn.Kind kind()` | Look of the stand-in. |
+| `float radius()` | Ball radius, blocks (0 for a structure). |
+| `float x()` | Start of the fall to the left of the impact point, blocks (instance frame). |
+| `float y()` | Start of the fall above the impact point, blocks. |
+| `float z()` | Start of the fall forward of the impact point, blocks (instance frame). |
+| `int fall()` | Local tick when the fall starts (before the commit marker). |
+| `int reveal()` | Ticks the stand-in takes to fade over the real blocks after the commit. |
+| `int color()` | Fire color, ARGB (alpha ignored). |
+| `float trail()` | Length of the fire trail, blocks (0 for none). |
+| `String track()` | Track giving the fall progress 0..1 (eased by the track itself), or null for the default ease-in. |
+| `float progress(Timeline timeline, double localAge, int commitTick)` | Fall progress 0..1 at a local age: the `track()` value when set, otherwise `t²` (accelerating) with `t` going from 0 at `fall()` to 1 at `commitTick`. |
+| `float opacity(double localAge, int commitTick)` | Opacity 0..1 at a local age: 1 until the commit, then fading to 0 over `reveal()` ticks. |
+| `String toString()` | Readable form, such as `StandIn[SPHERE]`. |
+
+## TerrainEdit.StandIn.Builder
+
+`dev.calamidade_awakening.api.v1.TerrainEdit.StandIn.Builder` · class
+
+Builder of a `StandIn`.
+
+| Membro | Descrição |
+|---|---|
+| `TerrainEdit.StandIn.Builder from(float right, float up, float forward)` | Start of the fall relative to the impact point: `right`, `up`, `forward` blocks in the instance frame (default straight above, 80 blocks), each within ±`MAX_OFFSET`. |
+| `TerrainEdit.StandIn.Builder fall(int startTick)` | Local tick when the fall starts, 0..commit tick − 1 (default 0). |
+| `TerrainEdit.StandIn.Builder track(String name)` | Fall progress from a timeline track (values 0..1) instead of the default ease-in. |
+| `TerrainEdit.StandIn.Builder reveal(int ticks)` | Ticks of the fade over the real blocks after the commit, 0..400 (default 30). |
+| `TerrainEdit.StandIn.Builder color(int argb)` | Fire color, ARGB (alpha ignored; default orange 0xffff8a2a). |
+| `TerrainEdit.StandIn.Builder trail(float blocks)` | Length of the fire trail, 0..64 blocks (default 16). |
+| `TerrainEdit.StandIn build()` | The stand-in. |
+
+## TerrainEdit.StandIn.Kind
+
+`dev.calamidade_awakening.api.v1.TerrainEdit.StandIn.Kind` · enum
+
+Look of the stand-in.
+
+| Membro | Descrição |
+|---|---|
+| `SPHERE` | A burning ball drawn by the engine's shader. |
+| `STRUCTURE` | The edit's structure template as a moving block mesh. |
+
+## TerrainPalette
+
+`dev.calamidade_awakening.api.v1.TerrainPalette` · class
+
+Immutable "burnt" palette of a `TerrainEdit` (0.11.0): weighted block lists per band of the shell around the excavation.
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_WEIGHT` | Largest weight of one entry. |
+| `static int MAX_ENTRIES` | Most entries per band. |
+| `static TerrainPalette.Builder builder()` | New empty builder; `Band.WALL` needs at least one entry. |
+| `static TerrainPalette burnt()` | The default burnt palette, vanilla blocks only: floor of blackstone, coarse dirt, basalt, magma block and cobbled deepslate; walls of blackstone, cobblestone, tuff, andesite, cobbled deepslate and a little magma block; a rim of coarse dirt, cobblestone, andesite, tuff and blackstone. |
+| `List<TerrainPalette.Entry> entries(TerrainPalette.Band band)` | Entries of a band (the `Band.WALL` entries when the band was left empty), immutable. |
+| `int pick(TerrainPalette.Band band, int hash)` | Index into `entries(Band)` picked by weight from a hash (any int, for example of a block position). |
+| `int pickAt(TerrainPalette.Band band, int x, int y, int z, long seed)` | Index picked for the block at world position (`x`, `y`, `z`) of an instance with this seed: `pick` of a `TerrainNoise` hash of the position and the band. |
+| `boolean equals(Object o)` | Same entries in every band. |
+| `int hashCode()` | Hash of the entries. |
+| `String toString()` | Readable form with the entries of each band. |
+
+## TerrainPalette.Band
+
+`dev.calamidade_awakening.api.v1.TerrainPalette.Band` · enum
+
+Band of the shell around the excavation.
+
+| Membro | Descrição |
+|---|---|
+| `FLOOR` | Floor: carved space right above. |
+| `WALL` | Walls and ceilings touching the carved space. |
+| `RIM` | Outer ring at or above the origin level. |
+
+## TerrainPalette.Builder
+
+`dev.calamidade_awakening.api.v1.TerrainPalette.Builder` · class
+
+Builder of a `TerrainPalette`.
+
+| Membro | Descrição |
+|---|---|
+| `TerrainPalette.Builder add(TerrainPalette.Band band, String block, int weight)` | Adds `block` (registry ID) to a band with a relative weight, 1..`MAX_WEIGHT`. |
+| `TerrainPalette build()` | The palette; throws when `Band.WALL` has no entry. |
+
+## TerrainPalette.Entry
+
+`dev.calamidade_awakening.api.v1.TerrainPalette.Entry` · record
+
+One weighted block of a band.
+
+| Membro | Descrição |
+|---|---|
+| `new Entry(String block, int weight)` | Canonical constructor: block, weight. |
+| `String block()` | Registry ID of the block, `namespace:path`. |
+| `int weight()` | Relative weight, 1..`MAX_WEIGHT`. |
+
+## TerrainShape
+
+`dev.calamidade_awakening.api.v1.TerrainShape` · class
+
+Immutable excavation shape of a `TerrainEdit` (0.11.0): a sphere, a crater (a bowl with a configurable depth profile), a trench (a capsule along a segment, the cut of a beam), a cylinder, or a combination of them, with an optional rough edge from deterministic noise.
+
+| Membro | Descrição |
+|---|---|
+| `static float MAX_SIZE` | Largest radius, depth or clearance of one primitive, blocks. |
+| `static float MAX_LENGTH` | Largest trench length or cylinder height, blocks. |
+| `static float MAX_OFFSET` | Largest offset of a primitive from the origin, blocks per axis. |
+| `static int MAX_PRIMITIVES` | Most primitives in one combined shape (added and subtracted). |
+| `static float MAX_EXTENT` | Largest bounding radius of a whole shape around the origin, blocks (offsets and rough edge included). |
+| `static float MAX_ROUGHNESS` | Largest rough edge amplitude, blocks. |
+| `static TerrainShape sphere(float radius)` | Ball of `radius` blocks, (0, `MAX_SIZE`], around the origin. |
+| `static TerrainShape crater(float radius, float depth)` | Bowl of `radius` blocks whose floor is `depth` blocks below the origin at the center (both (0, `MAX_SIZE`]), parabolic profile (2) and clearance equal to the depth. |
+| `static TerrainShape trench(float length, float radius)` | Capsule of `radius` blocks ((0, `MAX_SIZE`]) around a segment `length` blocks long ((0, `MAX_LENGTH`]) along local forward, centered on the origin: the cut a beam leaves in the ground. |
+| `static TerrainShape cylinder(float radius, float height)` | Vertical cylinder of `radius` ((0, `MAX_SIZE`]) and `height` ((0, `MAX_LENGTH`]) blocks, centered. |
+| `static TerrainShape union(TerrainShape first, TerrainShape... more)` | Union of shapes (at least one); each part must be without a rough edge (call `rough` on the result). |
+| `TerrainShape union(TerrainShape other)` | This shape plus `other` (see TerrainShape...)). |
+| `TerrainShape minus(TerrainShape cut)` | This shape with `cut` carved out of it: blocks inside `cut` are left alone (for example a pillar spared in the middle of a crater). |
+| `TerrainShape offset(float right, float up, float forward)` | Copy moved by `right`, `up` and `forward` blocks in the instance frame (each offset of the result within ±`MAX_OFFSET`). |
+| `TerrainShape profile(float exponent)` | Copy of a single crater with another depth profile exponent, 1..16: 1 a cone, 2 a parabola (default), 8 or more a flat bottom with steep walls. |
+| `TerrainShape clearance(float blocks)` | Copy of a single crater that also carves up to `blocks` above the origin, 0..`MAX_SIZE`. |
+| `TerrainShape rough(float amplitude, float scale)` | Copy with a rough edge: the surface moves in and out by up to `amplitude` blocks (0..`MAX_ROUGHNESS`; 0 removes it) following two octaves of value noise whose cells are `scale` blocks wide (0.5..64). |
+| `List<TerrainShape.Primitive> primitives()` | Primitives in order: the added ones and the subtracted ones (immutable). |
+| `float roughness()` | Rough edge amplitude, blocks (0 for a smooth edge). |
+| `float roughScale()` | Rough edge noise cell size, blocks (1 when smooth). |
+| `double extent()` | Radius around the origin that contains the whole shape, rough edge included, blocks. |
+| `double baseDistance(double x, double y, double z)` | Signed distance of a local point (blocks, instance frame) to the shape without the rough edge: the union of the added primitives minus the subtracted ones. |
+| `double distance(double x, double y, double z, long seed)` | Signed distance of a local point (blocks, instance frame) to the shape, rough edge included: negative inside. |
+| `double edge(double x, double y, double z, long seed)` | Rough edge term in [-1, 1] at a local point: `2 fbm(p / scale) - 1`. |
+| `boolean equals(Object o)` | Same primitives and rough edge. |
+| `int hashCode()` | Hash of the primitives and the rough edge. |
+| `String toString()` | Readable form with the primitives and the rough edge. |
+
+## TerrainShape.Kind
+
+`dev.calamidade_awakening.api.v1.TerrainShape.Kind` · enum
+
+Kind of a primitive.
+
+| Membro | Descrição |
+|---|---|
+| `SPHERE` | Ball: `a` = radius. |
+| `CRATER` | Bowl: `a` = radius, `b` = depth, `c` = profile exponent, `d` = clearance. |
+| `TRENCH` | Capsule along local forward: `a` = radius, `b` = length. |
+| `CYLINDER` | Vertical cylinder: `a` = radius, `b` = height. |
+
+## TerrainShape.Primitive
+
+`dev.calamidade_awakening.api.v1.TerrainShape.Primitive` · record
+
+One primitive of a shape, in the instance frame.
+
+| Membro | Descrição |
+|---|---|
+| `new Primitive(TerrainShape.Kind kind, boolean subtract, float x, float y, float z, float a, float b, float c, float d)` | Canonical constructor: kind, subtract, x, y, z, a, b, c, d. |
+| `double distance(double px, double py, double pz)` | Signed distance of a local point (blocks, instance frame) to this primitive, without the rough edge. |
+| `double bound()` | Radius of a ball around the primitive center that contains it, blocks. |
+| `TerrainShape.Kind kind()` | Primitive kind. |
+| `boolean subtract()` | True when the primitive is cut out of the added ones (`minus`). |
+| `float x()` | Center offset to the left, blocks. |
+| `float y()` | Center offset up, blocks. |
+| `float z()` | Center offset forward, blocks. |
+| `float a()` | First size (radius), blocks. |
+| `float b()` | Second size (crater depth, trench length, cylinder height), blocks; 0 for a sphere. |
+| `float c()` | Crater profile exponent (1..16); 0 for the other kinds. |
+| `float d()` | Crater clearance above the origin, blocks; 0 for the other kinds. |
 
 ## Timeline
 
