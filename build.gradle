@@ -8,8 +8,11 @@ version = '0.10.0'
 base { archivesName = 'calamidade_awakening' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
+// NeoForge do build. O manifesto aceita [21.1,21.2); -Pneoforge.version=21.1.265 compila e testa contra outra
+// versão da linha 21.1 (a 0.10.0 foi conferida com a 21.1.265, a do RespectCraft). Os releases saem da 21.1.267.
+def neoForgeVersion = providers.gradleProperty('neoforge.version').getOrElse('21.1.267')
 neoForge {
-    version = '21.1.267'
+    version = neoForgeVersion
     runs {
         client { client() }
         server { server(); programArgument '--nogui' }
@@ -183,7 +186,8 @@ tasks.named('check') { dependsOn 'checkApiDocs' }
 
 // 0.8.0: as receitas de docs/ai/receitas/ trazem o código dos efeitos reais do vfx-sample. Cada bloco de código
 // precedido por "<!-- arquivo: caminho -->" precisa ser idêntico ao arquivo. syncRecipes copia os arquivos para os
-// blocos; checkRecipes (parte do build) falha se algum bloco divergir.
+// blocos; checkRecipes (parte do build) falha se algum bloco divergir. 0.10.0: o modelo de dependência
+// (docs/ai/usar-como-dependencia.md) é conferido do mesmo jeito contra examples/consumidor.
 def recipeBlocks = ~/<!-- arquivo: (\S+) -->\n```(\w+)\n((?:(?!```)[\s\S])*)```/
 ['syncRecipes': false, 'checkRecipes': true].each { taskName, checkOnly ->
     tasks.register(taskName) {
@@ -192,12 +196,16 @@ def recipeBlocks = ~/<!-- arquivo: (\S+) -->\n```(\w+)\n((?:(?!```)[\s\S])*)```/
             : 'Copia o código do vfx-sample para os blocos das receitas em docs/ai/receitas/.'
         def root = layout.projectDirectory.asFile
         def docs = layout.projectDirectory.dir('docs/ai/receitas').asFile
+        def dependency = layout.projectDirectory.file('docs/ai/usar-como-dependencia.md').asFile
         inputs.dir(docs)
+        inputs.file(dependency)
         inputs.dir(layout.projectDirectory.dir('examples/vfx-sample/src'))
+        inputs.files(layout.projectDirectory.files('examples/consumidor/build.gradle', 'examples/consumidor/settings.gradle'))
+        inputs.dir(layout.projectDirectory.dir('examples/consumidor/src'))
         if (checkOnly) outputs.upToDateWhen { false }
         doLast {
             def stale = []
-            docs.listFiles().findAll { it.name.endsWith('.md') }.sort().each { doc ->
+            (docs.listFiles().findAll { it.name.endsWith('.md') }.sort() + [dependency]).each { doc ->
                 def text = doc.getText('UTF-8')
                 def updated = text.replaceAll(recipeBlocks) { all, path, lang, body ->
                     def source = new File(root, path)

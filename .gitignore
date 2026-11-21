@@ -7,3 +7,5 @@ libs/*.jar
 .idea/
 dist/*.jar
 logs/
+# Dependências baixadas pelo exemplo de consumo (examples/consumidor, task baixarDependencias).
+examples/consumidor/libs/

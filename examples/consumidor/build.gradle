@@ -1,0 +1,72 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = '1.0.0'
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = '21.1.265'
+    runs {
+        client { client() }
+        server { server(); programArgument '--nogui' }
+    }
+    mods { consumidor { sourceSet sourceSets.main } }
+}
+
+// ---- Calamidade_Awakening como dependência, sem Maven ----------------------------------------------------------
+// O JAR do Calamidade vem do release do GitHub e a RimuLib (dependência dele) do CurseForge; os dois são conferidos
+// por SHA-256 e ficam em libs/ (fora do git). Nenhum dos dois entra no seu JAR: quem joga instala os dois na pasta
+// mods, ao lado do seu mod. Para outra versão, troque calamidadeVersao e calamidadeSha256 pelos do release
+// (o SHA-256 está nas notas do release e em SHA256SUMS.txt). -Pcalamidade.url=... troca o endereço (espelho ou
+// arquivo local, por exemplo file:///caminho/calamidade_awakening-0.10.0.jar); o SHA-256 continua valendo.
+def calamidadeVersao = '0.10.0'
+def calamidadeSha256 = '109dad19daefc5d965d80b0198cf8457ee516bd0781dff43642c48689ae3c60e'
+def dependenciasBaixadas = [
+    [arquivo: file("libs/calamidade_awakening-${calamidadeVersao}.jar"),
+     url: providers.gradleProperty('calamidade.url').getOrElse(
+         "https://github.com/Juann027/Calamidade_Awakening-Mod-1.21.1/releases/download/v${calamidadeVersao}/calamidade_awakening-${calamidadeVersao}.jar"),
+     sha256: calamidadeSha256],
+    [arquivo: file('libs/rimulib-1.3.0-neoforge.jar'),
+     url: 'https://mediafilez.forgecdn.net/files/9676/532/rimulib-1.3.0-neoforge.jar',
+     sha256: '15ccd4958a0412cbcf618a10962b0b6a7e1683fd66b94d07e10bc7cabeedb774']
+]
+def sha256De = { File arquivo ->
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    arquivo.withInputStream { input ->
+        byte[] buffer = new byte[65536]
+        for (int lidos = input.read(buffer); lidos > 0; lidos = input.read(buffer)) digest.update(buffer, 0, lidos)
+    }
+    digest.digest().encodeHex().toString()
+}
+def baixarDependencias = tasks.register('baixarDependencias') {
+    group = 'build setup'
+    description = 'Baixa o Calamidade_Awakening (release do GitHub) e a RimuLib (CurseForge) para libs/ e confere o SHA-256.'
+    dependenciasBaixadas.each { outputs.file(it.arquivo) }
+    doLast {
+        dependenciasBaixadas.each { dep ->
+            File destino = dep.arquivo
+            if (!destino.exists()) {
+                logger.lifecycle("Baixando ${dep.url}")
+                destino.parentFile.mkdirs()
+                def parcial = new File(destino.parentFile, destino.name + '.part')
+                new URI(dep.url).toURL().withInputStream { input -> parcial.withOutputStream { it << input } }
+                def baixado = sha256De(parcial)
+                if (baixado != dep.sha256) {
+                    parcial.delete()
+                    throw new GradleException("SHA-256 de ${destino.name} não confere: ${baixado} (esperado ${dep.sha256})")
+                }
+                if (!parcial.renameTo(destino)) throw new GradleException("Não foi possível gravar ${destino}")
+            }
+            def atual = sha256De(destino)
+            if (atual != dep.sha256)
+                throw new GradleException("SHA-256 de ${destino} não confere: ${atual} (esperado ${dep.sha256}). Apague o arquivo e rode de novo.")
+        }
+    }
+}
+def jarsBaixados = files(dependenciasBaixadas.collect { it.arquivo }).builtBy(baixarDependencias)
+dependencies {
+    compileOnly jarsBaixados   // compila contra a API do Calamidade (e os tipos da RimuLib que ela expõe), sem embutir
+    runtimeOnly jarsBaixados   // e carrega os dois mods no runClient e no runServer
+}

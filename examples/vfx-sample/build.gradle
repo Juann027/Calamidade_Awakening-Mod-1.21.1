@@ -6,7 +6,8 @@ plugins {
 version = '1.7.0'
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 neoForge {
-    version = '21.1.267'
+    // -Pneoforge.version=21.1.265 compila o exemplo contra outra versão da linha 21.1 (como no motor).
+    version = providers.gradleProperty('neoforge.version').getOrElse('21.1.267')
     runs { client { client() } }
     mods { vfxsample { sourceSet sourceSets.main } }
 }

@@ -1,0 +1,25 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="consumidor"
+version="1.0.0"
+displayName="Consumidor do Calamidade"
+description="Exemplo mínimo de um mod que depende do Calamidade_Awakening sem Maven."
+
+# Obrigatório: o jogo recusa carregar sem o Calamidade. Para integração opcional use type="optional" e isole o código
+# que chama o Calamidade (veja docs/ai/usar-como-dependencia.md).
+[[dependencies.consumidor]]
+modId="calamidade_awakening"
+type="required"
+versionRange="[0.10.0,0.11.0)"
+ordering="AFTER"
+side="BOTH"
+
+[[dependencies.consumidor]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.265,21.2)"
+ordering="NONE"
+side="BOTH"
