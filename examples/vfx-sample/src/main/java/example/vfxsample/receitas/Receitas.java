@@ -24,7 +24,9 @@ import java.util.function.Function;
  * register() (construtor comum do mod) e, quando tem camada de cliente, Client.setup() (FMLClientSetupEvent) e um
  * shader em assets/vfxsample/shaders/fx/receita_*.fsh. As receitas 8 a 13 (1.6.0) usam feixes, luzes e a prioridade
  * HERO do motor 0.9.0; só a onda de luz tem camada de cliente. As receitas 14 a 17 (1.7.0) usam a orientação e os
- * gatilhos do motor 0.10.0: o leque (comando), o cajado (item), os pilares (blocos) e o zumbi (mob vanilla).
+ * gatilhos do motor 0.10.0: o leque (comando), o cajado (item), os pilares (blocos) e o zumbi (mob vanilla). As
+ * receitas 18 a 21 (1.8.0) usam a Terrain API do motor 0.11.0: o raio que abre uma trincheira, o meteoro que vira
+ * blocos reais, a cratera simples e a torre que cai e fica; todas se desfazem com /calamidade terrain undo.
  */
 public final class Receitas {
     /** Nome do comando, efeito e como ele começa no servidor. */
@@ -57,7 +59,12 @@ public final class Receitas {
         Receita.em("onda_luz", OndaDeLuz.ID, p -> chao(p, 6)),
         Receita.em("protagonista", Protagonista.ID, p -> chao(p, 30)),
         // 1.7.0 — orientação: o leque começa virado com o yaw do jogador (Placement).
-        new Receita("leque", LequeOrientado.ID, LequeOrientado::iniciar));
+        new Receita("leque", LequeOrientado.ID, LequeOrientado::iniciar),
+        // 1.8.0 — Terrain API: as formas giram com o yaw do jogador.
+        new Receita("raio_trincheira", RaioTrincheira.ID, RaioTrincheira::iniciar),
+        new Receita("meteoro", Meteoro.ID, Meteoro::iniciar),
+        Receita.em("cratera_simples", CrateraSimples.ID, p -> chao(p, 12)),
+        new Receita("torre_caindo", TorreCaindo.ID, TorreCaindo::iniciar));
 
     /** Última receita iniciada por jogador, para release e stop. */
     private static final Map<UUID, Effects.Handle> ULTIMA = new HashMap<>();
@@ -84,6 +91,11 @@ public final class Receitas {
         Cajado.register(bus);
         Pilares.register(bus);
         ZumbiFeixe.register();
+        // 1.8.0 — Terrain API do motor 0.11.0.
+        RaioTrincheira.register();
+        Meteoro.register();
+        CrateraSimples.register();
+        TorreCaindo.register();
         bus.addListener(Receitas::abas);
     }
 
