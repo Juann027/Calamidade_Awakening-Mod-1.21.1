@@ -36,7 +36,7 @@ The public entry point is `dev.calamidade_awakening.api.v1.Effects`. Register an
 
 ## For AIs and agents
 
-Start with [AGENTS.md](AGENTS.md): project map, non-negotiable rules (public API, network, licenses, javap, git), build and test commands and "how to create a new effect in 6 steps". [docs/ai/](docs/ai/README.md) holds the API reference generated from the compiled JAR, the GLSL guide with the `calamidade_fx.glsl` library and thirteen complete recipes that are real effects of the sample (`/vfxsample receita <name>`). `python3 scripts/novo_efeito.py <namespace> <name>` scaffolds an effect that compiles without edits. Claude Code also picks up the project skill in `.claude/skills/calamidade-efeitos/`.
+Start with [AGENTS.md](AGENTS.md): project map, non-negotiable rules (public API, network, licenses, javap, git), build and test commands and "how to create a new effect in 6 steps". [docs/ai/](docs/ai/README.md) holds the API reference generated from the compiled JAR, the GLSL guide with the `calamidade_fx.glsl` library seventeen complete recipes that are real effects of the sample (`/vfxsample receita <name>`; recipes 15 to 17 are an item, blocks and a vanilla mob) and the template for depending on the engine without Maven. `python3 scripts/novo_efeito.py <namespace> <name>` scaffolds an effect that compiles without edits. Claude Code also picks up the project skill in `.claude/skills/calamidade-efeitos/`.
 
 ## Publishing an addon
 
