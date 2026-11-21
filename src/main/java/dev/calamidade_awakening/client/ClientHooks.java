@@ -39,7 +39,8 @@ public final class ClientHooks {
     private static final FrameCoordinator COORDINATOR = new FrameCoordinator(SCENE);
     private static final StageFilms FILMS = new StageFilms();
     private static final AtmosphereFrame ATMOSPHERE = new AtmosphereFrame(SCENE);
-    private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE);
+    private static final BeamFrame BEAMS = new BeamFrame(SCENE);
+    private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
     private static final Map<VisualKind, KeyMapping> DEMOS = new LinkedHashMap<>();
     private static final KeyMapping QUALITY = new KeyMapping("key.calamidade_awakening.quality",

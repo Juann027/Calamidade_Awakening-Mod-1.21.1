@@ -17,8 +17,8 @@ import java.util.Optional;
  * Public common-side API: register effects, schedule server cues and start or stop instances.
  *
  * <p>Register during mod construction, on both sides (the common mod constructor), in this order:
- * {@link #register}, then optionally {@link #timeline}, {@link #atmosphere} and the cues ({@link #cue},
- * {@link #onImpact}). Start, follow and stop instances on the server thread. Times are in game ticks (20 per
+ * {@link #register}, then optionally {@link #timeline}, {@link #atmosphere}, {@link #beams} (0.9.0) and the cues
+ * ({@link #cue}, {@link #onImpact}). Start, follow and stop instances on the server thread. Times are in game ticks (20 per
  * second), distances in blocks, colors in ARGB ints. Invalid input throws {@link IllegalArgumentException}.
  *
  * <pre>{@code
@@ -267,6 +267,22 @@ public final class Effects {
      */
     public static void atmosphere(ResourceLocation id, Atmosphere atmosphere) {
         VisualKind.setAtmosphere(Objects.requireNonNull(id), Objects.requireNonNull(atmosphere));
+    }
+
+    /**
+     * Attaches 1..{@value Beam#MAX_PER_EFFECT} {@link Beam beams} to a registered external effect (0.9.0). Call once
+     * per effect during mod construction (common side, so a dedicated server validates it too), after
+     * {@link #register} and, when a beam reads tracks or a phase, after {@link #timeline}. Only effects of your
+     * namespace. The client draws the beams of every drawn instance in one engine pass per frame, charged to the HERO
+     * pass budget when the effect is {@link Priority#HERO}, otherwise to the common addon budget.
+     *
+     * <pre>{@code
+     * Effects.beams(ID, Beam.builder(Point.casterEye(0, -.2, 0), Point.casterAim(48)).width(.15f, .9f)
+     *     .color(0xffff4060).build());
+     * }</pre>
+     */
+    public static void beams(ResourceLocation id, Beam... beams) {
+        VisualKind.setBeams(Objects.requireNonNull(id), List.of(Objects.requireNonNull(beams)));
     }
 
     /**

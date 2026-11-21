@@ -76,6 +76,51 @@ public final class StageScene {
         return entity.getPosition(partial).add(event.offset());
     }
 
+    /** Aim rays already cast this frame, by entity id and reach (several beams may share one). */
+    private final Map<Long, Vec3> aims = new HashMap<>();
+
+    /** Forgets the aim rays of the previous frame. */
+    void newFrame() { aims.clear(); }
+
+    /**
+     * World position of a {@link dev.calamidade_awakening.api.v1.Point} of an instance (0.9.0), or null when the
+     * entity it needs (anchor or caster) is not loaded on this client. {@code center} is the interpolated center.
+     */
+    public Vec3 point(StageEvent event, Vec3 center, dev.calamidade_awakening.api.v1.Point point, float partial) {
+        var source = point.source();
+        if (source == dev.calamidade_awakening.api.v1.Point.Source.CENTER) return center.add(point.x(), point.y(), point.z());
+        if (source == dev.calamidade_awakening.api.v1.Point.Source.WORLD) return new Vec3(point.x(), point.y(), point.z());
+        net.minecraft.world.entity.Entity entity = source.caster() ? caster(event) : anchor(event);
+        if (entity == null) return null;
+        if (source.aim()) {
+            long key = ((long) entity.getId() << 32) ^ Double.doubleToLongBits(point.reach());
+            Vec3 cached = aims.get(key);
+            if (cached != null) return cached;
+            Vec3 eye = entity.getEyePosition(partial);
+            Vec3 end = eye.add(entity.getViewVector(partial).scale(point.reach()));
+            var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, end,
+                net.minecraft.world.level.ClipContext.Block.OUTLINE, net.minecraft.world.level.ClipContext.Fluid.NONE, entity));
+            Vec3 at = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS ? end : hit.getLocation();
+            aims.put(key, at);
+            return at;
+        }
+        Vec3 base = source.eye() ? entity.getEyePosition(partial) : entity.getPosition(partial);
+        return base.add(point.x(), point.y(), point.z());
+    }
+
+    private net.minecraft.world.entity.Entity anchor(StageEvent event) {
+        if (event.entityId() < 0 || level == null) return null;
+        var entity = level.getEntity(event.entityId());
+        return entity == null || entity.isRemoved() || !entity.getUUID().equals(event.anchorUuid()) ? null : entity;
+    }
+
+    private net.minecraft.world.entity.Entity caster(StageEvent event) {
+        if (level == null || event.caster() == null
+            || (event.caster().getMostSignificantBits() == 0 && event.caster().getLeastSignificantBits() == 0)) return null;
+        var player = level.getPlayerByUUID(event.caster());
+        return player == null || player.isRemoved() ? null : player;
+    }
+
     public boolean accept(StageEvent event, ClientLevel current) {
         updateLevel(current);
         VisualKind kind = VisualKind.byId(event.visual());

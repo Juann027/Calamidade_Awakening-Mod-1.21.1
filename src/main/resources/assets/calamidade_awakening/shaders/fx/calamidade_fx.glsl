@@ -1,4 +1,4 @@
-// calamidade_fx.glsl — biblioteca de GLSL do Calamidade_Awakening (motor 0.8.0, biblioteca versão 1).
+// calamidade_fx.glsl — biblioteca de GLSL do Calamidade_Awakening (motor 0.9.0, biblioteca versão 2).
 //
 // USO: numa linha própria de um shader fx, depois dos uniforms:
 //     #include "calamidade_fx.glsl"
@@ -9,10 +9,10 @@
 //
 // REGRAS: todas as funções começam com "ca" para não colidir com common.glsl da RimuLib (que já vem antes deste
 // arquivo). Distâncias em blocos; posições relativas à câmera (o espaço de scenePosAt e de post.center()).
-// GLSL portátil: só literais float e funções comuns a GLSL 1.50 e GLSL ES 3.00. scripts/testar_glsl.mjs executa
+// GLSL portátil: só literais float e funções comuns a GLSL 1.50 e GLSL ES 3.00. scripts/testar_glsl.cjs executa
 // cada função numa GPU (WebGL2) e compara com valores esperados.
 
-#define CA_FX_VERSION 1
+#define CA_FX_VERSION 2
 
 // ------------------------------------------------------------------------------------------- interseções
 
@@ -84,6 +84,71 @@ vec2 caSegmentGlow(vec3 ro, vec3 rd, vec3 a, vec3 b, float core, float halo, flo
     float h = max(halo, pix);
     float haloV = h * h / (d * d + h * h) * (halo / h);
     return vec2(coreV, haloV);
+}
+
+// ------------------------------------------------------------------------------------------- feixes (versão 2)
+
+// Pontos mais próximos entre o raio (ro, rd NORMALIZADA) e o segmento AB.
+// Devolve vec3(t, s, d): t = distância ao longo do raio até o ponto mais próximo (>= 0, blocos), s = posição no
+// segmento (0 em A, 1 em B) e d = distância entre os dois pontos (blocos). Raio paralelo ao segmento: s é a projeção
+// da origem do raio. A == B: s = 0 (um ponto).
+// Ex.: vec3 r = caRaySegment(vec3(0.0), viewDir(texCoord), inicio, fim);  // r.z < largura: o pixel está no feixe
+vec3 caRaySegment(vec3 ro, vec3 rd, vec3 a, vec3 b) {
+    vec3 ba = b - a;
+    vec3 oa = ro - a;
+    float baba = dot(ba, ba);
+    float bard = dot(ba, rd);
+    float denom = baba - bard * bard;
+    float s = 0.0;
+    if (denom > 1e-6 * max(baba, 1e-6)) s = clamp((dot(ba, oa) - bard * dot(rd, oa)) / denom, 0.0, 1.0);
+    else if (baba > 1e-12) s = clamp(dot(oa, ba) / baba, 0.0, 1.0);
+    vec3 q = a + ba * s;
+    float t = max(dot(q - ro, rd), 0.0);
+    return vec3(t, s, length(ro + rd * t - q));
+}
+
+// Núcleo de um feixe: 1 dentro da meia-largura halfWidth (blocos) a uma distância d (blocos) do eixo, borda suave
+// de um pixel. pixelWorld = tamanho do pixel em blocos naquela distância (gPix * t). Largura mínima de um pixel:
+// quando o núcleo é mais fino, ele fica com um pixel e a intensidade cai na proporção halfWidth / pixel.
+float caBeamCore(float d, float halfWidth, float pixelWorld) {
+    if (halfWidth <= 0.0) return 0.0;
+    float px = max(pixelWorld, 1e-5);
+    float w = max(halfWidth, px);
+    return (1.0 - smoothstep(max(w - px, 0.0), w + px, d)) * (halfWidth / w);
+}
+
+// Halo de um feixe: h² / (d² + h²) com h = meia-largura (blocos), igual a 1 no eixo e 0,5 em d = h, cortado de 2,5h a
+// 5h (vários feixes não acendem a tela inteira). Mesma largura mínima de um pixel e compensação do núcleo.
+float caBeamHalo(float d, float halfWidth, float pixelWorld) {
+    if (halfWidth <= 0.0) return 0.0;
+    float h = max(halfWidth, max(pixelWorld, 1e-5));
+    return h * h / (d * d + h * h) * (halfWidth / h) * (1.0 - smoothstep(2.5 * h, 5.0 * h, d));
+}
+
+// Trem de pulsos ao longo de um feixe: x = posição em blocos a partir do início, já deslocada pelo movimento
+// (x = s * comprimento - velocidade * tempo); spacing = distância entre centros (blocos); size = comprimento de cada
+// pulso (blocos). Centros em (k + 0,5) * spacing. Devolve 0..1: 1 no centro, exp(-2) a size/2 dele; 0 se size ou
+// spacing <= 0.
+float caPulseTrain(float x, float spacing, float size) {
+    if (size <= 0.0 || spacing <= 0.0) return 0.0;
+    float local = (fract(x / spacing) - 0.5) * spacing;
+    float u = local / (0.5 * size);
+    return exp(-2.0 * u * u);
+}
+
+// Afinamento nas pontas: 0 nas pontas do feixe, 1 a partir de ends blocos delas (smoothstep). s: 0..1 no feixe;
+// len: comprimento (blocos). Multiplique ondulação e ruído laterais por ele para as pontas ficarem presas.
+float caBeamTaper(float s, float len, float ends) {
+    if (ends <= 0.0) return 1.0;
+    return smoothstep(0.0, ends, s * len) * smoothstep(0.0, ends, (1.0 - s) * len);
+}
+
+// Oclusão pela profundidade: 1 quando o ponto do efeito (distância t ao longo do raio) está na frente da cena
+// (sceneDist = length(scenePosAt(texCoord))), caindo a 0 quando está soft blocos atrás dela. Um feixe que entra no
+// chão some suave; um feixe atrás de um morro some.
+float caDepthFade(float t, float sceneDist, float soft) {
+    float x = clamp((t - sceneDist) / max(soft, 1e-3), 0.0, 1.0);
+    return 1.0 - x * x * (3.0 - 2.0 * x);
 }
 
 // ------------------------------------------------------------------------------------------- grades

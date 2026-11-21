@@ -12,7 +12,7 @@ Conferido com `javap -c` em `cyou.rimuru.rimulib.mc1211.client.render.ShaderProg
 4. Não há recursão (um arquivo incluído não pode incluir outro) nem busca no namespace do motor.
 5. O vertex shader é fixo: um triângulo de tela cheia com `out vec2 texCoord`; a saída é `out vec4 fragColor`.
 
-**Consequência para addons:** para usar `calamidade_fx.glsl`, copie-o para `assets/<seu_namespace>/shaders/fx/calamidade_fx.glsl`. O `scripts/novo_efeito.py` faz isso, e o `checkShaders` do build falha se uma cópia dentro deste repositório divergir da do motor. A biblioteca tem `#define CA_FX_VERSION 1` para você conferir a versão.
+**Consequência para addons:** para usar `calamidade_fx.glsl`, copie-o para `assets/<seu_namespace>/shaders/fx/calamidade_fx.glsl`. O `scripts/novo_efeito.py` faz isso, e o `checkShaders` do build falha se uma cópia dentro deste repositório divergir da do motor. A biblioteca tem `#define CA_FX_VERSION 2` (0.9.0) para você conferir a versão.
 
 ## O que o common.glsl já oferece
 
@@ -51,8 +51,14 @@ Arquivo: `src/main/resources/assets/calamidade_awakening/shaders/fx/calamidade_f
 | `float caEnvelope(x, a, b, c, d)` | 0..1 | Sobe de a a b, platô, desce de c a d (smoothstep); a == b ou c == d viram degraus. |
 | `float caDistanceWave(dist, tempo, velocidade, largura, alcance)` | 0..1 | Anel na distância velocidade × tempo, que some perto do alcance; 0 antes de tempo 0. |
 | `float caStars(dir, segundos)` | 0..1 | Campo de estrelas procedural na direção `dir`; usado pelo passe de atmosfera. |
+| `vec3 caRaySegment(ro, rd, a, b)` | (t no raio, s no segmento 0..1, distância) | Versão 2 (0.9.0). Pontos mais próximos entre o raio e o segmento AB; base do passe `beams`. |
+| `float caBeamCore(d, meiaLargura, pixelMundo)` | 0..1 | Núcleo de feixe com largura mínima de um pixel e intensidade compensada. |
+| `float caBeamHalo(d, meiaLargura, pixelMundo)` | 0..1 | Halo h²/(d²+h²), cortado entre 2,5 e 5 meias-larguras (vários feixes não acendem a tela inteira). |
+| `float caPulseTrain(x, espaçamento, tamanho)` | 0..1 | Pulsos gaussianos ao longo de um feixe; `x` em blocos já deslocado pelo movimento. |
+| `float caBeamTaper(s, comprimento, pontas)` | 0..1 | 0 nas pontas, 1 a `pontas` blocos delas: prende ondulação e ruído às pontas. |
+| `float caDepthFade(t, cena, suave)` | 0..1 | Oclusão suave pela profundidade: 1 na frente da cena, 0 a `suave` blocos atrás. |
 
-Testes: `node scripts/testar_glsl.cjs` compila a biblioteca em GLSL ES 3.00 e executa 55 casos numa GPU (WebGL2 no Chromium headless), comparando com valores esperados. O `checkShaders` do Gradle compila cada shader do motor e do exemplo em GLSL 1.50, com o `common.glsl` real e os `#include` resolvidos como a RimuLib faz.
+Testes: `node scripts/testar_glsl.cjs` compila a biblioteca em GLSL ES 3.00 e executa os casos numa GPU (WebGL2 no Chromium headless), comparando com valores esperados. O `checkShaders` do Gradle compila cada shader do motor e do exemplo em GLSL 1.50, com o `common.glsl` real e os `#include` resolvidos como a RimuLib faz. `node scripts/previa_passes.cjs` roda os passes `beams` e `lights` do motor, com o `common.glsl` real, sobre uma cena sintética com profundidade e grava PNGs em `build/previa/` (prévia da aparência e da oclusão sem o jogo).
 
 ## Convenções
 

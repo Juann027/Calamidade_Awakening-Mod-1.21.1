@@ -102,6 +102,27 @@ public final class VisualKind {
         kind.atmosphere = value;
     }
 
+    // 0.9.0: optional beams of an external effect, drawn by the engine's beams pass. Empty means "no beams".
+    private volatile java.util.List<dev.calamidade_awakening.api.v1.Beam> beams = java.util.List.of();
+
+    /** Registered beams, in registration order (empty when none). */
+    public java.util.List<dev.calamidade_awakening.api.v1.Beam> beams() { return beams; }
+
+    /** Binds 1..16 beams once; tracks and phases they read must exist in the timeline registered before them. */
+    public static synchronized void setBeams(net.minecraft.resources.ResourceLocation id,
+            java.util.List<dev.calamidade_awakening.api.v1.Beam> value) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its beams: " + id);
+        if (!kind.beams.isEmpty()) throw new IllegalArgumentException("Duplicate beams: " + id);
+        var list = java.util.List.copyOf(value);
+        if (list.isEmpty() || list.size() > dev.calamidade_awakening.api.v1.Beam.MAX_PER_EFFECT)
+            throw new IllegalArgumentException("Expected 1.." + dev.calamidade_awakening.api.v1.Beam.MAX_PER_EFFECT
+                + " beams per effect: " + id);
+        for (var beam : list) beam.validate(kind.timeline);
+        kind.beams = list;
+    }
+
     /** Cue on a timeline marker; the marker tick is resolved now. */
     public static synchronized void addCue(net.minecraft.resources.ResourceLocation id, String marker,
             dev.calamidade_awakening.api.v1.Effects.Cue cue) {

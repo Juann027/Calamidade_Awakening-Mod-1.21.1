@@ -73,6 +73,38 @@ const CASES = [
   ['onda: uma largura atrás', 'caDistanceWave(6.4, 20.0, 0.35, 0.6, 24.0)', Math.exp(-1), 1e-4],
   ['onda: antes de emitir', 'caDistanceWave(0.0, -1.0, 0.35, 0.6, 24.0)', 0, 0],
   ['onda: depois do alcance', 'caDistanceWave(30.0, 100.0, 0.3, 0.6, 24.0)', 0, 0],
+  // feixes (versão 2)
+  ['segmento: t no meio', 'caRaySegment(vec3(0.0), vec3(0.0, 0.0, 1.0), vec3(1.0, -1.0, 5.0), vec3(1.0, 1.0, 5.0)).x', 5, 1e-5],
+  ['segmento: s no meio', 'caRaySegment(vec3(0.0), vec3(0.0, 0.0, 1.0), vec3(1.0, -1.0, 5.0), vec3(1.0, 1.0, 5.0)).y', 0.5, 1e-5],
+  ['segmento: distância', 'caRaySegment(vec3(0.0), vec3(0.0, 0.0, 1.0), vec3(1.0, -1.0, 5.0), vec3(1.0, 1.0, 5.0)).z', 1, 1e-5],
+  ['segmento: além da ponta usa A', 'caRaySegment(vec3(0.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 2.0, 5.0), vec3(0.0, 4.0, 5.0)).z', 2, 1e-5],
+  ['segmento: além da ponta s = 0', 'caRaySegment(vec3(0.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 2.0, 5.0), vec3(0.0, 4.0, 5.0)).y', 0, 1e-6],
+  ['segmento: paralelo', 'caRaySegment(vec3(0.0), vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 2.0), vec3(1.0, 0.0, 6.0)).z', 1, 1e-5],
+  ['segmento: paralelo, t', 'caRaySegment(vec3(0.0), vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 2.0), vec3(1.0, 0.0, 6.0)).x', 2, 1e-5],
+  ['segmento: atrás da câmera', 'caRaySegment(vec3(0.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, -5.0), vec3(0.0, -1.0, -5.0)).z', 5, 1e-5],
+  ['segmento: atrás, t = 0', 'caRaySegment(vec3(0.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, -5.0), vec3(0.0, -1.0, -5.0)).x', 0, 0],
+  ['segmento: degenerado', 'caRaySegment(vec3(0.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 3.0, 4.0), vec3(0.0, 3.0, 4.0)).z', 3, 1e-5],
+  ['núcleo: no eixo', 'caBeamCore(0.0, 0.1, 0.001)', 1, 1e-5],
+  ['núcleo: fora', 'caBeamCore(0.3, 0.1, 0.001)', 0, 0],
+  ['núcleo: largura mínima de um pixel', 'caBeamCore(0.0, 0.1, 1.0)', 0.1, 1e-5],
+  ['núcleo: largura 0', 'caBeamCore(0.0, 0.0, 0.001)', 0, 0],
+  ['halo: no eixo', 'caBeamHalo(0.0, 0.5, 0.001)', 1, 1e-5],
+  ['halo: na meia-largura', 'caBeamHalo(0.5, 0.5, 0.001)', 0.5, 1e-5],
+  ['halo: a 2 meias-larguras', 'caBeamHalo(1.0, 0.5, 0.001)', 0.2, 1e-5],
+  ['halo: cortado a 5 meias-larguras', 'caBeamHalo(3.0, 0.5, 0.001)', 0, 0],
+  ['pulso: no centro', 'caPulseTrain(5.0, 10.0, 2.0)', 1, 1e-5],
+  ['pulso: a meio comprimento', 'caPulseTrain(6.0, 10.0, 2.0)', Math.exp(-2), 1e-4],
+  ['pulso: entre pulsos', 'caPulseTrain(0.0, 10.0, 2.0)', 0, 1e-6],
+  ['pulso: periódico', 'caPulseTrain(15.0, 10.0, 2.0)', 1, 1e-4],
+  ['pulso: tamanho 0', 'caPulseTrain(5.0, 10.0, 0.0)', 0, 0],
+  ['afinamento: na ponta', 'caBeamTaper(0.0, 20.0, 2.0)', 0, 0],
+  ['afinamento: no meio', 'caBeamTaper(0.5, 20.0, 2.0)', 1, 0],
+  ['afinamento: a 1 bloco da ponta', 'caBeamTaper(0.05, 20.0, 2.0)', 0.5, 1e-4],
+  ['afinamento: desligado', 'caBeamTaper(0.0, 20.0, 0.0)', 1, 0],
+  ['profundidade: na frente', 'caDepthFade(5.0, 10.0, 0.5)', 1, 0],
+  ['profundidade: meio da borda', 'caDepthFade(10.25, 10.0, 0.5)', 0.5, 1e-4],
+  ['profundidade: atrás', 'caDepthFade(11.0, 10.0, 0.5)', 0, 0],
+  ['profundidade: céu longe', 'caDepthFade(500.0, 100000.0, 0.15)', 1, 0],
   // céu
   ['estrelas: faixa 0..1', 'clamp(caStars(normalize(vec3(0.3, 0.8, 0.2)), 3.0), 0.0, 1.0) - caStars(normalize(vec3(0.3, 0.8, 0.2)), 3.0)', 0, 0],
   ['estrelas: nada abaixo do horizonte', 'caStars(normalize(vec3(0.3, -0.2, 0.5)), 2.0)', 0, 0],
@@ -99,7 +131,7 @@ void main() {
 
 async function run() {
   const { chromium } = require('playwright');
-  const library = fs.readFileSync(LIB, 'utf8').replace(/^#define CA_FX_VERSION.*$/m, '#define CA_FX_VERSION 1');
+  const library = fs.readFileSync(LIB, 'utf8');
   const fragment = shaderSource(library);
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   try {

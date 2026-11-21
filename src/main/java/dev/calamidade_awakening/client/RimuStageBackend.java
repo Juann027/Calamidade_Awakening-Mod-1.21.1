@@ -7,20 +7,26 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 import java.util.List;
 
-/** One shared RimuLib layer, one pass for all selected marks, then the atmosphere pass (0.8.0). */
+/**
+ * One shared RimuLib layer. Pass order in a frame: the engine field (one pass for all selected marks), the addon
+ * passes (card shaders and post layers), the beams pass (0.9.0) and the atmosphere pass (0.8.0). Addon passes and the
+ * beams pass spend the per-frame budget: the HERO pool for HERO effects, the common pool for the others.
+ */
 public final class RimuStageBackend {
     private final FrameCoordinator coordinator;
     private final StageFilms films;
     private final AtmosphereFrame atmosphere;
+    private final BeamFrame beams;
     private FxApi.Stage stage;
     private final FxApi.Layer layer = this::draw;
     private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
     private final java.util.Set<String> failedPosts = new java.util.HashSet<>();
 
-    RimuStageBackend(FrameCoordinator coordinator, StageFilms films, AtmosphereFrame atmosphere) {
+    RimuStageBackend(FrameCoordinator coordinator, StageFilms films, AtmosphereFrame atmosphere, BeamFrame beams) {
         this.coordinator = coordinator;
         this.films = films;
         this.atmosphere = atmosphere;
+        this.beams = beams;
     }
 
     public void install() {
@@ -37,6 +43,7 @@ public final class RimuStageBackend {
         var look = view.getLookVector();
         StageScene.Plan plan = coordinator.plan(camera, new Vec3(look.x(), look.y(), look.z()), frame.partial());
         float orbit = films.orbitalMix(frame.partial());
+        beams.collect(plan, camera, frame.partial());
         if (!plan.effects().isEmpty() || orbit > .001f) drawEffects(frame, plan, orbit);
         // 0.8.0: one engine pass for the mixed atmosphere, last, so exposure and tint cover the whole scene.
         // Not charged to the addon budget and independent of the frustum (the sky stays when you turn away).
@@ -49,6 +56,9 @@ public final class RimuStageBackend {
         List<StageScene.Sample> marks = plan.volumes();
         float time = films.seconds(frame.partial());
         int passes = 0;
+        // 0.9.0: the shared engine passes are paid first, because one pass serves every drawn effect.
+        var budget = new dev.calamidade_awakening.api.PassBudget(plan.quality());
+        var beamPool = beams.pay(budget);
         if (!marks.isEmpty() || orbit > .001f) {
             passes++;
             frame.pass("awakening_field", uniforms -> {
@@ -72,7 +82,6 @@ public final class RimuStageBackend {
         // 0.9.0 there are two pools: HERO effects spend their own (1/2/3), NORMAL ones the common pool (1/2/4); the
         // plan lists HERO instances first. Post layers are charged for every pass they really queue. Since 0.6.2 a
         // post layer is always called for its visible instance, even with no pass left, so its screen effects apply.
-        var budget = new dev.calamidade_awakening.api.PassBudget(plan.quality());
         boolean flashAllowed = !mc.options.hideLightningFlash().get();
         int heroes = 0;
         for (var sample : plan.effects()) {
@@ -105,6 +114,11 @@ public final class RimuStageBackend {
             budget.charge(hero, context.used());
             passes += context.used();
         }
+        if (beamPool.drawn()) {
+            beams.queue(frame);
+            passes++;
+        }
+        PerfOverlay.beams(beamPool.drawn() ? Math.min(beams.beams().size(), BeamFrame.ROWS) : 0, beamPool);
         PerfOverlay.heroes(heroes, budget.used(true));
         PerfOverlay.passes(passes);
         float strongest = 0;

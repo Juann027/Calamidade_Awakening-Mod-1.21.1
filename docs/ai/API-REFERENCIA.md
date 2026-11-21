@@ -18,6 +18,10 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Atmosphere.Param`](#atmosphereparam)
 - [`Atmosphere.Rgb`](#atmospherergb)
 - [`Atmosphere.State`](#atmospherestate)
+- [`Beam`](#beam)
+- [`Beam.Builder`](#beambuilder)
+- [`Beam.Param`](#beamparam)
+- [`Beam.State`](#beamstate)
 - [`Effects`](#effects)
 - [`Effects.Context`](#effectscontext)
 - [`Effects.Cue`](#effectscue)
@@ -28,6 +32,8 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Effects.Material`](#effectsmaterial)
 - [`Effects.Priority`](#effectspriority)
 - [`Effects.Shape`](#effectsshape)
+- [`Point`](#point)
+- [`Point.Source`](#pointsource)
 - [`Timeline`](#timeline)
 - [`Timeline.Builder`](#timelinebuilder)
 - [`Timeline.Easing`](#timelineeasing)
@@ -253,6 +259,125 @@ Resolved atmosphere at one moment: every parameter is a plain number already tak
 | `float ambientStrength()` | Ambient tint strength, 0..1. |
 | `float stars()` | Star field, 0..1. |
 
+## Beam
+
+`dev.calamidade_awakening.api.v1.Beam` · class
+
+Immutable beam of light between two points (0.9.0): a white-hot core inside a saturated halo, with optional pulses that run along it, a lateral wave and noise, and a progressive reveal (the beam "grows" from its start to its end).
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_PER_EFFECT` | Most beams per effect (`Effects.beams`). |
+| `static float MAX_CORE_WIDTH` | Largest core width, blocks. |
+| `static float MAX_HALO_WIDTH` | Largest halo width, blocks. |
+| `static float MAX_INTENSITY` | Largest intensity multiplier. |
+| `static int MAX_PULSES` | Most pulses on one beam. |
+| `static float MAX_TRACK_OFFSET` | Largest track offset of an end, blocks per axis. |
+| `static float ACTIVE_WEIGHT` | Weight below which a beam is not drawn. |
+| `static Beam.Builder builder(Point from, Point to)` | New builder for a beam from `from` to `to` (different points). |
+| `Point from()` | Start of the beam. |
+| `Point to()` | End of the beam. |
+| `float coreWidth()` | Core width, blocks. |
+| `float haloWidth()` | Halo width, blocks. |
+| `int coreColor()` | Core color, ARGB (alpha ignored). |
+| `int haloColor()` | Halo color, ARGB (alpha ignored). |
+| `float intensity()` | Brightness multiplier, 0..`MAX_INTENSITY`. |
+| `int pulses()` | Number of pulses, 0..`MAX_PULSES`. |
+| `float pulseSpeed()` | Pulse speed, blocks per tick. |
+| `float pulseSize()` | Pulse length, blocks. |
+| `float waveAmplitude()` | Lateral wave amplitude, blocks. |
+| `float waveLength()` | Wavelength, blocks. |
+| `float waveSpeed()` | Wave speed, blocks per tick. |
+| `float noise()` | Lateral noise amplitude, blocks. |
+| `float reveal()` | Drawn fraction from the start, 0..1. |
+| `String track(Beam.Param param)` | Track bound to a parameter, or null when the parameter is constant. |
+| `Map<Beam.Param, String> tracks()` | Every track binding, in `Param` order. |
+| `String weightPhase()` | Phase whose weight multiplies the beam weight, or null. |
+| `boolean animated()` | True when some parameter, the weight or the phase depends on the timeline. |
+| `void validate(Timeline timeline)` | Checks that every track and the phase this beam reads exist in `timeline`, which may be null only when nothing is animated. |
+| `Beam.State sample(Timeline.Sampler timeline, float envelope)` | Resolves this beam at one moment. |
+
+## Beam.Builder
+
+`dev.calamidade_awakening.api.v1.Beam.Builder` · class
+
+Builder of a `Beam`.
+
+| Membro | Descrição |
+|---|---|
+| `Beam.Builder width(float core, float halo)` | Core and halo widths in blocks (full widths): core 0..`MAX_CORE_WIDTH`, halo 0..`MAX_HALO_WIDTH`. |
+| `Beam.Builder color(int core, int halo)` | Core and halo colors (ARGB, alpha ignored). |
+| `Beam.Builder color(int halo)` | Halo color (ARGB, alpha ignored), keeping the white core. |
+| `Beam.Builder intensity(float value)` | Brightness multiplier, 0..`MAX_INTENSITY` (1 by default). |
+| `Beam.Builder pulses(int count, float speed, float size)` | Pulses running along the beam: `count` 0..`MAX_PULSES`, evenly spaced over the full length; `speed` in blocks per tick, -8..8 (negative runs from the end to the start); `size`, the length of each pulse in blocks, 0..32. |
+| `Beam.Builder wave(float amplitude, float wavelength, float speed)` | Lateral wave: `amplitude` 0..8 blocks, `wavelength` 0.25..256 blocks, `speed` -8..8 blocks per tick along the beam. |
+| `Beam.Builder noise(float amplitude)` | Lateral noise (a crackling, unstable beam), amplitude 0..8 blocks. |
+| `Beam.Builder reveal(float fraction)` | Drawn fraction from the start, 0..1 (1 by default). |
+| `Beam.Builder track(Beam.Param param, String track)` | Takes `param` from a track of the effect's timeline instead of the constant (clamped to the parameter range). |
+| `Beam.Builder weightPhase(String phase)` | Multiplies the beam weight by the weight of a timeline phase (0 outside it). |
+| `Beam build()` | Immutable beam. |
+
+## Beam.Param
+
+`dev.calamidade_awakening.api.v1.Beam.Param` · enum
+
+Numeric parameters that can be driven by a timeline track, each with the range used to clamp it.
+
+| Membro | Descrição |
+|---|---|
+| `CORE_WIDTH` | Core width, blocks. |
+| `HALO_WIDTH` | Halo width, blocks. |
+| `INTENSITY` | Brightness multiplier. |
+| `PULSE_COUNT` | Number of pulses, rounded to the nearest integer. |
+| `PULSE_SPEED` | Pulse speed, blocks per tick (negative: from the end toward the start). |
+| `PULSE_SIZE` | Length of each pulse, blocks. |
+| `WAVE_AMPLITUDE` | Lateral wave amplitude, blocks. |
+| `WAVE_LENGTH` | Wavelength, blocks. |
+| `WAVE_SPEED` | Wave speed along the beam, blocks per tick. |
+| `NOISE` | Lateral noise amplitude, blocks. |
+| `REVEAL` | Drawn fraction from the start, 0..1. |
+| `WEIGHT` | Extra multiplier of the beam weight, 0..1 (the envelope and the phase still apply). |
+| `FROM_X` | Offset added to the start, x, blocks. |
+| `FROM_Y` | Offset added to the start, y, blocks. |
+| `FROM_Z` | Offset added to the start, z, blocks. |
+| `TO_X` | Offset added to the end, x, blocks. |
+| `TO_Y` | Offset added to the end, y, blocks. |
+| `TO_Z` | Offset added to the end, z, blocks. |
+| `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
+
+## Beam.State
+
+`dev.calamidade_awakening.api.v1.Beam.State` · record
+
+Resolved beam at one moment: parameters already taken from tracks and clamped, the weight (0..1) and the track offsets of both ends.
+
+| Membro | Descrição |
+|---|---|
+| `new State(float weight, float fromX, float fromY, float fromZ, float toX, float toY, float toZ, float coreWidth, float haloWidth, int coreColor, int haloColor, float intensity, int pulses, float pulseSpeed, float pulseSize, float waveAmplitude, float waveLength, float waveSpeed, float noise, float reveal)` | Canonical constructor: weight, fromX, fromY, fromZ, toX, toY, toZ, coreWidth, haloWidth, coreColor, haloColor, intensity, pulses, pulseSpeed, pulseSize, waveAmplitude, waveLength, waveSpeed, noise, reveal. |
+| `boolean visible()` | True when the engine draws this beam: weight above `ACTIVE_WEIGHT`, something revealed, lit and wide. |
+| `float weight()` | Beam weight, 0..1. |
+| `float fromX()` | Track offset of the start, x, blocks. |
+| `float fromY()` | Track offset of the start, y, blocks. |
+| `float fromZ()` | Track offset of the start, z, blocks. |
+| `float toX()` | Track offset of the end, x, blocks. |
+| `float toY()` | Track offset of the end, y, blocks. |
+| `float toZ()` | Track offset of the end, z, blocks. |
+| `float coreWidth()` | Core width, blocks. |
+| `float haloWidth()` | Halo width, blocks. |
+| `int coreColor()` | Core color, ARGB (alpha ignored). |
+| `int haloColor()` | Halo color, ARGB (alpha ignored). |
+| `float intensity()` | Brightness multiplier, 0..`MAX_INTENSITY`. |
+| `int pulses()` | Number of pulses, 0..`MAX_PULSES`. |
+| `float pulseSpeed()` | Pulse speed, blocks per tick. |
+| `float pulseSize()` | Pulse length, blocks. |
+| `float waveAmplitude()` | Lateral wave amplitude, blocks. |
+| `float waveLength()` | Wavelength, blocks. |
+| `float waveSpeed()` | Wave speed, blocks per tick. |
+| `float noise()` | Lateral noise amplitude, blocks. |
+| `float reveal()` | Drawn fraction from the start, 0..1. |
+
 ## Effects
 
 `dev.calamidade_awakening.api.v1.Effects` · class
@@ -266,6 +391,7 @@ Public common-side API: register effects, schedule server cues and start or stop
 | `static void register(ResourceLocation id, Effects.Definition definition)` | Registers an external effect in your own namespace (the `calamidade_awakening` namespace is reserved). |
 | `static void timeline(ResourceLocation id, Timeline timeline)` | Attaches a `Timeline` to a registered external effect (0.7.0). |
 | `static void atmosphere(ResourceLocation id, Atmosphere atmosphere)` | Attaches an `Atmosphere` to a registered external effect (0.8.0): sky tint, fog, exposure, ambient tint and stars while its instances are active. |
+| `static void beams(ResourceLocation id, Beam... beams)` | Attaches 1..`Beam.MAX_PER_EFFECT` beams to a registered external effect (0.9.0). |
 | `static void cue(ResourceLocation id, int tick, Effects.Cue cue)` | Schedules a server callback at `tick` (0 .. duration-1) of every instance of a registered external effect. |
 | `static void cue(ResourceLocation id, String marker, Effects.Cue cue)` | Schedules a cue on a marker of the effect's timeline (0.7.0). |
 | `static void onImpact(ResourceLocation id, Effects.Cue cue)` | Schedules a cue at the definition's `Impact` tick, keeping visual contact and gameplay in sync. |
@@ -405,6 +531,56 @@ Built-in world geometry drawn by the engine around the instance center.
 | `RINGS` | Concentric rings. |
 | `ORBIT` | Orbiting ribbons. |
 | `NEXUS` | Curved blades that converge (Horizon Core style). |
+
+## Point
+
+`dev.calamidade_awakening.api.v1.Point` · class
+
+Immutable place in the world used by `Beam` ends and `Light` positions (0.9.0).
+
+| Membro | Descrição |
+|---|---|
+| `static double MAX_OFFSET` | Largest offset on each axis, in blocks. |
+| `static double MAX_REACH` | Largest aim distance, in blocks. |
+| `static double MAX_WORLD` | Largest horizontal world coordinate, in blocks (the world border). |
+| `static Point center()` | The instance center. |
+| `static Point center(double dx, double dy, double dz)` | Offset in blocks from the instance center (world axes). |
+| `static Point world(double x, double y, double z)` | Fixed world position in blocks, the same for every instance (\|x\| and \|z\| up to `MAX_WORLD`, \|y\| up to `MAX_OFFSET`). |
+| `static Point anchor(double dx, double dy, double dz)` | Feet of the anchor entity (`Effects.follow`) plus an offset in blocks. |
+| `static Point anchorEye(double dx, double dy, double dz)` | Eyes of the anchor entity plus an offset in blocks. |
+| `static Point anchorAim(double reach)` | First block hit along the anchor entity's look, up to `reach` blocks (0.5..`MAX_REACH`); the full reach when nothing is hit. |
+| `static Point caster(double dx, double dy, double dz)` | Feet of the caster plus an offset in blocks. |
+| `static Point casterEye(double dx, double dy, double dz)` | Eyes of the caster plus an offset in blocks. |
+| `static Point casterAim(double reach)` | First block hit along the caster's look, up to `reach` blocks (0.5..`MAX_REACH`); the full reach when nothing is hit. |
+| `Point.Source source()` | What the point is attached to. |
+| `double x()` | Offset (or world coordinate for `Source.WORLD`) on x, blocks; 0 for aim points. |
+| `double y()` | Offset (or world coordinate for `Source.WORLD`) on y, blocks; 0 for aim points. |
+| `double z()` | Offset (or world coordinate for `Source.WORLD`) on z, blocks; 0 for aim points. |
+| `double reach()` | Aim distance in blocks for `*_AIM` points; 0 for the others. |
+| `boolean equals(Object o)` | Same source, offsets and reach. |
+| `int hashCode()` | Hash of source, offsets and reach. |
+| `String toString()` | Readable form, such as `CENTER(0.0, 40.0, 0.0)` or `CASTER_AIM(48.0)`. |
+
+## Point.Source
+
+`dev.calamidade_awakening.api.v1.Point.Source` · enum
+
+What a point is attached to.
+
+| Membro | Descrição |
+|---|---|
+| `CENTER` | Instance center plus offset. |
+| `WORLD` | Fixed world position. |
+| `ANCHOR` | Feet of the anchor entity (`Effects.follow`) plus offset. |
+| `ANCHOR_EYE` | Eyes of the anchor entity plus offset. |
+| `ANCHOR_AIM` | First block hit along the anchor entity's look, up to the reach. |
+| `CASTER` | Feet of the caster plus offset. |
+| `CASTER_EYE` | Eyes of the caster plus offset. |
+| `CASTER_AIM` | First block hit along the caster's look, up to the reach. |
+| `boolean entity()` | True when the point needs an entity (anchor or caster) loaded on the client. |
+| `boolean caster()` | True for the caster's points. |
+| `boolean aim()` | True for the look-ray points (`*_AIM`). |
+| `boolean eye()` | True for the eye points (`*_EYE`). |
 
 ## Timeline
 

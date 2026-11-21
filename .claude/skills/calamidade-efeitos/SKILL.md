@@ -1,6 +1,6 @@
 ---
 name: calamidade-efeitos
-description: Cria ou altera efeitos visuais do Calamidade_Awakening (motor de VFX para Minecraft 1.21.1, NeoForge, RimuLib) e de seus addons — definição, Timeline, Atmosphere (céu, névoa, exposição), passes de pós-processamento com shader GLSL, malha de mundo, câmera, cues de gameplay no servidor e testes com F7 e bench. Use quando pedirem um efeito, habilidade, ataque, shader, feixe, anel, bolha, impact frame, céu ou névoa para o Calamidade, ou um addon que use a API dev.calamidade_awakening.api.v1.
+description: Cria ou altera efeitos visuais do Calamidade_Awakening (motor de VFX para Minecraft 1.21.1, NeoForge, RimuLib) e de seus addons — definição, prioridade HERO, Timeline, Atmosphere (céu, névoa, exposição), Beam (feixes), Light (luz no mundo), passes de pós-processamento com shader GLSL, malha de mundo, câmera, cues de gameplay no servidor e testes com F7 e bench. Use quando pedirem um efeito, habilidade, ataque, shader, feixe, anel, bolha, impact frame, céu ou névoa para o Calamidade, ou um addon que use a API dev.calamidade_awakening.api.v1.
 ---
 
 # Criar efeitos no Calamidade_Awakening
@@ -40,6 +40,13 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - `Atmosphere.builder().sky(topo, horizonte, mistura).fog(cor, densidade, início, fim).exposure(x).ambient(cor, força).stars(x)`; `.track(Param.FOG_DENSITY, "trilha")`, `.weightPhase("fase")`; `Effects.atmosphere(id, atmosfera)` depois da timeline.
 - Não precisa de shader nem de camada de cliente. Peso = envelope × fase × trilha WEIGHT × fade no fim do alcance; o motor mistura as duas mais fortes.
 - Capítulo: `docs/ATMOSFERA-0.8.md`. Receita: 7. Exemplo: Sinal de Maré (céu no impacto) e Farol (névoa no sustain).
+
+### 3b. Feixes (opcional, 0.9.0)
+
+- `Beam.builder(Point.center(0, 0, 0), Point.center(0, 60, 0)).width(núcleo, halo).color(núcleo, halo).pulses(n, velocidade, tamanho).wave(amplitude, onda, velocidade).noise(x).reveal(0..1)`; `.track(Beam.Param.REVEAL, "trilha")`, `.weightPhase("fase")`; `Effects.beams(id, feixes...)` depois da timeline (até 16).
+- Pontas (`Point`): `center(dx,dy,dz)` (centro da instância), `world(x,y,z)`, `anchor`/`anchorEye`/`anchorAim(alcance)` (entidade de `Effects.follow`), `caster`/`casterEye`/`casterAim(alcance)` (quem conjurou). Sem a entidade carregada no cliente, o feixe não é desenhado.
+- Sem shader nem camada de cliente: o motor desenha todos os feixes num passe `beams`, com largura mínima de um pixel e oclusão pelo terreno. O raio da definição cobre o feixe (teste de frustum).
+- Capítulo: `docs/FEIXES-0.9.md`. Receitas: pilar, laser, teia.
 
 ### 4. Pós-processamento e shader
 
@@ -81,6 +88,7 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 
 - `post.pass` devolve `false` sem vaga; o callback roda mesmo assim, então bloom, tremor e clarão continuam valendo. Um shader de cartão já gasta uma vaga.
 - Passe de atmosfera: 1 por quadro, do motor, fora do orçamento.
+- Passe de feixes: 1 por quadro para todos os feixes (16/48/128), cobrado do orçamento HERO se houver efeito HERO com feixes, senão do comum.
 - Duração até 12000 ticks; raio até 512; alcance 16..1024; 64 instâncias por servidor.
 - Acessibilidade obrigatória: passes próprios de tela inteira × `post.screenEffects()`; nada de piscar com `!post.flashAllowed()`; nada de zoom ou borrão com `!post.motionEffects()`.
 
