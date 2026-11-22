@@ -98,5 +98,9 @@
   "calamidade_awakening.configuration.terrainExplosionEvent.tooltip": "Every edit also goes through NeoForge's explosion events: protection mods (claims, regions) that protect against explosions protect against craters. Off: only TerrainEditEvent, world border and spawn protection.",
   "calamidade_awakening.configuration.terrainSpawnProtection": "Respect spawn protection",
   "calamidade_awakening.configuration.terrainSpawnProtection.tooltip": "Edits leave the spawn protection area (spawn-protection in server.properties) intact; an operator is exempt only when the edit is theirs.",
-  "perf.calamidade_awakening.meshes": "Stand-in meshes: %s · %s vertices · last build %s ms"
+  "perf.calamidade_awakening.meshes": "Stand-in meshes: %s · %s vertices · last build %s ms",
+  "perf.calamidade_awakening.measured": "Measurement done: %s steps → %s",
+  "perf.calamidade_awakening.profile": "Calamidade_Awakening: %s",
+  "perf.calamidade_awakening.measuring": "Measuring %s: %s steps of %s s; keep still and look ahead (F7 shows progress)",
+  "command.calamidade_awakening.bench.mix": "Mixed load: %s of %s (%s) · live on server: %s"
 }

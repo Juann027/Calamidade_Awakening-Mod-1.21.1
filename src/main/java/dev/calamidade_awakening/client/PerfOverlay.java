@@ -1,5 +1,6 @@
 package dev.calamidade_awakening.client;
 
+import dev.calamidade_awakening.api.FrameLimits;
 import dev.calamidade_awakening.api.Quality;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -48,7 +49,7 @@ public final class PerfOverlay {
         meshVertices, lastMeshVertices;
     private static dev.calamidade_awakening.api.EnginePasses.Pool terrainPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE,
         lastTerrainPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
-    private static Quality lastQuality = Quality.BALANCED;
+    private static FrameLimits lastLimits = FrameLimits.of(Quality.BALANCED);
     /** Resident instances by source kind (0.10.0): players, entities, blocks, scripts. */
     private static int[] lastSources = new int[4];
 
@@ -86,13 +87,13 @@ public final class PerfOverlay {
     private static double meshBuildMs;
 
     /** Called from RenderFrameEvent.Pre. */
-    static void frameStart(int resident, int[] bySource, Quality quality) {
+    static void frameStart(int resident, int[] bySource, FrameLimits limits) {
         lastSources = bySource;
         long now = System.nanoTime();
         long delta = previousFrame == 0 ? 0 : now - previousFrame;
         previousFrame = now;
         lastEffects = effects; lastVolumes = volumes; lastVertices = vertices; lastPasses = passes;
-        lastResident = resident; lastQuality = quality;
+        lastResident = resident; lastLimits = limits;
         lastAtmospheres = atmospheres; lastAtmospherePass = atmospherePass;
         lastHeroes = heroes; lastHeroPasses = heroPasses;
         lastBeams = beams; lastBeamPool = beamPool; lastLights = lights; lastLightPool = lightPool;
@@ -107,15 +108,19 @@ public final class PerfOverlay {
         frames[frameCursor] = delta;
         frameCursor = (frameCursor + 1) % WINDOW;
         frameCount = Math.min(frameCount + 1, WINDOW);
+        CostProbe.frame(delta, lastResident, lastEffects, lastPasses, lastBeams);
         if (recording != null) {
             recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s,%d,%d,%d,%d,%d,%s,%d,%s,%d,%d,%d,%d,%d,%d,%s,%d,%d",
-                recording.size(), delta / 1e6, lastResident, lastEffects, lastVolumes, lastVertices, lastPasses, quality.name(),
+                recording.size(), delta / 1e6, lastResident, lastEffects, lastVolumes, lastVertices, lastPasses, limits.label(),
                 lastAtmospheres, lastAtmospherePass ? 1 : 0, lastHeroes, lastHeroPasses, lastBeams, lastBeamPool.name(),
                 lastLights, lastLightPool.name(), lastSources[0], lastSources[1], lastSources[2], lastSources[3],
                 lastTerrainZones, lastTerrainStandIns, lastTerrainPool.name(), lastMeshes, lastMeshVertices));
             if (System.currentTimeMillis() >= recordingEnds) finishRecording();
         }
     }
+
+    /** Shows the panel (measurements). */
+    static void show() { visible = true; }
 
     static void tick() {
         while (TOGGLE.consumeClick()) visible = !visible;
@@ -168,7 +173,7 @@ public final class PerfOverlay {
             TOGGLE.getTranslatedKeyMessage()));
         lines.add(Component.translatableWithFallback(PREFIX + "gpu", "GPU: %s", renderer()));
         lines.add(Component.translatableWithFallback(PREFIX + "frame", "%s FPS · frame %s ms · p95 %s ms · %s",
-            mc.getFps(), format(percentile(window, .5)), format(percentile(window, .95)), lastQuality.name()));
+            mc.getFps(), format(percentile(window, .5)), format(percentile(window, .95)), lastLimits.label()));
         lines.add(Component.translatableWithFallback(PREFIX + "scene", "Events: %s resident · %s drawn · %s volumes",
             lastResident, lastEffects, lastVolumes));
         lines.add(Component.translatableWithFallback(PREFIX + "sources", "Sources: %s players · %s mobs · %s blocks · %s scripts",
@@ -176,11 +181,11 @@ public final class PerfOverlay {
         lines.add(Component.translatableWithFallback(PREFIX + "cost", "Vertices %s · post passes %s",
             lastVertices, lastPasses));
         lines.add(Component.translatableWithFallback(PREFIX + "heroes", "Protagonists (HERO): %s drawn · %s/%s passes",
-            lastHeroes, lastHeroPasses, lastQuality.heroPasses));
+            lastHeroes, lastHeroPasses, lastLimits.heroPasses()));
         lines.add(Component.translatableWithFallback(PREFIX + "beams", "Beams: %s drawn (max %s) · pass %s",
-            lastBeams, lastQuality.beams, pool(lastBeamPool)));
+            lastBeams, lastLimits.beams(), pool(lastBeamPool)));
         lines.add(Component.translatableWithFallback(PREFIX + "lights", "Lights: %s drawn (max %s) · pass %s",
-            lastLights, lastQuality.lights, pool(lastLightPool)));
+            lastLights, lastLimits.lights(), pool(lastLightPool)));
         lines.add(Component.translatableWithFallback(PREFIX + "terrain", "Terrain: %s hot zones · %s stand-ins · pass %s",
             lastTerrainZones, lastTerrainStandIns, pool(lastTerrainPool)));
         lines.add(Component.translatableWithFallback(PREFIX + "meshes", "Stand-in meshes: %s · %s vertices · last build %s ms",
@@ -189,6 +194,7 @@ public final class PerfOverlay {
             lastAtmospheres, lastAtmospherePass
                 ? Component.translatableWithFallback(PREFIX + "yes", "yes")
                 : Component.translatableWithFallback(PREFIX + "no", "no")));
+        if (CostProbe.running()) lines.add(Component.literal(CostProbe.status()));
         if (recording != null) lines.add(Component.translatableWithFallback(PREFIX + "recording", "Recording: %s s left",
             Math.max(0, (recordingEnds - System.currentTimeMillis() + 999) / 1000)));
         int width = 0;
@@ -209,7 +215,7 @@ public final class PerfOverlay {
         };
     }
 
-    private static String renderer() {
+    static String renderer() {
         if (renderer == null) {
             String name = GL11.glGetString(GL11.GL_RENDERER);
             renderer = name == null ? "?" : name;
@@ -218,9 +224,7 @@ public final class PerfOverlay {
     }
 
     private static double percentile(double[] sorted, double fraction) {
-        if (sorted.length == 0) return 0;
-        int index = (int) Math.ceil(fraction * sorted.length) - 1;
-        return sorted[Math.clamp(index, 0, sorted.length - 1)];
+        return dev.calamidade_awakening.api.FrameStats.percentile(sorted, fraction);
     }
 
     private static String format(double ms) { return String.format(java.util.Locale.ROOT, "%.2f", ms); }

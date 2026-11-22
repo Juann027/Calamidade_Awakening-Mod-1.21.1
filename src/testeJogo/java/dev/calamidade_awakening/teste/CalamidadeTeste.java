@@ -56,6 +56,7 @@ public final class CalamidadeTeste {
         NeoForge.EVENT_BUS.addListener((ChunkDataEvent.Save event) -> SALVOS.add(event.getChunk().getPos().toLong()));
         NeoForge.EVENT_BUS.addListener(CalamidadeTeste::started);
         if (FMLEnvironment.dist == Dist.CLIENT && "cliente".equals(System.getProperty("calamidade.teste"))) RoteiroCliente.registrar();
+        if (FMLEnvironment.dist == Dist.CLIENT && "medicao".equals(System.getProperty("calamidade.teste"))) RoteiroMedicao.registrar();
     }
 
     private static ResourceLocation id(String path) { return ResourceLocation.fromNamespaceAndPath(ID, path); }
@@ -68,7 +69,7 @@ public final class CalamidadeTeste {
 
     private static void started(ServerStartedEvent event) {
         String fase = System.getProperty("calamidade.teste");
-        if (fase == null || fase.isBlank() || fase.equals("cliente")) return;
+        if (fase == null || fase.isBlank() || fase.equals("cliente") || fase.equals("medicao")) return;
         Thread thread = new Thread(new Roteiro(event.getServer(), fase), "Calamidade teste em jogo");
         thread.setDaemon(true);
         thread.start();

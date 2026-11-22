@@ -1,4 +1,4 @@
-# Referência da API pública (api.v1) — Calamidade_Awakening 0.11.1
+# Referência da API pública (api.v1) — Calamidade_Awakening 0.11.2
 
 > Gerado por `scripts/ApiReferencia.java` a partir do `javap -public` do JAR compilado e do Javadoc dos fontes. Não edite à mão: rode `./gradlew apiDocs`. O build (`checkApiDocs`) falha se este arquivo estiver desatualizado ou se um membro público ficar sem Javadoc.
 

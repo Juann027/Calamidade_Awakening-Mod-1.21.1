@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'dev.calamidade_awakening'
-version = '0.11.1'
+version = '0.11.2'
 base { archivesName = 'calamidade_awakening' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
@@ -23,6 +23,7 @@ sourceSets {
 
 def testeJogoDir = layout.projectDirectory.dir('run/teste-jogo').asFile
 def testeClienteDir = layout.projectDirectory.dir('run/teste-cliente').asFile
+def testeMedicaoDir = layout.projectDirectory.dir('run/teste-medicao').asFile
 neoForge {
     version = neoForgeVersion
     mods {
@@ -53,6 +54,16 @@ neoForge {
             sourceSet = sourceSets.testeJogo
             gameDirectory = testeClienteDir
             systemProperty 'calamidade.teste', 'cliente'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
+        // 0.11.2: medição de custo por efeito e por passe (CostProbe), cliente com o vfx-sample em mods/.
+        testeMedicao {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = testeMedicaoDir
+            systemProperty 'calamidade.teste', 'medicao'
             programArgument '--quickPlaySingleplayer'; programArgument 'teste'
             programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
@@ -391,5 +402,46 @@ tasks.register('testeCliente') {
         if (!lines.contains('FIM cliente')) failed << "FAIL roteiro incompleto (falta 'FIM cliente')"
         logger.lifecycle("testeCliente: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeCliente:\n' + failed.join('\n'))
+    }
+}
+
+// 0.11.2: medição de custo (xvfb-run ./gradlew testeMedicao), no mundo do testeJogo, com o vfx-sample compilado
+// (./gradlew dist e ./gradlew -p examples/vfx-sample build antes): /calamidade_client debug measure all sob o perfil de
+// teste UNLIMITED. Relatório em run/teste-medicao/calamidade-medicao.txt e a tabela em calamidade_bench/cost-*.txt.
+// Renderização por software no CI: vale a tendência de custo por efeito e por passe, não o valor absoluto.
+def prepararTesteMedicao = tasks.register('prepararTesteMedicao') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo e o JAR do vfx-sample para run/teste-medicao.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteMedicao: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        def sample = fileTree('examples/vfx-sample/build/libs') { include 'vfx-sample-*.jar'; exclude '*-sources.jar' }
+        if (sample.isEmpty()) throw new GradleException('prepararTesteMedicao: rode ./gradlew -p examples/vfx-sample build antes')
+        ['saves', 'mods', 'screenshots', 'logs', 'calamidade_bench'].each { project.delete(new File(testeMedicaoDir, it)) }
+        project.delete(new File(testeMedicaoDir, 'calamidade-medicao.txt'))
+        project.copy { from world; into new File(testeMedicaoDir, 'saves/teste'); exclude 'session.lock' }
+        project.copy { from sample; into new File(testeMedicaoDir, 'mods') }
+        new File(testeMedicaoDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'maxFps:260',
+            'enableVsync:false'].join('\n') + '\n'
+        if (testeMods.isPresent()) project.copy { from(testeMods.get()) { include '*.jar' }; into new File(testeMedicaoDir, 'mods') }
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteMedicao') task.dependsOn prepararTesteMedicao }
+tasks.register('testeMedicao') {
+    group = 'verification'
+    description = 'Mede o custo por efeito e por passe no cliente (precisa de tela: xvfb-run) e falha se a medição não fechar.'
+    dependsOn 'runTesteMedicao'
+    doLast {
+        def report = new File(testeMedicaoDir, 'calamidade-medicao.txt')
+        if (!report.exists()) throw new GradleException('testeMedicao: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM medicao')) failed << "FAIL roteiro incompleto (falta 'FIM medicao')"
+        lines.findAll { !it.startsWith('PASS') && !it.startsWith('FAIL') }.each { logger.lifecycle(it) }
+        logger.lifecycle("testeMedicao: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeMedicao:\n' + failed.join('\n'))
     }
 }

@@ -67,7 +67,7 @@ public final class RimuStageBackend {
         float time = films.seconds(frame.partial());
         int passes = 0;
         // 0.9.0: the shared engine passes are paid first, because one pass serves every drawn effect.
-        var budget = new dev.calamidade_awakening.api.PassBudget(plan.quality());
+        var budget = new dev.calamidade_awakening.api.PassBudget(plan.limits().marks(), plan.limits().heroPasses());
         var beamPool = beams.pay(budget);
         // 0.11.0: the terrain pass before the lights: a falling stand-in is the object itself, its light a bonus.
         var terrainPool = terrain.pay(budget);

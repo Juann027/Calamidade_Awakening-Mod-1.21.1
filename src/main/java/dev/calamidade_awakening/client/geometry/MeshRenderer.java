@@ -33,7 +33,7 @@ public final class MeshRenderer {
         Vec3 right = new Vec3(-left.x(), -left.y(), -left.z());
         Vec3 vertical = new Vec3(up.x(), up.y(), up.z());
         BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-        int slice = plan.quality().vertices / effects.size();
+        int slice = plan.limits().vertices() / effects.size();
         int emitted = 0;
         for (StageScene.Sample sample : effects) {
             Mesh mesh = new Mesh(builder, event.getPoseStack().last().pose(), camera.getPosition(), slice);

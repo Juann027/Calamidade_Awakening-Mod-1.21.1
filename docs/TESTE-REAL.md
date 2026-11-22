@@ -165,6 +165,29 @@ Antes, rode os testes automáticos (`./gradlew testeJogo` e, numa máquina com t
 
 Registre para cada caso o que viu, com nome e versão de cada mod; nos casos 75, 76 e 79, uma captura.
 
+## Parte 8 — custo por efeito e por passe (0.11.2, antes dos perfis novos)
+
+Objetivo: medir na GPU física quanto custa **cada efeito desenhado** e **cada passe de addon**, acima dos tetos de hoje (6 desenhados e 2 passes no BALANCED), para fixar os padrões de LOW, BALANCED, HIGH e ULTRA. A medição é automática: o comando roda sempre a mesma sequência, sob o perfil interno de teste **UNLIMITED** (sem teto de desenhados nem de passes; não aparece no F8), e grava mediana e p95 do tempo de quadro de cada passo. É o mesmo código do teste automatizado (`xvfb-run -a ./gradlew testeMedicao`), então os números se comparam diretamente com os da renderização por software em VALIDACAO.md.
+
+**Preparação (uma vez):**
+
+1. Instale o JAR do motor desta versão, a RimuLib 1.3.0 e o **vfx-sample 1.8.0** (a carga usa as receitas anel, cubo, teia e céu; sem o exemplo, o motor usa os próprios efeitos e a parte de passes não roda).
+2. Crie um mundo **superplano** em **criativo, com comandos permitidos**, e saia dele. Em `saves/<mundo>/serverconfig/calamidade_awakening-server.toml`, mude `playerReserve` para `0` (sem isso o bench para em 48 instâncias e o passo de 60 fica incompleto). Entre de novo.
+3. Vídeo: **Taxa de quadros máxima: Ilimitada**, **VSync desligado**, gráficos Fancy, a resolução e a distância de renderização que você usa normalmente (anote as duas). Feche navegador, gravador de tela e outros programas pesados.
+4. Fique em pé no chão, olhe para o horizonte (um pouco para baixo, para os anéis aparecerem no chão) e não mexa mais o mouse.
+
+**Medição (cerca de 2,5 minutos):**
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 82 | `/calamidade_client debug measure all` e não mexa em nada até a mensagem final. | O F7 abre e mostra "Medição N/12: grupo · passo · aquecendo/gravando". Primeiro o grupo **efeitos**: base sem efeitos, depois 6, 12, 24, 48 e 60 instâncias (anel, cubo, teia e céu alternados, num arco à frente), todas desenhadas. Depois o grupo **passes**: base, e 12 cubos desenhados com o orçamento de passes de addon em 1, 2, 4, 8 e 12. Cada passo aquece 4 s e grava 8 s. No fim: "Medição concluída: 12 passos → cost-AAAAMMDD-HHMMSS.txt", e o bench para sozinho. |
+| 83 | Repita o caso 82 uma vez (segunda rodada). | Os números das duas rodadas devem ficar perto; se um passo destoar muito, anote o que estava acontecendo (salvamento automático, outro programa). |
+| 84 | Opcional: repita com Sodium ou Embeddium e, se usar, Iris/Oculus com um shader pack. | Anote quais mods e o pack. |
+
+**O que mandar:** os arquivos `calamidade_bench/cost-*.txt` e `cost-*.csv` das duas rodadas (a primeira linha de cada `.txt` já traz a GPU, a janela, o limite de quadros, o VSync e a distância). Para voltar ao normal: `playerReserve = 16` no mesmo arquivo; o perfil de teste termina sozinho no fim da medição (ou com `/calamidade_client debug off`, ou F8).
+
+Comandos avulsos, para olhar uma carga com calma: `/calamidade_client debug unlimited` (sem tetos), `/calamidade_client debug unlimited <desenhados> <passes>` (tetos escolhidos), `/calamidade_client debug off`; `/calamidade bench <n> mix` (anel, cubo, teia e céu alternados; as instâncias recomeçam sozinhas até `bench stop`).
+
 ## Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.

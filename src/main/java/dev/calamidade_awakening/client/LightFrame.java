@@ -92,7 +92,7 @@ final class LightFrame {
             perEffect.add(resolved);
             if (sample.kind().hero()) heroNeeds = true; else normalNeeds = true;
         }
-        lights = EnginePasses.cap(perEffect, plan.quality().lights);
+        lights = EnginePasses.cap(perEffect, plan.limits().lights());
     }
 
     /** Lights kept this frame (F7). */

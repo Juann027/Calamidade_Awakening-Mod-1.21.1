@@ -25,13 +25,33 @@ import java.util.List;
  * /calamidade bench <count> [effect] places count instances in an arc 14 blocks ahead of the player,
  * /calamidade bench stop ends them, /calamidade status reports live instances (by source kind and with the limits of
  * the server config since 0.10.0). Requires permission level 2. Bench instances are SCRIPT starts, so with the default
- * reserve of 16 slots for players at most 48 of them run at once.
+ * reserve of 16 slots for players at most 48 of them run at once. Since 0.11.2, /calamidade bench <count> mix cycles
+ * through the ring, cube, web and sky recipes of the vfx-sample (engine effects when it is absent), and a bench
+ * instance that ends starts again at its place until bench stop, so the load stays for measurements.
  */
 @EventBusSubscriber(modid = CalamidadeAwakening.ID)
 public final class BenchCommand {
     private static final String PREFIX = "command.calamidade_awakening.";
     private static final ResourceLocation DEFAULT = ResourceLocation.fromNamespaceAndPath(CalamidadeAwakening.ID, "nexus");
-    private static final List<Effects.Handle> BENCH = new ArrayList<>();
+    /** The varied load of 0.11.2 (ring, cube, web, sky), used when the vfx-sample is installed. */
+    static final List<String> MIX = List.of("vfxsample:receita_anel", "vfxsample:receita_cubo",
+        "vfxsample:receita_teia", "vfxsample:receita_ceu");
+    /** Engine effects for the mix without the vfx-sample. */
+    static final List<String> MIX_ENGINE = List.of("calamidade_awakening:nexus", "calamidade_awakening:prism",
+        "calamidade_awakening:lattice", "calamidade_awakening:aurora");
+
+    /** One bench instance and where to start it again when it ends (0.11.2). */
+    private static final class Slot {
+        final ResourceLocation effect;
+        final net.minecraft.server.level.ServerLevel level;
+        final Vec3 position;
+        Effects.Handle handle;
+
+        Slot(ResourceLocation effect, net.minecraft.server.level.ServerLevel level, Vec3 position, Effects.Handle handle) {
+            this.effect = effect; this.level = level; this.position = position; this.handle = handle;
+        }
+    }
+    private static final List<Slot> BENCH = new ArrayList<>();
 
     private BenchCommand() {}
 
@@ -43,6 +63,7 @@ public final class BenchCommand {
                 .then(Commands.literal("stop").executes(ctx -> stop(ctx.getSource())))
                 .then(Commands.argument("count", IntegerArgumentType.integer(1, 64))
                     .executes(ctx -> bench(ctx, DEFAULT))
+                    .then(Commands.literal("mix").executes(BenchCommand::mix))
                     .then(Commands.argument("effect", ResourceLocationArgument.id())
                         .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(VisualKind.networkKeys(), builder))
                         .executes(ctx -> bench(ctx, ResourceLocationArgument.getId(ctx, "effect")))))));
@@ -55,8 +76,30 @@ public final class BenchCommand {
             ctx.getSource().sendFailure(Component.translatableWithFallback(PREFIX + "unknown", "Unknown effect %s", effect.toString()));
             return 0;
         }
+        int done = arc(player, count, List.of(effect));
+        ctx.getSource().sendSuccess(() -> Component.translatableWithFallback(PREFIX + "bench",
+            "Started %s of %s × %s (live on server: %s)", done, count, effect.toString(), StageNetwork.liveCount()), true);
+        return done;
+    }
+
+    /** 0.11.2: the varied load, cycling ring, cube, web and sky (or engine effects without the vfx-sample). */
+    private static int mix(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        int count = IntegerArgumentType.getInteger(ctx, "count");
+        List<String> names = MIX.stream().allMatch(id -> VisualKind.localId(id) != -1) ? MIX : MIX_ENGINE;
+        List<ResourceLocation> effects = names.stream().filter(id -> VisualKind.localId(id) != -1)
+            .map(ResourceLocation::parse).toList();
+        int done = arc(player, count, effects);
+        String list = String.join(", ", names);
+        ctx.getSource().sendSuccess(() -> Component.translatableWithFallback(PREFIX + "bench.mix",
+            "Mixed load: %s of %s (%s) · live on server: %s", done, count, list, StageNetwork.liveCount()), true);
+        return done;
+    }
+
+    /** Arc of up to 90 degrees centered on the player's horizontal view, 14 blocks away, at eye height. */
+    private static int arc(ServerPlayer player, int count, List<ResourceLocation> effects) {
         stopAll();
-        // Arc of up to 90 degrees centered on the player's horizontal view, 14 blocks away, at eye height.
+        if (effects.isEmpty()) return 0;
         Vec3 look = player.getLookAngle();
         double yaw = Math.atan2(look.z, look.x);
         Vec3 eye = player.getEyePosition();
@@ -64,15 +107,22 @@ public final class BenchCommand {
         for (int i = 0; i < count; i++) {
             double angle = yaw + (count == 1 ? 0 : (i / (double) (count - 1) - .5) * Math.PI / 2);
             Vec3 position = eye.add(Math.cos(angle) * 14, 0, Math.sin(angle) * 14);
+            ResourceLocation effect = effects.get(i % effects.size());
             var handle = Effects.start(effect, player.serverLevel(), position);
             if (handle.isEmpty()) break;
-            BENCH.add(handle.get());
+            BENCH.add(new Slot(effect, player.serverLevel(), position, handle.get()));
             started++;
         }
-        int done = started;
-        ctx.getSource().sendSuccess(() -> Component.translatableWithFallback(PREFIX + "bench",
-            "Started %s of %s × %s (live on server: %s)", done, count, effect.toString(), StageNetwork.liveCount()), true);
-        return done;
+        return started;
+    }
+
+    /** 0.11.2: a bench instance that ended starts again at its place, so a measurement keeps its load. */
+    @SubscribeEvent
+    public static void tick(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event) {
+        for (Slot slot : BENCH) {
+            if (slot.handle.alive()) continue;
+            Effects.start(slot.effect, slot.level, slot.position).ifPresent(handle -> slot.handle = handle);
+        }
     }
 
     private static int stop(CommandSourceStack source) {
@@ -110,7 +160,7 @@ public final class BenchCommand {
 
     private static int stopAll() {
         int stopped = 0;
-        for (Effects.Handle handle : BENCH) if (handle.stop()) stopped++;
+        for (Slot slot : BENCH) if (slot.handle.stop()) stopped++;
         BENCH.clear();
         return stopped;
     }

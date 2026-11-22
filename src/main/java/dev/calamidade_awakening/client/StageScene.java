@@ -2,6 +2,7 @@ package dev.calamidade_awakening.client;
 
 import dev.calamidade_awakening.api.Basis;
 import dev.calamidade_awakening.api.FrameBudget;
+import dev.calamidade_awakening.api.FrameLimits;
 import dev.calamidade_awakening.api.Quality;
 import dev.calamidade_awakening.api.VisualKind;
 import dev.calamidade_awakening.net.StageEvent;
@@ -14,6 +15,8 @@ import java.util.*;
 
 /** Independent client timeline; no framebuffers or game state mutations. */
 public final class StageScene {
+    /** Mark slots of the engine field shader ({@code awakening_field.fsh}). */
+    static final int MAX_VOLUMES = 4;
     /**
      * {@code age} is the real age with the partial tick; {@code localAge} the timeline age (equal without sustain).
      * Progress, opacity and the impact accent follow the local age (0.7.0). {@code basis} is the instance frame of this
@@ -29,7 +32,13 @@ public final class StageScene {
                 kind.clock().at(localAge));
         }
     }
-    public record Plan(List<Sample> effects, List<Sample> volumes, Quality quality) {}
+    /**
+     * Selection of one frame. {@code limits} are the caps applied (0.11.2: a quality profile or the test profile);
+     * {@code quality()} is the tier addons see.
+     */
+    public record Plan(List<Sample> effects, List<Sample> volumes, FrameLimits limits) {
+        public Quality quality() { return limits.tier(); }
+    }
     private final Map<Long, StageEvent> active = new LinkedHashMap<>();
     /** Real release age of sustained instances, by order (0.7.0). */
     private final Map<Long, Long> released = new HashMap<>();
@@ -212,8 +221,8 @@ public final class StageScene {
         });
     }
 
-    public Plan frame(Vec3 camera, Vec3 look, float partial, Quality quality) {
-        if (level == null || active.isEmpty()) return new Plan(List.of(), List.of(), quality);
+    public Plan frame(Vec3 camera, Vec3 look, float partial, FrameLimits limits) {
+        if (level == null || active.isEmpty()) return new Plan(List.of(), List.of(), limits);
         List<FrameBudget.Candidate<Sample>> candidates = new ArrayList<>(active.size());
         double now = level.getGameTime() + partial;
         Frustum frustum = Minecraft.getInstance().levelRenderer.getFrustum();
@@ -236,10 +245,11 @@ public final class StageScene {
             candidates.add(new FrameBudget.Candidate<>(mark, distance, alpha, effect.order(), kind.range, kind.hero()));
         }
         // 0.9.0: HERO instances first (nearest 2), never cut by the effect limit; NORMAL ones fill the rest.
-        List<Sample> selected = FrameBudget.select(candidates, quality.effects);
+        List<Sample> selected = FrameBudget.select(candidates, limits.effects());
+        // The engine field shader has 4 mark slots (AwakeningMark0..3), whatever the pass budget of the profile.
         List<Sample> volumes = selected.stream().filter(sample -> sample.kind().volume != VisualKind.Volume.NONE)
-            .limit(quality.marks).toList();
-        return new Plan(selected, volumes, quality);
+            .limit(Math.min(limits.marks(), MAX_VOLUMES)).toList();
+        return new Plan(selected, volumes, limits);
     }
 
     /**

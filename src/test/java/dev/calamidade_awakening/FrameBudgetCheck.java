@@ -65,6 +65,7 @@ public final class FrameBudgetCheck {
         SourceCheck.run();
         TriggerCheck.run();
         TerrainCheck.run();
+        LimitsCheck.run();
         timelineRegistration();
         atmosphereRegistration();
         meshBudget();

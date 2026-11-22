@@ -98,5 +98,9 @@
   "calamidade_awakening.configuration.terrainExplosionEvent.tooltip": "Cada edição também passa pelos eventos de explosão do NeoForge: mods de proteção (claims, regiões) que protegem contra explosões protegem contra crateras. Desligado: só TerrainEditEvent, borda do mundo e proteção de spawn.",
   "calamidade_awakening.configuration.terrainSpawnProtection": "Respeitar a proteção de spawn",
   "calamidade_awakening.configuration.terrainSpawnProtection.tooltip": "Edições não mexem na área protegida do spawn (spawn-protection do server.properties); um operador só fica isento quando a edição é dele.",
-  "perf.calamidade_awakening.meshes": "Malhas de dublê: %s · %s vértices · última montagem %s ms"
+  "perf.calamidade_awakening.meshes": "Malhas de dublê: %s · %s vértices · última montagem %s ms",
+  "perf.calamidade_awakening.measured": "Medição concluída: %s passos → %s",
+  "perf.calamidade_awakening.profile": "Calamidade_Awakening: %s",
+  "perf.calamidade_awakening.measuring": "Medindo %s: %s passos de %s s; fique parado olhando para a frente (o F7 mostra o progresso)",
+  "command.calamidade_awakening.bench.mix": "Carga mista: %s de %s (%s) · ativas no servidor: %s"
 }

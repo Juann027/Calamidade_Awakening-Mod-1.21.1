@@ -48,6 +48,7 @@ public final class ClientHooks {
     private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS,
         TERRAIN_FRAME);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
+    static { CostProbe.install(COORDINATOR); }
     private static final Map<VisualKind, KeyMapping> DEMOS = new LinkedHashMap<>();
     private static final KeyMapping QUALITY = new KeyMapping("key.calamidade_awakening.quality",
         GLFW.GLFW_KEY_F8, "key.categories.calamidade_awakening");
@@ -171,6 +172,7 @@ public final class ClientHooks {
         COORDINATOR.invalidate();
         while (CANCEL.consumeClick()) FILMS.cancel();
         PerfOverlay.tick();
+        CostProbe.tick();
         while (QUALITY.consumeClick()) {
             var quality = COORDINATOR.cycleQuality();
             if (mc.player != null) mc.player.displayClientMessage(
@@ -187,7 +189,7 @@ public final class ClientHooks {
 
     @SubscribeEvent
     public static void frame(RenderFrameEvent.Pre event) {
-        PerfOverlay.frameStart(SCENE.size(), SCENE.sizeBySource(), COORDINATOR.quality());
+        PerfOverlay.frameStart(SCENE.size(), SCENE.sizeBySource(), COORDINATOR.limits());
         COORDINATOR.invalidate();
         ATMOSPHERE.invalidate();
     }
@@ -207,10 +209,28 @@ public final class ClientHooks {
                 event.getFogShape() == com.mojang.blaze3d.shaders.FogShape.CYLINDER);
     }
 
-    /** /calamidade_client record <seconds>: grava tempos de quadro em calamidade_bench/*.csv. */
+    /**
+     * /calamidade_client record <seconds>: grava tempos de quadro em calamidade_bench/*.csv. 0.11.2: debug unlimited
+     * [effects passes] e debug off (perfil interno de teste UNLIMITED) e debug measure effects|passes|all (CostProbe).
+     */
     @SubscribeEvent
     public static void clientCommands(net.neoforged.neoforge.client.event.RegisterClientCommandsEvent event) {
         event.getDispatcher().register(net.minecraft.commands.Commands.literal("calamidade_client")
+            .then(net.minecraft.commands.Commands.literal("debug")
+                .then(net.minecraft.commands.Commands.literal("unlimited")
+                    .executes(ctx -> unlimited(dev.calamidade_awakening.api.FrameLimits.unlimited()))
+                    .then(net.minecraft.commands.Commands.argument("effects",
+                            com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, dev.calamidade_awakening.api.FrameLimits.MAX_EFFECTS))
+                        .then(net.minecraft.commands.Commands.argument("passes",
+                                com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, dev.calamidade_awakening.api.FrameLimits.MAX_PASSES))
+                            .executes(ctx -> unlimited(dev.calamidade_awakening.api.FrameLimits.unlimited(
+                                com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "effects"),
+                                com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "passes")))))))
+                .then(net.minecraft.commands.Commands.literal("off").executes(ctx -> unlimited(null)))
+                .then(net.minecraft.commands.Commands.literal("measure")
+                    .then(net.minecraft.commands.Commands.literal("effects").executes(ctx -> measure("effects")))
+                    .then(net.minecraft.commands.Commands.literal("passes").executes(ctx -> measure("passes")))
+                    .then(net.minecraft.commands.Commands.literal("all").executes(ctx -> measure("all")))))
             .then(net.minecraft.commands.Commands.literal("record")
                 .then(net.minecraft.commands.Commands.argument("seconds",
                         com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 300))
@@ -225,6 +245,26 @@ public final class ClientHooks {
                                 "A recording is already running"), false);
                         return started ? 1 : 0;
                     }))));
+    }
+
+    private static int unlimited(dev.calamidade_awakening.api.FrameLimits limits) {
+        COORDINATOR.test(limits);
+        var player = Minecraft.getInstance().player;
+        if (player != null) player.displayClientMessage(Component.translatableWithFallback(
+            "perf.calamidade_awakening.profile", "Calamidade_Awakening: %s", COORDINATOR.limits().label()), false);
+        return 1;
+    }
+
+    private static int measure(String which) {
+        boolean started = CostProbe.start(which);
+        var player = Minecraft.getInstance().player;
+        if (player != null) player.displayClientMessage(started
+            ? Component.translatableWithFallback("perf.calamidade_awakening.measuring",
+                "Measuring %s: %s steps of %s s; keep still and look ahead (F7 shows progress)", which,
+                CostProbe.plan(which).size(), (CostProbe.WARMUP_MS + CostProbe.RECORD_MS) / 1000)
+            : Component.translatableWithFallback("perf.calamidade_awakening.busy", "A recording is already running"), false);
+        if (started) PerfOverlay.show();
+        return started ? 1 : 0;
     }
 
     /** 0.11.0: structure stand-ins, after the translucent blocks (they fade over the real blocks after the commit). */

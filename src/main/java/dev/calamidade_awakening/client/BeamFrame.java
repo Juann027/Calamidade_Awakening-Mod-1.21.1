@@ -61,7 +61,7 @@ final class BeamFrame {
             perEffect.add(resolved);
             if (sample.kind().hero()) heroNeeds = true; else normalNeeds = true;
         }
-        beams = EnginePasses.cap(perEffect, plan.quality().beams);
+        beams = EnginePasses.cap(perEffect, plan.limits().beams());
     }
 
     /** Beams kept this frame (camera-relative), for lights linked to beams and for F7. */

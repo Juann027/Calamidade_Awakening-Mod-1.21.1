@@ -1,4 +1,4 @@
-# Manual geral do Calamidade_Awakening 0.11.1
+# Manual geral do Calamidade_Awakening 0.11.2
 
 Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
@@ -2078,6 +2078,29 @@ Antes, rode os testes automáticos (`./gradlew testeJogo` e, numa máquina com t
 
 Registre para cada caso o que viu, com nome e versão de cada mod; nos casos 75, 76 e 79, uma captura.
 
+### Parte 8 — custo por efeito e por passe (0.11.2, antes dos perfis novos)
+
+Objetivo: medir na GPU física quanto custa **cada efeito desenhado** e **cada passe de addon**, acima dos tetos de hoje (6 desenhados e 2 passes no BALANCED), para fixar os padrões de LOW, BALANCED, HIGH e ULTRA. A medição é automática: o comando roda sempre a mesma sequência, sob o perfil interno de teste **UNLIMITED** (sem teto de desenhados nem de passes; não aparece no F8), e grava mediana e p95 do tempo de quadro de cada passo. É o mesmo código do teste automatizado (`xvfb-run -a ./gradlew testeMedicao`), então os números se comparam diretamente com os da renderização por software em VALIDACAO.md.
+
+**Preparação (uma vez):**
+
+1. Instale o JAR do motor desta versão, a RimuLib 1.3.0 e o **vfx-sample 1.8.0** (a carga usa as receitas anel, cubo, teia e céu; sem o exemplo, o motor usa os próprios efeitos e a parte de passes não roda).
+2. Crie um mundo **superplano** em **criativo, com comandos permitidos**, e saia dele. Em `saves/<mundo>/serverconfig/calamidade_awakening-server.toml`, mude `playerReserve` para `0` (sem isso o bench para em 48 instâncias e o passo de 60 fica incompleto). Entre de novo.
+3. Vídeo: **Taxa de quadros máxima: Ilimitada**, **VSync desligado**, gráficos Fancy, a resolução e a distância de renderização que você usa normalmente (anote as duas). Feche navegador, gravador de tela e outros programas pesados.
+4. Fique em pé no chão, olhe para o horizonte (um pouco para baixo, para os anéis aparecerem no chão) e não mexa mais o mouse.
+
+**Medição (cerca de 2,5 minutos):**
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 82 | `/calamidade_client debug measure all` e não mexa em nada até a mensagem final. | O F7 abre e mostra "Medição N/12: grupo · passo · aquecendo/gravando". Primeiro o grupo **efeitos**: base sem efeitos, depois 6, 12, 24, 48 e 60 instâncias (anel, cubo, teia e céu alternados, num arco à frente), todas desenhadas. Depois o grupo **passes**: base, e 12 cubos desenhados com o orçamento de passes de addon em 1, 2, 4, 8 e 12. Cada passo aquece 4 s e grava 8 s. No fim: "Medição concluída: 12 passos → cost-AAAAMMDD-HHMMSS.txt", e o bench para sozinho. |
+| 83 | Repita o caso 82 uma vez (segunda rodada). | Os números das duas rodadas devem ficar perto; se um passo destoar muito, anote o que estava acontecendo (salvamento automático, outro programa). |
+| 84 | Opcional: repita com Sodium ou Embeddium e, se usar, Iris/Oculus com um shader pack. | Anote quais mods e o pack. |
+
+**O que mandar:** os arquivos `calamidade_bench/cost-*.txt` e `cost-*.csv` das duas rodadas (a primeira linha de cada `.txt` já traz a GPU, a janela, o limite de quadros, o VSync e a distância). Para voltar ao normal: `playerReserve = 16` no mesmo arquivo; o perfil de teste termina sozinho no fim da medição (ou com `/calamidade_client debug off`, ou F8).
+
+Comandos avulsos, para olhar uma carga com calma: `/calamidade_client debug unlimited` (sem tetos), `/calamidade_client debug unlimited <desenhados> <passes>` (tetos escolhidos), `/calamidade_client debug off`; `/calamidade bench <n> mix` (anel, cubo, teia e céu alternados; as instâncias recomeçam sozinhas até `bench stop`).
+
 ### Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
@@ -2085,6 +2108,65 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 <a id="cap16"></a>
 
 ## 16. Validação, medições e limites
+
+### Versão 0.11.2 — Etapa 1: custo por efeito e por passe (em andamento)
+
+**Medido por software (Mesa llvmpipe, sem GPU). Os padrões novos de LOW, BALANCED, HIGH e ULTRA esperam a mesma medição na RTX 4060 do autor ([TESTE-REAL.md, parte 8](TESTE-REAL.md#parte-8--custo-por-efeito-e-por-passe-0112-antes-dos-perfis-novos)).**
+
+Até a 0.11.1 nunca se mediu mais de 6 efeitos desenhados nem mais de 2 passes de addon ao mesmo tempo (o teto do BALANCED). A 0.11.2 adiciona:
+
+- **Perfil interno de teste UNLIMITED** (`FrameLimits.unlimited`), só por comando: `/calamidade_client debug unlimited [desenhados passes]` e `debug off` (o F8 também sai dele). Sem teto de desenhados (até os 96 residentes), passes comuns e HERO até 96, feixes e luzes até as linhas das texturas de dados (128 e 64). Para os addons, `post.quality()` continua HIGH: o perfil de teste não cria valor novo na API pública. O teto de 2 HERO continua. O passe do campo do motor segue com 4 marcas no máximo (o shader só tem 4), em qualquer perfil.
+- **Medidor `CostProbe`**: `/calamidade_client debug measure effects|passes|all` roda sempre a mesma sequência, pede a carga ao servidor (`/calamidade bench`), aquece 4 s e grava 8 s por passo, e salva `calamidade_bench/cost-*.txt` (tabela) e `cost-*.csv` (todos os quadros). O teste automatizado e o autor rodam o mesmo código.
+- **`/calamidade bench <n> mix`**: anel, cubo, teia e céu do vfx-sample alternados (efeitos do motor sem o exemplo). Desde a 0.11.2, as instâncias do bench recomeçam no mesmo lugar quando terminam, até `bench stop`, para a carga ficar constante.
+- **`xvfb-run -a ./gradlew testeMedicao`**: cliente no mundo do `testeJogo`, com o vfx-sample em `mods/`, reserva de jogadores em 0 durante a medição (para o bench chegar a 60), confere que cada passo teve a carga pedida e grava a tabela, as inclinações e duas capturas.
+- `checkBudget` ganhou `LimitsCheck`: perfis iguais aos tetos da `Quality`, perfil de teste, máximos de segurança, seleção de 60 candidatos (57 com 5 HERO) e estatísticas (mediana, p95, média).
+
+#### Medição por software (22/11/2026)
+
+Cliente NeoForge 21.1.267 sob Xvfb 1280 × 720, Mesa llvmpipe (LLVM 20.1.2, 256 bits) em 4 núcleos, limite de quadros 260, VSync desligado, distância 8, gráficos Fancy, mundo plano de dia, câmera parada olhando o arco do bench. Motor desta etapa e vfx-sample 1.8.0. `testeMedicao`: 25 de 25 verificações.
+
+| Grupo | Passo | Quadros | Desenhados | Passes de addon | Feixes | Mediana (ms) | p95 (ms) |
+|---|---|---|---|---|---|---|---|
+| efeitos | base, sem efeitos | 384 | 0 | 0 | 0 | 20,50 | 26,45 |
+| efeitos | 6 (anel, cubo, teia, céu) | 107 | 6,0 | 4,7 | 7,9 | 74,71 | 88,72 |
+| efeitos | 12 | 70 | 11,9 | 6,5 | 23,3 | 116,03 | 132,09 |
+| efeitos | 24 | 43 | 23,6 | 12,0 | 46,9 | 192,23 | 211,37 |
+| efeitos | 48 | 24 | 46,5 | 22,5 | 92,0 | 336,03 | 390,31 |
+| efeitos | 60 | 23 | 56,6 | 27,9 | 104,3 | 392,09 | 477,05 |
+| passes | base, sem efeitos | 423 | 0 | 0 | 0 | 18,85 | 22,84 |
+| passes | 12 cubos, teto 1 | 193 | 11,8 | 1,0 | 0 | 41,90 | 49,19 |
+| passes | 12 cubos, teto 2 | 177 | 11,8 | 2,0 | 0 | 45,70 | 55,15 |
+| passes | 12 cubos, teto 4 | 155 | 11,8 | 3,9 | 0 | 50,80 | 63,54 |
+| passes | 12 cubos, teto 8 | 120 | 11,8 | 7,9 | 0 | 66,12 | 79,62 |
+| passes | 12 cubos, teto 12 | 93 | 11,7 | 11,7 | 0 | 86,74 | 103,04 |
+
+Desenhados e passes são médias por quadro. Nos passos de efeitos, os passes vêm só do anel e do cubo (a teia usa o passe único de feixes; o céu, o passe de atmosfera, fora do orçamento); 60 pedidos deram 57,9 residentes porque o anel (60 ticks) recomeça a cada 3 s e passa alguns ticks fora da janela de desenho.
+
+Tendência (mínimos quadrados, base incluída):
+
+- **Por efeito desenhado (mistura):** +6,5 ms de mediana e +7,8 ms de p95. Entre 6 e 60, a curva é quase reta (sem degrau): o custo cresce com o número de efeitos e de passes que eles pedem (cerca de 0,47 passe por efeito nessa mistura), não com um limite interno.
+- **Por passe de addon (12 cubos sempre desenhados):** +4,9 ms de mediana e +5,8 ms de p95 pela reta; entre 1 e 12 passes, +4,2 ms de mediana por passe a mais. O primeiro passe custa bem mais (de 18,9 ms sem efeitos para 41,9 ms com 12 cubos e 1 passe): é o preço fixo de ligar o pós-processamento da RimuLib (cópias de quadro) e de chamar as 12 camadas de cliente, pago uma vez.
+
+**Como ler:** no llvmpipe cada passe de tela cheia é desenhado pela CPU, então os milissegundos absolutos e a razão entre passe e resto do quadro são muito maiores que numa GPU. Servem para a forma da curva (linear em efeitos e em passes, custo fixo do primeiro passe), não para escolher os tetos. Os tetos da Etapa 2 saem dos números da GPU física.
+
+Capturas da carga (não versionadas): `run/teste-medicao/screenshots/medicao-60-efeitos.png` e `medicao-12-passes.png`.
+
+#### Testes em jogo nesta etapa
+
+- `./gradlew testeJogo`: na primeira execução, 50 de 51, com a verificação de tempo "custo: cratera grande com a casca externa" em 76,7 ms de pior tick (limite 50 ms; a 0.11.1 registrou 24,6 ms); na segunda, sem mudança de código, 51 de 51. A Etapa 1 não toca no servidor de terreno: o bench só registra um `ServerTickEvent.Post` que não faz nada sem bench ativo. Leitura: variação da máquina compartilhada com JVM fria; se voltar a acontecer, o limite precisa de folga.
+- `xvfb-run -a ./gradlew testeMedicao`: 25 de 25.
+
+#### Build
+
+- `./gradlew build` e `./gradlew dist`: passaram (com `checkBudget` e o `LimitsCheck` novo). Versão 0.11.2 no `build.gradle`, no `neoforge.mods.toml` e no JAR que o exemplo usa; `docs/ai/API-REFERENCIA.md` regenerado (só o título mudou: nenhuma mudança na `api.v1`).
+- `./gradlew -p examples/vfx-sample build` contra o JAR 0.11.2: passou; o `vfx-sample-1.8.0.jar` saiu idêntico ao do release (SHA-256 `10b54362…`), então o exemplo 1.8.0 publicado serve para a medição.
+- Rede sem mudança.
+
+Conferido com javap (NeoForge 21.1.267): `ClientPacketListener.sendCommand(String)`, `Minecraft.getConnection()`, `Options.framerateLimit()` e `enableVsync()`, `PlayerList.op(GameProfile)`, `ServerTickEvent$Post`.
+
+#### Pendente
+
+- Medição do autor na RTX 4060 (TESTE-REAL.md, casos 82 a 84) antes de fixar os padrões novos.
 
 ### Versão 0.11.1 — compatibilidade da Terrain API (estado atual)
 
@@ -2099,6 +2181,7 @@ Mesmo ambiente da 0.11.0 (OpenJDK 21.0.13, Gradle 9.2.1, glslangValidator 15.1.0
 - **Build reproduzível:** dois `clean build dist` seguidos deram o mesmo SHA-256.
 - **API pública idêntica à da 0.11.0:** `javap -s` de todas as classes de `api.v1` no JAR do release v0.11.0 (baixado do GitHub, SHA-256 `db89b4b3…`, igual ao publicado) e no JAR 0.11.1: 2 586 linhas, nenhuma diferença. Só o Javadoc do `TerrainEditEvent` ganhou um parágrafo.
 - Rede sem mudança (`terrain_v1`, `event_v2`, `end_effect`, `request_v2`, `release`).
+- **Depois do release v0.11.1** (workflow Release, tag no commit `d4fcef3`): os anexos publicados têm os mesmos SHA-256 do build local (`a4dfa448…` e `10b54362…`), e `./gradlew -p examples/consumidor clean build`, sem endereço alternativo, baixou `calamidade_awakening-0.11.1.jar` do release no GitHub, conferiu o SHA-256 e compilou.
 
 SHA-256 de `dist/calamidade_awakening-0.11.1.jar`: `a4dfa44853bee79344b84bddc32a443cc0c89321b4f68bca3a0db297f03e6c21`
 
