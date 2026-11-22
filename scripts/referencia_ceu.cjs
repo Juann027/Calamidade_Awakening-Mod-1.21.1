@@ -5,6 +5,11 @@
 //   node scripts/referencia_ceu.cjs              confere (sai com 1 se alguma cena divergir)
 //   node scripts/referencia_ceu.cjs --atualizar  regrava as referências (só quando a mudança visual é intencional
 //                                                e aprovada; os sete fenômenos da 0.12 não devem mudar)
+//   node scripts/referencia_ceu.cjs --atualizar fundo_x ...   regrava só as cenas citadas
+//
+// 0.14 (fase 2): também as cenas com fundos de céu (FUNDO_CENAS, prefixo fundo_): fundo opaco, parcial e com buraco
+// de alfa sob a Atmosphere, sol do jogo apagado sob fundo, eclipse, buraco negro sobre cubemap, cubemap girado e
+// transição entre dois fundos. A correção da composição é provada por scripts/fundo_composicao.cjs; aqui, a estabilidade.
 //
 // Tolerância: SwiftShader é determinístico na mesma máquina, mas outra CPU ou versão do Chromium pode mudar o último
 // bit de uma conta em ponto flutuante. Uma cena passa quando a diferença média é <= 0,5/255 por canal e no máximo
@@ -87,13 +92,15 @@ function compare(name) {
 
 function main() {
   const update = process.argv.includes('--atualizar');
-  const { SKY_CENAS, REF_CENAS } = require('./previa_passes.cjs');
-  const names = [...Object.keys(SKY_CENAS), ...Object.keys(REF_CENAS)];
+  const { SKY_CENAS, REF_CENAS, FUNDO_CENAS } = require('./previa_passes.cjs');
+  const names = [...Object.keys(SKY_CENAS), ...Object.keys(REF_CENAS), ...Object.keys(FUNDO_CENAS)];
+  const only = update ? process.argv.slice(process.argv.indexOf('--atualizar') + 1) : [];
   execFileSync(process.execPath, [path.join(__dirname, 'previa_passes.cjs'), ...names], { stdio: 'inherit' });
   if (update) {
     fs.mkdirSync(REF, { recursive: true });
-    for (const name of names) fs.copyFileSync(path.join(OUT, name + '.png'), path.join(REF, name + '.png'));
-    console.log(`referência visual: ${names.length} cenas gravadas em ${path.relative(ROOT, REF)}`);
+    const chosen = only.length ? names.filter(n => only.includes(n)) : names;
+    for (const name of chosen) fs.copyFileSync(path.join(OUT, name + '.png'), path.join(REF, name + '.png'));
+    console.log(`referência visual: ${chosen.length} cenas gravadas em ${path.relative(ROOT, REF)}`);
     return;
   }
   let failed = 0;
@@ -103,7 +110,7 @@ function main() {
     console.log(`${r.ok ? 'OK    ' : 'DIFERE'} ${name}: ${r.why}`);
     if (!r.ok) failed++;
   }
-  console.log(`referência visual: ${names.length - failed}/${names.length} cenas iguais à 0.12.0`);
+  console.log(`referência visual: ${names.length - failed}/${names.length} cenas iguais à referência (15 da 0.12.0, ${names.length - 15} com fundos de céu da 0.14)`);
   if (failed) process.exit(1);
 }
 

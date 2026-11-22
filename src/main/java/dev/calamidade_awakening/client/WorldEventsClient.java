@@ -99,6 +99,26 @@ final class WorldEventsClient {
         return out;
     }
 
+    /** Custom backgrounds of the events that apply here (0.14.0); rank 1000 + priority, like their sky layers. */
+    List<dev.calamidade_awakening.api.BackdropMath.Candidate<BackdropFrame.Source>> backdrops(ClientLevel level, float partial) {
+        if (level == null || events.isEmpty()) return List.of();
+        List<dev.calamidade_awakening.api.BackdropMath.Candidate<BackdropFrame.Source>> out = new ArrayList<>(1);
+        double now = level.getGameTime() + partial;
+        for (Event e : events.values()) {
+            var backdrop = e.kind().backdrop();
+            if (backdrop == null || !applies(e, level)) continue;
+            double age = now - e.sync().tick();
+            if (age < 0) continue;
+            double local = localAge(e, age);
+            float weight = (float) FrameBudget.envelope(local, e.kind().duration);
+            if (!(weight > 0)) continue;
+            var state = backdrop.sample(e.kind().clock().at(local), 1f);
+            out.add(new dev.calamidade_awakening.api.BackdropMath.Candidate<>(new BackdropFrame.Source(backdrop, state, age / 20.0),
+                e.kind().hero(), weight, state.opacity(), -e.sync().key(), RANK + e.sync().priority()));
+        }
+        return out;
+    }
+
     /** Atmospheres of the events that apply here, for the engine's mix. */
     List<Atmosphere.State> atmospheres(ClientLevel level, float partial) {
         if (level == null || events.isEmpty()) return List.of();

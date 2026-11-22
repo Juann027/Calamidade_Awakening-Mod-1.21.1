@@ -52,3 +52,91 @@ vec3 caAtmoSkyDelta(vec3 dir, vec3 vanillaSky, vec3 vanillaFog, float renderDist
     target = mix(target, fogColor, fogDensity * (1.0 - smoothstep(0.0, 0.45, dir.y)));
     return target - base;
 }
+
+// ------------------------------------------------------------------------------- fundos de céu (0.14.0, Backdrop)
+// Os fundos são desenhados como geometria logo depois do céu do jogo (AFTER_SKY), antes destes passes: a tela já os
+// mostra. Os passes só precisam saber a cor e a cobertura de cada fundo numa direção, para compor com eles o céu da
+// Atmosphere, o apagamento do sol e da lua do jogo e o preenchimento da lente. As consultas são as do BackdropMath
+// (Java), com a mesma amostragem sem filtro da geometria (texelFetch = vizinho mais próximo).
+// Slot 0 é o de baixo, slot 1 o de cima. CaBdN: x tipo (0 nenhum, 1 cubemap, 2 panorama ou gradiente), y opacidade,
+// z giro (rad), w livre. Sem fundo, CaBd0.x = CaBd1.x = 0 e nada disto roda: os passes seguem o caminho da 0.12.0.
+uniform sampler2D CaBdTex0;
+uniform sampler2D CaBdTex1;
+uniform vec4 CaBd0;
+uniform vec4 CaBd1;
+uniform vec3 CaBdTint0;
+uniform vec3 CaBdTint1;
+
+bool caBackdropOn() {
+    return CaBd0.x > 0.5 || CaBd1.x > 0.5;
+}
+
+// BackdropMath.cubeUv: face pelo maior eixo (empate: x, depois y), coordenadas locais e célula do atlas 3 × 2.
+vec2 caCubeUv(vec3 d) {
+    vec3 a = abs(d);
+    float face, u, v;
+    if (a.x >= a.y && a.x >= a.z) {
+        if (d.x > 0.0) { face = 1.0; u = d.z / a.x; v = -d.y / a.x; }
+        else { face = 3.0; u = -d.z / a.x; v = -d.y / a.x; }
+    } else if (a.y >= a.z) {
+        if (d.y > 0.0) { face = 4.0; u = d.x / a.y; v = d.z / a.y; }
+        else { face = 5.0; u = d.x / a.y; v = -d.z / a.y; }
+    } else {
+        if (d.z > 0.0) { face = 2.0; u = -d.x / a.z; v = -d.y / a.z; }
+        else { face = 0.0; u = d.x / a.z; v = -d.y / a.z; }
+    }
+    vec2 local = clamp(vec2(u, v) * 0.5 + 0.5, 0.0, 1.0);
+    return vec2((mod(face, 3.0) + local.x) / 3.0, (floor(face / 3.0) + local.y) / 2.0);
+}
+
+// BackdropMath.panoramaUv: sul no meio, oeste à direita, zênite em cima.
+vec2 caPanoramaUv(vec3 d) {
+    vec3 n = normalize(d);
+    float u = 0.5 + atan(-n.x, n.z) / 6.28318530718;
+    return vec2(u - floor(u), 0.5 - asin(clamp(n.y, -1.0, 1.0)) / 3.14159265359);
+}
+
+// Texel de um fundo numa direção do mundo: gira de volta pelo giro do fundo (BackdropMath.turn(d, -giro)).
+vec4 caBackdropTexel(sampler2D tex, vec4 info, vec3 d) {
+    float c = cos(-info.z), s = sin(-info.z);
+    vec3 t = vec3(d.x * c - d.z * s, d.y, d.x * s + d.z * c);
+    vec2 uv = info.x < 1.5 ? caCubeUv(t) : caPanoramaUv(t);
+    ivec2 size = textureSize(tex, 0);
+    return texelFetch(tex, clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1), 0);
+}
+
+// A cor que a tela teria com os fundos desenhados sobre "below" na direção d, como a geometria faz (mistura por
+// alfa: textura × opacidade); coverage recebe a cobertura combinada, 1 - (1 - a0)(1 - a1).
+vec3 caBackdropOver(vec3 below, vec3 d, out float coverage) {
+    vec3 color = below;
+    float clear = 1.0;
+    if (CaBd0.x > 0.5) {
+        vec4 t = caBackdropTexel(CaBdTex0, CaBd0, d);
+        float a = clamp(t.a * CaBd0.y, 0.0, 1.0);
+        color = mix(color, t.rgb * CaBdTint0, a);
+        clear *= 1.0 - a;
+    }
+    if (CaBd1.x > 0.5) {
+        vec4 t = caBackdropTexel(CaBdTex1, CaBd1, d);
+        float a = clamp(t.a * CaBd1.y, 0.0, 1.0);
+        color = mix(color, t.rgb * CaBdTint1, a);
+        clear *= 1.0 - a;
+    }
+    coverage = 1.0 - clear;
+    return color;
+}
+
+// caAtmoSkyDelta com fundos: o que estava "debaixo" da atmosfera passa a ser o fundo composto sobre a estimativa do
+// céu do jogo (e sobre a névoa, quando o perfil tirou o céu do jogo). Com o céu do jogo estimado exatamente, o
+// resultado na tela é mix(tela, gradiente, blend) + estrelas + névoa no horizonte, com ou sem fundo, opaco ou parcial:
+// a atmosfera tinge o céu que aparece, e o que ficou por cima do fundo (nuvens, sol e lua redesenhados) continua.
+vec3 caAtmoSkyDeltaOver(vec3 dir, vec3 vanillaSky, vec3 vanillaFog, float renderDistance, bool replaced, vec3 top,
+                        vec3 horizon, vec3 fogColor, float blend, float fogDensity, float stars, float seconds) {
+    float coverage;
+    vec3 base = caBackdropOver(caVanillaSky(dir, vanillaSky, vanillaFog, renderDistance), dir, coverage);
+    vec3 target = mix(base, mix(horizon, top, smoothstep(0.0, 0.6, dir.y)), blend);
+    if (replaced) base = caBackdropOver(vanillaFog, dir, coverage);
+    if (stars > 0.0 && dir.y > -0.05) target += vec3(0.85, 0.9, 1.0) * caStars(dir, seconds) * stars;
+    target = mix(target, fogColor, fogDensity * (1.0 - smoothstep(0.0, 0.45, dir.y)));
+    return target - base;
+}

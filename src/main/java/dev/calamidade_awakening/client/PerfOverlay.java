@@ -96,6 +96,13 @@ public final class PerfOverlay {
     private static String skyState;
     /** Global events that apply to this client, as F7 shows them (0.12.0, tests). */
     public static int worldEvents() { return worldEvents; }
+    /** Custom backgrounds of the frame (0.14.0): drawn, active, opaque, blocked by the game's sky rules. */
+    static void backdrop(int drawn, int active, boolean opaque, boolean blocked) {
+        backdropDrawn = drawn; backdropActive = active; backdropOpaque = opaque; backdropBlocked = blocked;
+    }
+    private static int backdropDrawn, backdropActive;
+    private static boolean backdropOpaque, backdropBlocked;
+
     /** Sky layers painted in the last complete frame and whether the sky pass ran (0.12.0, tests). */
     public static int skyLayers() { return lastSkyLayers; }
     public static boolean skyPass() { return lastSkyPass; }
@@ -255,6 +262,12 @@ public final class PerfOverlay {
             lastSkyLayers, lastSkyActive, lastLimits.skyLayers(), lastSkyPass
                 ? Component.translatableWithFallback(PREFIX + "yes", "yes")
                 : Component.translatableWithFallback(PREFIX + "no", "no")));
+        if (backdropActive > 0 || backdropDrawn > 0)
+            lines.add(Component.translatableWithFallback(PREFIX + "backdrop", "Sky background: %s drawn (%s active) · %s",
+                backdropDrawn, backdropActive, backdropBlocked
+                    ? Component.translatableWithFallback(PREFIX + "backdrop.blocked", "blocked (game sky hidden)")
+                    : backdropOpaque ? Component.translatableWithFallback(PREFIX + "backdrop.opaque", "opaque")
+                    : Component.translatableWithFallback(PREFIX + "backdrop.partial", "partial")));
         lines.add(Component.translatableWithFallback(PREFIX + "world", "Global events: %s", worldEvents));
         if (skyState != null)
             lines.add(Component.translatableWithFallback(PREFIX + "skystate", "Dimension sky: %s", skyState));

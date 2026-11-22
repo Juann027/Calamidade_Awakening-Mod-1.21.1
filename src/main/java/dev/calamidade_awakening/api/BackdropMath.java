@@ -107,6 +107,30 @@ public final class BackdropMath {
         return new double[] {f, (u + 1) / 2, (v + 1) / 2};
     }
 
+    /**
+     * Direction (on the unit cube, not normalized) of local coordinates {@code u}, {@code v} (0..1) of a face: the
+     * inverse of {@link #cubeLocal}. The client builds the cube's corners from it.
+     */
+    public static double[] cubeDirection(int face, double u, double v) {
+        double a = 2 * u - 1, b = 2 * v - 1;
+        return switch (face) {
+            case NORTH -> new double[] {a, -b, -1};
+            case EAST -> new double[] {1, -b, a};
+            case SOUTH -> new double[] {-a, -b, 1};
+            case WEST -> new double[] {-1, -b, -a};
+            case UP -> new double[] {a, 1, b};
+            case DOWN -> new double[] {a, -1, -b};
+            default -> throw new IllegalArgumentException("Unknown cubemap face " + face);
+        };
+    }
+
+    /** Unit direction of panorama coordinates (0..1, v down): the inverse of {@link #panoramaUv}. */
+    public static double[] panoramaDirection(double u, double v) {
+        double azimuth = Math.toRadians((u - .5) * 360), elevation = Math.toRadians(90 - v * 180);
+        double c = Math.cos(elevation);
+        return new double[] {-Math.sin(azimuth) * c, Math.sin(elevation), Math.cos(azimuth) * c};
+    }
+
     /** Atlas coordinates (0..1, v down) of a cubemap direction: the face's cell in the 3 × 2 PNG. */
     public static double[] cubeUv(double x, double y, double z) {
         double[] l = cubeLocal(x, y, z);

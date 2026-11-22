@@ -322,6 +322,33 @@ public final class StageScene {
         return out;
     }
 
+    /**
+     * Custom backgrounds of every active instance that has one (0.14.0), weighted like the sky layers (opacity
+     * envelope times the range fade), with the instance's real age in seconds for the spin.
+     */
+    List<dev.calamidade_awakening.api.BackdropMath.Candidate<BackdropFrame.Source>> backdrops(Vec3 camera, float partial) {
+        if (level == null || active.isEmpty()) return List.of();
+        List<dev.calamidade_awakening.api.BackdropMath.Candidate<BackdropFrame.Source>> out = new ArrayList<>(1);
+        double now = level.getGameTime() + partial;
+        for (StageEvent effect : active.values()) {
+            VisualKind kind = VisualKind.byId(effect.visual());
+            var backdrop = kind.backdrop();
+            if (backdrop == null) continue;
+            double age = now - effect.tick();
+            Vec3 origin = age < 0 ? null : center(effect, partial);
+            if (origin == null) continue;
+            double local = localAge(effect, age);
+            float weight = (float) FrameBudget.envelope(local, kind.duration)
+                * dev.calamidade_awakening.api.AtmosphereMath.rangeFade(origin.distanceTo(camera), kind.range);
+            if (!(weight > 0)) continue;
+            var sampler = kind.clock().at(local);
+            var state = backdrop.sample(sampler, 1f);
+            out.add(new dev.calamidade_awakening.api.BackdropMath.Candidate<>(new BackdropFrame.Source(backdrop, state, age / 20.0),
+                kind.hero(), weight, state.opacity(), effect.order(), 0));
+        }
+        return out;
+    }
+
     /** Anchor direction of a sky layer from the camera, or null when its point coincides with the camera. */
     static dev.calamidade_awakening.api.v1.Sky.Direction anchorDirection(dev.calamidade_awakening.api.v1.Sky layer,
             Vec3 camera, Vec3 center, Basis basis, double timeOfDay) {

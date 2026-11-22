@@ -83,6 +83,28 @@ final class SkyProfilesClient {
         return out;
     }
 
+    /**
+     * Custom backgrounds of the level's profile (0.14.0), one per state of the transition, weighted by it; the spin runs
+     * on the world clock.
+     */
+    List<dev.calamidade_awakening.api.BackdropMath.Candidate<BackdropFrame.Source>> backdrops(ClientLevel level, float partial) {
+        Current c = current(level);
+        if (c == null) return List.of();
+        double now = level.getGameTime() + partial;
+        var sampler = dev.calamidade_awakening.api.v1.Timeline.empty(1).at(0);
+        List<dev.calamidade_awakening.api.BackdropMath.Candidate<BackdropFrame.Source>> out = new ArrayList<>(2);
+        int index = 0;
+        for (var entry : states(c, now)) {
+            index++;
+            var backdrop = entry.getKey().backdrop();
+            if (backdrop == null) continue;
+            var state = backdrop.sample(sampler, 1f);
+            out.add(new dev.calamidade_awakening.api.BackdropMath.Candidate<>(new BackdropFrame.Source(backdrop, state, now / 20.0),
+                false, entry.getValue(), state.opacity(), Long.MIN_VALUE + index, RANK));
+        }
+        return out;
+    }
+
     /** Atmospheres of the level's profile, weighted by the transition. */
     List<Atmosphere.State> atmospheres(ClientLevel level, float partial) {
         Current c = current(level);

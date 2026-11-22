@@ -51,6 +51,8 @@ public final class ClientHooks {
     private static final TerrainMeshes TERRAIN_MESHES = new TerrainMeshes(TERRAIN);
     /** Sky layers of the frame (0.12.0). */
     private static final SkyFrame SKY = new SkyFrame(SCENE, WORLD, PROFILES);
+    /** Custom sky backgrounds of the frame (0.14.0). */
+    private static final BackdropFrame BACKDROP = new BackdropFrame(SCENE, WORLD, PROFILES);
     private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS,
         TERRAIN_FRAME, SKY);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
@@ -58,6 +60,8 @@ public final class ClientHooks {
         CostProbe.install(COORDINATOR);
         PerfOverlay.qualityLine = ClientHooks::qualityLine;
         dev.calamidade_awakening.api.v1.client.ProfileSkyEffects.engine(PROFILES::replacesSky);
+        SKY.backdrop(BACKDROP);
+        ATMOSPHERE.backdrop(BACKDROP);
     }
     private static final Map<VisualKind, KeyMapping> DEMOS = new LinkedHashMap<>();
     private static final KeyMapping QUALITY = new KeyMapping("key.calamidade_awakening.quality",
@@ -139,6 +143,12 @@ public final class ClientHooks {
             event.register(CANCEL);
         }
 
+        /** 0.14.0: background textures and their CPU copies are released on resource reload and built again on use. */
+        @SubscribeEvent
+        public static void reloadListeners(net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent event) {
+            event.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener) manager -> BACKDROP.clear());
+        }
+
         @SubscribeEvent
         public static void shaders(RegisterShadersEvent event) throws IOException {
             GEOMETRY.shader(null);
@@ -217,11 +227,14 @@ public final class ClientHooks {
             COORDINATOR.frame(System.currentTimeMillis(), PerfOverlay.lastFrameMs(), PerfOverlay.lastPassCut());
         COORDINATOR.invalidate();
         ATMOSPHERE.invalidate();
+        BACKDROP.invalidate();
     }
 
     // 0.8.0: atmosphere fog through the game's own fog. Lowest priority, so it applies after other mods' changes.
     @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.LOWEST)
     public static void fogColor(net.neoforged.neoforge.client.event.ViewportEvent.ComputeFogColor event) {
+        // 0.14.0: the background's horizon first, so the atmosphere fog still applies over it.
+        BACKDROP.fogColor(event);
         ATMOSPHERE.fogColor(event);
     }
 
@@ -280,7 +293,30 @@ public final class ClientHooks {
     public static void loggedOut(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) {
         WORLD.clear();
         PROFILES.clear();
+        BACKDROP.clear();
     }
+
+    /**
+     * 0.14.0: custom sky backgrounds right after the vanilla sky. High priority, so other mods that draw in
+     * {@code AFTER_SKY} (their own sky objects) land on top of the background, not under it.
+     */
+    @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.HIGH)
+    public static void backdrop(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_SKY || Minecraft.getInstance().level == null) return;
+        BACKDROP.draw(event, SKY.hiddenSun(), SKY.hiddenMoon());
+        PerfOverlay.backdrop(BACKDROP.drawn(), BACKDROP.candidates(), BACKDROP.opaque(), BACKDROP.blocked());
+    }
+
+    /** Backgrounds of the frame (0.14.0: tests). */
+    public static int backdrops() { return BACKDROP.drawn(); }
+    /** True while backgrounds are active but the game's sky is blocked (0.14.0: tests). */
+    public static boolean backdropBlocked() { return BACKDROP.blocked(); }
+    /** Background textures loaded since start and kept now (0.14.0: tests of reuse and release). */
+    public static int[] backdropTextures() { return new int[] {BACKDROP.textures().loads(), BACKDROP.textures().size()}; }
+    /** Geometry draws since start (0.14.0: tests). */
+    public static int backdropDraws() { return BACKDROP.draws(); }
+    /** Coverage of the frame's backgrounds in a direction (0.14.0: tests). */
+    public static float backdropCoverage(double x, double y, double z) { return BACKDROP.coverage(x, y, z); }
 
     /** State of the current dimension's sky profile, or null (0.12.0: tests and F7). */
     public static String skyState() { return PROFILES.state(Minecraft.getInstance().level); }

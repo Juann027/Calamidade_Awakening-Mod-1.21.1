@@ -298,10 +298,21 @@ tasks.named('check') { dependsOn 'checkApiCompat' }
 // 0.14 (fase 1): referência visual da Sky API da 0.12.0. Roda os passes reais sky e atmosphere pela prévia (Node e
 // Playwright, ~2 min) e compara 15 cenas com src/test/resources/referencia-ceu/. Fora do check (precisa de Node);
 // rode em toda etapa que tocar em céu, atmosfera ou shaders: ./gradlew checkCeuReferencia.
+// 0.14 (fase 2): mais 11 cenas com fundos de céu e, depois, a prova da composição dos fundos com a Atmosphere, o
+// apagamento do sol e o eclipse por sondas de pixel (node scripts/fundo_composicao.cjs, checkFundoComposicao).
+tasks.register('checkFundoComposicao', Exec) {
+    group = 'verification'
+    description = 'Prova por sondas de pixel a composição dos fundos de céu com Atmosphere, sol do jogo e eclipse (node scripts/fundo_composicao.cjs).'
+    dependsOn tasks.named('jar')
+    workingDir = layout.projectDirectory.asFile
+    commandLine 'node', 'scripts/fundo_composicao.cjs'
+}
+
 tasks.register('checkCeuReferencia', Exec) {
     group = 'verification'
-    description = 'Compara a aparência dos passes sky e atmosphere com as referências da 0.12.0 (node scripts/referencia_ceu.cjs).'
+    description = 'Compara a aparência dos passes sky e atmosphere com as referências (15 cenas da 0.12.0 e 11 com fundos; node scripts/referencia_ceu.cjs).'
     dependsOn tasks.named('jar')
+    finalizedBy tasks.named('checkFundoComposicao')
     workingDir = layout.projectDirectory.asFile
     commandLine 'node', 'scripts/referencia_ceu.cjs'
 }

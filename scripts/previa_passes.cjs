@@ -392,6 +392,67 @@ const REF_CENAS = {
   ref_atmosfera: { env: env(DUSK, 0.21), look: [BH_DIR, -8, 4], layers: [], atmo: NIGHTFALL(1, 0.8, 0.9), noSkyPass: true },
 };
 
+// 0.14 (fase 2): fundos de céu (Backdrop). Texturas de teste geradas aqui, 8 bits como no jogo (linha 0 = topo):
+//   grade     cubemap 3 × 2 de 32 px, uma cor por face (as mesmas do experimento da fase 1) e linhas escuras a cada 8 px;
+//   nebulosa  panorama 128 × 64 opaco, cores suaves que mudam com o azimute e a altura;
+//   meia      o mesmo panorama com alfa 128 (cobertura 0,5) em toda parte;
+//   furada    o panorama com alfa 0 na metade de baixo do céu (elevação < 20°) e 255 acima.
+const FACE_RGB = [[0xC8, 0x32, 0x32], [0x32, 0xB4, 0x32], [0x3C, 0x50, 0xE6], [0xDC, 0xC8, 0x28], [0xC8, 0x32, 0xC8], [0x28, 0xC8, 0xC8]];
+function backdropTexture(name) {
+  if (name === 'grade') {
+    const S = 32, w = S * 3, h = S * 2, u8 = new Array(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const f = Math.floor(y / S) * 3 + Math.floor(x / S), line = x % 8 === 0 || y % 8 === 0;
+      const c = line ? [16, 16, 16] : FACE_RGB[f];
+      u8.splice((y * w + x) * 4, 4, c[0], c[1], c[2], 255);
+    }
+    return { w, h, u8 };
+  }
+  const w = 128, h = 64, u8 = new Array(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const u = (x + 0.5) / w, v = (y + 0.5) / h, el = 90 - v * 180;
+    const c = [0.35 + 0.3 * Math.sin(u * Math.PI * 2), 0.25 + 0.2 * Math.cos(u * Math.PI * 4 + 1), 0.55 + 0.35 * (1 - v)];
+    let a = 255;
+    if (name === 'meia') a = 128;
+    if (name === 'furada') a = el < 20 ? 0 : 255;
+    u8.splice((y * w + x) * 4, 4, ...c.map(k => Math.round(Math.min(Math.max(k, 0), 1) * 255)), a);
+  }
+  return { w, h, u8 };
+}
+function backdropImages(cena) {
+  const out = {};
+  for (const b of cena.backdrop || []) out[b.texture] = backdropTexture(b.texture);
+  return out;
+}
+const fundo = (texture, kind, o) => ({ texture, kind, alpha: 1, rotation: 0, tint: [1, 1, 1], ...o });
+// Atmosfera sem estrelas nem névoa: o teste de composição compara com mix(tela, gradiente, blend) exatamente.
+const TINGE = { skyTop: [0.05, 0.02, 0.12], skyHorizon: [0.85, 0.35, 0.2], blend: 0.7, fogColor: [0.3, 0.2, 0.28],
+  fogDensity: 0, fogStart: 60, fogEnd: 240, exposure: 1, tint: [1, 1, 1], tintStrength: 0, stars: 0, weight: 1 };
+const SUN_TIME = 0.97;   // sol a ~11 graus, a leste: dentro do quadro com a câmera virada para ele
+const SUN_DIR = vanillaAxes(SUN_TIME)[1];
+const FUNDO_CENAS = {
+  fundo_atmosfera_opaco: { env: env(DUSK, 0.21), look: [skyDir(0, 25), -10, 0], layers: [], atmo: TINGE, noSkyPass: true,
+    backdrop: [fundo('nebulosa', 2)] },
+  fundo_atmosfera_opaco_passe: { env: env(DUSK, 0.21), look: [skyDir(0, 25), -10, 0], layers: [], atmo: TINGE,
+    backdrop: [fundo('nebulosa', 2)] },
+  fundo_atmosfera_parcial: { env: env(DUSK, 0.21), look: [skyDir(0, 25), -10, 0], layers: [], atmo: TINGE, noSkyPass: true,
+    backdrop: [fundo('meia', 2)] },
+  fundo_atmosfera_furado: { env: env(DUSK, 0.21), look: [skyDir(0, 25), -10, 0], layers: [], atmo: TINGE,
+    backdrop: [fundo('furada', 2)] },
+  fundo_sol_opaco: { env: env(DAY, SUN_TIME), look: [SUN_DIR, 0, 0], layers: [], hideSun: 1, backdrop: [fundo('nebulosa', 2)] },
+  fundo_sol_parcial: { env: env(DAY, SUN_TIME), look: [SUN_DIR, 0, 0], layers: [], hideSun: 1, backdrop: [fundo('meia', 2)] },
+  fundo_eclipse_opaco: { env: env(DAY, ECL_TIME), look: [ECL_DIR, -9, 10], layers: [eclipse({ progress: 1, seconds: 15 })],
+    atmo: ECLIPSE_SKY(1, 0.9), darkening: true, backdrop: [fundo('nebulosa', 2)] },
+  fundo_eclipse_parcial: { env: env(DAY, ECL_TIME), look: [ECL_DIR, -9, 10], layers: [eclipse({ progress: 1, seconds: 15 })],
+    atmo: ECLIPSE_SKY(1, 0.9), darkening: true, backdrop: [fundo('meia', 2)] },
+  fundo_buraco_negro: { env: env(DUSK, 0.21), look: [BH_DIR, -8, 4], layers: [bh({ size: 40, progress: 1, seconds: 14, spinDegrees: 260 })],
+    atmo: NIGHTFALL(1, 0.8, 0.9), backdrop: [fundo('grade', 1)] },
+  fundo_cubemap_girado: { env: env(DAY, 0.25), look: [skyDir(45, 20), 0, 0], layers: [], noSkyPass: true,
+    backdrop: [fundo('grade', 1, { rotation: 30 })] },
+  fundo_transicao: { env: env(DUSK, 0.21), look: [skyDir(0, 25), -10, 0], layers: [], atmo: TINGE,
+    backdrop: [fundo('grade', 1), fundo('nebulosa', 2, { alpha: 0.4 })] },
+};
+
 // Cobertura do eclipse (Sky.eclipseCoverage) e exposição do mundo (SkyMath.exposure), para o escurecimento.
 function eclipseCoverage(progress) {
   const p = Math.min(Math.max(progress, 0), 1), d = (1 - p) * 2.2, big = 1, small = 0.97;
@@ -457,6 +518,33 @@ void main() {
     fragColor = vec4(color, 1.0);
 }`;
 
+// 0.14 (fase 2): pré-passe só da prévia que faz o papel da geometria do Backdrop em AFTER_SKY: depois do céu e do sol
+// do jogo, antes dos passes do motor, desenha os fundos sobre os pixels de céu com a mesma mistura por alfa da
+// geometria (caBackdropOver de calamidade_sky.glsl, a consulta que o BackdropMath faz em Java).
+const BACKDROP_FSH = `
+#include "calamidade_fx.glsl"
+#include "calamidade_sky.glsl"
+void main() {
+    vec3 color = texture(DiffuseSampler, texCoord).rgb;
+    if (skyAt(texCoord)) {
+        float coverage;
+        color = caBackdropOver(color, viewDir(texCoord), coverage);
+    }
+    fragColor = vec4(color, 1.0);
+}`;
+
+// Uniforms e texturas dos fundos de uma cena (BackdropFrame.uniforms): slot 0 embaixo, slot 1 em cima.
+function backdropUniforms(cena) {
+  const f4 = {}, f3 = {}, textures = {};
+  for (let i = 0; i < 2; i++) {
+    const b = (cena.backdrop || [])[i];
+    f4['CaBd' + i] = b ? [b.kind, b.alpha, (b.rotation || 0) * Math.PI / 180, 0] : [0, 0, 0, 0];
+    f3['CaBdTint' + i] = b ? (b.tint || [1, 1, 1]) : [1, 1, 1];
+    if (b) textures['CaBdTex' + i] = b.texture;
+  }
+  return { f4, f3, textures };
+}
+
 function skyPasses(cena) {
   const e = cena.env;
   const layers = cena.layers;
@@ -464,7 +552,9 @@ function skyPasses(cena) {
   let darkening = 0;
   for (const l of layers) darkening = Math.max(darkening, l.type === 'ECLIPSE' ? 0.75 * l.weight * Math.pow(eclipseCoverage(l.progress), 4) : 0);
   const exposure = 1 - 0.85 * darkening;
-  const hideSun = Math.max(0, ...layers.filter(l => l.anchor === 1).map(l => l.weight));
+  const hideSun = cena.hideSun ?? Math.max(0, ...layers.filter(l => l.anchor === 1).map(l => l.weight));
+  // Controle negativo (backdropOff): o fundo é desenhado, mas os passes não sabem dele (o protótipo da fase 1).
+  const bd = backdropUniforms(cena), bdPass = cena.backdropOff ? backdropUniforms({}) : bd;
   const lens = skyLenses(layers);
   const a = cena.atmo;
   const lensUniforms = prefix => ({ [prefix + 'Lens0']: lens.slice(0, 4), [prefix + 'Lens1']: lens.slice(4, 8),
@@ -473,21 +563,23 @@ function skyPasses(cena) {
     { source: VANILLA_FSH, textures: { PreSun: 'sun' },
       f3: { PreAxisX: e.axes[0], PreAxisY: e.axes[1], PreAxisZ: e.axes[2] } },
     { program: 'sky', data: { name: 'CaSkyData', texels: 10, rows },
-      textures: { CaSkySunTex: 'sun', CaSkyMoonTex: 'sun' },
-      f4: { CaSkyInfo: [rows.length, exposure, 2, layers.some(l => l.type === 'DISTANT_BOLTS') ? 1 : 0],
+      textures: { CaSkySunTex: 'sun', CaSkyMoonTex: 'sun', ...bdPass.textures },
+      f4: { ...bdPass.f4, CaSkyInfo: [rows.length, exposure, 2, layers.some(l => l.type === 'DISTANT_BOLTS') ? 1 : 0],
         CaSkyVanilla: [hideSun, 0, 0, 1], CaSkyMisc: [e.renderDistance, 0, 0, 0], ...lensUniforms('CaSky'),
         // Céu da atmosfera pintado aqui, debaixo das camadas (SkyFrame.draw).
         CaSkyAtmoA: a ? [a.blend, a.fogDensity, a.stars, 1] : [0, 0, 0, 0], CaSkyAtmoB: [0, 0, 0, 0] },
-      f3: { CaSkyAxisX: e.axes[0], CaSkyAxisY: e.axes[1], CaSkyAxisZ: e.axes[2], CaSkyVanillaSky: e.sky, CaSkyVanillaFog: e.fog,
+      f3: { ...bdPass.f3, CaSkyAxisX: e.axes[0], CaSkyAxisY: e.axes[1], CaSkyAxisZ: e.axes[2], CaSkyVanillaSky: e.sky, CaSkyVanillaFog: e.fog,
         CaSkyAtmoTop: a ? a.skyTop : [0, 0, 0], CaSkyAtmoHorizon: a ? a.skyHorizon : [0, 0, 0], CaSkyAtmoFog: a ? a.fogColor : [1, 1, 1] },
       f1: { GTime: 37.0 } },
   ];
   if (cena.noSkyPass) passes.splice(1, 1);
+  if (cena.noVanillaSun) passes[0].textures = {}, passes[0].f3 = { PreAxisX: [0, 0, 1], PreAxisY: [0, -1, 0], PreAxisZ: [1, 0, 0] };
+  if (cena.backdrop) passes.splice(1, 0, { source: BACKDROP_FSH, textures: bd.textures, f4: bd.f4, f3: bd.f3 });
   if (a) {
-    passes.push({ program: 'atmosphere',
-      f3: { CaAtmoSkyTop: a.skyTop, CaAtmoSkyHorizon: a.skyHorizon, CaAtmoFogColor: a.fogColor, CaAtmoTint: a.tint,
+    passes.push({ program: 'atmosphere', textures: bdPass.textures,
+      f3: { ...bdPass.f3, CaAtmoSkyTop: a.skyTop, CaAtmoSkyHorizon: a.skyHorizon, CaAtmoFogColor: a.fogColor, CaAtmoTint: a.tint,
         CaAtmoVanillaSky: e.sky, CaAtmoVanillaFog: e.fog },
-      f4: { CaAtmoA: [a.blend, a.fogDensity, a.fogStart, a.fogEnd], CaAtmoB: [a.exposure, a.tintStrength, a.stars, 0],
+      f4: { ...bdPass.f4, CaAtmoA: [a.blend, a.fogDensity, a.fogStart, a.fogEnd], CaAtmoB: [a.exposure, a.tintStrength, a.stars, 0],
         CaAtmoC: [e.renderDistance, cena.noSkyPass ? 0 : 1, 0, 0], ...lensUniforms('CaAtmo') },
       f1: { GTime: 37.0 } });
   }
@@ -539,7 +631,7 @@ async function render(page, name, cena) {
   const limit = process.env.PREVIA_PASSES ? Number(process.env.PREVIA_PASSES) : Infinity;
   const passes = (sky ? skyPasses(cena) : effectPasses(cena)).slice(0, limit);
   const shaders = passes.map(p => assemble(p.program, p.source));
-  const png = await page.evaluate(async ({ W, H, depth, color, invProj, invView, viewProj, passes, shaders, sun }) => {
+  const png = await page.evaluate(async ({ W, H, depth, color, invProj, invView, viewProj, passes, shaders, images }) => {
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
@@ -560,15 +652,20 @@ async function render(page, name, cena) {
       return t;
     };
     const named = {};
-    if (sun) {
-      if (sun.png) {
+    for (const [key, img0] of Object.entries(images || {})) {
+      if (img0.png) {
         const img = new Image();
-        img.src = 'data:image/png;base64,' + sun.png;
+        img.src = 'data:image/png;base64,' + img0.png;
         await img.decode();
         const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); params();
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
-        named.sun = t;
-      } else named.sun = tex(sun.w, sun.h, gl.RGBA32F, gl.RGBA, new Float32Array(sun.data));
+        named[key] = t;
+      } else if (img0.u8) {
+        // 0.14: texturas de 8 bits como as do jogo (fundos de céu), linha 0 = topo da imagem (v = 0), como no jogo.
+        const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); params();
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, img0.w, img0.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(img0.u8));
+        named[key] = t;
+      } else named[key] = tex(img0.w, img0.h, gl.RGBA32F, gl.RGBA, new Float32Array(img0.data));
     }
     const depthTex = tex(W, H, gl.R32F, gl.RED, new Float32Array(depth));
     let colorTex = tex(W, H, gl.RGBA32F, gl.RGBA, new Float32Array(color));
@@ -618,7 +715,7 @@ async function render(page, name, cena) {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     return canvas.toDataURL('image/png');
   }, { W, H, depth: Array.from(depth), color: Array.from(color), invProj: invert(proj), invView: invert(view),
-       viewProj, passes, shaders, sun: sky ? sunTexture() : null });
+       viewProj, passes, shaders, images: sky ? { sun: sunTexture(), ...backdropImages(cena) } : {} });
   const file = path.join(OUT, name + '.png');
   fs.writeFileSync(file, Buffer.from(png.split(',')[1], 'base64'));
   return file;
@@ -648,8 +745,9 @@ async function contactSheet(page, files) {
   return file;
 }
 
-const ALL = { ...CENAS, ...SKY_CENAS, ...REF_CENAS };
-module.exports = { SKY_CENAS, REF_CENAS };
+const ALL = { ...CENAS, ...SKY_CENAS, ...REF_CENAS, ...FUNDO_CENAS };
+module.exports = { SKY_CENAS, REF_CENAS, FUNDO_CENAS, ALL, render, lookAt, skyDir, vanillaAxes, skyScene, perspective, viewMatrix,
+  W, H, FOV, OUT, backdropTexture };
 
 async function main() {
   const { chromium } = require('playwright');

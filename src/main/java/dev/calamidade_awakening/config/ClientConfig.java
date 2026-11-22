@@ -12,6 +12,8 @@ public final class ClientConfig {
     private static final ModConfigSpec.BooleanValue CAMERA_SHAKE;
     private static final ModConfigSpec.BooleanValue MOTION_EFFECTS;
     private static final ModConfigSpec.BooleanValue VANILLA_FOG;
+    /** 0.14.0: custom sky backgrounds (Backdrop) of addons; off draws none of them. */
+    private static final ModConfigSpec.BooleanValue CUSTOM_SKIES;
     /** Quality mode chosen with F8 or in the Atlas (0.11.2): AUTO or a forced profile. */
     private static final ModConfigSpec.EnumValue<dev.calamidade_awakening.api.QualityMode> QUALITY;
     /** Frame rate AUTO aims at (0.11.2). */
@@ -40,6 +42,10 @@ public final class ClientConfig {
             .comment("Atmosphere fog (0.8.0) through the game's own fog, so terrain, entities, particles, water and clouds are fogged at their real distance. Turn off only if a shader pack ignores the game fog: the engine then draws the fog on the screen from the depth buffer.")
             .translation("calamidade_awakening.configuration.vanillaFog")
             .define("vanillaFog", true);
+        CUSTOM_SKIES = builder
+            .comment("Custom sky backgrounds (skyboxes) of addons (0.14.0). Off: the vanilla sky stays; the engine's procedural sky layers are not affected.")
+            .translation("calamidade_awakening.configuration.customSkies")
+            .define("customSkies", true);
         // 0.11.2: quality profiles. The caps are clamped again by QualityProfile.Caps (safety maxima).
         builder.comment("Quality profiles (0.11.2): the profile in use and the per-frame caps of each one.")
             .translation("calamidade_awakening.configuration.quality").push("quality");
@@ -185,6 +191,17 @@ public final class ClientConfig {
             return true;
         }
     }
+
+    /** Custom sky backgrounds (0.14.0); true until the config file is loaded. */
+    public static boolean customSkies() {
+        try {
+            return CUSTOM_SKIES.get();
+        } catch (IllegalStateException notLoaded) {
+            return true;
+        }
+    }
+
+    public static void customSkies(boolean value) { store(CUSTOM_SKIES, value); }
 
     /** Zoom blur and afterimage (0.7.0); true until the config file is loaded. */
     public static boolean motionEffects() {

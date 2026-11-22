@@ -106,6 +106,15 @@ final class BackdropCheck {
         // Neighbouring faces meet: the north face's top edge and the up face's top edge are the same line.
         double[] a = BackdropMath.cubeLocal(.3, .999, -1), b = BackdropMath.cubeLocal(.3, 1, -.999);
         require(near(a[1], b[1], 2e-3) && near(a[2], 0, 2e-3) && near(b[2], 0, 2e-3), "north/up seam");
+        // Inverses: the geometry corners map back to the same face and coordinates.
+        for (int f = 0; f < 6; f++) for (double u = .1; u < 1; u += .4) for (double v = .1; v < 1; v += .4) {
+            double[] d = BackdropMath.cubeDirection(f, u, v), l = BackdropMath.cubeLocal(d[0], d[1], d[2]);
+            require((int) l[0] == f && near(l[1], u, 1e-9) && near(l[2], v, 1e-9), "cube inverse " + f + " " + u + " " + v);
+        }
+        for (double u = .05; u < 1; u += .3) for (double v = .1; v < .95; v += .2) {
+            double[] d = BackdropMath.panoramaDirection(u, v), p = BackdropMath.panoramaUv(d[0], d[1], d[2]);
+            require(near(p[0], u, 1e-9) && near(p[1], v, 1e-9), "panorama inverse " + u + " " + v);
+        }
         // Panorama: south in the middle, west at three quarters, zenith on top.
         require(near(BackdropMath.panoramaUv(0, 0, 1)[0], .5) && near(BackdropMath.panoramaUv(-1, 0, 0)[0], .75)
             && near(BackdropMath.panoramaUv(1, 0, 0)[0], .25) && near(BackdropMath.panoramaUv(0, 1, 0)[1], 0)
