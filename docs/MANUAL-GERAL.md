@@ -2398,6 +2398,25 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 **O que o teste em jogo achou e foi corrigido:** (1) a coroa do eclipse saía um anel laranja e as estrelas sumiam no Overworld: o passe de atmosfera, depois do passe `sky`, subtraía de novo o brilho do céu do dia, e o framebuffer de 8 bits do jogo já tinha cortado a coroa em 1. A prévia, em ponto flutuante, não mostrava. Agora o passe `sky` pinta o céu da atmosfera antes do escurecimento e das camadas, e a prévia usa 8 bits entre os passes. (2) Na dimensão de teste, com o AUTO em LOW (2 camadas), o céu da dimensão tirava a vaga do eclipse global: eventos globais agora vêm antes do perfil. (3) Abrir um mundo com a dimensão do exemplo mostra uma vez "Os mundos com ajustes experimentais são incompatíveis" (dimensão por datapack): documentado no capítulo e na receita 26; o teste confirma a tela como o jogador faria. (4) No roteiro do servidor, uma espera de teste esperava a si mesma na thread do servidor (erro do teste, não do motor).
 
+- **Depois do release v0.12.0** (workflow Release, tag no commit `26a9080`): anexos só `calamidade_awakening-0.12.0.jar`, `vfx-sample-1.9.0.jar` e `SHA256SUMS.txt`, com os mesmos SHA-256 do build local (`a934968a…` e `fc8809d4…`); `./gradlew -p examples/consumidor clean build`, sem endereço alternativo e com o JAR apagado de `libs/`, baixou `calamidade_awakening-0.12.0.jar` do release no GitHub, conferiu o SHA-256 e compilou.
+- **Conferido de novo numa sessão separada (22/11/2026):** os três anexos baixados do release passam no `sha256sum -c SHA256SUMS.txt`; build limpo do commit da tag (`git worktree` nova, sem `build/` nem `libs/`, RimuLib baixada e conferida pela task, `--no-build-cache`): `./gradlew dist` e `./gradlew -p examples/vfx-sample build` deram os mesmos SHA-256 dos anexos (build reproduzível). Nessa mesma worktree, o consumidor compilou baixando o motor de `github.com/…/releases/download/v0.12.0/` e a RimuLib do CurseForge, sem `-Pcalamidade.url`.
+
+SHA-256 de `dist/calamidade_awakening-0.12.0.jar`: `a934968a3d135fe0795abc806c548b556bb3dd9899b74a675e978a21e7c9e460`; de `vfx-sample-1.9.0.jar`: `fc8809d414a6eceb7543ff022e680cb189c19a98ea873475c64cef88e49771f9`
+
+#### Testes manuais do autor (relatados em 22/11/2026)
+
+**Origem:** relato do autor na conversa de planejamento da Custom Sky Engine, depois do release. Os dados abaixo foram copiados do relato; o CSV, a GPU, a resolução, o perfil de qualidade, a cena e a carga **não foram registrados** aqui.
+
+- Nos testes manuais feitos pelo autor, as funcionalidades avaliadas da 0.12.0 tiveram bom comportamento geral (a lista exata dos casos de TESTE-REAL.md, parte 10, executados não foi registrada).
+- Uma gravação de tempos de quadro (`/calamidade_client record`): cerca de **2 553 quadros, mediana 11,41 ms, p95 18,96 ms**.
+- **Limites desses números:** são o tempo de quadro inteiro durante a gravação, não o custo da Sky API. Sem as condições exatas e sem uma medição de referência (o mesmo cenário sem o efeito), não servem para comparação com outras medições nem para afirmar custo ou ganho.
+
+#### Pendentes (adiados por decisão do autor; não aprovados)
+
+- **Multiplayer manual com dois jogadores** (TESTE-REAL.md, casos 99 e 100): não executado.
+- **Leve pulsação visual no Overworld**, observada pelo autor depois de usar `/vfxsample ceu ameaca` e `/vfxsample ceu calmo` (os comandos mudam o estado da dimensão de teste, não do Overworld). O código do cliente filtra o perfil pela dimensão do nível (`SkyProfilesClient`), mas a causa da observação **não foi identificada** e **não é um bug confirmado**. Hipóteses ainda não testadas, sem conclusão: troca de perfil pelo AUTO mudando o número de camadas pintadas; rampa de exposição do `SkyFrame` (estado único entre dimensões); comportamento do próprio jogo. Mudanças futuras em SkyProfiles, Atmosphere ou estado de renderização entre dimensões devem trazer testes de regressão específicos (ver o plano da 0.14 no ROADMAP).
+- GPU física (custo dos casos 93 a 98) e Iris/Oculus (caso 102), como antes.
+
 #### Custo do passe de céu (software)
 
 Cliente sob Xvfb 1280 × 720, Mesa llvmpipe (LLVM 20.1.2, 256 bits), 4 núcleos, VSync desligado, distância 8, mundo plano de manhã, olhando para o sul a 25 graus; perfil de teste UNLIMITED (8 camadas por quadro); 1 camada = buraco negro de 50 graus com lente (cobre quase a tela), 4 = portal, astro com anéis, fenda e aurora, 8 = as 4 duas vezes. Janela de 6 s depois de 3 s de aquecimento.
@@ -3336,10 +3355,29 @@ Próxima versão planejada.
 - **BossBar API:** barra do chefe sincronizada às fases da Timeline (nome do golpe, fase, vulnerabilidade), com estilo próprio e acessibilidade de tamanho e contraste.
 - Um chefe de exemplo que dispara o eclipse global da 0.12 na fase final.
 
+#### 0.14 — Custom Sky (proposta aprovada; em desenvolvimento no branch `claude/ceu-personalizado`)
+
+Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 continuam como estão, e nada novo aparece sem um addon pedir. Arquitetura e verificações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
+
+- **Backdrop:** fundo de céu por cubemap de 6 faces, panorama equirretangular, gradiente ou domo procedural; substituição parcial (com transparência) ou completa (cobrindo o céu do jogo e redesenhando só o que o addon pedir: gradiente, sol, lua, estrelas); em dimensões próprias, `ProfileSkyEffects` continua dono do céu inteiro.
+- **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho.
+- **Nebulosas e galáxias:** procedurais e por PNG; fundos animados.
+- **Imagens no céu e impostors:** PNG com transparência, tamanho angular, rotação, cor, brilho, por trilha da Timeline; folhas de sprites, flipbooks, vários ângulos.
+- Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias**.
+- Limites e custos definidos por medição (nenhum limite da proposta é definitivo sem benchmark).
+
+#### 0.15 — Sky Objects & Cinematics (proposta aprovada)
+
+- **Modelos 3D reais do Blockbench:** formato principal Bedrock `.geo.json` com um subconjunto documentado de animação, validado contra exportações reais; alternativas Java (`ModelPart`), OBJ/JSON de bloco e renderizadores externos (sem dependência do GeckoLib).
+- **Sky Space, World Space e Entity Space** escolhidos pelo addon; LOD opcional (billboard → impostor → modelo), cache de malhas.
+- **Transições céu ↔ mundo e portais cinematográficos** coordenados pela Timeline existente; recorte por CPU ou GPU escolhido por medição; continuidade garantida só perto do ponto de referência.
+- **Integração opcional com entidades** (o addon cuida de IA, vida, dano e spawn), sem duplicar a Boss API da 0.13.
+- Itens desta lista que vieram de "Depois da 0.13" e de "Evolução da API": **lentes que entortam feixes e efeitos de addons** e **cache de malhas estáticas e LOD adaptativo**.
+
 #### Depois da 0.13
 
-- **Perfis de céu em JSON de datapack:** codec de `Sky`, `Atmosphere` e `SkyProfile`, recarga com `/reload` e envio do perfil inteiro aos clientes (hoje os perfis são definidos em código).
-- Sky API: camadas desenhadas também de noite sobre o sol (eclipse "fantástico" fora do horário), nuvens próprias e lentes que entortam feixes e efeitos de addons.
+- ~~Perfis de céu em JSON de datapack~~ → 0.14.
+- Sky API: ~~camadas desenhadas também de noite sobre o sol~~ e ~~nuvens próprias~~ → 0.14; ~~lentes que entortam feixes e efeitos de addons~~ → 0.15.
 - Trail API (rastros e marcas): fitas com histórico de posições para entidades, projéteis e pontas de feixe; marcas que ficam no chão por um tempo.
 - Títulos e HUD cinematográficos sincronizados à Timeline.
 - Ramificações de feixes (raios que se dividem) e feixes curvos.
@@ -3354,4 +3392,4 @@ Próxima versão planejada.
 - Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos, força de um golpe) para os ganchos de cliente.
 - Orientação seguindo o olhar (yaw e pitch da cabeça) além do corpo.
 - Transição suave (crossfade) opcional no release, para loops cujas bordas não coincidem.
-- Cache de malhas estáticas e LOD adaptativo ao frametime.
+- ~~Cache de malhas estáticas e LOD adaptativo ao frametime~~ → 0.15 (Sky Objects).

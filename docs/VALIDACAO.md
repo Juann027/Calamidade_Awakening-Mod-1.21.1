@@ -21,6 +21,20 @@
 
 SHA-256 de `dist/calamidade_awakening-0.12.0.jar`: `a934968a3d135fe0795abc806c548b556bb3dd9899b74a675e978a21e7c9e460`; de `vfx-sample-1.9.0.jar`: `fc8809d414a6eceb7543ff022e680cb189c19a98ea873475c64cef88e49771f9`
 
+### Testes manuais do autor (relatados em 22/11/2026)
+
+**Origem:** relato do autor na conversa de planejamento da Custom Sky Engine, depois do release. Os dados abaixo foram copiados do relato; o CSV, a GPU, a resolução, o perfil de qualidade, a cena e a carga **não foram registrados** aqui.
+
+- Nos testes manuais feitos pelo autor, as funcionalidades avaliadas da 0.12.0 tiveram bom comportamento geral (a lista exata dos casos de TESTE-REAL.md, parte 10, executados não foi registrada).
+- Uma gravação de tempos de quadro (`/calamidade_client record`): cerca de **2 553 quadros, mediana 11,41 ms, p95 18,96 ms**.
+- **Limites desses números:** são o tempo de quadro inteiro durante a gravação, não o custo da Sky API. Sem as condições exatas e sem uma medição de referência (o mesmo cenário sem o efeito), não servem para comparação com outras medições nem para afirmar custo ou ganho.
+
+### Pendentes (adiados por decisão do autor; não aprovados)
+
+- **Multiplayer manual com dois jogadores** (TESTE-REAL.md, casos 99 e 100): não executado.
+- **Leve pulsação visual no Overworld**, observada pelo autor depois de usar `/vfxsample ceu ameaca` e `/vfxsample ceu calmo` (os comandos mudam o estado da dimensão de teste, não do Overworld). O código do cliente filtra o perfil pela dimensão do nível (`SkyProfilesClient`), mas a causa da observação **não foi identificada** e **não é um bug confirmado**. Hipóteses ainda não testadas, sem conclusão: troca de perfil pelo AUTO mudando o número de camadas pintadas; rampa de exposição do `SkyFrame` (estado único entre dimensões); comportamento do próprio jogo. Mudanças futuras em SkyProfiles, Atmosphere ou estado de renderização entre dimensões devem trazer testes de regressão específicos (ver o plano da 0.14 no ROADMAP).
+- GPU física (custo dos casos 93 a 98) e Iris/Oculus (caso 102), como antes.
+
 ### Custo do passe de céu (software)
 
 Cliente sob Xvfb 1280 × 720, Mesa llvmpipe (LLVM 20.1.2, 256 bits), 4 núcleos, VSync desligado, distância 8, mundo plano de manhã, olhando para o sul a 25 graus; perfil de teste UNLIMITED (8 camadas por quadro); 1 camada = buraco negro de 50 graus com lente (cobre quase a tela), 4 = portal, astro com anéis, fenda e aurora, 8 = as 4 duas vezes. Janela de 6 s depois de 3 s de aquecimento.

@@ -144,10 +144,29 @@ Próxima versão planejada.
 - **BossBar API:** barra do chefe sincronizada às fases da Timeline (nome do golpe, fase, vulnerabilidade), com estilo próprio e acessibilidade de tamanho e contraste.
 - Um chefe de exemplo que dispara o eclipse global da 0.12 na fase final.
 
+### 0.14 — Custom Sky (proposta aprovada; em desenvolvimento no branch `claude/ceu-personalizado`)
+
+Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 continuam como estão, e nada novo aparece sem um addon pedir. Arquitetura e verificações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
+
+- **Backdrop:** fundo de céu por cubemap de 6 faces, panorama equirretangular, gradiente ou domo procedural; substituição parcial (com transparência) ou completa (cobrindo o céu do jogo e redesenhando só o que o addon pedir: gradiente, sol, lua, estrelas); em dimensões próprias, `ProfileSkyEffects` continua dono do céu inteiro.
+- **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho.
+- **Nebulosas e galáxias:** procedurais e por PNG; fundos animados.
+- **Imagens no céu e impostors:** PNG com transparência, tamanho angular, rotação, cor, brilho, por trilha da Timeline; folhas de sprites, flipbooks, vários ângulos.
+- Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias**.
+- Limites e custos definidos por medição (nenhum limite da proposta é definitivo sem benchmark).
+
+### 0.15 — Sky Objects & Cinematics (proposta aprovada)
+
+- **Modelos 3D reais do Blockbench:** formato principal Bedrock `.geo.json` com um subconjunto documentado de animação, validado contra exportações reais; alternativas Java (`ModelPart`), OBJ/JSON de bloco e renderizadores externos (sem dependência do GeckoLib).
+- **Sky Space, World Space e Entity Space** escolhidos pelo addon; LOD opcional (billboard → impostor → modelo), cache de malhas.
+- **Transições céu ↔ mundo e portais cinematográficos** coordenados pela Timeline existente; recorte por CPU ou GPU escolhido por medição; continuidade garantida só perto do ponto de referência.
+- **Integração opcional com entidades** (o addon cuida de IA, vida, dano e spawn), sem duplicar a Boss API da 0.13.
+- Itens desta lista que vieram de "Depois da 0.13" e de "Evolução da API": **lentes que entortam feixes e efeitos de addons** e **cache de malhas estáticas e LOD adaptativo**.
+
 ### Depois da 0.13
 
-- **Perfis de céu em JSON de datapack:** codec de `Sky`, `Atmosphere` e `SkyProfile`, recarga com `/reload` e envio do perfil inteiro aos clientes (hoje os perfis são definidos em código).
-- Sky API: camadas desenhadas também de noite sobre o sol (eclipse "fantástico" fora do horário), nuvens próprias e lentes que entortam feixes e efeitos de addons.
+- ~~Perfis de céu em JSON de datapack~~ → 0.14.
+- Sky API: ~~camadas desenhadas também de noite sobre o sol~~ e ~~nuvens próprias~~ → 0.14; ~~lentes que entortam feixes e efeitos de addons~~ → 0.15.
 - Trail API (rastros e marcas): fitas com histórico de posições para entidades, projéteis e pontas de feixe; marcas que ficam no chão por um tempo.
 - Títulos e HUD cinematográficos sincronizados à Timeline.
 - Ramificações de feixes (raios que se dividem) e feixes curvos.
@@ -162,4 +181,4 @@ Próxima versão planejada.
 - Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos, força de um golpe) para os ganchos de cliente.
 - Orientação seguindo o olhar (yaw e pitch da cabeça) além do corpo.
 - Transição suave (crossfade) opcional no release, para loops cujas bordas não coincidem.
-- Cache de malhas estáticas e LOD adaptativo ao frametime.
+- ~~Cache de malhas estáticas e LOD adaptativo ao frametime~~ → 0.15 (Sky Objects).
