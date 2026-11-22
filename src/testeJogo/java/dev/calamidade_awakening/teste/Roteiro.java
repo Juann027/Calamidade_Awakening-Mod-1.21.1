@@ -92,6 +92,7 @@ final class Roteiro implements Runnable {
         pontosDeInteresse();
         cascaExterna();
         custoDaCratera();
+        soChunksFull();
         prepararReinicio();
     }
 
