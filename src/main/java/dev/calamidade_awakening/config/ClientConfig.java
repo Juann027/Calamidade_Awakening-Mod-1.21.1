@@ -76,6 +76,24 @@ public final class ClientConfig {
 
     private ClientConfig() {}
 
+    /** Atlas accessibility tab (0.11.2): stores a value and saves the file; ignored before the file is loaded. */
+    public static void screenEffects(float value) { store(SCREEN_EFFECTS, (double) Math.clamp(value, 0F, 1F)); }
+
+    public static void cameraShake(boolean value) { store(CAMERA_SHAKE, value); }
+
+    public static void motionEffects(boolean value) { store(MOTION_EFFECTS, value); }
+
+    public static void vanillaFog(boolean value) { store(VANILLA_FOG, value); }
+
+    private static <T> void store(ModConfigSpec.ConfigValue<T> entry, T value) {
+        try {
+            entry.set(value);
+            entry.save();
+        } catch (IllegalStateException notLoaded) {
+            // Nothing to store yet.
+        }
+    }
+
     private static ModConfigSpec.IntValue cap(ModConfigSpec.Builder builder, String name, String comment, int value,
                                               int min, int max) {
         return builder.comment(comment).translation("calamidade_awakening.configuration." + name)

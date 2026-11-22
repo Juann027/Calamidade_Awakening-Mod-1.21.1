@@ -118,7 +118,9 @@ public final class ClientHooks {
                 DEMOS.put(kind, key);
                 event.register(key);
             }
-            event.register(StarAtlas.OPEN);
+            event.register(dev.calamidade_awakening.client.holo.AtlasWorld.OPEN);
+            event.register(dev.calamidade_awakening.client.holo.AtlasInput.RECALL);
+            event.register(dev.calamidade_awakening.client.holo.AtlasInput.CURSOR);
             event.register(PerfOverlay.TOGGLE);
             event.register(QUALITY);
             event.register(CANCEL);
@@ -353,7 +355,7 @@ public final class ClientHooks {
 
     @SubscribeEvent public static void useFocus(net.neoforged.neoforge.client.event.InputEvent.InteractionKeyMappingTriggered event) {
         Minecraft mc = Minecraft.getInstance();
-        if (!event.isUseItem() || event.isCanceled() || StarAtlas.isOpen() || mc.player == null || mc.screen != null
+        if (!event.isUseItem() || event.isCanceled() || dev.calamidade_awakening.client.holo.AtlasWorld.isOpen() || mc.player == null || mc.screen != null
             || FilmApi.active() || MenuApi.capturesInput() || !mc.player.getItemInHand(event.getHand()).is(AwakeningSkills.FOCUS.get())) return;
         var selected = cyou.rimuru.rimulib.mc1211.client.magic.ClientSkills.selected(AwakeningSkills.SET);
         if (selected instanceof AwakeningSkill skill && NetClientApi.canSend(CastRequest.PACKET)) {
@@ -362,6 +364,9 @@ public final class ClientHooks {
             NetClientApi.send(request(skill.visual));
         }
     }
+
+    /** Cast request for a card (0.11.2: the Atlas in client.holo). */
+    public static CastRequest castRequest(VisualKind kind) { return request(kind); }
 
     static CastRequest request(VisualKind kind) {
         if (kind.addon() != null && kind.addon().power() != null) {
@@ -374,7 +379,7 @@ public final class ClientHooks {
     private static void poll(Minecraft mc, KeyMapping key, VisualKind kind) {
         while (key.consumeClick()) {
             if (mc.player != null && mc.level != null && mc.screen == null
-                && !StarAtlas.isOpen() && !FilmApi.active() && !MenuApi.capturesInput() && NetClientApi.canSend(CastRequest.PACKET)) {
+                && !dev.calamidade_awakening.client.holo.AtlasWorld.isOpen() && !FilmApi.active() && !MenuApi.capturesInput() && NetClientApi.canSend(CastRequest.PACKET)) {
                 NetClientApi.send(request(kind));
             }
         }

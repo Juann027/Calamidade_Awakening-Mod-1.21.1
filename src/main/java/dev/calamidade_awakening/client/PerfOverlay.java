@@ -148,11 +148,30 @@ public final class PerfOverlay {
         return true;
     }
 
+    /** Frame times of the last {@value #WINDOW} frames, oldest first, ms (0.11.2: Atlas graph). */
+    public static double[] recentFrames() {
+        double[] out = new double[frameCount];
+        int start = (frameCursor - frameCount + WINDOW) % WINDOW;
+        for (int i = 0; i < frameCount; i++) out[i] = frames[(start + i) % WINDOW] / 1e6;
+        return out;
+    }
+
+    /** Last finished recording: frames, median and p95 in ms; null before the first (0.11.2: Atlas). */
+    public static double[] lastRecording() { return lastRecording; }
+    private static double[] lastRecording;
+
+    /** True while a recording runs. */
+    public static boolean recording() { return recording != null; }
+
+    /** Starts a recording of frame times (Atlas button); false when one is running. */
+    public static boolean startRecording(int seconds) { return record(seconds); }
+
     private static void finishRecording() {
         List<String> rows = recording;
         recording = null;
         Minecraft mc = Minecraft.getInstance();
         double[] ms = rows.stream().mapToDouble(row -> Double.parseDouble(row.split(",")[1])).sorted().toArray();
+        lastRecording = new double[] {ms.length, percentile(ms, .5), percentile(ms, .95)};
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         Path file = mc.gameDirectory.toPath().resolve("calamidade_bench").resolve("frames-" + stamp + ".csv");
         var lines = new ArrayList<String>();
@@ -174,8 +193,8 @@ public final class PerfOverlay {
         if (mc.player != null) mc.player.displayClientMessage(message, false);
     }
 
-    static void draw(GuiGraphics graphics) {
-        if (!visible) return;
+    /** The F7 lines (0.11.2: also shown live in the Atlas diagnostics tab). */
+    public static List<Component> lines() {
         Minecraft mc = Minecraft.getInstance();
         double[] window = new double[frameCount];
         for (int i = 0; i < frameCount; i++) window[i] = frames[i] / 1e6;
@@ -211,6 +230,13 @@ public final class PerfOverlay {
         if (CostProbe.running()) lines.add(Component.literal(CostProbe.status()));
         if (recording != null) lines.add(Component.translatableWithFallback(PREFIX + "recording", "Recording: %s s left",
             Math.max(0, (recordingEnds - System.currentTimeMillis() + 999) / 1000)));
+        return lines;
+    }
+
+    static void draw(GuiGraphics graphics) {
+        if (!visible) return;
+        Minecraft mc = Minecraft.getInstance();
+        var lines = lines();
         int width = 0;
         for (Component line : lines) width = Math.max(width, mc.font.width(line));
         int x = 4, y = 4;

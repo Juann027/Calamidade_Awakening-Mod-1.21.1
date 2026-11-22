@@ -57,6 +57,7 @@ public final class CalamidadeTeste {
         NeoForge.EVENT_BUS.addListener(CalamidadeTeste::started);
         if (FMLEnvironment.dist == Dist.CLIENT && "cliente".equals(System.getProperty("calamidade.teste"))) RoteiroCliente.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "medicao".equals(System.getProperty("calamidade.teste"))) RoteiroMedicao.registrar();
+        if (FMLEnvironment.dist == Dist.CLIENT && "atlas".equals(System.getProperty("calamidade.teste"))) RoteiroAtlas.registrar();
     }
 
     private static ResourceLocation id(String path) { return ResourceLocation.fromNamespaceAndPath(ID, path); }
@@ -69,7 +70,7 @@ public final class CalamidadeTeste {
 
     private static void started(ServerStartedEvent event) {
         String fase = System.getProperty("calamidade.teste");
-        if (fase == null || fase.isBlank() || fase.equals("cliente") || fase.equals("medicao")) return;
+        if (fase == null || fase.isBlank() || fase.equals("cliente") || fase.equals("medicao") || fase.equals("atlas")) return;
         Thread thread = new Thread(new Roteiro(event.getServer(), fase), "Calamidade teste em jogo");
         thread.setDaemon(true);
         thread.start();

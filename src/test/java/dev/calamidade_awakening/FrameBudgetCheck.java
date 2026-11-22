@@ -67,6 +67,7 @@ public final class FrameBudgetCheck {
         TerrainCheck.run();
         LimitsCheck.run();
         AutoQualityCheck.run();
+        HoloCheck.run();
         timelineRegistration();
         atmosphereRegistration();
         meshBudget();

@@ -58,6 +58,16 @@ neoForge {
             programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
         }
+        // 0.11.2: Atlas Estelar no mundo (placas, clique sem atacar atrás, abas, fechamento, capturas).
+        testeAtlas {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = layout.projectDirectory.dir('run/teste-atlas').asFile
+            systemProperty 'calamidade.teste', 'atlas'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
         // 0.11.2: medição de custo por efeito e por passe (CostProbe), cliente com o vfx-sample em mods/.
         testeMedicao {
             client()
@@ -443,5 +453,42 @@ tasks.register('testeMedicao') {
         lines.findAll { !it.startsWith('PASS') && !it.startsWith('FAIL') }.each { logger.lifecycle(it) }
         logger.lifecycle("testeMedicao: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeMedicao:\n' + failed.join('\n'))
+    }
+}
+
+// 0.11.2: teste em jogo do Atlas Estelar (xvfb-run ./gradlew testeAtlas), no mundo do testeJogo e com o vfx-sample
+// (páginas de addons): placas paradas no mundo, clique e roda sem atacar, minerar ou usar atrás de uma placa, abas,
+// Recall, fechamento por distância, dimensão e morte, e capturas das abas. Relatório em run/teste-atlas/.
+def testeAtlasDir = layout.projectDirectory.dir('run/teste-atlas').asFile
+def prepararTesteAtlas = tasks.register('prepararTesteAtlas') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo e o JAR do vfx-sample para run/teste-atlas.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteAtlas: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        def sample = fileTree('examples/vfx-sample/build/libs') { include 'vfx-sample-*.jar'; exclude '*-sources.jar' }
+        ['saves', 'mods', 'screenshots', 'logs', 'config'].each { project.delete(new File(testeAtlasDir, it)) }
+        project.delete(new File(testeAtlasDir, 'calamidade-atlas.txt'))
+        project.copy { from world; into new File(testeAtlasDir, 'saves/teste'); exclude 'session.lock' }
+        if (!sample.isEmpty()) project.copy { from sample; into new File(testeAtlasDir, 'mods') }
+        new File(testeAtlasDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'lang:pt_br'].join('\n') + '\n'
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteAtlas') task.dependsOn prepararTesteAtlas }
+tasks.register('testeAtlas') {
+    group = 'verification'
+    description = 'Roda o teste em jogo do Atlas Estelar (precisa de tela: xvfb-run) e falha se algum caso falhar.'
+    dependsOn 'runTesteAtlas'
+    doLast {
+        def report = new File(testeAtlasDir, 'calamidade-atlas.txt')
+        if (!report.exists()) throw new GradleException('testeAtlas: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM atlas')) failed << "FAIL roteiro incompleto (falta 'FIM atlas')"
+        logger.lifecycle("testeAtlas: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeAtlas:\n' + failed.join('\n'))
     }
 }
