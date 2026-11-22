@@ -78,7 +78,7 @@ neoForge {
             programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
         }
-        // 0.14 (fase 1): experimento do Backdrop em AFTER_SKY (protótipo só no mod de teste), com o vfx-sample em mods/.
+        // 0.14: teste do Backdrop em jogo (fase 2: fundos reais do motor), com o vfx-sample em mods/.
         testeBackdrop {
             client()
             sourceSet = sourceSets.testeJogo
@@ -609,10 +609,11 @@ tasks.register('testeCeu') {
     }
 }
 
-// 0.14 (fase 1): experimento do Backdrop (xvfb-run ./gradlew testeBackdrop), no mundo do testeJogo e com o vfx-sample:
-// um protótipo de fundo de céu desenhado em AFTER_SKY, só no mod de teste, comprova ordem dos passes, profundidade,
-// cobertura do céu do jogo, transparência, nuvens, terreno, Atmosphere, lente, eclipse, cegueira, Nether e custo.
-// Relatório em run/teste-backdrop/calamidade-backdrop.txt (PASS/FAIL afirmam; INFO mede o comportamento atual).
+// 0.14: teste do Backdrop (xvfb-run ./gradlew testeBackdrop), no mundo do testeJogo e com o vfx-sample. Na fase 1 era
+// um experimento com um protótipo só no mod de teste; desde a fase 2 usa os fundos reais do motor (Backdrop) pela API,
+// com sondas de pixel: orientação, giro, parcial, gradiente, sol e lua, Atmosphere, lente, eclipse, céu bloqueado,
+// horizonte, estado de renderização, customSkies, recarga, custo, transição de perfil e regressão entre dimensões.
+// Relatório em run/teste-backdrop/calamidade-backdrop.txt (PASS/FAIL afirmam; INFO mede).
 def testeBackdropDir = layout.projectDirectory.dir('run/teste-backdrop').asFile
 def prepararTesteBackdrop = tasks.register('prepararTesteBackdrop') {
     group = 'verification'

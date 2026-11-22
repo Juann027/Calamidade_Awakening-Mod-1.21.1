@@ -1,5 +1,6 @@
 package dev.calamidade_awakening.teste;
 
+import dev.calamidade_awakening.api.v1.Backdrop;
 import dev.calamidade_awakening.api.v1.Effects;
 import dev.calamidade_awakening.api.v1.TerrainEdit;
 import dev.calamidade_awakening.api.v1.TerrainPalette;
@@ -53,6 +54,7 @@ public final class CalamidadeTeste {
         registrar(GRANDE, TerrainEdit.carve(TerrainShape.sphere(24)).commitAt("impacto").burn(TerrainPalette.burnt(), 2).noHeat().build());
         registrar(ENTIDADES, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto").replacingBlockEntities().noHeat().build());
         registrarCeu();
+        registrarFundos();
         NeoForge.EVENT_BUS.register(Protecao.class);
         NeoForge.EVENT_BUS.addListener((ChunkDataEvent.Save event) -> SALVOS.add(event.getChunk().getPos().toLong()));
         NeoForge.EVENT_BUS.addListener(CalamidadeTeste::started);
@@ -60,7 +62,7 @@ public final class CalamidadeTeste {
         if (FMLEnvironment.dist == Dist.CLIENT && "medicao".equals(System.getProperty("calamidade.teste"))) RoteiroMedicao.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "atlas".equals(System.getProperty("calamidade.teste"))) RoteiroAtlas.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "ceu".equals(System.getProperty("calamidade.teste"))) RoteiroCeu.registrar();
-        // 0.14 (fase 1): experimento do Backdrop em AFTER_SKY (protótipo só neste mod de teste).
+        // 0.14: teste do Backdrop (fase 2: os fundos reais do motor, registrados em registrarFundos).
         if (FMLEnvironment.dist == Dist.CLIENT && "backdrop".equals(System.getProperty("calamidade.teste"))) RoteiroBackdrop.registrar();
     }
 
@@ -99,7 +101,47 @@ public final class CalamidadeTeste {
             .state("a", dev.calamidade_awakening.api.v1.SkyProfile.State.builder().build())
             .state("b", dev.calamidade_awakening.api.v1.SkyProfile.State.builder()
                 .layers(dev.calamidade_awakening.api.v1.Sky.body().build()).vanillaSun(false).build())
+            // 0.14 (fase 2): transição entre dois fundos (só o testeBackdrop usa estes estados).
+            .state("fundo_a", dev.calamidade_awakening.api.v1.SkyProfile.State.builder().backdrop(Backdrop.cubemap(CUBO).build()).build())
+            .state("fundo_b", dev.calamidade_awakening.api.v1.SkyProfile.State.builder().backdrop(Backdrop.panorama(FAIXAS).build()).build())
             .build());
+    }
+
+    // 0.14 (fase 2): fundos de céu para o testeBackdrop. Texturas de scripts/gerar_fundos_teste.py.
+    static final String CUBO = ID + ":textures/sky/cubo.png", GRADE = ID + ":textures/sky/grade.png",
+        MEIA = ID + ":textures/sky/meia.png", FAIXAS = ID + ":textures/sky/faixas.png";
+    static final ResourceLocation FUNDO_CUBO = id("fundo_cubo"), FUNDO_GRADE = id("fundo_grade"), FUNDO_GIRADO = id("fundo_girado"),
+        FUNDO_MEIA = id("fundo_meia"), FUNDO_SOL = id("fundo_sol"), FUNDO_GRADIENTE = id("fundo_gradiente"),
+        FUNDO_SEM_NEVOA = id("fundo_sem_nevoa"), FUNDO_ATMO = id("fundo_atmo"), FUNDO_FAIXAS = id("fundo_faixas");
+    /** Gradiente do teste (ARGB): zênite, horizonte, nadir. */
+    static final int GRAD_TOPO = 0xff3010a0, GRAD_HORIZONTE = 0xffe07020, GRAD_BAIXO = 0xff102010;
+    /** Atmosfera de FUNDO_ATMO: sem estrelas nem névoa, para comparar com mix(fundo, gradiente, 0,7). */
+    static final int ATMO_TOPO = 0xff0c0520, ATMO_HORIZONTE = 0xffd85a33;
+    static final float ATMO_MISTURA = .7f;
+
+    private static void registrarFundos() {
+        var def = new Effects.Definition(12000, 8, 0xffffffff, Effects.Shape.NONE, Effects.Material.NONE, null, null).withRange(1024);
+        Effects.register(FUNDO_CUBO, def);
+        Effects.backdrop(FUNDO_CUBO, Backdrop.cubemap(CUBO).build());
+        Effects.register(FUNDO_GRADE, def);
+        Effects.backdrop(FUNDO_GRADE, Backdrop.cubemap(GRADE).build());
+        Effects.register(FUNDO_GIRADO, def);
+        Effects.backdrop(FUNDO_GIRADO, Backdrop.cubemap(CUBO).rotation(90).build());
+        Effects.register(FUNDO_MEIA, def);
+        // Sem névoa casada: com fundo parcial, a névoa casada muda também o horizonte do céu do jogo que aparece por trás;
+        // aqui o teste mede só a mistura por alfa.
+        Effects.backdrop(FUNDO_MEIA, Backdrop.panorama(MEIA).matchFog(false).build());
+        Effects.register(FUNDO_SOL, def);
+        Effects.backdrop(FUNDO_SOL, Backdrop.cubemap(CUBO).vanillaSunMoon(true).build());
+        Effects.register(FUNDO_GRADIENTE, def);
+        Effects.backdrop(FUNDO_GRADIENTE, Backdrop.gradient(GRAD_TOPO, GRAD_HORIZONTE, GRAD_BAIXO).build());
+        Effects.register(FUNDO_SEM_NEVOA, def);
+        Effects.backdrop(FUNDO_SEM_NEVOA, Backdrop.cubemap(CUBO).matchFog(false).build());
+        Effects.register(FUNDO_FAIXAS, def);
+        Effects.backdrop(FUNDO_FAIXAS, Backdrop.panorama(FAIXAS).build());
+        Effects.register(FUNDO_ATMO, def);
+        Effects.atmosphere(FUNDO_ATMO, dev.calamidade_awakening.api.v1.Atmosphere.builder().sky(ATMO_TOPO, ATMO_HORIZONTE, ATMO_MISTURA).build());
+        Effects.backdrop(FUNDO_ATMO, Backdrop.cubemap(CUBO).build());
     }
 
     /** Voltas do laço do evento global em que o cue rodou (no servidor). */

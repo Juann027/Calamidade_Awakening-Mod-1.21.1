@@ -171,6 +171,7 @@ final class BackdropFrame {
      * hides). The sky pass then removes only the uncovered part of the vanilla body ({@code 1 − coverage}).
      */
     private void redrawSunAndMoon(List<Layer> list, Matrix4f view, Matrix4f projection, float partial, float hideSun, float hideMoon) {
+        sunRedrawn = moonRedrawn = 0;
         if (list.stream().noneMatch(l -> l.backdrop().vanillaSunMoon())) return;
         Minecraft mc = Minecraft.getInstance();
         if (!SkyFrame.vanillaDrawn(mc, mc.gameRenderer.getMainCamera().getPosition())) return;
@@ -181,6 +182,8 @@ final class BackdropFrame {
         var sunDir = dev.calamidade_awakening.api.SkyMath.sunDirection(timeOfDay);
         float sunAlpha = clear * redrawn(list, sunDir.x(), sunDir.y(), sunDir.z()) * (1 - hideSun);
         float moonAlpha = clear * redrawn(list, -sunDir.x(), -sunDir.y(), -sunDir.z()) * (1 - hideMoon);
+        sunRedrawn = sunAlpha;
+        moonRedrawn = moonAlpha;
         Matrix4f body = new Matrix4f(view).rotateY((float) Math.toRadians(-90)).rotateX((float) (timeOfDay * Math.PI * 2));
         RenderSystem.blendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE,
             GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
@@ -366,6 +369,9 @@ final class BackdropFrame {
         for (Layer l : layers) clear *= 1 - (l.entry().opaque ? l.alpha() : 0);
         return !layers.isEmpty() && clear <= 1 - BackdropMath.OPAQUE;
     }
+    private float sunRedrawn, moonRedrawn;
+    /** Opacity of the vanilla sun and moon drawn again over the backgrounds in the last frame (tests). */
+    float[] redrawnBodies() { return new float[] {sunRedrawn, moonRedrawn}; }
     /** Geometry draws since start (tests). */
     int draws() { return draws; }
     /** Texture cache (tests). */

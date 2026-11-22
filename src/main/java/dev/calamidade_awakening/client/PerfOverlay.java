@@ -103,6 +103,9 @@ public final class PerfOverlay {
     private static int backdropDrawn, backdropActive;
     private static boolean backdropOpaque, backdropBlocked;
 
+    /** Whether the atmosphere pass ran in the last complete frame (0.14.0, tests: a static background needs none). */
+    public static boolean atmospherePass() { return lastAtmospherePass; }
+
     /** Sky layers painted in the last complete frame and whether the sky pass ran (0.12.0, tests). */
     public static int skyLayers() { return lastSkyLayers; }
     public static boolean skyPass() { return lastSkyPass; }

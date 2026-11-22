@@ -146,7 +146,10 @@ public final class ClientHooks {
         /** 0.14.0: background textures and their CPU copies are released on resource reload and built again on use. */
         @SubscribeEvent
         public static void reloadListeners(net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent event) {
-            event.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener) manager -> BACKDROP.clear());
+            event.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener) manager -> {
+                LOGGER.debug("Resource reload: releasing sky background textures");
+                BACKDROP.clear();
+            });
         }
 
         @SubscribeEvent
@@ -313,6 +316,8 @@ public final class ClientHooks {
     public static boolean backdropBlocked() { return BACKDROP.blocked(); }
     /** Background textures loaded since start and kept now (0.14.0: tests of reuse and release). */
     public static int[] backdropTextures() { return new int[] {BACKDROP.textures().loads(), BACKDROP.textures().size()}; }
+    /** Opacity of the vanilla sun and moon drawn again over the backgrounds in the last frame (0.14.0: tests). */
+    public static float[] backdropRedrawnBodies() { return BACKDROP.redrawnBodies(); }
     /** Geometry draws since start (0.14.0: tests). */
     public static int backdropDraws() { return BACKDROP.draws(); }
     /** Coverage of the frame's backgrounds in a direction (0.14.0: tests). */
