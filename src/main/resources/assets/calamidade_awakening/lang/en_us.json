@@ -72,7 +72,7 @@
   "command.calamidade_awakening.terrain.none": "No terrain edit to undo",
   "command.calamidade_awakening.terrain.last": "Last: %s",
   "command.calamidade_awakening.terrain.undo": "Undoing %s",
-  "command.calamidade_awakening.status.terrain": "Terrain: %s writing · %s undoable · %s commits · %s blocks written · refused %s (config %s, dimension %s, mobGriefing %s, event %s, volume %s, structure %s, error %s)",
+  "command.calamidade_awakening.status.terrain": "Terrain: %s writing · %s undoable · %s commits · %s blocks written · refused %s (config %s, dimension %s, mobGriefing %s, event %s, volume %s, structure %s, error %s, explosion event %s, permission %s, protected %s)",
   "perf.calamidade_awakening.terrain": "Terrain: %s hot zones · %s stand-ins · pass %s",
   "calamidade_awakening.configuration.terrain": "Terrain (Terrain API)",
   "calamidade_awakening.configuration.terrain.tooltip": "Craters, burnt shells and blocks placed by effects. Conservative defaults.",
@@ -94,5 +94,9 @@
   "calamidade_awakening.configuration.terrainUndoEdits.tooltip": "Most undo snapshots kept (the oldest go first).",
   "calamidade_awakening.configuration.terrainMaxStructure": "Largest structure",
   "calamidade_awakening.configuration.terrainMaxStructure.tooltip": "Largest .nbt structure an edit may place, blocks per axis.",
+  "calamidade_awakening.configuration.terrainExplosionEvent": "Go through the explosion event",
+  "calamidade_awakening.configuration.terrainExplosionEvent.tooltip": "Every edit also goes through NeoForge's explosion events: protection mods (claims, regions) that protect against explosions protect against craters. Off: only TerrainEditEvent, world border and spawn protection.",
+  "calamidade_awakening.configuration.terrainSpawnProtection": "Respect spawn protection",
+  "calamidade_awakening.configuration.terrainSpawnProtection.tooltip": "Edits leave the spawn protection area (spawn-protection in server.properties) intact; an operator is exempt only when the edit is theirs.",
   "perf.calamidade_awakening.meshes": "Stand-in meshes: %s · %s vertices · last build %s ms"
 }

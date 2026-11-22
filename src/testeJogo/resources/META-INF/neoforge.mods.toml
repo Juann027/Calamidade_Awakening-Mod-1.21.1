@@ -1,0 +1,15 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+# Mod de teste em jogo (0.11.1): só as runs testeServidor e testeReinicio o carregam; nunca entra no JAR do motor.
+[[mods]]
+modId="calamidade_teste"
+version="1"
+displayName="Calamidade_Awakening - teste em jogo"
+description="Roteiro automatizado da Terrain API num servidor dedicado."
+[[dependencies.calamidade_teste]]
+modId="calamidade_awakening"
+type="required"
+versionRange="[0.11,)"
+ordering="AFTER"
+side="BOTH"

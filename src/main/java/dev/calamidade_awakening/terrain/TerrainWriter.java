@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.game.ClientboundSectionBlocksUpdatePacket;
+import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ThreadedLevelLightEngine;
@@ -71,13 +72,27 @@ final class TerrainWriter {
             current = known;
             return true;
         }
-        LevelChunk chunk = level.getChunkSource().getChunkNow(sx, sz);
+        LevelChunk chunk = fullChunk(level, sx, sz);
         if (chunk == null) return false;
         int index = level.getSectionIndexFromSectionY(sy);
         if (index < 0 || index >= level.getSectionsCount()) return false;
         current = new Touched(chunk, chunk.getSection(index), SectionPos.of(sx, sy, sz));
         touched.put(key, current);
         return true;
+    }
+
+    /**
+     * Chunk at section coordinates if it is loaded and FULL, else null; never loads or generates chunks. Conferred with
+     * {@code javap -c}: {@code ServerChunkCache.getChunkNow} returns null off the server thread and only a chunk that
+     * reached {@code ChunkStatus.FULL} (a {@link LevelChunk}), or NeoForge's {@code ChunkHolder.currentlyLoading} (a chunk
+     * being promoted to FULL inside its load event; edits run in the server tick, never inside that callback). The
+     * full-status check also rules out chunks whose ticket level dropped ({@code FullChunkStatus.INACCESSIBLE}: being
+     * unloaded).
+     */
+    static LevelChunk fullChunk(ServerLevel level, int sx, int sz) {
+        LevelChunk chunk = level.getChunkSource().getChunkNow(sx, sz);
+        if (chunk == null || !chunk.getFullStatus().isOrAfter(FullChunkStatus.FULL)) return null;
+        return chunk;
     }
 
     /** Chunk of the current section. */

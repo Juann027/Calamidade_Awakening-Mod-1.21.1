@@ -72,7 +72,7 @@
   "command.calamidade_awakening.terrain.none": "Nenhuma edição de terreno para desfazer",
   "command.calamidade_awakening.terrain.last": "Última: %s",
   "command.calamidade_awakening.terrain.undo": "Desfazendo %s",
-  "command.calamidade_awakening.status.terrain": "Terreno: %s em escrita · %s desfazíveis · %s commits · %s blocos escritos · recusadas %s (config %s, dimensão %s, mobGriefing %s, evento %s, volume %s, estrutura %s, erro %s)",
+  "command.calamidade_awakening.status.terrain": "Terreno: %s em escrita · %s desfazíveis · %s commits · %s blocos escritos · recusadas %s (config %s, dimensão %s, mobGriefing %s, evento %s, volume %s, estrutura %s, erro %s, evento de explosão %s, permissão %s, protegida %s)",
   "perf.calamidade_awakening.terrain": "Terreno: %s zonas quentes · %s dublês · passe %s",
   "calamidade_awakening.configuration.terrain": "Terreno (Terrain API)",
   "calamidade_awakening.configuration.terrain.tooltip": "Crateras, bordas queimadas e blocos colocados por efeitos. Padrões conservadores.",
@@ -94,5 +94,9 @@
   "calamidade_awakening.configuration.terrainUndoEdits.tooltip": "Máximo de snapshots de desfazer (os mais antigos saem primeiro).",
   "calamidade_awakening.configuration.terrainMaxStructure": "Tamanho máximo de estrutura",
   "calamidade_awakening.configuration.terrainMaxStructure.tooltip": "Maior estrutura .nbt que uma edição pode colocar, em blocos por eixo.",
+  "calamidade_awakening.configuration.terrainExplosionEvent": "Passar pelo evento de explosão",
+  "calamidade_awakening.configuration.terrainExplosionEvent.tooltip": "Cada edição também passa pelos eventos de explosão do NeoForge: mods de proteção (claims, regiões) que protegem contra explosões protegem contra crateras. Desligado: só TerrainEditEvent, borda do mundo e proteção de spawn.",
+  "calamidade_awakening.configuration.terrainSpawnProtection": "Respeitar a proteção de spawn",
+  "calamidade_awakening.configuration.terrainSpawnProtection.tooltip": "Edições não mexem na área protegida do spawn (spawn-protection do server.properties); um operador só fica isento quando a edição é dele.",
   "perf.calamidade_awakening.meshes": "Malhas de dublê: %s · %s vértices · última montagem %s ms"
 }

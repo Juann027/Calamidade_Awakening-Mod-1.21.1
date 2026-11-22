@@ -75,7 +75,9 @@ abstract class TerrainJob {
         final boolean blockEntities;
         final TerrainSnapshot.Builder snapshot;
         final List<BlockPos> falling = new ArrayList<>();
-        int section, entry, protectedSkipped, unloadedSkipped;
+        /** First global plan entry of each section (for {@code run.allowed}, which is in plan order). */
+        final int[] offsets;
+        int section, entry, protectedSkipped, unloadedSkipped, guardedSkipped;
 
         Commit(ServerLevel level, TerrainWorks.Run run, TerrainPlan plan, BlockState[][] bands, BlockState fill,
                BlockState[] structure, java.util.Map<Long, CompoundTag> structureData, boolean blockEntities,
@@ -83,6 +85,8 @@ abstract class TerrainJob {
             super(level, run.label());
             this.run = run; this.plan = plan; this.bands = bands; this.fill = fill; this.structure = structure;
             this.structureData = structureData; this.blockEntities = blockEntities; this.snapshot = snapshot;
+            offsets = new int[plan.sections().size()];
+            for (int i = 1; i < offsets.length; i++) offsets[i] = offsets[i - 1] + plan.sections().get(i - 1).size();
         }
 
         @Override boolean work(int budget) {
@@ -97,9 +101,16 @@ abstract class TerrainJob {
                 }
                 if (entry > 0 && !writer.enter(s.x(), s.y(), s.z())) { section++; entry = 0; continue; }
                 TerrainSnapshot.Growing changes = snapshot.section(s.x(), s.y(), s.z());
+                java.util.BitSet allowed = run.allowed;
                 for (; entry < s.size() && done < budget; entry++, done++) {
                     int index = s.index()[entry] & 0xFFFF;
                     BlockState old = writer.get(index);
+                    if (allowed != null && !allowed.get(offsets[section] + entry)) {
+                        // Left out by the protection checks; air that was not offered to them stays a no-op.
+                        byte action = s.action()[entry];
+                        if (!old.isAir() || action == TerrainPlan.FILL || action == TerrainPlan.STRUCTURE) guardedSkipped++;
+                        continue;
+                    }
                     BlockPos pos = writer.pos(index);
                     if (isProtected(old, pos)) {
                         if (!old.isAir()) protectedSkipped++;

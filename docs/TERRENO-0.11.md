@@ -158,6 +158,8 @@ Config do servidor, seção `terrain` de `serverconfig/calamidade_awakening-serv
 | `terrainMobGriefing` | `true` | Edições cuja fonte é um mob seguem a regra `mobGriefing`. |
 | `terrainUndoMinutes` / `terrainUndoEdits` | 10 / 16 | Quanto tempo e quantos snapshots ficam para desfazer (0 não guarda). |
 | `terrainMaxStructure` | 32 | Maior estrutura por eixo. |
+| `terrainExplosionEvent` (0.11.1) | `true` | Toda edição passa também pelos eventos de explosão do NeoForge (veja [Compatibilidade](#compatibilidade-0111)): mods de proteção que protegem contra explosões protegem contra crateras. |
+| `terrainSpawnProtection` (0.11.1) | `true` | A área de `spawn-protection` do servidor dedicado fica intacta. |
 
 **Nunca tocados:** bedrock, blocos indestrutíveis (dureza < 0), blocos com block entity (baús, fornalhas, blocos de outros mods; salvo as duas opções acima) e a tag de blocos `calamidade_awakening:terrain_protected` (padrão: `#minecraft:wither_immune`, portais, molduras do End, reinforced deepslate, spawners, trial spawners e vaults). Datapacks podem estender a tag. Entidades dentro da área **não** são apagadas: dano e empurrão continuam nos cues.
 
@@ -170,7 +172,9 @@ public static void protect(TerrainEditEvent event) {
 }
 ```
 
-Recusas (config, dimensão, `mobGriefing`, evento, volume, estrutura) não escrevem nada; o cliente recebe a recusa e não desenha o calor (o dublê, se houver, ainda cai e esmaece). `/calamidade status` mostra as edições em escrita, os snapshots e as recusas por motivo.
+Desde a 0.11.1, depois do `TerrainEditEvent` vêm a borda do mundo, a proteção de spawn, o modo de jogo do jogador e os eventos de explosão do NeoForge ([Compatibilidade](#compatibilidade-0111)).
+
+Recusas (config, dimensão, `mobGriefing`, evento, volume, estrutura e, desde a 0.11.1, evento de explosão, permissão e área toda protegida) não escrevem nada; o cliente recebe a recusa e não desenha o calor (o dublê, se houver, ainda cai e esmaece). `/calamidade status` mostra as edições em escrita, os snapshots e as recusas por motivo.
 
 ## Desfazer
 
@@ -264,6 +268,30 @@ O commit é mais barato que o `/fill` porque escreve na seção sem trava, sem `
 - **Instâncias presas a entidades** planejam no marcador (na thread do servidor), não durante a cena.
 - **Mods de renderização:** com Sodium/Embeddium, as seções chegam pelo pacote do jogo e devem aparecer igual; shader packs (Iris/Oculus) podem não desenhar o passe `terrain` (como os outros passes de pós). Veja TESTE-REAL.md, parte 6.
 - **Não copie o mundo de outros mods.** A técnica (troca em massa sob o impact frame, dublê que vira bloco, calor que esfria) foi observada em mods de terceiros; a implementação, os shaders, as formas, a paleta e a torre do exemplo são deste projeto, só com blocos vanilla.
+
+## Compatibilidade (0.11.1)
+
+A Terrain API escreve direto nas `LevelChunkSection` (11 a 14 ms contra 16 a 45 ms do `/fill` e 1,1 s da TNT, na mesma cratera). O preço é pular o caminho que o Minecraft e outros mods usam para saber que um bloco mudou (`Level.setBlock`, `BlockEvent`, atualizações de vizinho). A 0.11.1 conferiu, no código e no bytecode (`javap -c`), cada sistema que depende desse caminho, corrigiu o que faltava e deixou um teste automatizado em jogo (`./gradlew testeJogo`, servidor dedicado sem tela, mod de teste em `src/testeJogo`) que compara a cratera com a mesma troca de blocos feita por `setBlock`. Resultado de cada rodada em [VALIDACAO.md](VALIDACAO.md).
+
+### Proteção territorial
+
+**O problema.** O `TerrainEditEvent` é próprio do Calamidade: um mod de claims não o conhece e não o cancela. Mods de proteção conhecem outro caminho: os eventos de explosão do NeoForge, que toda TNT, creeper e bola de fogo do ghast dispara.
+
+**O que a edição faz agora**, uma vez por edição, na thread do servidor, quando o plano fica pronto (logo depois do `TerrainEditEvent`; instâncias presas a uma entidade, no marcador):
+
+1. **Modo de jogo do jogador.** Com fonte jogador (online), `Player.mayBuild()` falso (aventura, espectador) recusa a edição inteira (motivo `PERMISSION` no `/calamidade status`). Conferido também no início da instância.
+2. **Borda do mundo** (`WorldBorder.isWithinBounds`), para qualquer fonte: posições fora dela saem do plano.
+3. **Proteção de spawn** (`terrainSpawnProtection`). Com fonte jogador, a conta do próprio servidor (`MinecraftServer.isUnderSpawnProtection`: só no servidor dedicado, no overworld, com algum operador cadastrado, e um operador como fonte fica isento). Para as outras fontes (mob, bloco, script), a mesma área sem isenção. Conferido com `javap -c` em `DedicatedServer.isUnderSpawnProtection`: quadrado de lado `2 × spawn-protection + 1` em volta do spawn do mundo. No singleplayer e na LAN o jogo não tem proteção de spawn, e a edição também não.
+4. **Eventos de explosão** (`terrainExplosionEvent`, padrão ligado). Uma `Explosion` sintética (construtor `Explosion(Level, Entity, x, y, z, raio, fogo, BlockInteraction, List<BlockPos>)`, que põe a lista em `toBlow`, conferido com `javap -c`): centro na origem da edição, raio até o canto mais distante da área planejada, `BlockInteraction.DESTROY`, sem fogo, fonte = a entidade por trás do efeito (o jogador, o mob; nula para bloco e script). Ela carrega as posições que a edição mudaria **naquele momento** (o que não é ar, mais todo preenchimento e estrutura). Primeiro `ExplosionEvent.Start`: cancelado, a edição é recusada (motivo `EXPLOSION`). Depois `ExplosionEvent.Detonate`: toda posição que os listeners tirarem de `getAffectedBlocks()` fica fora do commit. A explosão **nunca roda** (`explode` e `finalizeExplosion` não são chamados): sem dano, partículas, som, drops ou fogo.
+5. **No commit**, um bit por entrada do plano diz o que pode ser escrito. Uma posição que era ar na hora da autorização (e por isso não foi oferecida aos listeners) é pulada se alguém construir ali antes do marcador: nada muda sem passar pelos listeners. Se todas as posições forem tiradas, a edição é recusada (motivo `PROTECTED`).
+
+O relatório de `/calamidade terrain list` conta as posições guardadas: `N guarded (A border/spawn, B explosion listeners)`.
+
+**Mods de proteção.** Mods que tratam o `ExplosionEvent` do NeoForge passam a valer para as crateras sem saber do Calamidade. **FTB Chunks** e **Open Parties and Claims** protegem claims contra explosões tirando posições da lista de blocos afetados, que no NeoForge é a do `ExplosionEvent.Detonate`; com eles, a cratera deve parar na borda do claim, desde que a proteção contra explosões esteja ligada (no FTB Chunks, a opção do time que permite explosões; no OPAC, a proteção de explosões dos claims). **GriefDefender** e outros valem do mesmo jeito **se** a versão para NeoForge 1.21.1 tratar o `ExplosionEvent` (e não só mixins dentro da explosão vanilla, que a explosão sintética nunca executa). Nenhum desses mods foi instalado aqui: o comportamento foi provado com um listener que faz o mesmo que eles, e precisa ser confirmado com as versões reais (TESTE-REAL.md, caso 75). O `TerrainEditEvent` continua, para quem quiser recusar a edição inteira com a área e a fonte exatas.
+
+**Efeitos colaterais a conhecer.** Todo listener de explosão vê a edição como uma explosão: mods que **regeneram** explosões (devolvem os blocos depois de um tempo) vão regenerar a cratera; mods que criam **destroços** (blocos caindo para cada posição) podem criar milhares de entidades numa cratera grande. Nesses servidores, desligue `terrainExplosionEvent` (fica só o `TerrainEditEvent`, a borda e o spawn) ou configure o outro mod para ignorar explosões sem fonte ou de raio grande. O calor desenhado pelo cliente segue a forma inteira: numa área protegida, os blocos intactos podem brilhar por alguns segundos (é só visual; mudar isso exigiria mudar o protocolo).
+
+**Teste em jogo:** um listener de teste que só conhece o `ExplosionEvent` protege `x ≥ cx`; a cratera abre do lado de fora (183 posições) e nenhuma posição muda do lado protegido, com o bloco de `x = cx − 1` cavado e o de `x = cx` intacto. Também: `Start` cancelado (recusa, nada muda), `terrainExplosionEvent = false` (listener não chamado, cratera inteira), borda do mundo no meio da cratera e proteção de spawn de 16 num servidor dedicado com um operador (nada muda do lado protegido).
 
 ## Receitas
 

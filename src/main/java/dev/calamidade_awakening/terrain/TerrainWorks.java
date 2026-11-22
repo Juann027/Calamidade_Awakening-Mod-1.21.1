@@ -95,7 +95,13 @@ public final class TerrainWorks {
         /** Structure template missing or larger than {@code terrainMaxStructure}. */
         STRUCTURE,
         /** Plan failed (shape too large to scan). */
-        ERROR
+        ERROR,
+        /** (0.11.1) Cancelled by an {@code ExplosionEvent.Start} listener (protection mods). */
+        EXPLOSION,
+        /** (0.11.1) Player source that may not build (adventure, spectator). */
+        PERMISSION,
+        /** (0.11.1) Every position left out by the protection checks (border, spawn, explosion listeners). */
+        PROTECTED
     }
 
     enum State { WAITING, PLANNING, READY, COMMITTING, DONE, REFUSED }
@@ -130,6 +136,9 @@ public final class TerrainWorks {
         long commitTick;
         Structure structure;
         TerrainSync structureSync;
+        /** Plan entries the protection checks allow (null = all), and how many each layer left out (0.11.1). */
+        java.util.BitSet allowed;
+        int guardedRules, guardedListeners;
 
         Run(Instance instance, int index, TerrainEdit edit) { this.instance = instance; this.index = index; this.edit = edit; }
 
@@ -204,6 +213,8 @@ public final class TerrainWorks {
     private static Reason gate(ServerConfig.Terrain rules, ServerLevel level, EffectSource source, Entity anchor) {
         if (!rules.enabled()) return Reason.DISABLED;
         if (!rules.allows(level.dimension().location().toString())) return Reason.DIMENSION;
+        if (!TerrainGuard.mayEdit(TerrainGuard.player(level, source, anchor instanceof ServerPlayer p ? p : null)))
+            return Reason.PERMISSION;
         if (rules.mobGriefing() && source.kind() == EffectSource.Kind.ENTITY) {
             Entity entity = anchor != null && anchor.getUUID().equals(source.uuid()) ? anchor : level.getEntity(source.uuid());
             if (!(entity instanceof Player) && !level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)) return Reason.MOB_GRIEFING;
@@ -254,6 +265,16 @@ public final class TerrainWorks {
             refuse(run, Reason.EVENT, broadcast);
             return;
         }
+        // 0.11.1: world border, spawn protection, build permission and NeoForge's explosion events (protection mods).
+        TerrainGuard.Result guard = TerrainGuard.check(instance.level, plan, run.origin, instance.source, entityOf(instance),
+            ServerConfig.terrain());
+        if (guard.refusal() != null) {
+            refuse(run, guard.refusal(), broadcast);
+            return;
+        }
+        run.allowed = guard.allowed();
+        run.guardedRules = guard.byRules();
+        run.guardedListeners = guard.byListeners();
         run.state = State.READY;
     }
 
@@ -346,9 +367,9 @@ public final class TerrainWorks {
             while (HISTORY.size() > rules.undoEdits()) HISTORY.removeFirst();
         }
         lastReport = String.format(java.util.Locale.ROOT,
-            "%s: %d planned, %d written, %d protected kept, %d sections unloaded, %d ticks, %.2f ms on the server thread, %d section packets",
-            job.label, job.plan.total(), job.writer.written(), job.protectedSkipped, job.unloadedSkipped, job.ticks,
-            job.nanos / 1e6, job.writer.sectionsSent());
+            "%s: %d planned, %d written, %d protected kept, %d guarded (%d border/spawn, %d explosion listeners), %d sections unloaded, %d ticks, %.2f ms on the server thread, %d section packets",
+            job.label, job.plan.total(), job.writer.written(), job.protectedSkipped, job.guardedSkipped, job.run.guardedRules,
+            job.run.guardedListeners, job.unloadedSkipped, job.ticks, job.nanos / 1e6, job.writer.sectionsSent());
         LOGGER.debug("Terrain commit {}", lastReport);
     }
 

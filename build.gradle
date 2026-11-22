@@ -11,14 +11,41 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 // NeoForge do build. O manifesto aceita [21.1,21.2); -Pneoforge.version=21.1.265 compila e testa contra outra
 // versão da linha 21.1 (a 0.10.0 foi conferida com a 21.1.265, a do RespectCraft). Os releases saem da 21.1.267.
 def neoForgeVersion = providers.gradleProperty('neoforge.version').getOrElse('21.1.267')
+
+// 0.11.1: teste automatizado em jogo. src/testeJogo é um mod à parte (calamidade_teste) que nunca entra no JAR do
+// motor; só as runs testeServidor e testeReinicio o carregam. Veja a task testeJogo, abaixo.
+sourceSets {
+    testeJogo {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+
+def testeJogoDir = layout.projectDirectory.dir('run/teste-jogo').asFile
 neoForge {
     version = neoForgeVersion
-    runs {
-        client { client() }
-        server { server(); programArgument '--nogui' }
-    }
     mods {
         calamidade_awakening { sourceSet sourceSets.main }
+        calamidade_teste { sourceSet sourceSets.testeJogo }
+    }
+    runs {
+        client { client(); loadedMods = [mods.calamidade_awakening] }
+        server { server(); programArgument '--nogui'; loadedMods = [mods.calamidade_awakening] }
+        // Servidor dedicado sem tela, mundo plano próprio: cenários (fase 1) e a mesma pasta reaberta (fase 2).
+        testeServidor {
+            server(); programArgument '--nogui'
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = testeJogoDir
+            systemProperty 'calamidade.teste', 'cenarios'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
+        testeReinicio {
+            server(); programArgument '--nogui'
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = testeJogoDir
+            systemProperty 'calamidade.teste', 'reinicio'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
     }
 }
 
@@ -262,4 +289,56 @@ tasks.register('dist', Copy) {
     dependsOn tasks.named('build')
     from tasks.named('jar')
     into layout.projectDirectory.dir('dist')
+}
+
+// 0.11.1: teste automatizado em jogo da Terrain API (proteção, luz, mapas de altura, pontos de interesse, contadores
+// das seções, casca externa, desfazer, chunks não FULL e reinício). Duas execuções do servidor dedicado na mesma pasta
+// (run/teste-jogo): a primeira roda os cenários e deixa uma cratera; a segunda reabre o mundo e confere a cratera.
+// Relatório em run/teste-jogo/calamidade-teste.txt. -PtesteMods=<pasta> copia JARs de outros mods para mods/
+// (Moonrise, por exemplo) antes da primeira fase.
+def testeMods = providers.gradleProperty('testeMods')
+def prepararTesteJogo = tasks.register('prepararTesteJogo') {
+    group = 'verification'
+    description = 'Prepara run/teste-jogo: mundo novo, server.properties, eula, ops e mods extras.'
+    doLast {
+        testeJogoDir.mkdirs()
+        ['world', 'mods', 'logs'].each { project.delete(new File(testeJogoDir, it)) }
+        project.delete(new File(testeJogoDir, 'calamidade-teste.txt'), new File(testeJogoDir, 'reinicio.txt'))
+        new File(testeJogoDir, 'eula.txt').text = 'eula=true\n'
+        def layers = '{"layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:stone","height":60},' +
+            '{"block":"minecraft:dirt","height":3},{"block":"minecraft:grass_block","height":1}],"biome":"minecraft:plains"}'
+        new File(testeJogoDir, 'server.properties').text = [
+            'level-type=minecraft\\:flat', 'generator-settings=' + layers.replace(':', '\\:'), 'level-seed=1',
+            'spawn-protection=16', 'online-mode=false', 'generate-structures=false', 'spawn-monsters=false',
+            'spawn-animals=false', 'spawn-npcs=false', 'difficulty=peaceful', 'max-tick-time=-1', 'server-port=25588',
+            'view-distance=4', 'simulation-distance=4', 'enable-rcon=false', 'sync-chunk-writes=true'].join('\n') + '\n'
+        // Um operador fictício: a proteção de spawn do servidor dedicado só vale quando existe algum operador.
+        new File(testeJogoDir, 'ops.json').text =
+            '[{"uuid":"00000000-0000-0000-0000-00000000c0de","name":"OperadorTeste","level":4,"bypassesPlayerLimit":false}]\n'
+        if (testeMods.isPresent()) {
+            def mods = new File(testeJogoDir, 'mods'); mods.mkdirs()
+            project.copy { from(testeMods.get()) { include '*.jar' }; into mods }
+        }
+    }
+}
+tasks.configureEach { task ->
+    if (task.name == 'runTesteServidor') task.dependsOn prepararTesteJogo
+    if (task.name == 'runTesteReinicio') task.mustRunAfter 'runTesteServidor'
+}
+tasks.register('testeJogo') {
+    group = 'verification'
+    description = 'Roda o teste em jogo da Terrain API num servidor dedicado (duas fases) e falha se algum caso falhar.'
+    dependsOn 'runTesteServidor', 'runTesteReinicio'
+    doLast {
+        def report = new File(testeJogoDir, 'calamidade-teste.txt')
+        if (!report.exists()) throw new GradleException('testeJogo: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        def passed = lines.count { it.startsWith('PASS') }
+        ['FIM cenarios', 'FIM reinicio'].each { mark ->
+            if (!lines.contains(mark)) failed << "FAIL fase incompleta (falta '${mark}')"
+        }
+        logger.lifecycle("testeJogo: ${passed} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeJogo:\n' + failed.join('\n'))
+    }
 }

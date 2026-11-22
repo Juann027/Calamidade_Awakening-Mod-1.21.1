@@ -24,10 +24,13 @@ public final class ServerConfig {
     private static final ModConfigSpec.IntValue TERRAIN_UNDO_MINUTES;
     private static final ModConfigSpec.IntValue TERRAIN_UNDO_EDITS;
     private static final ModConfigSpec.IntValue TERRAIN_MAX_STRUCTURE;
+    private static final ModConfigSpec.BooleanValue TERRAIN_EXPLOSION_EVENT;
+    private static final ModConfigSpec.BooleanValue TERRAIN_SPAWN_PROTECTION;
 
-    /** Defaults of the terrain rules (0.11.0). */
+    /** Defaults of the terrain rules (0.11.0; explosion event and spawn protection since 0.11.1). */
     public static final Terrain TERRAIN_DEFAULT = new Terrain(true, 150_000, 16_384,
-        java.util.List.of("minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"), false, true, 10, 16, 32);
+        java.util.List.of("minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"), false, true, 10, 16, 32,
+        true, true);
 
     /**
      * Terrain API rules (0.11.0).
@@ -41,9 +44,15 @@ public final class ServerConfig {
      * @param undoMinutes       minutes a committed edit can be undone (0 keeps no snapshot)
      * @param undoEdits         most snapshots kept
      * @param maxStructure      largest structure template per axis, blocks
+     * @param explosionEvent    (0.11.1) every edit also goes through NeoForge's {@code ExplosionEvent.Start} (cancel
+     *                          refuses it) and {@code ExplosionEvent.Detonate} (positions removed by listeners are kept),
+     *                          so protection mods that handle explosions protect their areas
+     * @param spawnProtection   (0.11.1) edits leave the server's spawn protection area alone (operators exempt only
+     *                          when they are the source)
      */
     public record Terrain(boolean enabled, int maxVolume, int blocksPerTick, java.util.List<String> dimensions,
-                          boolean blockEntities, boolean mobGriefing, int undoMinutes, int undoEdits, int maxStructure) {
+                          boolean blockEntities, boolean mobGriefing, int undoMinutes, int undoEdits, int maxStructure,
+                          boolean explosionEvent, boolean spawnProtection) {
         /** True when edits may run in this dimension. */
         public boolean allows(String dimension) { return dimensions.contains("*") || dimensions.contains(dimension); }
     }
@@ -99,6 +108,12 @@ public final class ServerConfig {
         TERRAIN_MAX_STRUCTURE = builder.comment("Largest structure template an edit may place, blocks per axis.")
             .translation("calamidade_awakening.configuration.terrainMaxStructure")
             .defineInRange("terrainMaxStructure", TERRAIN_DEFAULT.maxStructure(), 1, 64);
+        TERRAIN_EXPLOSION_EVENT = builder.comment("Every edit also goes through NeoForge's explosion events (Start: cancel refuses it; Detonate: positions removed by listeners stay intact), so claim and region mods that protect against explosions protect against edits too. Off: only TerrainEditEvent, world border and spawn protection apply.")
+            .translation("calamidade_awakening.configuration.terrainExplosionEvent")
+            .define("terrainExplosionEvent", TERRAIN_DEFAULT.explosionEvent());
+        TERRAIN_SPAWN_PROTECTION = builder.comment("Edits leave the server's spawn protection area (spawn-protection in server.properties) intact; an operator is exempt only when the edit is theirs.")
+            .translation("calamidade_awakening.configuration.terrainSpawnProtection")
+            .define("terrainSpawnProtection", TERRAIN_DEFAULT.spawnProtection());
         builder.pop();
         SPEC = builder.build();
     }
@@ -119,7 +134,8 @@ public final class ServerConfig {
         try {
             return new Terrain(TERRAIN_ENABLED.get(), TERRAIN_MAX_VOLUME.get(), TERRAIN_BLOCKS_PER_TICK.get(),
                 java.util.List.copyOf(TERRAIN_DIMENSIONS.get()), TERRAIN_BLOCK_ENTITIES.get(), TERRAIN_MOB_GRIEFING.get(),
-                TERRAIN_UNDO_MINUTES.get(), TERRAIN_UNDO_EDITS.get(), TERRAIN_MAX_STRUCTURE.get());
+                TERRAIN_UNDO_MINUTES.get(), TERRAIN_UNDO_EDITS.get(), TERRAIN_MAX_STRUCTURE.get(),
+                TERRAIN_EXPLOSION_EVENT.get(), TERRAIN_SPAWN_PROTECTION.get());
         } catch (IllegalStateException notLoaded) {
             return TERRAIN_DEFAULT;
         }
