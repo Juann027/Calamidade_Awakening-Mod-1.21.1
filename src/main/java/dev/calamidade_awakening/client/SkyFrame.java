@@ -52,6 +52,7 @@ final class SkyFrame {
 
     private final StageScene scene;
     private final WorldEventsClient world;
+    private final SkyProfilesClient profiles;
     private final DataTexture texture = new DataTexture(TEXELS, ROWS);
     private final float[] data = new float[TEXELS * 4 * ROWS];
     private final float[] masks = new float[4 * 8];
@@ -63,9 +64,10 @@ final class SkyFrame {
     private double previousTime = Double.NaN;
     private static final Map<Class<?>, Boolean> OVERRIDES_SKY = new ConcurrentHashMap<>();
 
-    SkyFrame(StageScene scene, WorldEventsClient world) {
+    SkyFrame(StageScene scene, WorldEventsClient world, SkyProfilesClient profiles) {
         this.scene = scene;
         this.world = world;
+        this.profiles = profiles;
     }
 
     /** Resolves this frame's layers, the darkening and the vanilla bodies to hide. */
@@ -74,6 +76,7 @@ final class SkyFrame {
         double timeOfDay = mc.level == null ? 0 : mc.level.getTimeOfDay(partial);
         List<SkyMath.Candidate<Resolved>> all = new java.util.ArrayList<>(scene.skies(camera, partial, timeOfDay));
         all.addAll(world.skies(mc.level, camera, partial, timeOfDay));
+        all.addAll(profiles.skies(mc.level, camera, partial, timeOfDay));
         candidates = all.size();
         float dark = 0, sun = 0, moon = 0;
         for (var c : all) {
@@ -84,9 +87,11 @@ final class SkyFrame {
                 if (r.layer().anchor() == Sky.Anchor.MOON) moon = Math.max(moon, r.state().weight());
             }
         }
+        // 0.12.0: the dimension's sky profile may hide the vanilla sun and moon too.
+        float[] hidden = mc.level == null ? new float[2] : profiles.hidden(mc.level, partial);
         darkening = dark;
-        hideSun = sun;
-        hideMoon = moon;
+        hideSun = Math.max(sun, hidden[0]);
+        hideMoon = Math.max(moon, hidden[1]);
         layers = SkyMath.select(all, limits.skyLayers());
         // Exposure of the world: accessibility intensity, then the atmosphere's calm ramp with hidden flashes.
         double now = mc.level == null ? Double.NaN : mc.level.getGameTime() + partial;
@@ -266,7 +271,11 @@ final class SkyFrame {
      */
     private static boolean vanillaDrawn(Minecraft mc, Vec3 camera) {
         DimensionSpecialEffects effects = mc.level.effects();
-        if (effects.skyType() != DimensionSpecialEffects.SkyType.NORMAL || overridesSky(effects)) return false;
+        if (effects.skyType() != DimensionSpecialEffects.SkyType.NORMAL) return false;
+        // The engine's own effects (0.12.0) draw the vanilla sky unless the profile replaces it this frame.
+        if (effects instanceof dev.calamidade_awakening.api.v1.client.ProfileSkyEffects own) {
+            if (own.replacing(mc.level) || overridesSky(own.base())) return false;
+        } else if (overridesSky(effects)) return false;
         if (effects.isFoggyAt((int) Math.floor(camera.x), (int) Math.floor(camera.z))
             || mc.gui.getBossOverlay().shouldCreateWorldFog()) return false;
         Camera view = mc.gameRenderer.getMainCamera();

@@ -91,6 +91,9 @@ public final class PerfOverlay {
     /** Global events that apply to this client (0.12.0), set every client tick. */
     static void world(int count) { worldEvents = count; }
     private static int worldEvents;
+    /** State of the dimension's sky profile, or null (0.12.0). */
+    static void skyState(String state) { skyState = state; }
+    private static String skyState;
     /** Global events that apply to this client, as F7 shows them (0.12.0, tests). */
     public static int worldEvents() { return worldEvents; }
     /** Sky layers painted in the last complete frame and whether the sky pass ran (0.12.0, tests). */
@@ -250,6 +253,8 @@ public final class PerfOverlay {
                 ? Component.translatableWithFallback(PREFIX + "yes", "yes")
                 : Component.translatableWithFallback(PREFIX + "no", "no")));
         lines.add(Component.translatableWithFallback(PREFIX + "world", "Global events: %s", worldEvents));
+        if (skyState != null)
+            lines.add(Component.translatableWithFallback(PREFIX + "skystate", "Dimension sky: %s", skyState));
         if (CostProbe.running()) lines.add(Component.literal(CostProbe.status()));
         if (recording != null) lines.add(Component.translatableWithFallback(PREFIX + "recording", "Recording: %s s left",
             Math.max(0, (recordingEnds - System.currentTimeMillis() + 999) / 1000)));

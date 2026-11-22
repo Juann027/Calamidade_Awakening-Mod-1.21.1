@@ -56,6 +56,11 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Sky.Param`](#skyparam)
 - [`Sky.State`](#skystate)
 - [`Sky.Type`](#skytype)
+- [`SkyProfile`](#skyprofile)
+- [`SkyProfile.Builder`](#skyprofilebuilder)
+- [`SkyProfile.State`](#skyprofilestate)
+- [`SkyProfile.StateBuilder`](#skyprofilestatebuilder)
+- [`SkyProfiles`](#skyprofiles)
 - [`TerrainEdit`](#terrainedit)
 - [`TerrainEdit.Builder`](#terraineditbuilder)
 - [`TerrainEdit.Fill`](#terraineditfill)
@@ -88,6 +93,7 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`AddonLayers.Start`](#addonlayersstart)
 - [`AddonLayers.Time`](#addonlayerstime)
 - [`AddonLayers.World`](#addonlayersworld)
+- [`ProfileSkyEffects`](#profileskyeffects)
 
 ## Addons
 
@@ -1118,6 +1124,78 @@ What the layer paints.
 | `AURORA` | Waving curtains of light along the horizon. |
 | `DISTANT_BOLTS` | Distant lightning (0.12.0, "raios ao longe"): bolts and beams that fall far away, at random spots around each player (70 to 300 blocks), with a flash on the sky. |
 
+## SkyProfile
+
+`dev.calamidade_awakening.api.v1.SkyProfile` · class
+
+Persistent sky of a dimension (0.12.0): named states (for example `calmo`, `ameaca`, `caos`), each with its `Sky` layers, an optional `Atmosphere` and whether the vanilla sun, moon and sky stay visible, plus the state the dimension starts in.
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_STATES` | Most states per profile. |
+| `static SkyProfile.Builder builder()` | New profile builder. |
+| `Map<String, SkyProfile.State> states()` | States by name, in declaration order. |
+| `String initial()` | State the dimension starts in (the first one unless `Builder.initial` says otherwise). |
+| `boolean has(String state)` | True when the profile has this state. |
+| `SkyProfile.State state(String name)` | A state by name; throws `IllegalArgumentException` when unknown. |
+
+## SkyProfile.Builder
+
+`dev.calamidade_awakening.api.v1.SkyProfile.Builder` · class
+
+Builder of a `SkyProfile`.
+
+| Membro | Descrição |
+|---|---|
+| `SkyProfile.Builder state(String name, SkyProfile.State state)` | Adds a named state (`[a-z0-9_]`, up to 64 characters), at most `MAX_STATES`. |
+| `SkyProfile.Builder initial(String name)` | State the dimension starts in. |
+| `SkyProfile build()` | Immutable profile; the initial state must exist. |
+
+## SkyProfile.State
+
+`dev.calamidade_awakening.api.v1.SkyProfile.State` · class
+
+One state of a dimension's sky.
+
+| Membro | Descrição |
+|---|---|
+| `static SkyProfile.StateBuilder builder()` | New state builder: no layers, no atmosphere, vanilla sun, moon and sky visible. |
+| `List<Sky> layers()` | Sky layers of this state (at most `Sky.MAX_PER_EFFECT`). |
+| `Atmosphere atmosphere()` | Atmosphere of this state, or null. |
+| `boolean vanillaSun()` | True when the vanilla sun stays visible (false: the sky pass hides it, in any dimension). |
+| `boolean vanillaMoon()` | True when the vanilla moon stays visible. |
+| `boolean vanillaSky()` | True when the vanilla sky stays (false: in a dimension whose effects are `ProfileSkyEffects`, the game does not draw its sky at all — gradient, sunrise, sun, moon, stars — and the engine paints the gradient of the state's atmosphere, or the vanilla colors, instead). |
+
+## SkyProfile.StateBuilder
+
+`dev.calamidade_awakening.api.v1.SkyProfile.StateBuilder` · class
+
+Builder of a `State`.
+
+| Membro | Descrição |
+|---|---|
+| `SkyProfile.StateBuilder layers(Sky... values)` | Adds sky layers (constant: no tracks nor phase), up to `Sky.MAX_PER_EFFECT` in total. |
+| `SkyProfile.StateBuilder atmosphere(Atmosphere value)` | Atmosphere of the state (constant: no tracks nor phase). |
+| `SkyProfile.StateBuilder vanillaSun(boolean visible)` | Whether the vanilla sun stays visible (true by default). |
+| `SkyProfile.StateBuilder vanillaMoon(boolean visible)` | Whether the vanilla moon stays visible (true by default). |
+| `SkyProfile.StateBuilder vanillaSky(boolean visible)` | Whether the whole vanilla sky stays (true by default); see `State.vanillaSky()`. |
+| `SkyProfile.State build()` | Immutable state. |
+
+## SkyProfiles
+
+`dev.calamidade_awakening.api.v1.SkyProfiles` · class
+
+Sky of each dimension (0.12.0): one `SkyProfile` per dimension, with named states and smooth transitions.
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_TICKS` | Longest transition, ticks (10 minutes). |
+| `static void define(ResourceLocation dimension, SkyProfile profile)` | Registers the profile of a dimension (one per dimension). |
+| `static Optional<SkyProfile> profile(ResourceLocation dimension)` | The profile of a dimension, if any. |
+| `static Map<ResourceLocation, SkyProfile> profiles()` | Every defined profile, by dimension. |
+| `static boolean setState(MinecraftServer server, ResourceLocation dimension, String state, int ticks)` | Crossfades the sky of `dimension` to `state` in `ticks` (0..`MAX_TICKS`; 0 is instant). |
+| `static Optional<String> state(MinecraftServer server, ResourceLocation dimension)` | The state the sky of `dimension` is in or going to, if it has a profile. |
+
 ## TerrainEdit
 
 `dev.calamidade_awakening.api.v1.TerrainEdit` · class
@@ -1707,4 +1785,25 @@ Additive world mesh of one instance, drawn after particles in one batch with the
 | `int remainingVertices()` | Vertices left in this instance's share of the frame budget. |
 | `void triangle(Vec3 a, Vec3 b, Vec3 c, int argb)` | One triangle (3 vertices); points are offsets in blocks from the center, color ARGB. |
 | `void ribbon(Vec3 a, Vec3 b, Vec3 side, double width, int argb)` | Flat ribbon from `a` to `b` (offsets in blocks), `width` blocks wide along `side`; 6 vertices. |
+
+## ProfileSkyEffects
+
+`dev.calamidade_awakening.api.v1.client.ProfileSkyEffects` · class
+
+Dimension effects that let the engine own the sky of your dimension (0.12.0).
+
+| Membro | Descrição |
+|---|---|
+| `new ProfileSkyEffects(DimensionSpecialEffects base)` | Effects that behave like `base` except while a profile state replaces the sky. |
+| `DimensionSpecialEffects base()` | The wrapped vanilla effects. |
+| `boolean replacing(ClientLevel level)` | True when the profile state of this level replaces the vanilla sky right now. |
+| `static void engine(Predicate<ClientLevel> predicate)` | Engine hook (internal): who answers `replacing`. |
+| `boolean renderSky(ClientLevel level, int ticks, float partialTick, Matrix4f modelViewMatrix, Camera camera, Matrix4f projectionMatrix, boolean isFoggy, Runnable setupFog)` | Draws nothing (returns true) while the profile replaces the sky; otherwise what `base` does. |
+| `Vec3 getBrightnessDependentFogColor(Vec3 fogColor, float brightness)` | Delegated to `base`. |
+| `boolean isFoggyAt(int x, int z)` | Delegated to `base`. |
+| `float[] getSunriseColor(float timeOfDay, float partialTicks)` | Delegated to `base`. |
+| `boolean renderClouds(ClientLevel level, int ticks, float partialTick, PoseStack poseStack, double camX, double camY, double camZ, Matrix4f modelViewMatrix, Matrix4f projectionMatrix)` | Delegated to `base`. |
+| `boolean renderSnowAndRain(ClientLevel level, int ticks, float partialTick, LightTexture lightTexture, double camX, double camY, double camZ)` | Delegated to `base`. |
+| `boolean tickRain(ClientLevel level, int ticks, Camera camera)` | Delegated to `base`. |
+| `void adjustLightmapColors(ClientLevel level, float partialTicks, float skyDarken, float blockLightRedFlicker, float skyLight, int pixelX, int pixelY, Vector3f colors)` | Delegated to `base`. |
 

@@ -13,7 +13,8 @@ uniform vec3 CaAtmoVanillaSky;  // cor do céu do jogo na posição da câmera
 uniform vec3 CaAtmoVanillaFog;  // cor da névoa que o jogo usou neste quadro
 uniform vec4 CaAtmoA;           // x: skyBlend, y: fogDensity, z: fogStart (blocos), w: fogEnd (blocos)
 uniform vec4 CaAtmoB;           // x: exposição, y: força da tinta, z: estrelas, w: névoa na tela (0/1)
-uniform vec4 CaAtmoC;           // x: distância de renderização (blocos), y: máscaras de céu (0.12.0)
+uniform vec4 CaAtmoC;           // x: distância de renderização (blocos), y: máscaras de céu (0.12.0), z: 1 quando o
+                                // perfil da dimensão tirou o céu do jogo (só a cor de fundo, a névoa, ficou na tela)
 uniform vec4 CaAtmoMask[8];     // 0.12.0: direção (xyz) e raio angular (w, radianos) das camadas opacas do céu
 uniform vec4 CaAtmoLens0;       // 0.12.0: as lentes dos buracos negros, as mesmas do passe "sky"
 uniform vec4 CaAtmoLens1;
@@ -60,6 +61,8 @@ void main() {
     if (sky) {
         vec3 base = atmoVanillaSky(dir);
         vec3 target = mix(base, atmoGradient(dir), CaAtmoA.x);
+        // 0.12.0: sem o céu do jogo, a tela tem só a cor de fundo (a névoa); o passe pinta o céu inteiro.
+        if (CaAtmoC.z > 0.5) base = CaAtmoVanillaFog;
         if (CaAtmoB.z > 0.0 && dir.y > -0.05)
             target += vec3(0.85, 0.9, 1.0) * caStars(dir, GTime) * CaAtmoB.z;
         target = mix(target, CaAtmoFogColor, CaAtmoA.y * atmoHorizon(dir));

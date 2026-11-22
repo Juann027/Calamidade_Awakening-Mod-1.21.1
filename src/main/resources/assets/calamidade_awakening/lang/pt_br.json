@@ -224,5 +224,6 @@
   "calamidade_awakening.configuration.worldEvents": "Eventos globais",
   "calamidade_awakening.configuration.worldEventsMax": "Máximo de eventos globais",
   "calamidade_awakening.configuration.worldEventsMax.tooltip": "Eventos globais ao mesmo tempo; um início acima disso troca o evento de menor prioridade quando a prioridade do novo é maior, senão é recusado.",
-  "perf.calamidade_awakening.world": "Eventos globais: %s"
+  "perf.calamidade_awakening.world": "Eventos globais: %s",
+  "perf.calamidade_awakening.skystate": "Céu da dimensão: %s"
 }

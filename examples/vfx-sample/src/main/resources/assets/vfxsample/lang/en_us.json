@@ -17,5 +17,8 @@
   "block.vfxsample.pilar_redstone": "Redstone Pulse Pillar",
   "block.vfxsample.pilar_periodico": "Rhythm Pillar",
   "command.vfxsample.zumbi.on": "Zombie beams on: zombies flash a beam when they hit.",
-  "command.vfxsample.zumbi.off": "Zombie beams off."
+  "command.vfxsample.zumbi.off": "Zombie beams off.",
+  "command.vfxsample.ceu.ok": "Test dimension sky: %s (5 s)",
+  "command.vfxsample.ceu.unknown": "Unknown sky state: %s",
+  "command.vfxsample.ceu.missing": "Dimension not loaded: %s"
 }

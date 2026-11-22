@@ -17,5 +17,8 @@
   "block.vfxsample.pilar_redstone": "Pilar de Pulso (redstone)",
   "block.vfxsample.pilar_periodico": "Pilar de Ritmo",
   "command.vfxsample.zumbi.on": "Feixe dos zumbis ligado: zumbis soltam um feixe ao bater.",
-  "command.vfxsample.zumbi.off": "Feixe dos zumbis desligado."
+  "command.vfxsample.zumbi.off": "Feixe dos zumbis desligado.",
+  "command.vfxsample.ceu.ok": "Céu da dimensão de teste: %s (5 s)",
+  "command.vfxsample.ceu.unknown": "Estado de céu desconhecido: %s",
+  "command.vfxsample.ceu.missing": "Dimensão não carregada: %s"
 }

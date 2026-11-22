@@ -70,6 +70,7 @@ public final class FrameBudgetCheck {
         HoloCheck.run();
         SkyCheck.run();
         WorldEventCheck.run();
+        SkyProfileCheck.run();
         timelineRegistration();
         atmosphereRegistration();
         meshBudget();

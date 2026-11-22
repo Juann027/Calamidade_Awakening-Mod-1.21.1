@@ -96,6 +96,8 @@ public final class Receitas {
         Meteoro.register();
         CrateraSimples.register();
         TorreCaindo.register();
+        // 1.9.0 — Sky API, eventos globais e céu por dimensão do motor 0.12.0.
+        DimensaoTeste.register();
         bus.addListener(Receitas::abas);
     }
 

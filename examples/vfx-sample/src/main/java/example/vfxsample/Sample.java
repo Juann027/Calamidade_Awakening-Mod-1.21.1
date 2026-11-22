@@ -150,7 +150,10 @@ public final class Sample {
                 .then(Commands.literal("release").executes(ctx -> beaconRelease(ctx.getSource())))
                 .then(Commands.literal("stop").executes(ctx -> beaconStop(ctx.getSource()))))
             .then(example.vfxsample.receitas.Receitas.comando())
-            .then(example.vfxsample.receitas.Receitas.comandoZumbi()));
+            .then(example.vfxsample.receitas.Receitas.comandoZumbi())
+            // 1.9.0 — céu da dimensão de teste.
+            .then(example.vfxsample.receitas.DimensaoTeste.comandoCeu())
+            .then(example.vfxsample.receitas.DimensaoTeste.comandoDimensao()));
     }
 
     private static void impact(Effects.Context context) {

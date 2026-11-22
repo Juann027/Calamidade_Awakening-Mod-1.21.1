@@ -30,6 +30,7 @@ final class AtmosphereFrame {
 
     private final StageScene scene;
     private final WorldEventsClient world;
+    private final SkyProfilesClient profiles;
     private boolean computed;
     private Atmosphere.State state = Atmosphere.State.NEUTRAL;
     private int active;
@@ -37,9 +38,17 @@ final class AtmosphereFrame {
     private double previousTime = Double.NaN;
     private float fogR = 1, fogG = 1, fogB = 1;
 
-    AtmosphereFrame(StageScene scene, WorldEventsClient world) {
+    AtmosphereFrame(StageScene scene, WorldEventsClient world, SkyProfilesClient profiles) {
         this.scene = scene;
         this.world = world;
+        this.profiles = profiles;
+    }
+
+    /** True when the dimension's sky profile replaced the whole vanilla sky this frame (0.12.0). */
+    private boolean replaced() {
+        Minecraft mc = Minecraft.getInstance();
+        return mc.level != null && mc.level.effects() instanceof dev.calamidade_awakening.api.v1.client.ProfileSkyEffects own
+            && own.replacing(mc.level);
     }
 
     /** Called at the start of every frame. */
@@ -52,6 +61,7 @@ final class AtmosphereFrame {
         // 0.12.0: the atmospheres of the global events that apply here join the mix.
         var states = new java.util.ArrayList<>(scene.atmospheres(camera, partial));
         states.addAll(world.atmospheres(Minecraft.getInstance().level, partial));
+        states.addAll(profiles.atmospheres(Minecraft.getInstance().level, partial));
         int count = 0;
         for (var s : states) if (s.active()) count++;
         active = count;
@@ -87,7 +97,7 @@ final class AtmosphereFrame {
     int active() { return active; }
 
     /** True when this frame needs the pass: an active atmosphere, or exposure still easing back to 1. */
-    boolean needsPass() { return state.active() || Math.abs(exposure - 1) > EXPOSURE_EPSILON; }
+    boolean needsPass() { return state.active() || Math.abs(exposure - 1) > EXPOSURE_EPSILON || replaced(); }
 
     /** NeoForge ComputeFogColor: moves the game fog color toward the atmosphere, then records what was rendered. */
     void fogColor(ViewportEvent.ComputeFogColor event) {
@@ -133,6 +143,7 @@ final class AtmosphereFrame {
         float[] masks = skyMasks.clone();
         float[] lens = skyLenses.clone();
         int maskCount = skyMaskCount;
+        float replaced = replaced() ? 1 : 0;
         frame.pass(PROGRAM, u -> {
             u.f3("CaAtmoSkyTop", s.skyTop().r(), s.skyTop().g(), s.skyTop().b());
             u.f3("CaAtmoSkyHorizon", s.skyHorizon().r(), s.skyHorizon().g(), s.skyHorizon().b());
@@ -142,7 +153,7 @@ final class AtmosphereFrame {
             u.f3("CaAtmoVanillaFog", fogR, fogG, fogB);
             u.f4("CaAtmoA", s.skyBlend(), s.fogDensity(), s.fogStart(), s.fogEnd());
             u.f4("CaAtmoB", exposure, s.ambientStrength() * intensity, s.stars(), screenFog ? 1 : 0);
-            u.f4("CaAtmoC", renderDistance, maskCount, 0, 0);
+            u.f4("CaAtmoC", renderDistance, maskCount, replaced, 0);
             if (maskCount > 0) u.vec4s("CaAtmoMask", masks);
             u.f4("CaAtmoLens0", lens[0], lens[1], lens[2], lens[3]);
             u.f4("CaAtmoLens1", lens[4], lens[5], lens[6], lens[7]);

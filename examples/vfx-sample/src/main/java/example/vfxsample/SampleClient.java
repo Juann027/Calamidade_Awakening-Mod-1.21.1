@@ -11,6 +11,11 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 // Sem atributo bus: o FML escolhe o barramento pelo tipo do evento (FMLClientSetupEvent é IModBusEvent).
 @EventBusSubscriber(modid="vfxsample",value=Dist.CLIENT)
 public final class SampleClient {
+    /** 1.9.0 — efeitos da dimensão de teste: o motor pode trocar o céu do jogo inteiro nela. */
+    @SubscribeEvent public static void dimensionEffects(net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent e) {
+        example.vfxsample.receitas.DimensaoTeste.Client.effects(e);
+    }
+
     @SubscribeEvent public static void setup(FMLClientSetupEvent e) {
         AddonLayers.world(Sample.SIGNAL,world -> {
             double phase = world.time().progress()*Math.TAU;

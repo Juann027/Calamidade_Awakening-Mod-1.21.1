@@ -40,7 +40,9 @@ public final class ClientHooks {
     private static final StageFilms FILMS = new StageFilms();
     /** Global events (0.12.0). */
     private static final WorldEventsClient WORLD = new WorldEventsClient();
-    private static final AtmosphereFrame ATMOSPHERE = new AtmosphereFrame(SCENE, WORLD);
+    /** Dimension skies (0.12.0). */
+    private static final SkyProfilesClient PROFILES = new SkyProfilesClient();
+    private static final AtmosphereFrame ATMOSPHERE = new AtmosphereFrame(SCENE, WORLD, PROFILES);
     private static final BeamFrame BEAMS = new BeamFrame(SCENE);
     private static final LightFrame LIGHTS = new LightFrame(SCENE);
     /** Terrain edit states from the server and the terrain pass (0.11.0). */
@@ -48,13 +50,14 @@ public final class ClientHooks {
     private static final TerrainFrame TERRAIN_FRAME = new TerrainFrame(SCENE, TERRAIN);
     private static final TerrainMeshes TERRAIN_MESHES = new TerrainMeshes(TERRAIN);
     /** Sky layers of the frame (0.12.0). */
-    private static final SkyFrame SKY = new SkyFrame(SCENE, WORLD);
+    private static final SkyFrame SKY = new SkyFrame(SCENE, WORLD, PROFILES);
     private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS,
         TERRAIN_FRAME, SKY);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
     static {
         CostProbe.install(COORDINATOR);
         PerfOverlay.qualityLine = ClientHooks::qualityLine;
+        dev.calamidade_awakening.api.v1.client.ProfileSkyEffects.engine(PROFILES::replacesSky);
     }
     private static final Map<VisualKind, KeyMapping> DEMOS = new LinkedHashMap<>();
     private static final KeyMapping QUALITY = new KeyMapping("key.calamidade_awakening.quality",
@@ -97,6 +100,8 @@ public final class ClientHooks {
                 }));
             NetClientApi.receive(dev.calamidade_awakening.net.WorldEventSync.PACKET, (packet, context) ->
                 Minecraft.getInstance().execute(() -> WORLD.receive(packet)));
+            NetClientApi.receive(dev.calamidade_awakening.net.SkyProfileSync.PACKET, (packet, context) ->
+                Minecraft.getInstance().execute(() -> PROFILES.receive(packet)));
             NetClientApi.receive(dev.calamidade_awakening.net.WorldEventEnd.PACKET, (packet, context) ->
                 Minecraft.getInstance().execute(() -> WORLD.end(packet.key())));
             NetClientApi.receive(StageEvent.PACKET, (packet, context) ->
@@ -181,6 +186,7 @@ public final class ClientHooks {
         SCENE.tick(mc.level);
         WORLD.tick(mc.level);
         PerfOverlay.world(WORLD.visible(mc.level));
+        PerfOverlay.skyState(PROFILES.state(mc.level));
         // Terrain states of instances that expired on this client (the server only sends end_effect on stops).
         TERRAIN.orders().removeIf(order -> !SCENE.has(order));
         if (mc.level != null) TERRAIN.dust(mc.level, SCENE.events());
@@ -273,7 +279,11 @@ public final class ClientHooks {
     @SubscribeEvent
     public static void loggedOut(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) {
         WORLD.clear();
+        PROFILES.clear();
     }
+
+    /** State of the current dimension's sky profile, or null (0.12.0: tests and F7). */
+    public static String skyState() { return PROFILES.state(Minecraft.getInstance().level); }
 
     /** Global events that apply to this client now (0.12.0: tests and F7). */
     public static int worldEvents() { return WORLD.visible(Minecraft.getInstance().level); }
