@@ -60,6 +60,8 @@ public final class CalamidadeTeste {
         if (FMLEnvironment.dist == Dist.CLIENT && "medicao".equals(System.getProperty("calamidade.teste"))) RoteiroMedicao.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "atlas".equals(System.getProperty("calamidade.teste"))) RoteiroAtlas.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "ceu".equals(System.getProperty("calamidade.teste"))) RoteiroCeu.registrar();
+        // 0.14 (fase 1): experimento do Backdrop em AFTER_SKY (protótipo só neste mod de teste).
+        if (FMLEnvironment.dist == Dist.CLIENT && "backdrop".equals(System.getProperty("calamidade.teste"))) RoteiroBackdrop.registrar();
     }
 
     private static ResourceLocation id(String path) { return ResourceLocation.fromNamespaceAndPath(ID, path); }
@@ -112,7 +114,7 @@ public final class CalamidadeTeste {
     private static void started(ServerStartedEvent event) {
         String fase = System.getProperty("calamidade.teste");
         if (fase == null || fase.isBlank() || fase.equals("cliente") || fase.equals("medicao") || fase.equals("atlas")
-            || fase.equals("ceu")) return;
+            || fase.equals("ceu") || fase.equals("backdrop")) return;
         Thread thread = new Thread(new Roteiro(event.getServer(), fase), "Calamidade teste em jogo");
         thread.setDaemon(true);
         thread.start();
