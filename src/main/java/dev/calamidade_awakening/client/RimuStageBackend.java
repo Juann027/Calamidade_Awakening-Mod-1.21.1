@@ -28,6 +28,8 @@ public final class RimuStageBackend {
     private final FxApi.Layer layer = this::draw;
     private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
     private final java.util.Set<String> failedPosts = new java.util.HashSet<>();
+    /** Lens uniforms without lenses (0.12.0). */
+    private static final float[] NO_LENSES = new float[12];
 
     RimuStageBackend(FrameCoordinator coordinator, StageFilms films, AtmosphereFrame atmosphere, BeamFrame beams,
                      LightFrame lights, TerrainFrame terrain, SkyFrame sky) {
@@ -58,7 +60,7 @@ public final class RimuStageBackend {
         // the eclipse darkens the world under them. Outside the addon budget and independent of the frustum.
         sky.collect(camera, frame.partial(), plan.limits());
         boolean skyQueued = sky.draw(frame, camera, frame.partial(), plan.limits(), atmosphere);
-        atmosphere.skyMasks(sky.masks(), skyQueued ? sky.maskCount() : 0);
+        atmosphere.skyMasks(sky.masks(), skyQueued ? sky.maskCount() : 0, skyQueued ? sky.lenses() : NO_LENSES);
         PerfOverlay.sky(skyQueued ? Math.min(sky.layers().size(), SkyFrame.ROWS) : 0, sky.candidates(), skyQueued);
         beams.collect(plan, camera, frame.partial());
         terrain.collect(plan, camera, frame.partial());

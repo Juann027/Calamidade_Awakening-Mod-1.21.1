@@ -1,12 +1,18 @@
 #!/usr/bin/env node
-// Prévia dos passes do motor (beams, lights) sem o jogo: roda o shader real, com o common.glsl da RimuLib, no WebGL2
-// do Chromium headless (SwiftShader), sobre uma cena sintética com profundidade (chão, um muro, pilares e céu), e
+// Prévia dos passes do motor (beams, lights e, desde a 0.12.0, sky e atmosphere) sem o jogo: roda o shader real, com
+// o common.glsl da RimuLib, no WebGL2 do Chromium headless (SwiftShader), sobre uma cena sintética com profundidade, e
 // grava um PNG por cena em build/previa/. Serve para conferir a aparência e a oclusão antes do teste em jogo; não
 // substitui o teste numa GPU de verdade.
 //
+// Cenas de feixes e luzes: chão, um muro, pilares e céu. Cenas de céu (0.12.0, prefixos buraco_negro_, portal_ e
+// eclipse_): montanhas num mapa de altura, céu e névoa no modelo do jogo e o sol do jogo somado como o LevelRenderer
+// soma (mesmo quadrado, mesma textura; a textura vem do JAR de recursos do Minecraft que o build baixa, ou um sol
+// sintético sem ele), depois os passes reais sky e atmosphere, com os mesmos dados que o SkyFrame e o
+// AtmosphereFrame mandam.
+//
 // Requer Node, Playwright com Chromium e o JAR da RimuLib em libs/ (./gradlew build baixa). Uso, na raiz:
 //     node scripts/previa_passes.cjs [cena...]
-// Cenas: veja CENAS abaixo. Sem argumento, gera todas.
+// Cenas: veja CENAS abaixo. Sem argumento, gera todas. "ceu" gera só as de céu e monta build/previa/ceu-0120.png.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -201,6 +207,288 @@ const CENAS = {
   },
 };
 
+// ------------------------------------------------------------------ céu (0.12.0): montanhas, sol do jogo e camadas
+
+// Mapa de altura das montanhas (blocos, relativo à câmera): planície perto, cordilheiras de 120 a 260 blocos.
+const HM = { size: 1024, cell: 2 };
+function noise2(x, z) {
+  const xi = Math.floor(x), zi = Math.floor(z), xf = x - xi, zf = z - zi;
+  const h = (a, b) => { let n = (a * 374761393 + b * 668265263) | 0; n = (n ^ (n >>> 13)) * 1274126177 | 0; return ((n ^ (n >>> 16)) >>> 0) / 4294967295; };
+  const u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf);
+  return (h(xi, zi) * (1 - u) + h(xi + 1, zi) * u) * (1 - v) + (h(xi, zi + 1) * (1 - u) + h(xi + 1, zi + 1) * u) * v;
+}
+function heightAt(x, z) {
+  const d = Math.hypot(x, z);
+  let ridge = 0, amp = 1, f = 1 / 90;
+  for (let o = 0; o < 5; o++) { ridge += amp * (1 - Math.abs(noise2(x * f + o * 7.1, z * f - o * 3.3) * 2 - 1)); amp *= 0.5; f *= 2.1; }
+  const mountains = Math.pow(ridge / 1.9, 2.2) * 95 * smooth(90, 200, d);
+  const hills = (noise2(x / 40, z / 40) - 0.5) * 6 * smooth(20, 60, d);
+  return -1.62 + mountains + hills;
+}
+function smooth(a, b, x) { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); }
+let heightMap = null;
+function buildHeightMap() {
+  if (heightMap) return heightMap;
+  const n = HM.size, half = n * HM.cell / 2, data = new Float32Array(n * n);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) data[j * n + i] = heightAt(i * HM.cell - half, j * HM.cell - half);
+  heightMap = { data, half };
+  return heightMap;
+}
+function hm(x, z) {
+  const { data, half } = heightMap, n = HM.size;
+  const gx = (x + half) / HM.cell, gz = (z + half) / HM.cell;
+  if (gx < 0 || gz < 0 || gx >= n - 1 || gz >= n - 1) return -1.62;
+  const i = Math.floor(gx), j = Math.floor(gz), u = gx - i, v = gz - j;
+  return (data[j * n + i] * (1 - u) + data[j * n + i + 1] * u) * (1 - v) + (data[(j + 1) * n + i] * (1 - u) + data[(j + 1) * n + i + 1] * u) * v;
+}
+
+// Céu do jogo no modelo do caVanillaSky (cor do céu no alto, névoa no horizonte, distância de renderização).
+function vanillaSky(d, sky, fog, renderDistance) {
+  if (d[1] <= 0) return fog.slice();
+  const horizontal = 16 * Math.sqrt(Math.max(1 - d[1] * d[1], 0)) / Math.max(d[1], 1e-3);
+  const k = smooth(0, Math.max(renderDistance, 16), horizontal);
+  return [0, 1, 2].map(c => sky[c] * (1 - k) + fog[c] * k);
+}
+
+function skyScene(cam, proj, view, env) {
+  buildHeightMap();
+  const viewProj = mul(proj, view);
+  const depth = new Float32Array(W * H), color = new Float32Array(W * H * 4);
+  const sun = env.sunDir, tan = Math.tan(FOV * Math.PI / 360);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const ndc = [(x + 0.5) / W * 2 - 1, (y + 0.5) / H * 2 - 1];
+    const d = norm([0, 1, 2].map(k => cam.r[k] * ndc[0] * tan * W / H + cam.u[k] * ndc[1] * tan + cam.f[k]));
+    const i = y * W + x;
+    let t = 0.5, hit = false;
+    for (let s = 0; s < 400 && t < env.renderDistance * 1.6; s++) {
+      const px = d[0] * t, py = d[1] * t, pz = d[2] * t;
+      const gap = py - hm(px, pz);
+      if (gap < 0.05) { hit = true; break; }
+      t += Math.min(Math.max(gap * 0.45, 0.25), 10);
+    }
+    if (!hit) {
+      depth[i] = 1.0;
+      color.set([...vanillaSky(d, env.sky, env.fog, env.renderDistance), 1], i * 4);
+      continue;
+    }
+    const p = [d[0] * t, d[1] * t, d[2] * t];
+    const e = 1.0, hx = hm(p[0] + e, p[2]) - hm(p[0] - e, p[2]), hz = hm(p[0], p[2] + e) - hm(p[0], p[2] - e);
+    const n = norm([-hx, 2 * e, -hz]);
+    const slope = 1 - n[1];
+    let albedo = p[1] > 58 + 8 * noise2(p[0] / 13, p[2] / 13) ? [0.88, 0.9, 0.94]
+      : slope > 0.28 || p[1] > 34 ? [0.42, 0.4, 0.38] : [0.3, 0.48, 0.2];
+    const grain = 0.9 + 0.1 * noise2(p[0] * 0.7, p[2] * 0.7);
+    albedo = albedo.map(v => v * grain);
+    const light = env.ambient + env.sunLight * Math.max(dot(n, sun), 0);
+    const fog = smooth(env.renderDistance * 0.55, env.renderDistance, t);
+    const clip = [0, 0, 0, 0];
+    for (let r = 0; r < 4; r++) clip[r] = viewProj[r] * p[0] + viewProj[4 + r] * p[1] + viewProj[8 + r] * p[2] + viewProj[12 + r];
+    depth[i] = Math.min((clip[2] / clip[3]) * 0.5 + 0.5, 0.99998);
+    color.set([0, 1, 2].map(k => albedo[k] * light * (1 - fog) + env.fog[k] * fog).concat([1]), i * 4);
+  }
+  return { depth, color, viewProj };
+}
+
+// Referencial do sol e da lua do jogo (SkyMath.vanillaAxes): colunas x, y, z de Ry(-90)·Rx(hora·360).
+function vanillaAxes(timeOfDay) {
+  const a = timeOfDay * Math.PI * 2, s = Math.sin(a), c = Math.cos(a);
+  return [[0, 0, 1], [-s, c, 0], [-c, -s, 0]];
+}
+// Sky.Direction.of: azimute 0 = sul, 90 = oeste; elevação em graus.
+function skyDir(az, el) {
+  const a = az * Math.PI / 180, e = el * Math.PI / 180;
+  return [-Math.sin(a) * Math.cos(e), Math.sin(e), Math.cos(a) * Math.cos(e)];
+}
+function lookAt(dir, pitchOffset = 0, yawOffset = 0) {
+  const el = Math.asin(dir[1]) * 180 / Math.PI + pitchOffset;
+  const az = Math.atan2(-dir[0], dir[2]) * 180 / Math.PI + yawOffset;
+  const f = skyDir(az, el);
+  const r = norm(cross(f, [0, 1, 0]));
+  return { f, r, u: cross(r, f) };
+}
+const rgb = argb => [((argb >> 16) & 255) / 255, ((argb >> 8) & 255) / 255, (argb & 255) / 255];
+const TYPES = { BLACK_HOLE: 0, PORTAL: 1, ECLIPSE: 2, RIFT: 3, CELESTIAL_BODY: 4, AURORA: 5 };
+// Uma linha da textura do passe sky, igual ao SkyFrame.draw (6 texels).
+function skyRow(l) {
+  const p = rgb(l.primary).map(v => v * l.intensity), q = rgb(l.secondary).map(v => v * l.intensity);
+  const spin = l.spinDegrees || 0, roll = (l.rotation + (l.type === 'PORTAL' ? spin : 0)) * Math.PI / 180;
+  return [...l.dir, l.size / 2 * Math.PI / 180,
+    TYPES[l.type], roll % (Math.PI * 2), l.tilt * Math.PI / 180, l.progress,
+    ...p, l.weight,
+    ...q, 0,
+    l.seed, l.seconds, l.flash ?? 1, l.anchor || 0,
+    (spin % 360) * Math.PI / 180, 0, 0, 0];
+}
+// Peso de uma camada no momento, como Sky.State: o mesmo que o Java faria com as trilhas da receita.
+function layer(type, o) {
+  const d = { BLACK_HOLE: { size: 24, tilt: 76, lens: 0.6, intensity: 1.4, primary: 0xffffe6c0, secondary: 0xffff6a20 },
+    PORTAL: { size: 30, tilt: 0, intensity: 1.2, primary: 0xffb8ecff, secondary: 0xffb040ff },
+    ECLIPSE: { size: 13, tilt: 0, intensity: 1, primary: 0xffeaf2ff, secondary: 0xffff5a3a } }[type];
+  return { type, rotation: 0, progress: 1, weight: 1, seed: 0.37, seconds: 12, lens: 0, ...d, ...o };
+}
+
+// Momentos: formação, auge, dissipação. Cada cena de céu tem o ambiente (céu do jogo, sol, névoa), a câmera, as
+// camadas e a atmosfera do efeito naquele instante.
+const DAY = { sky: [0.47, 0.65, 1.0], fog: [0.73, 0.84, 1.0], renderDistance: 256, ambient: 0.45, sunLight: 0.6 };
+const DUSK = { sky: [0.16, 0.22, 0.48], fog: [0.62, 0.47, 0.52], renderDistance: 256, ambient: 0.16, sunLight: 0.2 };
+function env(base, timeOfDay) {
+  const axes = vanillaAxes(timeOfDay);
+  return { ...base, timeOfDay, axes, sunDir: axes[1] };
+}
+const BH_DIR = skyDir(-25, 13), PORTAL_DIR = skyDir(15, 28);
+const ECL_TIME = 0.8194;   // manhã: sol a ~25 graus, a leste
+const ECL_DIR = vanillaAxes(ECL_TIME)[1];
+function bh(o) { return layer('BLACK_HOLE', { dir: BH_DIR, rotation: -8, ...o }); }
+function portal(o) { return layer('PORTAL', { dir: PORTAL_DIR, rotation: 0, ...o }); }
+function eclipse(o) { return layer('ECLIPSE', { dir: ECL_DIR, rotation: 200, anchor: 1, ...o }); }
+const NIGHTFALL = (w, stars, blend) => ({ skyTop: [0.03, 0.03, 0.09], skyHorizon: [0.32, 0.16, 0.24], blend, fogColor: [0.3, 0.2, 0.28],
+  fogDensity: 0.25 * w, fogStart: 60, fogEnd: 240, exposure: 1, tint: [1, 1, 1], tintStrength: 0, stars: stars * w, weight: w });
+const ECLIPSE_SKY = (w, stars) => ({ skyTop: [0.02, 0.03, 0.08], skyHorizon: [0.42, 0.3, 0.38], blend: 0.85 * w, fogColor: [0.25, 0.22, 0.32],
+  fogDensity: 0.2 * w, fogStart: 80, fogEnd: 256, exposure: 1, tint: [0.75, 0.82, 1.0], tintStrength: 0.15 * w, stars: stars, weight: w });
+const SKY_CENAS = {
+  buraco_negro_formacao: { env: env(DUSK, 0.21), look: [BH_DIR, -6, 8], layers: [bh({ size: 10, progress: 0.3, weight: 0.8, seconds: 2 })],
+    atmo: NIGHTFALL(0.6, 0.6, 0.6) },
+  buraco_negro_auge: { env: env(DUSK, 0.21), look: [BH_DIR, -6, 8], layers: [bh({ size: 30, progress: 1, seconds: 14, spinDegrees: 260 })],
+    atmo: NIGHTFALL(1, 0.8, 0.9) },
+  buraco_negro_dissipacao: { env: env(DUSK, 0.21), look: [BH_DIR, -6, 8], layers: [bh({ size: 7, progress: 0.55, weight: 0.85, seconds: 30, spinDegrees: 600 })],
+    atmo: NIGHTFALL(0.7, 0.8, 0.7) },
+  portal_formacao: { env: env(DUSK, 0.23), look: [PORTAL_DIR, -12, 0], layers: [portal({ size: 34, progress: 0.14, seconds: 1 })],
+    atmo: NIGHTFALL(0.5, 0.5, 0.5) },
+  portal_auge: { env: env(DUSK, 0.23), look: [PORTAL_DIR, -12, 0], layers: [portal({ size: 34, progress: 1, seconds: 9, spinDegrees: 90 })],
+    atmo: NIGHTFALL(0.9, 0.8, 0.8) },
+  portal_dissipacao: { env: env(DUSK, 0.23), look: [PORTAL_DIR, -12, 0], layers: [portal({ size: 34, progress: 0.42, weight: 0.85, seconds: 20, spinDegrees: 200 })],
+    atmo: NIGHTFALL(0.6, 0.6, 0.6) },
+  eclipse_formacao: { env: env(DAY, ECL_TIME), look: [ECL_DIR, -9, 10], layers: [eclipse({ progress: 0.62, weight: 1, seconds: 3 })],
+    atmo: ECLIPSE_SKY(0.25, 0), darkening: true },
+  eclipse_auge: { env: env(DAY, ECL_TIME), look: [ECL_DIR, -9, 10], layers: [eclipse({ progress: 1, seconds: 15 })],
+    atmo: ECLIPSE_SKY(1, 0.9), darkening: true },
+  eclipse_dissipacao: { env: env(DAY, ECL_TIME), look: [ECL_DIR, -9, 10], layers: [eclipse({ progress: 0.955, seconds: 25 })],
+    atmo: ECLIPSE_SKY(0.8, 0.5), darkening: true },
+};
+
+// Cobertura do eclipse (Sky.eclipseCoverage) e exposição do mundo (SkyMath.exposure), para o escurecimento.
+function eclipseCoverage(progress) {
+  const p = Math.min(Math.max(progress, 0), 1), d = (1 - p) * 2.2, big = 1, small = 0.97;
+  if (d >= big + small) return 0;
+  if (d <= big - small) return 1;
+  const a = Math.acos(Math.min(Math.max((d * d + small * small - big * big) / (2 * d * small), -1), 1));
+  const b = Math.acos(Math.min(Math.max((d * d + big * big - small * small) / (2 * d * big), -1), 1));
+  const area = small * small * a + big * big * b - 0.5 * Math.sqrt(Math.max(0, (-d + small + big) * (d + small - big) * (d - small + big) * (d + small + big)));
+  return Math.min(Math.max(area / (Math.PI * small * small), 0), 1);
+}
+
+// Lentes (SkyFrame.buildLenses e SkyMath.einstein/lensExtent): até 2 buracos negros.
+function skyLenses(layers) {
+  const out = new Array(12).fill(0);
+  let n = 0;
+  for (const l of layers) {
+    if (n >= 2 || l.type !== 'BLACK_HOLE' || !(l.lens > 0)) continue;
+    const s = l.lens * l.weight, r = l.size / 2 * Math.PI / 180;
+    out.splice(n * 4, 4, ...l.dir, r * 0.34 * (1.05 + 1.6 * s));
+    out[8 + n] = r * (1.6 + 2.2 * s);
+    n++;
+  }
+  out[10] = n;
+  return out;
+}
+
+// Máscaras da atmosfera (SkyFrame.buildMasks).
+function skyMasks(layers) {
+  const out = [];
+  for (const l of layers) {
+    const r = l.size / 2 * Math.PI / 180;
+    if (l.type === 'BLACK_HOLE') out.push([...l.dir, r * 0.34 * 1.02]);
+    else if (l.type === 'PORTAL') out.push([...l.dir, r * l.progress]);
+    else if (l.type === 'ECLIPSE') {
+      out.push([...l.dir, r * 0.97]);
+      if (l.progress < 0.9) continue;
+      // Centro do disco: SkyMath.fromLocal(basis(dir, rotação), r·(1 - p)·2,2, 0).
+      const c = l.dir, vertical = Math.abs(c[1]) > 0.999;
+      let right = norm(vertical ? [c[1], -c[0], 0] : [-c[2], 0, c[0]]);
+      let up = cross(right, c);
+      const roll = l.rotation * Math.PI / 180, cr = Math.cos(roll), sr = Math.sin(roll);
+      const rr = [0, 1, 2].map(k => right[k] * cr + up[k] * sr);
+      const ang = r * (1 - l.progress) * 2.2;
+      out.push([...norm([0, 1, 2].map(k => c[k] * Math.cos(ang) + rr[k] * Math.sin(ang))), r]);
+    }
+  }
+  return out;
+}
+
+// Sol do jogo: a textura de verdade (JAR de recursos do Minecraft baixado pelo build) ou um sol sintético.
+function sunTexture() {
+  const dir = path.join(ROOT, 'build/moddev/artifacts');
+  const jar = fs.existsSync(dir) ? fs.readdirSync(dir).find(f => f.includes('client-extra')) : null;
+  if (jar) {
+    try {
+      const png = execFileSync('unzip', ['-p', path.join(dir, jar), 'assets/minecraft/textures/environment/sun.png']);
+      return { png: png.toString('base64') };
+    } catch (e) { /* sol sintético */ }
+  }
+  const data = new Float32Array(32 * 32 * 4);
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+    const core = x >= 12 && x < 20 && y >= 12 && y < 20 ? 1 : 0, glow = Math.max(0, 1 - Math.hypot(x - 15.5, y - 15.5) / 11) * 0.12;
+    data.set([Math.min(1, core + glow), Math.min(1, core * 0.95 + glow), Math.min(1, core * 0.6 + glow), 1], (y * 32 + x) * 4);
+  }
+  return { w: 32, h: 32, data: Array.from(data) };
+}
+
+// Pré-passe só da prévia: soma o sol do jogo como o LevelRenderer (SRC_ALPHA, ONE; quadrado de meio lado 30 a 100).
+const VANILLA_FSH = `
+uniform sampler2D PreSun;
+uniform vec3 PreAxisX; uniform vec3 PreAxisY; uniform vec3 PreAxisZ;
+void main() {
+    vec3 color = texture(DiffuseSampler, texCoord).rgb;
+    if (skyAt(texCoord)) {
+        vec3 d = viewDir(texCoord);
+        vec3 l = vec3(dot(d, PreAxisX), dot(d, PreAxisY), dot(d, PreAxisZ));
+        if (l.y > 1e-4) {
+            vec2 p = l.xz * (100.0 / l.y);
+            if (abs(p.x) <= 30.0 && abs(p.y) <= 30.0) {
+                ivec2 size = textureSize(PreSun, 0);
+                vec4 t = texelFetch(PreSun, clamp(ivec2((p + 30.0) / 60.0 * vec2(size)), ivec2(0), size - 1), 0);
+                color = min(color + t.rgb * t.a, vec3(1.0));
+            }
+        }
+    }
+    fragColor = vec4(color, 1.0);
+}`;
+
+function skyPasses(cena) {
+  const e = cena.env;
+  const layers = cena.layers;
+  const rows = layers.map(skyRow);
+  let darkening = 0;
+  for (const l of layers) darkening = Math.max(darkening, l.type === 'ECLIPSE' ? 0.75 * l.weight * Math.pow(eclipseCoverage(l.progress), 4) : 0);
+  const exposure = 1 - 0.85 * darkening;
+  const hideSun = Math.max(0, ...layers.filter(l => l.anchor === 1).map(l => l.weight));
+  const masks = skyMasks(layers);
+  const lens = skyLenses(layers);
+  const lensUniforms = prefix => ({ [prefix + 'Lens0']: lens.slice(0, 4), [prefix + 'Lens1']: lens.slice(4, 8),
+    [prefix + 'LensExt']: [lens[8], lens[9], lens[10], 0] });
+  const a = cena.atmo;
+  const passes = [
+    { source: VANILLA_FSH, textures: { PreSun: 'sun' },
+      f3: { PreAxisX: e.axes[0], PreAxisY: e.axes[1], PreAxisZ: e.axes[2] } },
+    { program: 'sky', data: { name: 'CaSkyData', texels: 6, rows },
+      textures: { CaSkySunTex: 'sun', CaSkyMoonTex: 'sun' },
+      f4: { CaSkyInfo: [rows.length, exposure, 2, 0], CaSkyVanilla: [hideSun, 0, 0, 1], CaSkyMisc: [e.renderDistance, 0, 0, 0],
+        ...lensUniforms('CaSky') },
+      f3: { CaSkyAxisX: e.axes[0], CaSkyAxisY: e.axes[1], CaSkyAxisZ: e.axes[2], CaSkyVanillaSky: e.sky, CaSkyVanillaFog: e.fog } },
+  ];
+  if (a) {
+    const w = a.weight;
+    passes.push({ program: 'atmosphere',
+      f3: { CaAtmoSkyTop: a.skyTop, CaAtmoSkyHorizon: a.skyHorizon, CaAtmoFogColor: a.fogColor, CaAtmoTint: a.tint,
+        CaAtmoVanillaSky: e.sky, CaAtmoVanillaFog: e.fog },
+      f4: { CaAtmoA: [a.blend, a.fogDensity, a.fogStart, a.fogEnd], CaAtmoB: [a.exposure, a.tintStrength, a.stars, 0],
+        CaAtmoC: [e.renderDistance, masks.length, 0, 0], ...lensUniforms('CaAtmo') },
+      vec4s: { CaAtmoMask: masks.flat().concat(new Array(32).fill(0)).slice(0, 32) },
+      f1: { GTime: 37.0 } });
+  }
+  return passes;
+}
+
 // ------------------------------------------------------------------ WebGL2
 
 function commonGlsl() {
@@ -208,24 +496,45 @@ function commonGlsl() {
   return execFileSync('unzip', ['-p', jar, 'assets/rimulib/shaders/fx/common.glsl'], { encoding: 'utf8' });
 }
 
-function assemble(program) {
-  const lib = fs.readFileSync(path.join(FX, 'calamidade_fx.glsl'), 'utf8');
-  const body = fs.readFileSync(path.join(FX, program + '.fsh'), 'utf8')
-    .split('\n').map(l => l.trim() === '#include "calamidade_fx.glsl"' ? lib : l).join('\n');
+// Como a RimuLib: cada linha '#include "arquivo"' vira o arquivo da pasta fx do motor, sem recursão.
+function assemble(program, source) {
+  const body = (source ?? fs.readFileSync(path.join(FX, program + '.fsh'), 'utf8'))
+    .split('\n').map(l => {
+      const m = l.trim().match(/^#include "(.+)"$/);
+      return m ? fs.readFileSync(path.join(FX, m[1]), 'utf8') : l;
+    }).join('\n');
   const common = commonGlsl().replace('#version 150', '#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;');
   return common + '\n' + body;
 }
 
+// Passes de feixes e luzes no formato genérico.
+function effectPasses(cena) {
+  const passes = [];
+  if (cena.lights) passes.push({ program: 'lights', data: { name: 'CaLightData', texels: 4, rows: cena.lights },
+    f4: { CaLightInfo: [cena.lights.length, ...(cena.lightExtra || [0, 0, 0, 0]).slice(1)] } });
+  if (cena.beams) passes.push({ program: 'beams', data: { name: 'CaBeamData', texels: BEAM_TEXELS, rows: cena.beams },
+    f4: { CaBeamInfo: [cena.beams.length, 0, 0, 0] } });
+  return passes;
+}
+
+const sceneCache = new Map();
 async function render(page, name, cena) {
-  const cam = camera(cena.pitch ?? -8, cena.yaw ?? 0);
+  const sky = !!cena.env;
+  const cam = sky ? lookAt(...cena.look) : camera(cena.pitch ?? -8, cena.yaw ?? 0);
   const proj = perspective(FOV, W / H, 0.05, 1024);
   const view = viewMatrix(cam);
-  const { depth, color, viewProj } = scene(cam, proj, view, cena.night);
-  const passes = [];
-  if (cena.lights) passes.push({ program: 'lights', data: cena.lights, texels: 4, sampler: 'CaLightData', info: 'CaLightInfo', extra: cena.lightExtra || [0, 0, 0, 0] });
-  if (cena.beams) passes.push({ program: 'beams', data: cena.beams, texels: BEAM_TEXELS, sampler: 'CaBeamData', info: 'CaBeamInfo', extra: [0, 0, 0, 0] });
-  const shaders = passes.map(p => assemble(p.program));
-  const png = await page.evaluate(({ W, H, depth, color, invProj, invView, viewProj, passes, shaders }) => {
+  const key = sky ? JSON.stringify([cena.look, cena.env.timeOfDay, cena.env.sky]) : null;
+  let base = key && sceneCache.get(key);
+  if (!base) {
+    base = sky ? skyScene(cam, proj, view, cena.env) : scene(cam, proj, view, cena.night);
+    if (key) sceneCache.set(key, base);
+  }
+  const { depth, color, viewProj } = base;
+  // PREVIA_PASSES=n roda só os n primeiros passes (depuração: 1 = só a cena e o sol do jogo).
+  const limit = process.env.PREVIA_PASSES ? Number(process.env.PREVIA_PASSES) : Infinity;
+  const passes = (sky ? skyPasses(cena) : effectPasses(cena)).slice(0, limit);
+  const shaders = passes.map(p => assemble(p.program, p.source));
+  const png = await page.evaluate(async ({ W, H, depth, color, invProj, invView, viewProj, passes, shaders, sun }) => {
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
@@ -236,13 +545,26 @@ async function render(page, name, cena) {
       if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
       return s;
     };
-    const tex = (w, h, internal, format, data) => {
-      const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    const params = () => {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    };
+    const tex = (w, h, internal, format, data) => {
+      const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); params();
       gl.texImage2D(gl.TEXTURE_2D, 0, internal, w, h, 0, format, gl.FLOAT, data);
       return t;
     };
+    const named = {};
+    if (sun) {
+      if (sun.png) {
+        const img = new Image();
+        img.src = 'data:image/png;base64,' + sun.png;
+        await img.decode();
+        const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); params();
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        named.sun = t;
+      } else named.sun = tex(sun.w, sun.h, gl.RGBA32F, gl.RGBA, new Float32Array(sun.data));
+    }
     const depthTex = tex(W, H, gl.R32F, gl.RED, new Float32Array(depth));
     let colorTex = tex(W, H, gl.RGBA32F, gl.RGBA, new Float32Array(color));
     const vs = compile(gl.VERTEX_SHADER, vsSrc);
@@ -251,21 +573,31 @@ async function render(page, name, cena) {
       const prog = gl.createProgram();
       gl.attachShader(prog, vs); gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, shaders[k])); gl.linkProgram(prog);
       if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
-      const rows = pass.data.length;
-      const flat = new Float32Array(Math.max(rows, 1) * pass.texels * 4);
-      pass.data.forEach((row, i) => flat.set(row, i * pass.texels * 4));
-      const dataTex = tex(pass.texels, Math.max(rows, 1), gl.RGBA32F, gl.RGBA, flat);
+      // Texturas criadas antes de qualquer bind: tex() liga a textura nova na unidade ativa.
+      let dataTex = null;
+      if (pass.data) {
+        const rows = pass.data.rows.length;
+        const flat = new Float32Array(Math.max(rows, 1) * pass.data.texels * 4);
+        pass.data.rows.forEach((row, i) => flat.set(row, i * pass.data.texels * 4));
+        dataTex = tex(pass.data.texels, Math.max(rows, 1), gl.RGBA32F, gl.RGBA, flat);
+      }
       const out = tex(W, H, gl.RGBA32F, gl.RGBA, null);
       const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, out, 0);
       gl.viewport(0, 0, W, H); gl.useProgram(prog);
-      const bind = (name, unit, t) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); gl.uniform1i(gl.getUniformLocation(prog, name), unit); };
-      bind('DiffuseSampler', 0, colorTex); bind('DepthSampler', 1, depthTex); bind(pass.sampler, 2, dataTex);
+      let unit = 0;
+      const bind = (name, t) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); gl.uniform1i(gl.getUniformLocation(prog, name), unit); unit++; };
+      bind('DiffuseSampler', colorTex); bind('DepthSampler', depthTex);
+      if (dataTex) bind(pass.data.name, dataTex);
+      for (const [uniform, which] of Object.entries(pass.textures || {})) bind(uniform, named[which]);
       gl.uniformMatrix4fv(gl.getUniformLocation(prog, 'InvProj'), false, invProj);
       gl.uniformMatrix4fv(gl.getUniformLocation(prog, 'InvView'), false, invView);
       gl.uniformMatrix4fv(gl.getUniformLocation(prog, 'ViewProj'), false, viewProj);
       gl.uniform2f(gl.getUniformLocation(prog, 'OutSize'), W, H);
-      gl.uniform4f(gl.getUniformLocation(prog, pass.info), rows, ...pass.extra.slice(1));
+      for (const [n, v] of Object.entries(pass.f1 || {})) gl.uniform1f(gl.getUniformLocation(prog, n), v);
+      for (const [n, v] of Object.entries(pass.f3 || {})) gl.uniform3f(gl.getUniformLocation(prog, n), ...v);
+      for (const [n, v] of Object.entries(pass.f4 || {})) gl.uniform4f(gl.getUniformLocation(prog, n), ...v);
+      for (const [n, v] of Object.entries(pass.vec4s || {})) gl.uniform4fv(gl.getUniformLocation(prog, n), new Float32Array(v));
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       colorTex = out;
     }
@@ -279,23 +611,57 @@ async function render(page, name, cena) {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     return canvas.toDataURL('image/png');
   }, { W, H, depth: Array.from(depth), color: Array.from(color), invProj: invert(proj), invView: invert(view),
-       viewProj, passes, shaders });
+       viewProj, passes, shaders, sun: sky ? sunTexture() : null });
   const file = path.join(OUT, name + '.png');
   fs.writeFileSync(file, Buffer.from(png.split(',')[1], 'base64'));
   return file;
 }
 
+// Monta uma folha 3 × 3 (linhas: buraco negro, portal, eclipse; colunas: formação, auge, dissipação) com rótulos.
+async function contactSheet(page, files) {
+  const images = files.map(f => fs.readFileSync(f).toString('base64'));
+  const png = await page.evaluate(async ({ images, W, H }) => {
+    const cols = 3, rows = images.length / 3, pad = 6, label = 22;
+    const canvas = document.createElement('canvas');
+    canvas.width = cols * W + (cols + 1) * pad; canvas.height = rows * (H + label) + (rows + 1) * pad;
+    const g = canvas.getContext('2d');
+    g.fillStyle = '#101418'; g.fillRect(0, 0, canvas.width, canvas.height);
+    const names = ['formação', 'auge', 'dissipação'], kinds = ['BLACK_HOLE', 'PORTAL', 'ECLIPSE'];
+    for (let i = 0; i < images.length; i++) {
+      const img = new Image(); img.src = 'data:image/png;base64,' + images[i]; await img.decode();
+      const c = i % cols, r = Math.floor(i / cols);
+      const x = pad + c * (W + pad), y = pad + r * (H + label + pad);
+      g.fillStyle = '#d2e9f4'; g.font = '15px sans-serif'; g.fillText(kinds[r] + ' · ' + names[c], x + 2, y + 16);
+      g.drawImage(img, x, y + label);
+    }
+    return canvas.toDataURL('image/png');
+  }, { images, W, H });
+  const file = path.join(OUT, 'ceu-0120.png');
+  fs.writeFileSync(file, Buffer.from(png.split(',')[1], 'base64'));
+  return file;
+}
+
+const ALL = { ...CENAS, ...SKY_CENAS };
+
 async function main() {
   const { chromium } = require('playwright');
   const wanted = process.argv.slice(2);
-  const names = wanted.length ? wanted : Object.keys(CENAS);
+  const sheet = wanted.length === 1 && wanted[0] === 'ceu';
+  const names = sheet ? Object.keys(SKY_CENAS) : wanted.length ? wanted : Object.keys(ALL);
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   try {
     const page = await browser.newPage();
+    const files = [];
     for (const name of names) {
-      if (!CENAS[name]) throw new Error('cena desconhecida: ' + name);
-      console.log('prévia ' + path.relative(ROOT, await render(page, name, CENAS[name])));
+      if (!ALL[name]) throw new Error('cena desconhecida: ' + name);
+      const file = await render(page, name, ALL[name]);
+      files.push(file);
+      console.log('prévia ' + path.relative(ROOT, file));
+    }
+    if (sheet || (!wanted.length)) {
+      const skyFiles = Object.keys(SKY_CENAS).map(n => path.join(OUT, n + '.png'));
+      if (skyFiles.every(f => fs.existsSync(f))) console.log('folha ' + path.relative(ROOT, await contactSheet(page, skyFiles)));
     }
   } finally {
     await browser.close();

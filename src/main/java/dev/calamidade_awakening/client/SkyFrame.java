@@ -53,6 +53,8 @@ final class SkyFrame {
     private final DataTexture texture = new DataTexture(TEXELS, ROWS);
     private final float[] data = new float[TEXELS * 4 * ROWS];
     private final float[] masks = new float[4 * 8];
+    /** Gravitational lenses of this frame (0.12.0): two vec4 (direction, Einstein radius) and (extent 0, extent 1, count, 0). */
+    private final float[] lenses = new float[12];
     private List<Resolved> layers = List.of();
     private int candidates, maskCount;
     private float darkening, hideSun, hideMoon, exposure = 1;
@@ -87,7 +89,36 @@ final class SkyFrame {
         float target = SkyMath.exposure(darkening, ClientConfig.screenEffects());
         exposure = SkyMath.displayed(exposure, target, elapsed, mc.options.hideLightningFlash().get());
         buildMasks();
+        buildLenses(limits);
     }
+
+    /**
+     * Lenses of the painted black holes, at most {@link SkyMath#lenses} (1 or 2): Einstein radius
+     * {@code shadow × (1.05 + 1.6 × lens)} and extent {@code radius × (1.6 + 2.2 × lens)}, with {@code lens} the layer's
+     * lens times its weight, halved when the player turns motion effects off. The same numbers go to the sky and the
+     * atmosphere passes (calamidade_sky.glsl), so both bend the scene alike.
+     */
+    private void buildLenses(FrameLimits limits) {
+        java.util.Arrays.fill(lenses, 0);
+        int max = SkyMath.lenses(limits.skyLayers()), n = 0;
+        boolean motion = ClientConfig.motionEffects();
+        for (Resolved r : layers) {
+            var s = r.state();
+            if (n >= max || s.type() != Sky.Type.BLACK_HOLE || !(s.lens() > 0)) continue;
+            float strength = s.lens() * s.weight() * (motion ? 1 : .5f);
+            double radius = Math.toRadians(s.radius());
+            lenses[n * 4] = (float) r.direction().x();
+            lenses[n * 4 + 1] = (float) r.direction().y();
+            lenses[n * 4 + 2] = (float) r.direction().z();
+            lenses[n * 4 + 3] = (float) SkyMath.einstein(radius, strength);
+            lenses[8 + n] = (float) SkyMath.lensExtent(radius, strength);
+            n++;
+        }
+        lenses[10] = n;
+    }
+
+    /** Lens uniforms of this frame: lens 0, lens 1 and (extent 0, extent 1, count, 0). */
+    float[] lenses() { return lenses; }
 
     /** Layers painted this frame. */
     List<Resolved> layers() { return layers; }
@@ -119,7 +150,8 @@ final class SkyFrame {
                 case CELESTIAL_BODY -> n = mask(n, dir, radius);
                 case ECLIPSE -> {
                     n = mask(n, dir, radius * Sky.ECLIPSE_SUN_RATIO);
-                    if (r.layer().anchor() != Sky.Anchor.MOON) {
+                    // The covering disk is only opaque over the sun and at totality (sky.fsh).
+                    if (r.layer().anchor() != Sky.Anchor.MOON && s.progress() >= .9f) {
                         double[] basis = SkyMath.basis(dir, Math.toRadians(s.rotationAt(0)));
                         var disk = SkyMath.fromLocal(basis, radius * (1 - s.progress()) * Sky.ECLIPSE_START_DISTANCE, 0);
                         n = mask(n, disk, radius);
@@ -147,7 +179,6 @@ final class SkyFrame {
         if (mc.level == null) return false;
         boolean motion = ClientConfig.motionEffects();
         float flash = mc.options.hideLightningFlash().get() ? 0 : ClientConfig.screenEffects();
-        int lenses = SkyMath.lenses(limits.skyLayers());
         int count = Math.min(layers.size(), ROWS);
         int k = 0;
         for (int i = 0; i < count; i++) {
@@ -158,11 +189,6 @@ final class SkyFrame {
             boolean portal = s.type() == Sky.Type.PORTAL;
             double spinDegrees = motion ? s.spin() * r.realAge() : 0;
             double roll = Math.toRadians(s.rotation() + (portal ? spinDegrees : 0));
-            float lens = 0;
-            if (s.type() == Sky.Type.BLACK_HOLE && lenses > 0 && s.lens() > 0) {
-                lens = s.lens() * weight * (motion ? 1 : .5f);
-                lenses--;
-            }
             double seconds = r.realAge() / 20.0;
             if (!motion) seconds = s.type() == Sky.Type.AURORA ? seconds * .2 : 0;
             seconds %= WRAP_SECONDS;
@@ -174,9 +200,9 @@ final class SkyFrame {
             // 2: primary × intensity, weight
             k = put(k, BeamFrame.red(s.primary()) * s.intensity(), BeamFrame.green(s.primary()) * s.intensity(),
                 BeamFrame.blue(s.primary()) * s.intensity(), weight);
-            // 3: secondary × intensity, lens strength
+            // 3: secondary × intensity
             k = put(k, BeamFrame.red(s.secondary()) * s.intensity(), BeamFrame.green(s.secondary()) * s.intensity(),
-                BeamFrame.blue(s.secondary()) * s.intensity(), lens);
+                BeamFrame.blue(s.secondary()) * s.intensity(), 0);
             // 4: seed, seconds, flash gain, anchor
             k = put(k, r.seed(), (float) seconds, flash, anchor);
             // 5: accumulated spin (radians)
@@ -195,6 +221,7 @@ final class SkyFrame {
         float renderDistance = mc.gameRenderer.getRenderDistance();
         float info = count, worldExposure = exposure, sunHide = sunId != 0 ? hideSun : 0, moonHide = moonId != 0 ? hideMoon : 0;
         int quality = limits.tier().ordinal();
+        float[] lens = lenses.clone();
         frame.pass(PROGRAM, u -> {
             u.glTexture("CaSkyData", id);
             if (sunId != 0) u.glTexture("CaSkySunTex", sunId);
@@ -207,6 +234,9 @@ final class SkyFrame {
             u.f3("CaSkyVanillaSky", (float) skyColor.x, (float) skyColor.y, (float) skyColor.z);
             u.f3("CaSkyVanillaFog", fog[0], fog[1], fog[2]);
             u.f4("CaSkyMisc", renderDistance, 0, 0, 0);
+            u.f4("CaSkyLens0", lens[0], lens[1], lens[2], lens[3]);
+            u.f4("CaSkyLens1", lens[4], lens[5], lens[6], lens[7]);
+            u.f4("CaSkyLensExt", lens[8], lens[9], lens[10], 0);
         });
         return true;
     }

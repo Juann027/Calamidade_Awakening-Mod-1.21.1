@@ -283,6 +283,11 @@ final class SkyCheck {
         require(FrameLimits.unlimited().skyLayers() == SkyMath.MAX_LAYERS, "test profile: every row");
         require(new FrameLimits(Quality.LOW, "x", 1, 1, 1, 1, 1, 1, 1, false, 99).skyLayers() == SkyMath.MAX_LAYERS, "clamped");
         require(SkyMath.lenses(2) == 1 && SkyMath.lenses(4) == 2 && SkyMath.lenses(8) == 2, "lenses");
+        double r = Math.toRadians(15);
+        require(Math.abs(SkyMath.einstein(r, 0) - r * SkyMath.SHADOW * 1.05) < 1e-12, "lens 0: ring just outside the shadow");
+        require(SkyMath.einstein(r, 1) > SkyMath.einstein(r, .5) && SkyMath.lensExtent(r, 1) > SkyMath.lensExtent(r, .5),
+            "stronger lens: larger ring and reach");
+        require(SkyMath.lensExtent(r, 0) > SkyMath.einstein(r, 1), "the lens reaches beyond its Einstein ring");
     }
 
     private static void near(Sky.Direction d, double x, double y, double z, String test) {

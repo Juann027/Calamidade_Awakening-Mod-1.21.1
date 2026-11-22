@@ -38,6 +38,15 @@ public final class SkyMath {
     /** Most layers whose gravitational lens is applied per frame: 1 within {@code layers} up to 2, otherwise 2. */
     public static int lenses(int layers) { return layers <= 2 ? 1 : 2; }
 
+    /** Shadow radius of a black hole over its angular radius (sky.fsh). */
+    public static final double SHADOW = .34;
+
+    /** Einstein radius (radians) of a black hole of angular radius {@code radius} (radians) and lens strength 0..1. */
+    public static double einstein(double radius, double strength) { return radius * SHADOW * (1.05 + 1.6 * strength); }
+
+    /** Extent of the lens (radians) beyond which nothing bends; the bending fades out from 60% of it. */
+    public static double lensExtent(double radius, double strength) { return radius * (1.6 + 2.2 * strength); }
+
     /**
      * One layer competing for a frame: {@code hero} for layers of HERO effects, {@code weight} its resolved weight and
      * {@code order} the instance order (older first on ties).

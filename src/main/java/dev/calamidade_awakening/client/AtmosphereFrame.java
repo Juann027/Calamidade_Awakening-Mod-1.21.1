@@ -64,11 +64,16 @@ final class AtmosphereFrame {
     /** Game fog color recorded in this frame's ComputeFogColor (0.12.0: the sky pass estimates the vanilla sky). */
     float[] fogColor() { return new float[] {fogR, fogG, fogB}; }
 
-    /** Opaque sky regions of this frame's sky layers (0.12.0), set by the sky pass before this one. */
-    void skyMasks(float[] masks, int count) {
+    /**
+     * Opaque sky regions and gravitational lenses of this frame's sky layers (0.12.0), set by the sky pass before this
+     * one: the atmosphere skips its gradient and stars on the regions and bends the scene like the sky pass.
+     */
+    void skyMasks(float[] masks, int count, float[] lenses) {
         skyMasks = masks;
         skyMaskCount = count;
+        skyLenses = lenses;
     }
+    private float[] skyLenses = new float[12];
     private float[] skyMasks = new float[32];
     private int skyMaskCount;
 
@@ -120,6 +125,7 @@ final class AtmosphereFrame {
         float renderDistance = mc.gameRenderer.getRenderDistance();
         float fogR = this.fogR, fogG = this.fogG, fogB = this.fogB, exposure = this.exposure;
         float[] masks = skyMasks.clone();
+        float[] lens = skyLenses.clone();
         int maskCount = skyMaskCount;
         frame.pass(PROGRAM, u -> {
             u.f3("CaAtmoSkyTop", s.skyTop().r(), s.skyTop().g(), s.skyTop().b());
@@ -132,6 +138,9 @@ final class AtmosphereFrame {
             u.f4("CaAtmoB", exposure, s.ambientStrength() * intensity, s.stars(), screenFog ? 1 : 0);
             u.f4("CaAtmoC", renderDistance, maskCount, 0, 0);
             if (maskCount > 0) u.vec4s("CaAtmoMask", masks);
+            u.f4("CaAtmoLens0", lens[0], lens[1], lens[2], lens[3]);
+            u.f4("CaAtmoLens1", lens[4], lens[5], lens[6], lens[7]);
+            u.f4("CaAtmoLensExt", lens[8], lens[9], lens[10], 0);
         });
         return true;
     }

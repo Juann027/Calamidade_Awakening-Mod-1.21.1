@@ -3,8 +3,8 @@
 // A RimuLib antepõe #version 150 e common.glsl (viewDir, skyAt, scenePosAt, project, sampleScene...).
 //
 // Ordem por pixel:
-//   1. lente gravitacional dos buracos negros: a cena é amostrada com desvio (céu e terreno distante; o terreno a
-//      menos de ~12 blocos não entorta);
+//   1. lente gravitacional dos buracos negros (calamidade_sky.glsl, a mesma conta do passe de atmosfera): a cena é
+//      amostrada com desvio (céu e terreno distante; o terreno a menos de ~12 blocos não entorta);
 //   2. sol e lua do jogo apagados onde uma camada pede (subtrai a mesma textura que o jogo somou, com a geometria
 //      conferida por javap em LevelRenderer.renderSky);
 //   3. escurecimento do mundo (eclipse), já com intensidade e "ocultar clarões" aplicados no Java;
@@ -14,7 +14,7 @@
 //   0: direção (xyz, relativa à câmera), raio angular (radianos)
 //   1: tipo (0 buraco negro, 1 portal, 2 eclipse, 3 fenda, 4 astro, 5 aurora), rotação (rad), inclinação (rad), progresso
 //   2: cor primária × intensidade, peso
-//   3: cor secundária × intensidade, força da lente (0 = sem lente neste quadro)
+//   3: cor secundária × intensidade, livre
 //   4: semente (0..1), segundos da instância (parados com "efeitos de movimento" desligado), ganho de clarão,
 //      âncora (0 direção, 1 sol, 2 lua)
 //   5: giro acumulado (rad: estrias do disco do buraco negro, superfície do astro; o do portal já está na rotação)
@@ -30,8 +30,17 @@ uniform vec3 CaSkyAxisZ;
 uniform vec3 CaSkyVanillaSky;     // cor do céu do jogo na câmera
 uniform vec3 CaSkyVanillaFog;     // névoa do quadro
 uniform vec4 CaSkyMisc;           // x: distância de renderização (blocos)
+uniform vec4 CaSkyLens0;          // lente 0: direção, raio de Einstein (rad)
+uniform vec4 CaSkyLens1;          // lente 1
+uniform vec4 CaSkyLensExt;        // x, y: alcance das lentes (rad), z: lentes (0..2)
 
 #include "calamidade_fx.glsl"
+#include "calamidade_sky.glsl"
+
+// Gaussiana exp(-x²): pow() com base negativa é indefinido em GLSL (NaN em alguns drivers).
+float bump(float x) {
+    return exp(-x * x);
+}
 
 vec4 skyTexel(int k, int i) {
     return texelFetch(CaSkyData, ivec2(k, i), 0);
@@ -134,7 +143,7 @@ vec4 blackHole(vec2 q, vec4 t1, vec4 t2, vec4 t3, vec4 t4, vec4 t5) {
             * progress * (0.25 + 0.75 * abs(sin(tilt)));
     }
     // Anel de fótons: fino e brilhante logo fora da sombra.
-    float photon = exp(-pow((r - shadow * 1.03) / 0.014, 2.0));
+    float photon = bump((r - shadow * 1.03) / 0.014);
     vec3 light = diskColor * (direct + bent * 0.8) + hot * photon * (0.35 + 0.65 * progress);
     // Halo fraco do disco e sombra opaca.
     light += cool * 0.08 * progress * exp(-max(r - 1.0, 0.0) / 0.35) * step(shadow, r);
@@ -153,7 +162,7 @@ vec4 portal(vec2 q, vec4 t1, vec4 t2, vec4 t3, vec4 t4) {
     // Anel com arcos de energia (ruído ao longo do ângulo, andando com o tempo).
     float crackle = caFbm2(vec2(a * 4.0 + seed * 13.0, seconds * 1.7), octaves());
     float width = 0.025 + 0.03 * crackle;
-    float ring = exp(-pow((r - open) / width, 2.0)) * step(0.001, open);
+    float ring = bump((r - open) / width) * step(0.001, open);
     float birth = (1.0 - smoothstep(0.0, 0.25, open)) * step(0.001, open) * flash;
     vec3 light = t2.rgb * (ring * (1.2 + 1.5 * crackle) + spark * 3.0) * (1.0 + 2.5 * birth);
     light += t2.rgb * 0.25 * exp(-max(r - open, 0.0) / 0.12) * step(open, r) * step(0.001, open) * (1.0 + 3.0 * birth);
@@ -163,16 +172,20 @@ vec4 portal(vec2 q, vec4 t1, vec4 t2, vec4 t3, vec4 t4) {
         // em redemoinho.
         float swirl = smoothstep(open * 0.6, open, r) * 0.35;
         vec2 o = rot2(swirl * sin(seconds * 0.8 + a * 3.0)) * p;
-        vec2 g = o * 1.8;
+        vec2 g = o * 1.35;
         float gr = length(g), ga = atan(g.y, g.x);
         float arms = pow(0.5 + 0.5 * cos(2.0 * ga - 4.2 * log(max(gr, 0.02)) + seed * 6.28), 3.0);
-        float galaxy = arms * exp(-gr * 2.4) * (0.6 + 0.4 * caNoise2(g * 9.0 + seed * 5.0)) + exp(-gr * gr * 28.0) * 1.4;
+        float dust = 0.55 + 0.45 * caNoise2(g * 9.0 + seed * 5.0);
+        float armLight = arms * exp(-gr * 1.6) * dust;
+        float coreLight = exp(-gr * gr * 22.0) * 1.6;
         float neb = caFbm2(o * 2.6 + vec2(seed * 31.0, seconds * 0.02), octaves());
         float neb2 = caFbm2(o * 5.3 - vec2(seconds * 0.015, seed * 17.0), octaves());
         vec3 deep = vec3(0.004, 0.002, 0.018) + t3.rgb * 0.05;
         vec3 nebula = mix(t3.rgb, t2.rgb, neb2) * smoothstep(0.35, 0.85, neb) * 0.7;
-        vec3 core = mix(vec3(1.0, 0.92, 0.8), t2.rgb, 0.25);
-        vec3 inner = deep + nebula + core * galaxy * 0.9 + vec3(0.9, 0.95, 1.0) * densStars(o * 70.0, seed);
+        vec3 warm = vec3(1.0, 0.9, 0.75);
+        vec3 armColor = mix(warm, mix(t2.rgb, vec3(1.0), 0.3), smoothstep(0.1, 0.7, gr));
+        vec3 inner = deep + nebula + armColor * armLight * 1.1 + warm * coreLight
+            + vec3(0.9, 0.95, 1.0) * densStars(o * 70.0, seed);
         light += inner * inside;
     }
     return vec4(light * t2.w, inside * t2.w);
@@ -184,13 +197,15 @@ vec4 eclipseSun(vec2 q, vec4 t1, vec4 t2, vec4 t3, vec4 t4) {
     if (r > 6.0) return vec4(0.0);
     // O disco que cobre parte de longe (2,2 raios) na direção da rotação e chega ao centro na totalidade.
     vec2 offset = vec2(1.0, 0.0) * (1.0 - progress) * 2.2;
-    float moon = caDisc(length(q - offset), 1.0, 0.012);
+    float moonDisc = caDisc(length(q - offset), 1.0, 0.012);
+    float total = smoothstep(0.9, 0.995, progress);
+    float sunMask = caDisc(r, 0.97, 0.01);
+    // O disco só aparece inteiro sobre o sol e na totalidade; fora do sol, no céu claro, é uma sombra leve.
+    float moon = moonDisc * max(sunMask, 0.18 + 0.82 * total);
     float sunR = 0.97;
-    float sunMask = caDisc(r, sunR, 0.01);
     float limb = pow(max(1.0 - r * r / (sunR * sunR), 0.0), 0.35);
     vec3 sunLight = vec3(1.0, 0.94, 0.82) * (0.55 + 0.9 * limb) * 1.4;
-    float visible = sunMask * (1.0 - moon);
-    float total = smoothstep(0.9, 0.995, progress);
+    float visible = sunMask * (1.0 - moonDisc);
     // Coroa: serpentinas radiais que mudam devagar, e um brilho junto à borda.
     float a = atan(q.y, q.x);
     float streamers = caFbm2(vec2(a * 2.2 + seed * 9.0, seconds * 0.03), octaves());
@@ -202,8 +217,11 @@ vec4 eclipseSun(vec2 q, vec4 t1, vec4 t2, vec4 t3, vec4 t4) {
         * exp(-max(r - 1.0, 0.0) / 0.035) * step(0.995, r) * total;
     // Anel de diamante: o último ponto de sol, do lado oposto ao caminho do disco, pouco antes da totalidade.
     vec2 last = -normalize(offset + vec2(1e-5, 0.0)) * sunR;
-    float window = smoothstep(0.9, 0.95, progress) * (1.0 - smoothstep(0.975, 0.99, progress));
-    float diamond = exp(-dot(q - last, q - last) / 0.006) * window * flash * 4.0;
+    float window = smoothstep(0.88, 0.94, progress) * (1.0 - smoothstep(0.975, 0.99, progress));
+    vec2 dl = q - last;
+    float diamond = (exp(-dot(dl, dl) / 0.004) * 5.0 + exp(-dot(dl, dl) / 0.05) * 1.2
+        + exp(-abs(dl.y) / 0.012) * exp(-abs(dl.x) / 0.5) * 0.8 + exp(-abs(dl.x) / 0.012) * exp(-abs(dl.y) / 0.5) * 0.8)
+        * window * flash;
     vec3 light = sunLight * visible + t2.rgb * (corona * 0.85 + glow * 0.9) + t3.rgb * prom * 1.6
         + vec3(1.0, 0.97, 0.9) * diamond;
     // Antes da totalidade, um leve halo do sol que ainda aparece.
@@ -300,7 +318,7 @@ vec4 celestial(vec2 q, vec4 t1, vec4 t2, vec4 t3, vec4 t4, vec4 t5) {
         float rho = length(vec2(q.x, q.y / max(s, 0.05)));
         if (rho > 1.3 && rho < 2.25) {
             float band = 0.55 + 0.45 * caNoise2(vec2(rho * 30.0 + seed * 7.0, 0.5));
-            float gaps = smoothstep(1.3, 1.36, rho) * (1.0 - smoothstep(2.15, 2.25, rho)) * (1.0 - 0.7 * exp(-pow((rho - 1.78) / 0.02, 2.0)));
+            float gaps = smoothstep(1.3, 1.36, rho) * (1.0 - smoothstep(2.15, 2.25, rho)) * (1.0 - 0.7 * bump((rho - 1.78) / 0.02));
             float alpha = band * gaps * 0.85;
             // A metade de trás do anel fica atrás do planeta.
             bool behind = q.y * sign(tilt) > 0.0 && r < 1.0;
@@ -343,32 +361,9 @@ void main() {
     int count = int(CaSkyInfo.x + 0.5);
     bool skyOrig = skyAt(uv);
 
-    // 1. Lente: o desvio de cada buraco negro, um depois do outro.
-    vec3 rd = rd0;
-    bool lensed = false;
-    for (int i = 0; i < 8; i++) {
-        if (i >= count) break;
-        vec4 t3 = skyTexel(3, i);
-        if (t3.w <= 0.0) continue;
-        vec4 t0 = skyTexel(0, i);
-        float shadow = t0.w * 0.34;
-        float einstein = shadow * (1.05 + 1.6 * t3.w);
-        float extent = t0.w * (1.6 + 2.2 * t3.w);
-        mat3 basis = caSkyBasis(t0.xyz, 0.0);
-        vec2 local = caSkyLocal(rd, basis);
-        if (length(local) >= extent) continue;
-        rd = caSkyFromLocal(caLensSource(local, einstein, extent), basis);
-        lensed = true;
-    }
-    vec2 suv = uv;
-    if (lensed) {
-        vec3 pj = project(rd * 1000.0);
-        vec2 target = pj.z > 0.0 ? clamp(pj.xy, vec2(0.001), vec2(0.999)) : uv;
-        // O terreno perto de quem olha não entorta (a lente está longe, atrás dele).
-        float near = skyOrig ? 1.0 : smoothstep(12.0, 48.0, length(scenePosAt(uv)));
-        suv = mix(uv, target, near);
-        if (near < 1.0) rd = normalize(mix(rd0, rd, near));
-    }
+    // 1. Lente: o desvio de cada buraco negro, um depois do outro (o mesmo do passe de atmosfera).
+    vec3 rd;
+    vec2 suv = caSkyLensUv(uv, CaSkyLens0, CaSkyLens1, CaSkyLensExt, rd);
     vec3 color = texture(DiffuseSampler, suv).rgb;
     bool sky = skyAt(suv);
 

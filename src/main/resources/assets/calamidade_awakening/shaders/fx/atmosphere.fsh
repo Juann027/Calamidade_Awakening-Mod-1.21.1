@@ -15,8 +15,12 @@ uniform vec4 CaAtmoA;           // x: skyBlend, y: fogDensity, z: fogStart (bloc
 uniform vec4 CaAtmoB;           // x: exposição, y: força da tinta, z: estrelas, w: névoa na tela (0/1)
 uniform vec4 CaAtmoC;           // x: distância de renderização (blocos), y: máscaras de céu (0.12.0)
 uniform vec4 CaAtmoMask[8];     // 0.12.0: direção (xyz) e raio angular (w, radianos) das camadas opacas do céu
+uniform vec4 CaAtmoLens0;       // 0.12.0: as lentes dos buracos negros, as mesmas do passe "sky"
+uniform vec4 CaAtmoLens1;
+uniform vec4 CaAtmoLensExt;
 
 #include "calamidade_fx.glsl"
+#include "calamidade_sky.glsl"
 
 // Céu que o jogo pinta: disco 16 blocos acima, com névoa FOG_SKY (cilíndrica, de 0 à distância de renderização).
 vec3 atmoVanillaSky(vec3 dir) {
@@ -48,16 +52,22 @@ float atmoHorizon(vec3 dir) {
 
 void main() {
     vec3 color = texture(DiffuseSampler, texCoord).rgb;
-    if (skyAt(texCoord)) {
-        vec3 dir = viewDir(texCoord);
+    // 0.12.0: perto de um buraco negro o passe "sky" mostrou aqui a cor de outro ponto da cena; o céu e a névoa seguem
+    // esse ponto (céu desviado é céu, terreno desviado é terreno).
+    vec3 dir;
+    vec2 suv = caSkyLensUv(texCoord, CaAtmoLens0, CaAtmoLens1, CaAtmoLensExt, dir);
+    if (skyAt(suv)) {
         vec3 base = atmoVanillaSky(dir);
         vec3 target = mix(base, atmoGradient(dir), CaAtmoA.x);
         if (CaAtmoB.z > 0.0 && dir.y > -0.05)
             target += vec3(0.85, 0.9, 1.0) * caStars(dir, GTime) * CaAtmoB.z;
         target = mix(target, CaAtmoFogColor, CaAtmoA.y * atmoHorizon(dir));
-        color = max(color + (target - base) * (1.0 - atmoSkyMask(dir)), vec3(0.0));
+        // A máscara vale onde a camada foi pintada: pixel de céu de verdade, na direção sem desvio. O céu, de onde a
+        // luz veio (desviada); um morro que a lente trocou por céu recebe o céu inteiro.
+        float mask = skyAt(texCoord) ? atmoSkyMask(viewDir(texCoord)) : 0.0;
+        color = max(color + (target - base) * (1.0 - mask), vec3(0.0));
     } else if (CaAtmoB.w > 0.5) {
-        float distance = length(scenePosAt(texCoord));
+        float distance = length(scenePosAt(suv));
         color = mix(color, CaAtmoFogColor, CaAtmoA.y * smoothstep(CaAtmoA.z, CaAtmoA.w, distance));
     }
     color *= CaAtmoB.x;
