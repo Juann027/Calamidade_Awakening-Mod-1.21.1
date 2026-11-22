@@ -47,14 +47,20 @@ final class LimitsCheck {
         require(FrameLimits.unlimited(12, 4).marks() == 4 && FrameLimits.unlimited(12, 4).effects() == 12, "test caps");
     }
 
-    /** 0.11.2: LOW, BALANCED and HIGH keep the caps of 0.11.1; ULTRA shows HIGH to addons; config caps clamped. */
+    /** 0.11.2: LOW keeps the caps of 0.11.1, the others grow; ULTRA shows HIGH to addons; config caps clamped. */
     private static void newProfiles() {
-        for (QualityProfile p : List.of(QualityProfile.LOW, QualityProfile.BALANCED, QualityProfile.HIGH)) {
+        for (QualityProfile p : List.of(QualityProfile.LOW)) {
             FrameLimits a = p.limits(), b = FrameLimits.of(p.tier);
             require(a.effects() == b.effects() && a.marks() == b.marks() && a.heroPasses() == b.heroPasses()
                 && a.heroes() == b.heroes() && a.beams() == b.beams() && a.lights() == b.lights()
                 && a.vertices() == b.vertices() && a.tier() == p.tier, "profile " + p + " keeps the 0.11.1 caps");
         }
+        QualityProfile[] all = QualityProfile.values();
+        for (int i = 1; i < all.length; i++)
+            require(all[i].defaults.effects() > all[i - 1].defaults.effects() && all[i].defaults.passes() > all[i - 1].defaults.passes(),
+                "each profile draws more than the one below: " + all[i]);
+        require(QualityProfile.BALANCED.defaults.effects() >= Quality.BALANCED.effects
+            && QualityProfile.HIGH.defaults.effects() >= Quality.HIGH.effects, "0.11.2 defaults never below 0.11.1");
         FrameLimits ultra = QualityProfile.ULTRA.limits();
         require(ultra.tier() == Quality.HIGH && ultra.label().equals("ULTRA"), "ULTRA shows HIGH to addons");
         require(ultra.effects() > QualityProfile.HIGH.defaults.effects() && ultra.marks() > QualityProfile.HIGH.defaults.passes()

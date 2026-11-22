@@ -27,8 +27,19 @@ public final class HoloGeometry {
      */
     public static Matrix4f panel(Matrix4f dest, float x, float y, float w, float h, float pivotX, float pivotY, float dz,
                                  float yawDegrees, float pitchDegrees, float scaleX, float scaleY) {
+        return panel(dest, x, y, w, h, pivotX, pivotY, dz, yawDegrees, pitchDegrees, 0F, scaleX, scaleY);
+    }
+
+    /**
+     * {@link #panel(Matrix4f, float, float, float, float, float, float, float, float, float, float, float)} with a turn
+     * in the board plane, {@code rollDegrees} (positive turns layout x toward layout y, that is, clockwise as seen):
+     * the Atlas tabs follow the arc of the astrolabe ring.
+     */
+    public static Matrix4f panel(Matrix4f dest, float x, float y, float w, float h, float pivotX, float pivotY, float dz,
+                                 float yawDegrees, float pitchDegrees, float rollDegrees, float scaleX, float scaleY) {
         float px = pivotX * w, py = pivotY * h;
         return dest.translation(x + px, y + py, dz)
+            .rotateZ((float) Math.toRadians(rollDegrees))
             .rotateY((float) Math.toRadians(yawDegrees))
             .rotateX((float) Math.toRadians(pitchDegrees))
             .scale(scaleX, scaleY, 1F)

@@ -7,11 +7,15 @@ package dev.calamidade_awakening.api;
  * integrated graphics. Not public API.
  */
 public enum QualityProfile {
+    /** Integrated graphics: the caps of 0.11.1. */
     LOW(Quality.LOW, new Caps(3, 1, 1, 2, 16, 8)),
-    BALANCED(Quality.BALANCED, new Caps(6, 2, 2, 2, 48, 24)),
-    HIGH(Quality.HIGH, new Caps(12, 4, 3, 2, 128, 64)),
-    /** For strong machines: twice the drawn effects and the common passes of HIGH (provisional until GPU numbers). */
-    ULTRA(Quality.HIGH, new Caps(24, 8, 4, 2, 128, 64));
+    BALANCED(Quality.BALANCED, new Caps(8, 3, 2, 2, 64, 32)),
+    HIGH(Quality.HIGH, new Caps(16, 6, 3, 2, 128, 64)),
+    /**
+     * Strong machines. Measured on an RTX 4060 at 1920 × 1009 (0.11.2): no cost visible within a 144 Hz frame up to 24
+     * drawn effects and 12 addon passes; at 48 drawn the p95 rose from 10.4 to 15.7 ms. 32 keeps a margin.
+     */
+    ULTRA(Quality.HIGH, new Caps(32, 12, 4, 2, 128, 64));
 
     /** Shader detail tier shown to addons and used for steps, segments and terrain stand-ins. */
     public final Quality tier;

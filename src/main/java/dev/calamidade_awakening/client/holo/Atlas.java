@@ -60,8 +60,13 @@ final class Atlas {
     /** Palette of the neutral skeleton (ARGB). */
     record Style(int glassTop, int glassBottom, int edge, int accent, int text, int sub, int hotFill, int star, int line) {}
 
-    static final Style style = new Style(0xD80A0E26, 0xD8181E4A, 0xFFBFE4FF, 0xFFFFD98A, 0xFFEEF6FF, 0xFFA9BCDC,
-        0x3CFFD98A, 0xFFF2C2, 0xFFE8B4);
+    /** Direction B, astrolabe (chosen by the owner, 0.11.2): dark teal glass, amber brass, teal secondary ring. */
+    static final Style style = new Style(0xDC071A1E, 0xDC0E2C30, 0xFFF2B04A, 0xFFF2B04A, 0xFFF6EFE2, 0xFFB8C9C4,
+        0x38F2B04A, 0xFFE0A0, 0xF2B04A);
+    /** Astrolabe ring in layout units: centre, radii of the brass ring; the tabs ride a slightly larger arc. */
+    static final float RING_X = 320F, RING_Y = 196F, RING_RX = 304F, RING_RY = 150F, TAB_RX = 318F, TAB_RY = 172F;
+    /** Angle step of the tabs along the top arc (radians) and their size. */
+    static final float TAB_STEP = .27F, TAB_W = 92F, TAB_H = 20F;
 
     private final AtlasWorld world;
     private final Minecraft mc = Minecraft.getInstance();
@@ -104,17 +109,27 @@ final class Atlas {
         });
     }
 
+    /** The five tab panels ({@code tab0}..{@code tab4}; not {@code table}). */
+    static boolean isTab(HoloPanel p) { return p.id.length() == 4 && p.id.startsWith("tab"); }
+
     private HoloPanel panel(String id) { return panels.computeIfAbsent(id, HoloPanel::new); }
 
     /** Panels of the current tab, in drawing order (tabs first). */
     private void layoutTab() {
         for (HoloPanel p : active) p.visible = false;
         active.clear();
-        active.add(panel("tabs").rect(110, 12, 420, 30));
+        // Tabs ride the top arc of the astrolabe ring, each turned along it.
+        for (Tab each : Tab.values()) {
+            double t = Math.PI / 2 + (2 - each.ordinal()) * TAB_STEP;
+            float cx = RING_X + (float) Math.cos(t) * TAB_RX, cy = RING_Y - (float) Math.sin(t) * TAB_RY;
+            HoloPanel p = panel("tab" + each.ordinal()).rect(cx - TAB_W / 2F, cy - TAB_H / 2F, TAB_W, TAB_H);
+            p.roll = (float) Math.toDegrees(Math.atan2(TAB_RY * Math.cos(t), TAB_RX * Math.sin(t)));
+            active.add(p);
+        }
         switch (tab) {
             case SKILLS -> {
-                // Five cards around the protagonist one: in front, two above at the sides, two below.
-                float[][] slots = {{245, 112, 14, 0}, {62, 66, 0, 8}, {428, 66, 0, -8}, {88, 206, -6, 6}, {402, 206, -6, -6}};
+                // Cards in orbit: the first one on top in front, two at the sides, two on the lower arc.
+                float[][] slots = {{245, 74, 12, 0}, {40, 120, 0, 12}, {450, 120, 0, -12}, {142, 218, -4, 5}, {348, 218, -4, -5}};
                 List<VisualKind> kinds = pages.get(page).kinds();
                 for (int i = 0; i < kinds.size(); i++) {
                     HoloPanel p = panel("card" + i).rect(slots[i][0], slots[i][1], 150, 104);
@@ -122,24 +137,25 @@ final class Atlas {
                     p.yaw = slots[i][3];
                     active.add(p);
                 }
-                active.add(panel("pages").rect(170, 322, 300, 30));
+                active.add(panel("pages").rect(190, 330, 260, 28));
             }
             case QUALITY -> {
-                active.add(panel("modes").rect(60, 52, 520, 78));
-                active.add(panel("tune").rect(40, 138, 350, 198));
-                active.add(panel("table").rect(402, 138, 198, 198));
+                active.add(panel("modes").rect(60, 66, 520, 74));
+                active.add(panel("tune").rect(40, 148, 350, 198));
+                active.add(panel("table").rect(402, 148, 198, 198));
             }
-            case ACCESS -> active.add(panel("access").rect(130, 56, 380, 268));
-            case TERRAIN -> active.add(panel("terrain").rect(130, 56, 380, 268));
+            case ACCESS -> active.add(panel("access").rect(130, 70, 380, 268));
+            case TERRAIN -> active.add(panel("terrain").rect(130, 70, 380, 268));
             case DIAG -> {
-                active.add(panel("diag").rect(20, 52, 340, 286));
-                active.add(panel("graph").rect(372, 52, 248, 140));
-                active.add(panel("tests").rect(372, 200, 248, 138));
+                active.add(panel("diag").rect(20, 66, 340, 280));
+                active.add(panel("graph").rect(372, 66, 248, 136));
+                active.add(panel("tests").rect(372, 210, 248, 136));
             }
         }
         for (HoloPanel p : active) {
             p.visible = true;
             if (!p.id.startsWith("card")) p.dz = p.yaw = 0;
+            if (!isTab(p)) p.roll = 0;
         }
     }
 
@@ -149,7 +165,7 @@ final class Atlas {
     List<HoloPlacement.Sample> samples(float eyeZ) {
         List<HoloPlacement.Sample> out = new ArrayList<>();
         for (HoloPanel p : active) {
-            int kind = p.id.equals("tabs") || p.id.equals("card0") || active.size() <= 3 ? HoloPlacement.ESSENTIAL
+            int kind = p.id.equals("tab2") || p.id.equals("card0") || !p.id.startsWith("card") && !isTab(p) ? HoloPlacement.ESSENTIAL
                 : HoloPlacement.IMPORTANT;
             for (float fx : new float[] {.04F, .5F, .96F})
                 for (float fy : new float[] {.08F, .92F})
@@ -261,7 +277,7 @@ final class Atlas {
         }
         if (p == null) return;
         int step = amount > 0 ? -1 : 1;
-        if (p.id.equals("tabs")) setTab(Tab.values()[Math.floorMod(tab.ordinal() + step, Tab.values().length)]);
+        if (isTab(p)) setTab(Tab.values()[Math.floorMod(tab.ordinal() + step, Tab.values().length)]);
         else if (tab == Tab.SKILLS) setPage(page + step);
     }
 
@@ -285,15 +301,19 @@ final class Atlas {
         }
         gl.endStars();
         gl.beginLight();
-        // Constellation lines between neighbouring panels (nearest corners), drawn from the first to the second.
         float lines = linesProgress();
-        for (int i = 1; i < active.size(); i++) {
-            HoloPanel q = active.get(i);
-            // Cards hang from the first card (the protagonist one); the rest chain to the previous panel.
-            HoloPanel p = i >= 2 && tab == Tab.SKILLS && q.id.startsWith("card") ? active.get(1) : active.get(i - 1);
+        ring(gl, unit, lines, a, b);
+        // Dashed constellation lines between neighbouring content panels (nearest corners), drawn out over the opening.
+        List<HoloPanel> content = active.stream().filter(p -> !isTab(p)).toList();
+        int[][] links = tab == Tab.SKILLS
+            ? new int[][] {{0, 1}, {0, 2}, {1, 3}, {2, 4}, {3, 4}}
+            : java.util.stream.IntStream.range(1, content.size()).mapToObj(i -> new int[] {i - 1, i}).toArray(int[][]::new);
+        for (int[] link : links) {
+            if (link[0] >= content.size() || link[1] >= content.size()) continue;
+            HoloPanel p = content.get(link[0]), q = content.get(link[1]);
+            if (p.id.equals("pages") || q.id.equals("pages")) continue;
             nearestCorners(p, q, a, b);
-            b.set(a.x + (b.x - a.x) * lines, a.y + (b.y - a.y) * lines, a.z + (b.z - a.z) * lines);
-            gl.line(a, b, unit * .7F, GLine(lines * .8F), GLine(lines * .8F));
+            dashed(gl, a, b, lines, unit * .6F, GLine(lines * .85F));
         }
         gl.endLight();
         // Panels back to front.
@@ -316,6 +336,50 @@ final class Atlas {
     }
 
     private static int GLine(float alpha) { return HoloGl.withAlpha(style.line(), alpha); }
+
+    /**
+     * The astrolabe behind the panels: a brass ellipse with degree marks (long every 30 degrees), a thinner teal ring
+     * inside and a small hub ring. It grows out of the centre while the lines draw themselves.
+     */
+    private void ring(HoloGl gl, float unit, float k, Vector3f a, Vector3f b) {
+        if (k <= .001F) return;
+        int brass = HoloGl.withAlpha(style.edge(), .75F * k), teal = HoloGl.withAlpha(0x78DCD2, .45F * k);
+        ellipse(gl, RING_RX * k, RING_RY * k, -24F, unit * .9F, brass, a, b);
+        ellipse(gl, (RING_RX - 14F) * k, (RING_RY - 9F) * k, -24F, unit * .5F, teal, a, b);
+        ellipse(gl, 60F * k, 30F * k, -30F, unit * .5F, HoloGl.withAlpha(style.edge(), .4F * k), a, b);
+        for (int i = 0; i < 72; i++) {
+            double t = i / 72.0 * Math.PI * 2;
+            float len = i % 6 == 0 ? 10F : 4.5F;
+            float c = (float) Math.cos(t), s = (float) Math.sin(t);
+            world.viewLayout.transformPosition(a.set(RING_X + c * RING_RX * k, RING_Y - s * RING_RY * k, -24F));
+            world.viewLayout.transformPosition(b.set(RING_X + c * (RING_RX - len) * k, RING_Y - s * (RING_RY - len * .5F) * k, -24F));
+            gl.line(a, b, unit * .5F, brass, brass);
+        }
+    }
+
+    private void ellipse(HoloGl gl, float rx, float ry, float z, float width, int color, Vector3f a, Vector3f b) {
+        int n = 120;
+        for (int i = 0; i < n; i++) {
+            double t0 = i * Math.PI * 2 / n, t1 = (i + 1) * Math.PI * 2 / n;
+            world.viewLayout.transformPosition(a.set(RING_X + (float) Math.cos(t0) * rx, RING_Y - (float) Math.sin(t0) * ry, z));
+            world.viewLayout.transformPosition(b.set(RING_X + (float) Math.cos(t1) * rx, RING_Y - (float) Math.sin(t1) * ry, z));
+            gl.line(a, b, width, color, color);
+        }
+    }
+
+    /** Dashed line from {@code a} toward {@code b}, revealed up to {@code k} (0..1). */
+    private static void dashed(HoloGl gl, Vector3f a, Vector3f b, float k, float width, int color) {
+        int dashes = 14;
+        Vector3f p = new Vector3f(), q = new Vector3f();
+        for (int i = 0; i < dashes; i++) {
+            float t0 = i / (float) dashes, t1 = (i + .6F) / dashes;
+            if (t0 > k) break;
+            t1 = Math.min(t1, k);
+            a.lerp(b, t0, p);
+            a.lerp(b, t1, q);
+            gl.line(p, q, width, color, color);
+        }
+    }
 
     private static void nearestCorners(HoloPanel p, HoloPanel q, Vector3f outA, Vector3f outB) {
         Vector3f a = new Vector3f(), b = new Vector3f();
@@ -346,7 +410,7 @@ final class Atlas {
                 p.resetZones();
                 glass(g, p);
                 switch (p.id) {
-                    case "tabs" -> tabs(g, p);
+                    case "tab0", "tab1", "tab2", "tab3", "tab4" -> tab(g, p, Tab.values()[p.id.charAt(3) - '0']);
                     case "pages" -> pages(g, p);
                     case "modes" -> modes(g, p);
                     case "tune" -> tune(g, p);
@@ -487,17 +551,13 @@ final class Atlas {
 
     // ------------------------------------------------------------------ tabs and skills
 
-    private void tabs(GuiGraphics g, HoloPanel p) {
-        float cell = p.w / Tab.values().length;
-        for (Tab each : Tab.values()) {
-            float x = each.ordinal() * cell;
-            boolean on = each == tab, hover = hot(p, x, 0, cell, p.h);
-            if (on) g.fill((int) x + 2, 3, (int) (x + cell) - 2, (int) p.h - 3, 0x30FFD98A);
-            if (hover && !on) g.fill((int) x + 2, 3, (int) (x + cell) - 2, (int) p.h - 3, style.hotFill());
-            centered(g, each.title(), x + cell / 2F, 11, cell - 8, .85F, on ? style.accent() : style.text());
-            if (on) g.fill((int) x + 10, (int) p.h - 5, (int) (x + cell) - 10, (int) p.h - 4, style.accent());
-            p.zone(x, 0, cell, p.h).click = () -> setTab(each);
-        }
+    /** One tab on the ring: the chosen one filled with brass, the others outlined. */
+    private void tab(GuiGraphics g, HoloPanel p, Tab each) {
+        boolean on = each == tab, hover = p.hot;
+        if (on) g.fill(1, 1, (int) p.w - 1, (int) p.h - 1, 0x46F2B04A);
+        else if (hover) g.fill(1, 1, (int) p.w - 1, (int) p.h - 1, style.hotFill());
+        centered(g, each.title(), p.w / 2F, (p.h - 8F * .85F) / 2F, p.w - 6, .85F, on || hover ? style.accent() : style.text());
+        p.zone(0, 0, p.w, p.h).click = () -> setTab(each);
     }
 
     private void pages(GuiGraphics g, HoloPanel p) {

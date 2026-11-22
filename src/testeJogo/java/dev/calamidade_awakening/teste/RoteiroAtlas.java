@@ -122,7 +122,7 @@ final class RoteiroAtlas implements Runnable {
         Thread.sleep(1500);
         List<String> paineis = noCliente(AtlasWorld::visiblePanels);
         check("Atlas aberto no mundo: abas, 5 cartões e páginas", noCliente(AtlasWorld::isOpen)
-            && paineis.containsAll(List.of("tabs", "card0", "card1", "card2", "card3", "card4", "pages")), paineis.toString());
+            && paineis.containsAll(List.of("tab0", "tab4", "card0", "card1", "card2", "card3", "card4", "pages")), paineis.toString());
         // O jogador anda: o Atlas fica parado no mundo.
         Vec3 antes = noCliente(() -> AtlasWorld.worldPoint("card0", 75, 52));
         noServidor(() -> jogador().teleportTo(level(), X + 1.5, 2, Z - 1.5, 20, 5));
@@ -150,7 +150,7 @@ final class RoteiroAtlas implements Runnable {
 
     /** Clique esquerdo (criativo: quebra na hora) numa aba com pedra atrás: a aba muda, a pedra fica. */
     private void cliqueComBlocoAtras() throws Exception {
-        Vec3 alvo = noCliente(() -> AtlasWorld.worldPoint("tabs", 420 / 5F * 1.5F, 15));
+        Vec3 alvo = noCliente(() -> AtlasWorld.worldPoint("tab1", 46, 10));
         Vec3 olho = noCliente(() -> mc.player.getEyePosition());
         Vec3 dir = alvo.subtract(olho).normalize();
         BlockPos pedra = BlockPos.containing(olho.add(dir.scale(4.2)));
@@ -203,11 +203,11 @@ final class RoteiroAtlas implements Runnable {
     }
 
     private void recall() throws Exception {
-        Vec3 antes = noCliente(() -> AtlasWorld.worldPoint("tabs", 210, 15));
+        Vec3 antes = noCliente(() -> AtlasWorld.worldPoint("tab2", 46, 10));
         mirarDirecao(90, 0);
         noCliente(() -> { AtlasWorld.recall(); return null; });
         Thread.sleep(1500);
-        Vec3 depois = noCliente(() -> AtlasWorld.worldPoint("tabs", 210, 15));
+        Vec3 depois = noCliente(() -> AtlasWorld.worldPoint("tab2", 46, 10));
         Vec3 olho = noCliente(() -> mc.player.getEyePosition());
         Vec3 olhar = noCliente(() -> mc.player.getLookAngle());
         double frente = depois == null ? -1 : depois.subtract(olho).normalize().dot(olhar);

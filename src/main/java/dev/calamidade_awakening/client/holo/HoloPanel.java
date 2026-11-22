@@ -17,7 +17,7 @@ final class HoloPanel {
     /** Rectangle in layout units. */
     float x, y, w, h;
     /** Animated state: offset toward the viewer, turn (degrees), scale and opacity of glass and content. */
-    float dz, yaw, pitch, scale = 1F, alpha, contentAlpha;
+    float dz, yaw, pitch, roll, scale = 1F, alpha, contentAlpha;
     /** Accent colour of the border. */
     int accent;
     boolean visible, interactive = true, hot;
@@ -42,7 +42,7 @@ final class HoloPanel {
 
     /** Freezes the frame matrices from view*layout and projection*view*layout. */
     void freeze(Matrix4f viewLayout, Matrix4f projViewLayout) {
-        HoloGeometry.panel(model, x, y, w, h, .5F, .5F, dz, yaw, pitch, scale, scale);
+        HoloGeometry.panel(model, x, y, w, h, .5F, .5F, dz, yaw, pitch, roll, scale, scale);
         viewLayout.mul(model, modelView);
         projViewLayout.mul(model, pvm);
         pvm.invert(inverse);

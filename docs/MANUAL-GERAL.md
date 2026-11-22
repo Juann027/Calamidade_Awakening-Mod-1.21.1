@@ -1034,10 +1034,10 @@ Num servidor cheio, dezenas de efeitos disputam a mesma tela. O motor sempre lim
 
 Dois números diferentes decidem o custo dos efeitos na tela:
 
-- **Limite de efeitos desenhados ao mesmo tempo:** quantos efeitos o motor desenha num quadro. Os outros continuam existindo (estão sincronizados, tocam som, causam dano), só não são desenhados naquele quadro. O limite é 3, 6 ou 12 (qualidade LOW, BALANCED ou HIGH).
+- **Limite de efeitos desenhados ao mesmo tempo:** quantos efeitos o motor desenha num quadro. Os outros continuam existindo (estão sincronizados, tocam som, causam dano), só não são desenhados naquele quadro. O limite é 3, 8, 16 ou 32 (perfil LOW, BALANCED, HIGH ou ULTRA, desde a 0.11.2; era 3, 6 ou 12 até a 0.11.1).
 - **Complexidade de um efeito:** quanto trabalho a placa de vídeo tem para desenhar **um** efeito. O que mais pesa são os **passes**: cada passe é uma passada de shader pela tela inteira. Malhas (vértices), feixes e luzes também contam.
 
-Pense numa cozinha de restaurante: o limite de desenhados é quantas mesas são servidas ao mesmo tempo; a complexidade é quanto trabalho dá cada prato. O orçamento de passes é o número de fogões: por mais mesas que cheguem, só cabem 1, 2 ou 4 panelas ao fogo (o orçamento comum dos addons).
+Pense numa cozinha de restaurante: o limite de desenhados é quantas mesas são servidas ao mesmo tempo; a complexidade é quanto trabalho dá cada prato. O orçamento de passes é o número de fogões: por mais mesas que cheguem, só cabem 1, 3, 6 ou 12 panelas ao fogo (o orçamento comum dos addons, desde a 0.11.2).
 
 O teste do autor na 0.8.0, numa RTX 4060 em BALANCED, mostra os dois limites funcionando:
 
@@ -1058,9 +1058,9 @@ Effects.register(ID, new Effects.Definition(240, 80, 0xffffb030, Effects.Shape.N
 | Regra | NORMAL (padrão) | HERO |
 |---|---|---|
 | Seleção | Disputa as vagas por intensidade sobre distância. | Entra **antes** de todos os NORMAL, os mais próximos primeiro. |
-| Limite de desenhados (3/6/12) | Pode ser cortado. | **Nunca é cortado**: ocupa vaga, mas o limite mínimo (3) é maior que o teto de HERO. |
+| Limite de desenhados (3/8/16/32) | Pode ser cortado. | **Nunca é cortado**: ocupa vaga, mas o limite mínimo (3) é maior que o teto de HERO. |
 | Teto | — | **No máximo 2 HERO desenhados por quadro**, os mais próximos. Um terceiro HERO, mais longe, não é desenhado naquele quadro. Assim, um servidor cheio de HERO não derruba o FPS de novo. |
-| Passes (cartão, `post.pass`, feixes, luzes) | Orçamento **comum**: 1/2/4 por quadro, dividido entre os NORMAL. | Orçamento **HERO próprio**: 1/2/3 por quadro (LOW/BALANCED/HIGH), dividido entre os HERO desenhados. |
+| Passes (cartão, `post.pass`, feixes, luzes) | Orçamento **comum**: 1/3/6/12 por quadro, dividido entre os NORMAL. | Orçamento **HERO próprio**: 1/2/3/4 por quadro (LOW/BALANCED/HIGH/ULTRA), dividido entre os HERO desenhados. |
 | Sem nenhum HERO | Exatamente como na 0.8. | — |
 
 - Os dois orçamentos são separados: os HERO nunca gastam do comum, e os NORMAL nunca gastam do HERO.
@@ -1084,6 +1084,22 @@ Exemplos em BALANCED (2 comuns, 2 HERO):
 - Um HERO com feixes, luzes e um `post.pass`: feixes e luzes gastam os 2 HERO; o `post.pass` é recusado (`pass` devolve false; os ajustes de tela do callback continuam valendo). Em HIGH (3 HERO), os três cabem.
 - Um NORMAL com feixes e luzes e outro NORMAL com shader de cartão: feixes e luzes gastam os 2 comuns; o cartão fica sem vaga naquele quadro.
 - Um HERO com feixes e um NORMAL com feixes: o passe é pago pelo HERO e desenha os dois; o comum fica livre para cartões e `post.pass`.
+
+### Perfis e qualidade automática (0.11.2)
+
+Os números acima vieram de uma medição: o motor mediu o tempo de quadro com 6 a 60 efeitos desenhados e 1 a 12 passes (`/calamidade_client debug measure all`, VALIDACAO.md). Numa RTX 4060, até 24 efeitos e 12 passes cabem num quadro de 144 Hz sem diferença; com 48, começam quadros perdidos. Os perfis ficaram assim:
+
+| Perfil | Pensado para | Desenhados | Passes comuns | Passes HERO | HERO desenhados | Feixes | Luzes |
+|---|---|---|---|---|---|---|---|
+| LOW | placa integrada | 3 | 1 | 1 | 2 | 16 | 8 |
+| BALANCED | equilíbrio | 8 | 3 | 2 | 2 | 64 | 32 |
+| HIGH | placa dedicada | 16 | 6 | 3 | 2 | 128 | 64 |
+| ULTRA | máquinas fortes | 32 | 12 | 4 | 2 | 128 | 64 |
+
+- **AUTO** (padrão): o motor olha o p95 do tempo de quadro em janelas de 2 s. Desce um perfil depois de 2 janelas acima de 1,2 × o alvo (60 FPS por padrão, `autoTargetFps`) com efeitos na tela; sobe depois de 4 janelas abaixo de 0,7 × o alvo enquanto o limite corta efeitos. Espera 6 s depois de cada troca, não volta logo ao perfil que estava lento (60 s, dobrando a cada repetição) e **nunca troca durante um efeito HERO**. Com VSync ou limite de FPS igual ao alvo, o AUTO só desce.
+- **F8** força um perfil (AUTO → LOW → BALANCED → HIGH → ULTRA → AUTO). **F7** mostra "Qualidade: AUTO → HIGH · subiu de BALANCED há 40 s (p95 …)".
+- Cada perfil tem seus seis limites no config de cliente (`[quality.low]`… `[quality.ultra]`) e na aba Qualidade do Atlas, com máximos de segurança: 64 desenhados, 16 passes, 8 passes HERO, 4 HERO, 128 feixes, 64 luzes. HERO nunca passa dos desenhados.
+- Para os addons, `post.quality()` continua LOW, BALANCED ou HIGH: ULTRA aparece como HIGH.
 
 ### Diagnóstico
 
@@ -2164,9 +2180,32 @@ Capturas da carga (não versionadas): `run/teste-medicao/screenshots/medicao-60-
 
 Conferido com javap (NeoForge 21.1.267): `ClientPacketListener.sendCommand(String)`, `Minecraft.getConnection()`, `Options.framerateLimit()` e `enableVsync()`, `PlayerList.op(GameProfile)`, `ServerTickEvent$Post`.
 
+#### Medição do autor na RTX 4060 (22/11/2026)
+
+NVIDIA GeForce RTX 4060, janela 1920 × 1009, gráficos Fancy, distância 21, mesmo comando (`/calamidade_client debug measure all`) e motor da pré-release v0.11.2-pre1. Duas rodadas:
+
+1. **Limite de 80 FPS e VSync:** todos os passos deram mediana de 12,5 a 12,6 ms (o limite). Não mede custo, mas mostra que até 48 desenhados e 12 passes tudo coube em 80 FPS.
+2. **Limite de 260 FPS, VSync ainda ligado (monitor de 144 Hz):**
+
+| Grupo | Passo | Desenhados | Passes | Feixes | Mediana (ms) | p95 (ms) |
+|---|---|---|---|---|---|---|
+| efeitos | base | 0 | 0 | 0 | 6,98 | 10,41 |
+| efeitos | 6 | 5,9 | 4,6 | 7,9 | 6,94 | 9,90 |
+| efeitos | 12 | 11,9 | 6,5 | 23,8 | 6,94 | 10,19 |
+| efeitos | 24 | 23,8 | 11,9 | 47,6 | 6,99 | 11,34 |
+| efeitos | 48 | 47,7 | 23,0 | 95,2 | 7,34 | 15,70 |
+| efeitos | 60 (48 residentes: reserva não estava em 0) | 47,6 | 22,9 | 95,2 | 6,96 | 15,77 |
+| passes | base | 0 | 0 | 0 | 6,94 | 9,10 |
+| passes | 12 cubos, 1 passe | 11,9 | 1,0 | 0 | 6,93 | 9,61 |
+| passes | 12 cubos, 12 passes | 11,9 | 11,9 | 0 | 6,95 | 10,08 |
+
+**Leitura:** com VSync a 144 Hz a mediana fica presa em 6,9 ms (o intervalo do monitor), então ela mostra folga, não o custo. Até 24 efeitos desenhados e 12 passes de addon, nada muda nem na mediana nem no p95 (dentro de 1 ms): a GPU sobra dentro de cada quadro de 144 Hz. Com 48 desenhados (23 passes, 95 feixes) a mediana sobe pouco (7,34 ms) e o p95 vai de 10,4 a 15,7 ms: começam quadros perdidos. O custo por passe isolado (12 cubos) não aparece a 144 Hz. Software e GPU concordam na forma (custo cresce com efeitos e passes, sem degrau), e a GPU mostra que o teto de hoje (6 e 2 no BALANCED) estava muito abaixo do limite desta placa.
+
+**Padrões novos (0.11.2), a partir disso:** LOW continua 3 / 1 / 1 (placa integrada, sem medição: fica como na 0.11.1); BALANCED 8 desenhados, 3 passes, 2 HERO, 64 feixes, 32 luzes; HIGH 16, 6, 3, 128, 64; ULTRA 32, 12, 4, 128, 64 (abaixo dos 48 onde o p95 subiu). O AUTO sobe até ULTRA quando há folga e o teto corta efeitos. Pendente: uma rodada com VSync desligado, para o custo absoluto por efeito e por passe.
+
 #### Etapas 2 e 3: perfis configuráveis e qualidade automática (22/11/2026)
 
-- **Perfis (provisório):** `QualityProfile` LOW, BALANCED, HIGH e ULTRA. LOW, BALANCED e HIGH mantêm os tetos da 0.11.1 até os números da GPU física; ULTRA provisório com 24 desenhados, 8 passes, 4 passes HERO, 2 HERO, 128 feixes, 64 luzes e 1,5 vez os vértices do HIGH, e aparece aos addons como HIGH. Cada perfil tem os seis tetos no config de cliente (`[quality.low]`, `[quality.balanced]`...), com máximos de segurança (desenhados 64, passes 16, passes HERO 8, HERO 4, feixes 128, luzes 64; HERO nunca acima dos desenhados).
+- **Perfis:** `QualityProfile` LOW, BALANCED, HIGH e ULTRA (padrões na seção acima, desde a medição da RTX 4060; ULTRA usa 1,5 vez os vértices do HIGH e aparece aos addons como HIGH). Cada perfil tem os seis tetos no config de cliente (`[quality.low]`, `[quality.balanced]`...), com máximos de segurança (desenhados 64, passes 16, passes HERO 8, HERO 4, feixes 128, luzes 64; HERO nunca acima dos desenhados).
 - **AUTO (padrão novo, `quality.mode`):** janelas de 2 s; desce depois de 2 janelas seguidas com p95 acima de 1,2 × o alvo (`autoTargetFps`, padrão 60) com efeitos na tela em pelo menos metade dos quadros; sobe depois de 4 janelas com p95 abaixo de 0,7 × o alvo enquanto o teto cortou algo em pelo menos um quarto dos quadros; 6 s sem avaliar depois de qualquer troca (e ao entrar no AUTO); voltar ao perfil de onde desceu fica bloqueado por 60 s, o dobro a cada nova descida do mesmo perfil (até 10 min); janela que viu um efeito HERO é descartada e zera as sequências. F8: AUTO → LOW → BALANCED → HIGH → ULTRA → AUTO. F7: "Qualidade: AUTO → perfil · desceu/subiu de X há N s (p95 … ms > … ms)".
 - **Testes puros (`AutoQualityCheck`, no `checkBudget`):** desce em 2 janelas e respeita o intervalo, até LOW e nunca abaixo; quadros lentos sem efeitos não descem; sobe em 4 janelas com corte, até ULTRA; quadros rápidos sem corte não sobem; nada muda durante um HERO e as sequências recomeçam depois; um caso que oscilaria (HIGH lento, BALANCED com folga e cortes) troca no máximo 7 vezes em 10 minutos e no máximo mais uma nos 5 minutos seguintes; picos de 2% dos quadros não descem. `LimitsCheck` ganhou os perfis novos, os máximos de segurança e o teto de HERO configurável.
 - **Em jogo (`testeMedicao`, llvmpipe): 30 de 30.** AUTO desceu de HIGH para BALANCED em 8 s sob 24 instâncias da mistura (p95 67,3 ms > 20,0 ms), o F7 mostrou o motivo ([captura](gameplay/auto-f7-0112.jpg)); sem efeitos na tela o perfil ficou parado 20 s; com a receita protagonista (HERO, 12 s) e carga pesada, nenhuma troca enquanto ela existia, e a descida veio depois. A subida precisa de folga de quadro que o llvmpipe não tem: fica para o TESTE-REAL na GPU.
@@ -2182,9 +2221,9 @@ O `StarAtlas` saiu; o Atlas agora é um conjunto de placas paradas no mundo (`cl
 
 #### Pendente
 
-- Medição do autor na RTX 4060 (TESTE-REAL.md, casos 82 a 84) antes de fixar os padrões novos.
+- Rodada da RTX 4060 com VSync desligado (custo absoluto); placa integrada para conferir o LOW.
 - AUTO subindo numa GPU física (TESTE-REAL).
-- Escolha da direção visual do Atlas (A, B ou C) e o visual final; capítulo do Atlas, docs e release (Etapa 5).
+- Capítulo do Atlas, docs e release (Etapa 5). Direção visual escolhida pelo autor: B (Astrolábio).
 
 ### Versão 0.11.1 — compatibilidade da Terrain API (estado atual)
 

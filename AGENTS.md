@@ -91,13 +91,13 @@ No jogo: **F7** painel de diagnóstico (passes, vértices, HERO, feixes, luzes, 
 | Por fonte (0.10, config do servidor) | 16 por jogador, 4 por mob, 2 por bloco; SCRIPT sem limite por fonte; 16 das 64 vagas só para jogadores. Acima do limite: `Optional.empty()`, sem erro |
 | Orientação (0.10) | yaw qualquer (normalizado para [-180, 180)); pitch [-90, 90]; offsets de `Placement` até 1024 blocos |
 | Recarga por fonte e efeito (0.10) | 0..72000 ticks |
-| Efeitos desenhados por quadro | 3 / 6 / 12 (LOW / BALANCED / HIGH); HERO entram primeiro e ocupam vagas |
+| Efeitos desenhados por quadro | 3 / 8 / 16 / 32 (LOW / BALANCED / HIGH / ULTRA, 0.11.2; modo AUTO padrão escolhe o perfil; limites editáveis no config de cliente até 64); HERO entram primeiro e ocupam vagas |
 | Efeitos HERO desenhados | no máximo 2 por quadro, os mais próximos; nunca cortados pelo limite acima |
-| Passes de addon por quadro | 1 / 2 / 4, divididos entre shaders de cartão e `post.pass` dos efeitos NORMAL, por prioridade |
-| Passes HERO por quadro | 1 / 2 / 3, orçamento próprio dos efeitos `withPriority(Priority.HERO)` |
+| Passes de addon por quadro | 1 / 3 / 6 / 12 (até 16 no config), divididos entre shaders de cartão e `post.pass` dos efeitos NORMAL, por prioridade |
+| Passes HERO por quadro | 1 / 2 / 3 / 4, orçamento próprio dos efeitos `withPriority(Priority.HERO)` |
 | Vértices de malha por quadro | 12 000 / 48 000 / 96 000, divididos entre os efeitos visíveis |
-| Feixes (`Effects.beams`) | até 16 por efeito; 16 / 48 / 128 por quadro, dos efeitos mais importantes; um passe `beams` por quadro, cobrado do orçamento HERO se um efeito HERO desenhado tem feixes, senão do comum |
-| Luzes (`Effects.lights`) | até 8 por efeito; 8 / 24 / 64 por quadro, dos efeitos mais importantes; um passe `lights` por quadro, antes dos efeitos e da atmosfera, mesmo esquema de orçamento dos feixes. Luz visual: não muda o nível de luz do jogo |
+| Feixes (`Effects.beams`) | até 16 por efeito; 16 / 64 / 128 / 128 por quadro, dos efeitos mais importantes; um passe `beams` por quadro, cobrado do orçamento HERO se um efeito HERO desenhado tem feixes, senão do comum |
+| Luzes (`Effects.lights`) | até 8 por efeito; 8 / 32 / 64 / 64 por quadro, dos efeitos mais importantes; um passe `lights` por quadro, antes dos efeitos e da atmosfera, mesmo esquema de orçamento dos feixes. Luz visual: não muda o nível de luz do jogo |
 | Passe de atmosfera | 1 por quadro, do motor, fora do orçamento de addons; só com atmosfera ativa |
 | Mistura de atmosferas | as 2 de maior peso |
 | Nomes de fase, trilha e marcador | `[a-z0-9_]`, até 64 caracteres |
