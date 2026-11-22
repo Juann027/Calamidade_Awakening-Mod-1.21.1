@@ -40,9 +40,9 @@ neoForge {
 // por SHA-256 e ficam em libs/ (fora do git). Nenhum dos dois entra no seu JAR: quem joga instala os dois na pasta
 // mods, ao lado do seu mod. Para outra versão, troque calamidadeVersao e calamidadeSha256 pelos do release
 // (o SHA-256 está nas notas do release e em SHA256SUMS.txt). -Pcalamidade.url=... troca o endereço (espelho ou
-// arquivo local, por exemplo file:///caminho/calamidade_awakening-0.11.0.jar); o SHA-256 continua valendo.
-def calamidadeVersao = '0.11.0'
-def calamidadeSha256 = 'db89b4b34461a71cc022232814a8faa390d3c8902af1c4966b5183ff1c4d0d1d'
+// arquivo local, por exemplo file:///caminho/calamidade_awakening-0.11.1.jar); o SHA-256 continua valendo.
+def calamidadeVersao = '0.11.1'
+def calamidadeSha256 = 'a4dfa44853bee79344b84bddc32a443cc0c89321b4f68bca3a0db297f03e6c21'
 def dependenciasBaixadas = [
     [arquivo: file("libs/calamidade_awakening-${calamidadeVersao}.jar"),
      url: providers.gradleProperty('calamidade.url').getOrElse(

@@ -1,6 +1,92 @@
 # Validação, medições e limites
 
-## Versão 0.11.0 — Terrain API (estado atual)
+## Versão 0.11.1 — compatibilidade da Terrain API (estado atual)
+
+**Compilada e coberta pelos testes de build; executada em jogo por dois roteiros automatizados que estão no repositório: `./gradlew testeJogo` (servidor dedicado sem tela, NeoForge 21.1.267: 51 de 51 verificações, em duas execuções para o reinício) e `xvfb-run -a ./gradlew testeCliente` (cliente, Mesa llvmpipe: 10 de 10). Também com ScalableLux, C2ME, Sodium, Embeddium e Distant Horizons instalados. Mods de proteção reais, jogadores de verdade e GPU física continuam pendentes (TESTE-REAL.md, parte 7).**
+
+### Build
+
+Mesmo ambiente da 0.11.0 (OpenJDK 21.0.13, Gradle 9.2.1, glslangValidator 15.1.0, RimuLib 1.3.0 conferida por SHA-256).
+
+- `./gradlew clean build dist`: passou em cada etapa, com `checkBudget`, `checkFrustum`, `checkShaders` (12 shaders compilados com o glslangValidator), `checkApiDocs`, `checkRecipes` e `checkModVersion`. O JAR não tem nenhuma classe de `src/testeJogo`.
+- `./gradlew -p examples/vfx-sample build` (1.8.0, sem mudança de código, contra o JAR 0.11.1) e `./gradlew -p examples/consumidor build -Pcalamidade.url=file:///…/dist/calamidade_awakening-0.11.1.jar`: passaram.
+- **Build reproduzível:** dois `clean build dist` seguidos deram o mesmo SHA-256.
+- **API pública idêntica à da 0.11.0:** `javap -s` de todas as classes de `api.v1` no JAR do release v0.11.0 (baixado do GitHub, SHA-256 `db89b4b3…`, igual ao publicado) e no JAR 0.11.1: 2 586 linhas, nenhuma diferença. Só o Javadoc do `TerrainEditEvent` ganhou um parágrafo.
+- Rede sem mudança (`terrain_v1`, `event_v2`, `end_effect`, `request_v2`, `release`).
+
+SHA-256 de `dist/calamidade_awakening-0.11.1.jar`: `a4dfa44853bee79344b84bddc32a443cc0c89321b4f68bca3a0db297f03e6c21`
+
+SHA-256 de `examples/vfx-sample/build/libs/vfx-sample-1.8.0.jar` (compilado contra a 0.11.1): `10b5436279c98d34af5f73628696a3234c3900993be1df638a3a7392846ea0ac`
+
+### Conferido com `javap -c` (NeoForge 21.1.267)
+
+- `LevelChunk.setBlockState`: `Heightmap.update` dos quatro mapas; `updateSectionStatus` quando a seção muda de vazia para não vazia (ou o contrário); `ChunkSkyLightSources.update` e `LevelLightEngine.checkBlock` **só** quando `LightEngine.hasDifferentLightProperties`. O escritor da 0.11.0 chamava `update` das fontes do céu sempre; a 0.11.1 segue o ramo do vanilla.
+- `LevelChunkSection.setBlockState`: atualiza `nonEmptyBlockCount`, `tickingBlockCount` e `tickingFluidCount` a cada troca.
+- `ServerLevel.onBlockStateChange`: tira e põe pontos de interesse (`PoiTypes.forState`) pela fila de tarefas do servidor.
+- `ChunkMap.tick` chama `ThreadedLevelLightEngine.tryScheduleUpdate` a cada tick: os `checkBlock` enfileirados são processados no fim do tick.
+- `ChunkHolder.broadcastChanges` manda a luz só aos jogadores na borda da distância de visão e `broadcastBlockEntityIfNeeded` manda `getUpdatePacket()` de cada block entity mudada; o escritor da 0.11.0 não mandava esse segundo.
+- `ServerChunkCache.getChunkNow`: `null` fora da thread do servidor; só `LevelChunk` com status `FULL` (ou o `currentlyLoading` do NeoForge, durante o evento de carga). `LevelChunk.getFullStatus` vem do nível do ticket.
+- `DedicatedServer.isUnderSpawnProtection`: só no overworld, só com operadores cadastrados, operador isento, `max(|dx|, |dz|) <= spawn-protection`. `MinecraftServer.isUnderSpawnProtection` (singleplayer) devolve sempre falso. `ServerLevel.mayInteract` = proteção de spawn + `WorldBorder.isWithinBounds`.
+- `Explosion(Level, Entity, x, y, z, raio, fogo, BlockInteraction, List<BlockPos>)` põe a lista em `toBlow`; `ExplosionEvent.Detonate.getAffectedBlocks()` é esse `toBlow`; `EventHooks.onExplosionStart` posta `ExplosionEvent.Start` (cancelável). O motor posta os dois eventos direto no `NeoForge.EVENT_BUS` e nunca chama `explode` nem `finalizeExplosion`.
+- Distant Horizons 3.3.3: o mixin do servidor injeta no `RETURN` de `ChunkMap.save(ChunkAccess)` (bytecode do JAR do DH).
+
+### Em jogo: servidor dedicado (`./gradlew testeJogo`)
+
+Servidor dedicado do NeoForge 21.1.267 sem tela, mundo plano próprio (bedrock, 60 de pedra, 3 de terra e grama: superfície em y = 0), `spawn-protection=16`, um operador fictício em `ops.json`, mod de teste `calamidade_teste` (em `src/testeJogo`, fora do JAR) com crateras sem borda irregular (a forma não depende da seed). Cada cenário numa região própria, com os chunks forçados. A segunda execução reabre a mesma pasta.
+
+| Caso | Resultado |
+|---|---|
+| Listener que só conhece `ExplosionEvent` protege `x ≥ cx` | `Start` e `Detonate` uma vez cada; explosão sintética com 417 posições, raio 11,7, fonte nula (script); o listener tirou 234; 0 posições mudaram do lado protegido e 183 do outro; `x = cx − 1` cavado e `x = cx` intacto; nenhuma entidade de item |
+| `Start` cancelado | recusa `EXPLOSION`, nenhum bloco muda |
+| `terrainExplosionEvent = false` | listener não chamado; cratera inteira (183 e 234 posições) |
+| Borda do mundo no meio da cratera | 0 posições fora da borda; 183 dentro |
+| Proteção de spawn 16, fonte script | 0 posições na área do spawn; 183 fora |
+| Luz: cratera com casca e glowstone (417 blocos) pela Terrain API x a mesma troca por `setBlock` (`UPDATE_CLIENTS \| UPDATE_KNOWN_SHAPE`) 64 blocos ao sul | luz do céu e dos blocos igual em 37 × 31 × 37 posições; brilho igual ao meio-dia e à meia-noite (fundo 15 e 11); glowstone dá 15 |
+| Mapas de altura (4 tipos) | iguais aos da cópia e a uma varredura das colunas |
+| Contadores das seções | iguais aos de `recalcBlockCounts()` |
+| Desfazer | blocos, luz, mapas de altura e contadores iguais aos de antes |
+| Pontos de interesse | composteira, mesa de ferraria e magnetita saem com a cratera e voltam no desfazer; composteiras do preenchimento entram e saem |
+| Casca externa (cerca na borda, água ao lado) | água que tocava a cratera vedada; tick de fluido na água vizinha da vedação e não nas seguintes; formas das cercas consistentes depois do commit e do desfazer (2 formas mudadas, 132 vizinhos); nenhuma água na cratera |
+| Custo, esfera r24 com casca de 2 (36 754 escritos) | 9 ticks, 90,6 a 102,4 ms, 3 621 vizinhos na casca externa, pior tick 25,5 a 25,9 ms; verificações de proteção 19 a 22 ms num tick; desfazer em 7 ticks, pior tick 18,3 a 32,1 ms |
+| Chunks não FULL | só o chunk FULL muda; 2 seções puladas; o chunk não FULL não é carregado e, carregado depois, está intacto |
+| Reinício | depois de salvar tudo, o jogo salva de novo o chunk da cratera (`ChunkDataEvent.Save`); na segunda execução, as 224 posições e os 2 POI das composteiras estão lá |
+
+**O que o teste achou:** (1) a casca externa não recebia atualização (cerca com a conexão velha, nenhum tick de fluido): corrigido com o `TerrainBorder`. (2) Com o ScalableLux, o commit quebrava com `NullPointerException` em `ChunkSkyLightSources.update` (o mod deixa as fontes nulas): corrigido. (3) No próprio roteiro: o servidor ocioso salva até 20 chunks modificados por tick (`ChunkMap.processUnloads`), então a marca de modificado tem de ser conferida pelo salvamento (`ChunkDataEvent.Save`), não lida depois; e o `Effects.start` recusa um centro em chunk não carregado (o cenário FULL põe o centro no chunk FULL).
+
+### Em jogo: cliente (`xvfb-run -a ./gradlew testeCliente`)
+
+Cliente de desenvolvimento sob Xvfb 1280 × 720, Mesa llvmpipe (LLVM 20.1.2), no mundo deixado pelo `testeJogo` (`--quickPlaySingleplayer`), câmera em modo espectador.
+
+| Caso | Resultado |
+|---|---|
+| Luz recalculada pelo cliente, cratera da Terrain API x a do `setBlock` (37 × 31 × 37 posições, céu e blocos) | 0 diferenças entre as duas; 0 diferenças em relação ao servidor |
+| Capturas das duas crateras do mesmo ponto, comparadas em blocos de 40 px | dia: diferença média 0,23, máxima 2,2 de 255; noite: 0,15 e 3,3 (sem manchas) |
+| Jogador em modo aventura dispara a cratera | o efeito toca, recusa `PERMISSION`, nada muda; em sobrevivência, a cratera é comitada |
+| Placa com texto na cratera (`terrainBlockEntities` e `replacingBlockEntities()`), depois desfazer | a placa sai (também no cliente) e volta com o texto no servidor **e no cliente** |
+
+**O que o teste achou:** a placa devolvida pelo desfazer aparecia vazia no cliente (o servidor tinha o texto): corrigido mandando o pacote de dados de cada block entity nova. No próprio roteiro: a textura da grama gira conforme a posição, então as crateras A e B nunca são iguais pixel a pixel; a comparação é feita por blocos de 40 × 40 px (média), que acusa manchas de luz.
+
+### Outros mods (baixados do Modrinth, SHA-512 conferido)
+
+| Mod | Rodada | Resultado |
+|---|---|---|
+| ScalableLux 0.3.0-alpha.0.8+1.21.1 | `testeJogo` | antes da correção, o primeiro commit quebrava; depois, 27 de 27 na rodada da Etapa 2 (proteção e luz) |
+| Moonrise 0.1.0-beta.15+2eae1b1 | `testeJogo` | **não abre:** `InjectionError` no mixin `rimulib.mc1211.world.mixins.json:ServerLevelMixin` (`rimulib$discard`), cuja chamada o Moonrise já redireciona (`redirectClose`). Conflito RimuLib x Moonrise |
+| C2ME 0.4.0-alpha.0.124+1.21.1 | `testeJogo` | 51 de 51, inclusive o reinício |
+| Sodium 0.8.13+mc1.21.1 | `testeCliente` | 10 de 10 (imagem de dia 0,23/2,1; de noite 0,14/3,5) |
+| Embeddium 1.0.15+mc1.21.1 | `testeCliente` | 10 de 10 (dia 0,23/2,2; noite 0,12/3,2) |
+| Distant Horizons 3.3.3 | `testeCliente` | 10 de 10; o LOD distante não foi conferido (veja TERRENO-0.11.md) |
+
+Capturas: [luz de dia e de noite, Terrain API x setBlock](gameplay/luz-0111.jpg) · [Sodium de dia e Embeddium de noite](gameplay/sodium-embeddium-0111.jpg).
+
+### Pendente
+
+- TESTE-REAL.md, parte 7 (casos 75 a 81): FTB Chunks, Open Parties and Claims e GriefDefender reais; proteção de spawn e modo aventura com jogadores de verdade; aldeões; LOD do Distant Horizons num servidor sem DH; GPU física com Sodium, Embeddium e shader packs.
+- Os pendentes da 0.11.0 (parte 6) continuam.
+
+---
+
+## Versão 0.11.0 — Terrain API
 
 **Compilada e coberta pelos testes de build; executada em jogo por um roteiro automatizado em renderização por software (Mesa llvmpipe), num cliente, no NeoForge 21.1.267: 27 de 27 verificações, com as medições da Etapa 7. Dois jogadores num servidor dedicado, GPU física e os casos manuais de TESTE-REAL.md (63 a 74) continuam pendentes.**
 

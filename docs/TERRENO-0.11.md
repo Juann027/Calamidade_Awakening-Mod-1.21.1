@@ -339,7 +339,7 @@ O relatório de `/calamidade terrain list` conta as posições guardadas: `N gua
 
 Dentro da área escrita nada é atualizado: tudo ali foi escrito pela edição, e a casca já veda os fluidos e queima o que não é sólido. Por isso não há cascata. O que um bloco de fora faz com a atualização é o comportamento normal dele: um observador virado para a cratera pulsa, a areia sobre um bloco que virou ar cai, o portal do Nether cuja moldura foi cavada se desfaz (o bloco de portal é protegido pela tag, mas a moldura não). O relatório mostra `N border updates (S shapes, F fluid ticks)`.
 
-**Custo** (servidor dedicado, mesma esfera de raio 24 com casca de 2 da medição da 0.11.0, 36 754 blocos escritos no mundo plano): commit e casca em 9 ticks, 90,6 ms na thread do servidor ao todo, com 3 621 blocos na casca externa; pior tick 25,5 ms. Desfazer em 7 ticks, 52 ms, pior tick 18,3 ms. As verificações de proteção rodam uma vez, quando o plano fica pronto (antes do marcador): 21,9 ms para 73 508 posições planejadas, num só tick (mais o custo dos listeners de explosão instalados).
+**Custo** (servidor dedicado, mesma esfera de raio 24 com casca de 2 da medição da 0.11.0, 36 754 blocos escritos no mundo plano, duas rodadas): commit e casca em 9 ticks, 90,6 a 102,4 ms na thread do servidor ao todo, com 3 621 blocos na casca externa; pior tick 25,5 a 25,9 ms. Desfazer em 7 ticks, 52 a 61 ms, pior tick 18,3 a 32,1 ms. As verificações de proteção rodam uma vez, quando o plano fica pronto (antes do marcador): 19 a 22 ms para 73 508 posições planejadas, num só tick (mais o custo dos listeners de explosão instalados). Nenhum tick passou de 50 ms.
 
 ### Geração de mundo e mods de renderização
 

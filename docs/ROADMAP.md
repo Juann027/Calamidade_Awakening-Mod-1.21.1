@@ -102,6 +102,13 @@
 - Cliente: passe `terrain` com o calor (brasa, fissuras, fumaça, tremor de calor, faixa incandescente nas trincheiras) calculado da mesma forma analítica e seed, luzes que esfriam, dublês esféricos e malhas de estrutura em cache; canal novo `terrain_v1`.
 - vfx-sample 1.8.0: raio que abre trincheira, meteoro que vira blocos reais, cratera simples e torre que cai e fica.
 
+### 0.11.1 — compatibilidade da Terrain API
+
+- Proteção territorial pelos eventos de explosão do NeoForge (`Start` e `Detonate` com uma explosão sintética), borda do mundo, proteção de spawn e modo de jogo do jogador; config `terrainExplosionEvent` e `terrainSpawnProtection`.
+- Casca externa: atualização de forma, de vizinho e ticks de fluido nos blocos logo fora da edição (commit e desfazer), sem cascata; dados de block entity reenviados ao cliente.
+- Compatível com ScalableLux (correção), C2ME, Sodium, Embeddium e Distant Horizons; Moonrise não abre com a RimuLib 1.3.0.
+- Testes em jogo no repositório: `./gradlew testeJogo` (servidor dedicado, 51 verificações, com reinício) e `xvfb-run ./gradlew testeCliente` (10 verificações). Consulte TERRENO-0.11.md, seção "Compatibilidade (0.11.1)".
+
 ## Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -111,6 +118,7 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 - Pipeline em Fast, Fancy, Fabulous e com mods de renderização (Sodium/Embeddium, Iris/Oculus).
 - Aparência dos feixes e da luz numa GPU física (de dia, de noite, debaixo d'água) e custo dos passes `beams` e `lights` com o teto de HIGH (128 feixes, 64 luzes).
 - Gatilhos e limites por fonte com dois jogadores num servidor dedicado (TESTE-REAL.md, parte 5) e o RespectCraft rodando o Finisher Engine com efeitos do Calamidade.
+- Terrain API com mods de proteção reais (FTB Chunks, Open Parties and Claims, GriefDefender), com jogadores reais na proteção de spawn e no modo aventura, o LOD do Distant Horizons num servidor sem DH e o custo da remontagem numa GPU física (TESTE-REAL.md, partes 6 e 7).
 
 ## Próximas versões
 

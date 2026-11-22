@@ -1,4 +1,4 @@
-# Manual geral do Calamidade_Awakening 0.11.0
+# Manual geral do Calamidade_Awakening 0.11.1
 
 Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
@@ -45,11 +45,11 @@ Leitura complementar, fora do manual: [estudo técnico da integração da SA Ser
 
 ## 1. Jogar e instalar
 
-Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.11.0 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor e, desde a 0.11.0, crateras e estruturas que caem pela Terrain API (que respeita as regras de terreno da config do servidor e se desfaz com `/calamidade terrain undo`).
+Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.11.1 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor e, desde a 0.11.0, crateras e estruturas que caem pela Terrain API (que respeita as regras de terreno da config do servidor, desde a 0.11.1 também claims de mods de proteção, a borda do mundo, a proteção de spawn e o modo aventura, e se desfaz com `/calamidade terrain undo`).
 
 ### Instalação
 
-Coloque o JAR `dist/calamidade_awakening-0.11.0.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes (a 0.10.0 mudou o pacote de início de efeito para `event_v2` e a 0.11.0 criou o `terrain_v1`; versões diferentes simplesmente não trocam efeitos ou o terreno). Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
+Coloque o JAR `dist/calamidade_awakening-0.11.1.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes (a 0.10.0 mudou o pacote de início de efeito para `event_v2` e a 0.11.0 criou o `terrain_v1`, mantido na 0.11.1; versões diferentes simplesmente não trocam efeitos ou o terreno). Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
 
 A interface usa inglês como padrão e tem tradução para português do Brasil pela opção de idioma do Minecraft.
 
@@ -1488,9 +1488,9 @@ início ──► regras + plano numa thread de trabalho ──► plano pronto:
 1. **Início da instância (servidor):** regras da config (ligado, dimensão, `mobGriefing` para fontes mob) e o plano numa thread de trabalho. O plano é **puro**: forma, origem, orientação, seed e estrutura viram uma lista ordenada de posições e ações, em lotes por seção de chunk (a seção da origem primeiro, depois pela distância). Nenhum acesso ao mundo fora da thread do servidor; não há cópia de seções porque o plano não precisa do mundo.
 2. **Plano pronto:** volume máximo (`terrainMaxVolume`) e **um** `TerrainEditEvent` com a área exata (`BoundingBox` de todas as posições) e o volume. Instâncias presas a uma entidade só sabem a origem no marcador: planejam e disparam o evento ali.
 3. **Marcador:** o commit começa no mesmo tick e escreve até `terrainBlocksPerTick` blocos por tick (padrão 16 384, **dividido** entre todas as edições em andamento; uma edição pode pedir menos com `blocksPerTick`). As decisões que dependem do mundo (sólido, fluido, protegido, block entity) acontecem aqui, na thread do servidor.
-4. **Escrita direta:** `LevelChunkSection.setBlockState(x, y, z, estado, false)`, mais o essencial do `LevelChunk.setBlockState` (heightmaps, fontes de luz do céu, estado da seção no motor de luz, `checkBlock` só quando a luz muda, pontos de interesse, chunk marcado para salvar). **Sem** drops, `onRemove`/`onPlace`, atualização de vizinhos e de forma, nem física. Uma edição de raio 12 (7 200 blocos) cabe num tick; a de raio 24 (73 000) em cinco.
-5. **Fim de cada lote:** cada seção alterada vai **uma vez** aos jogadores que veem o chunk (`ClientboundSectionBlocksUpdatePacket`, só as posições alteradas); o cliente recalcula a luz local e remonta só as seções tocadas.
-6. **Fim do commit:** blocos de gravidade escritos sobre o ar são assentados, o snapshot de desfazer fica guardado e `/calamidade terrain list` mostra o relatório (blocos, ticks, tempo na thread do servidor, pacotes).
+4. **Escrita direta:** `LevelChunkSection.setBlockState(x, y, z, estado, false)`, mais o essencial do `LevelChunk.setBlockState` (heightmaps, fontes de luz do céu, estado da seção no motor de luz, `checkBlock` só quando a luz muda, pontos de interesse, chunk marcado para salvar). Dentro da área escrita, **sem** drops, `onRemove`/`onPlace`, atualização de vizinhos e de forma, nem física (desde a 0.11.1, a casca externa recebe essas atualizações no fim; veja [Integridade do mundo](#integridade-do-mundo)). Uma edição de raio 12 (7 200 blocos) cabe num tick; a de raio 24 (73 000) em cinco.
+5. **Fim de cada lote:** cada seção alterada vai **uma vez** aos jogadores que veem o chunk (`ClientboundSectionBlocksUpdatePacket`, só as posições alteradas), seguida, desde a 0.11.1, dos dados de cada block entity nova; o cliente recalcula a luz local e remonta só as seções tocadas.
+6. **Fim do commit:** blocos de gravidade escritos sobre o ar são assentados; desde a 0.11.1, a casca externa recebe atualização de forma, de vizinho e ticks de fluido (em lotes, no mesmo orçamento); o snapshot de desfazer fica guardado e `/calamidade terrain list` mostra o relatório (blocos, ticks, tempo na thread do servidor, pacotes).
 
 **Para esconder a troca:** ponha o `Effects.Impact` da definição no tick do marcador, com 4 a 8 ticks (o pacote leva ~1 tick e o cliente remonta as seções nos quadros seguintes). Nos primeiros 1,5 s depois do commit, o passe `terrain` ainda pinta o fundo quente da cratera nos pixels em que o raio atravessa a forma cavada e só acha céu (as seções sendo remontadas), então nem sem clarão aparece um buraco para o céu. Com "ocultar clarões" ligado, o clarão do impacto some e a troca fica visível: acessibilidade vem antes do truque.
 
@@ -1529,6 +1529,8 @@ Config do servidor, seção `terrain` de `serverconfig/calamidade_awakening-serv
 | `terrainMobGriefing` | `true` | Edições cuja fonte é um mob seguem a regra `mobGriefing`. |
 | `terrainUndoMinutes` / `terrainUndoEdits` | 10 / 16 | Quanto tempo e quantos snapshots ficam para desfazer (0 não guarda). |
 | `terrainMaxStructure` | 32 | Maior estrutura por eixo. |
+| `terrainExplosionEvent` (0.11.1) | `true` | Toda edição passa também pelos eventos de explosão do NeoForge (veja [Compatibilidade](#compatibilidade-0111)): mods de proteção que protegem contra explosões protegem contra crateras. |
+| `terrainSpawnProtection` (0.11.1) | `true` | A área de `spawn-protection` do servidor dedicado fica intacta. |
 
 **Nunca tocados:** bedrock, blocos indestrutíveis (dureza < 0), blocos com block entity (baús, fornalhas, blocos de outros mods; salvo as duas opções acima) e a tag de blocos `calamidade_awakening:terrain_protected` (padrão: `#minecraft:wither_immune`, portais, molduras do End, reinforced deepslate, spawners, trial spawners e vaults). Datapacks podem estender a tag. Entidades dentro da área **não** são apagadas: dano e empurrão continuam nos cues.
 
@@ -1541,7 +1543,9 @@ public static void protect(TerrainEditEvent event) {
 }
 ```
 
-Recusas (config, dimensão, `mobGriefing`, evento, volume, estrutura) não escrevem nada; o cliente recebe a recusa e não desenha o calor (o dublê, se houver, ainda cai e esmaece). `/calamidade status` mostra as edições em escrita, os snapshots e as recusas por motivo.
+Desde a 0.11.1, depois do `TerrainEditEvent` vêm a borda do mundo, a proteção de spawn, o modo de jogo do jogador e os eventos de explosão do NeoForge ([Compatibilidade](#compatibilidade-0111)).
+
+Recusas (config, dimensão, `mobGriefing`, evento, volume, estrutura e, desde a 0.11.1, evento de explosão, permissão e área toda protegida) não escrevem nada; o cliente recebe a recusa e não desenha o calor (o dublê, se houver, ainda cai e esmaece). `/calamidade status` mostra as edições em escrita, os snapshots e as recusas por motivo.
 
 ### Desfazer
 
@@ -1630,11 +1634,93 @@ O commit é mais barato que o `/fill` porque escreve na seção sem trava, sem `
 ### Limites e cuidados
 
 - **Chunks não carregados são pulados:** o commit nunca carrega chunks. Se ninguém estiver perto quando o marcador chega, as seções daquele chunk ficam como estão (o relatório conta "sections unloaded"). Para edições longe de jogadores, mantenha os chunks carregados (`/forceload`).
-- **Sem física de propósito:** água fora da casca não escorre, areia não cai, redstone não atualiza. Blocos protegidos podem ficar flutuando.
+- **Sem física dentro da cratera, de propósito:** o volume escrito não recebe atualizações; só a casca externa (0.11.1), uma vez, sem cascata. Água vizinha da vedação recebe tick e fica parada atrás dela; a areia de fora cai só se o bloco embaixo dela virou ar. Blocos protegidos dentro da área podem ficar flutuando.
 - **Mobs:** a navegação recalcula quando trava; não é avisada bloco a bloco.
 - **Instâncias presas a entidades** planejam no marcador (na thread do servidor), não durante a cena.
-- **Mods de renderização:** com Sodium/Embeddium, as seções chegam pelo pacote do jogo e devem aparecer igual; shader packs (Iris/Oculus) podem não desenhar o passe `terrain` (como os outros passes de pós). Veja TESTE-REAL.md, parte 6.
+- **Mods de renderização e de mundo:** Sodium, Embeddium, C2ME, Distant Horizons e ScalableLux testados na 0.11.1; Moonrise não abre com a RimuLib 1.3.0; shader packs (Iris/Oculus) podem não desenhar o passe `terrain` (como os outros passes de pós). Veja [Compatibilidade](#compatibilidade-0111) e TESTE-REAL.md, partes 6 e 7.
 - **Não copie o mundo de outros mods.** A técnica (troca em massa sob o impact frame, dublê que vira bloco, calor que esfria) foi observada em mods de terceiros; a implementação, os shaders, as formas, a paleta e a torre do exemplo são deste projeto, só com blocos vanilla.
+
+### Compatibilidade (0.11.1)
+
+A Terrain API escreve direto nas `LevelChunkSection` (11 a 14 ms contra 16 a 45 ms do `/fill` e 1,1 s da TNT, na mesma cratera). O preço é pular o caminho que o Minecraft e outros mods usam para saber que um bloco mudou (`Level.setBlock`, `BlockEvent`, atualizações de vizinho). A 0.11.1 conferiu, no código e no bytecode (`javap -c`), cada sistema que depende desse caminho, corrigiu o que faltava e deixou um teste automatizado em jogo (`./gradlew testeJogo`, servidor dedicado sem tela, mod de teste em `src/testeJogo`) que compara a cratera com a mesma troca de blocos feita por `setBlock`. Resultado de cada rodada em [VALIDACAO.md](VALIDACAO.md).
+
+#### Proteção territorial
+
+**O problema.** O `TerrainEditEvent` é próprio do Calamidade: um mod de claims não o conhece e não o cancela. Mods de proteção conhecem outro caminho: os eventos de explosão do NeoForge, que toda TNT, creeper e bola de fogo do ghast dispara.
+
+**O que a edição faz agora**, uma vez por edição, na thread do servidor, quando o plano fica pronto (logo depois do `TerrainEditEvent`; instâncias presas a uma entidade, no marcador):
+
+1. **Modo de jogo do jogador.** Com fonte jogador (online), `Player.mayBuild()` falso (aventura, espectador) recusa a edição inteira (motivo `PERMISSION` no `/calamidade status`). Conferido também no início da instância.
+2. **Borda do mundo** (`WorldBorder.isWithinBounds`), para qualquer fonte: posições fora dela saem do plano.
+3. **Proteção de spawn** (`terrainSpawnProtection`). Com fonte jogador, a conta do próprio servidor (`MinecraftServer.isUnderSpawnProtection`: só no servidor dedicado, no overworld, com algum operador cadastrado, e um operador como fonte fica isento). Para as outras fontes (mob, bloco, script), a mesma área sem isenção. Conferido com `javap -c` em `DedicatedServer.isUnderSpawnProtection`: quadrado de lado `2 × spawn-protection + 1` em volta do spawn do mundo. No singleplayer e na LAN o jogo não tem proteção de spawn, e a edição também não.
+4. **Eventos de explosão** (`terrainExplosionEvent`, padrão ligado). Uma `Explosion` sintética (construtor `Explosion(Level, Entity, x, y, z, raio, fogo, BlockInteraction, List<BlockPos>)`, que põe a lista em `toBlow`, conferido com `javap -c`): centro na origem da edição, raio até o canto mais distante da área planejada, `BlockInteraction.DESTROY`, sem fogo, fonte = a entidade por trás do efeito (o jogador, o mob; nula para bloco e script). Ela carrega as posições que a edição mudaria **naquele momento** (o que não é ar, mais todo preenchimento e estrutura). Primeiro `ExplosionEvent.Start`: cancelado, a edição é recusada (motivo `EXPLOSION`). Depois `ExplosionEvent.Detonate`: toda posição que os listeners tirarem de `getAffectedBlocks()` fica fora do commit. A explosão **nunca roda** (`explode` e `finalizeExplosion` não são chamados): sem dano, partículas, som, drops ou fogo.
+5. **No commit**, um bit por entrada do plano diz o que pode ser escrito. Uma posição que era ar na hora da autorização (e por isso não foi oferecida aos listeners) é pulada se alguém construir ali antes do marcador: nada muda sem passar pelos listeners. Se todas as posições forem tiradas, a edição é recusada (motivo `PROTECTED`).
+
+O relatório de `/calamidade terrain list` conta as posições guardadas: `N guarded (A border/spawn, B explosion listeners)`.
+
+**Mods de proteção.** Mods que tratam o `ExplosionEvent` do NeoForge passam a valer para as crateras sem saber do Calamidade. **FTB Chunks** e **Open Parties and Claims** protegem claims contra explosões tirando posições da lista de blocos afetados, que no NeoForge é a do `ExplosionEvent.Detonate`; com eles, a cratera deve parar na borda do claim, desde que a proteção contra explosões esteja ligada (no FTB Chunks, a opção do time que permite explosões; no OPAC, a proteção de explosões dos claims). **GriefDefender** e outros valem do mesmo jeito **se** a versão para NeoForge 1.21.1 tratar o `ExplosionEvent` (e não só mixins dentro da explosão vanilla, que a explosão sintética nunca executa). Nenhum desses mods foi instalado aqui: o comportamento foi provado com um listener que faz o mesmo que eles, e precisa ser confirmado com as versões reais (TESTE-REAL.md, caso 75). O `TerrainEditEvent` continua, para quem quiser recusar a edição inteira com a área e a fonte exatas.
+
+**Efeitos colaterais a conhecer.** Todo listener de explosão vê a edição como uma explosão: mods que **regeneram** explosões (devolvem os blocos depois de um tempo) vão regenerar a cratera; mods que criam **destroços** (blocos caindo para cada posição) podem criar milhares de entidades numa cratera grande. Nesses servidores, desligue `terrainExplosionEvent` (fica só o `TerrainEditEvent`, a borda e o spawn) ou configure o outro mod para ignorar explosões sem fonte ou de raio grande. O calor desenhado pelo cliente segue a forma inteira: numa área protegida, os blocos intactos podem brilhar por alguns segundos (é só visual; mudar isso exigiria mudar o protocolo).
+
+**Teste em jogo:** um listener de teste que só conhece o `ExplosionEvent` protege `x ≥ cx`; a cratera abre do lado de fora (183 posições) e nenhuma posição muda do lado protegido, com o bloco de `x = cx − 1` cavado e o de `x = cx` intacto. Também: `Start` cancelado (recusa, nada muda), `terrainExplosionEvent = false` (listener não chamado, cratera inteira), borda do mundo no meio da cratera e proteção de spawn de 16 num servidor dedicado com um operador (nada muda do lado protegido).
+
+#### Iluminação
+
+**O que já era feito (conferido com `javap -c` e no teste).** Cada escrita repete o ramo de luz de `LevelChunk.setBlockState`: quando a seção passa de vazia para não vazia (ou o contrário, no fim do lote), `LevelLightEngine.updateSectionStatus`; quando `LightEngine.hasDifferentLightProperties` diz que a luz muda, `ChunkSkyLightSources.update` da coluna e `LevelLightEngine.checkBlock` da posição. O `ThreadedLevelLightEngine` do servidor enfileira cada `checkBlock` e o processa no fim de cada tick (`ChunkMap.tick` chama `tryScheduleUpdate`); a propagação atravessa seções e chunks vizinhos sozinha, como num `/fill`. Não precisa de uma fila própria por lote: a fila do jogo já é por bloco. Quem recebe a luz:
+
+- **Jogadores perto:** recebem o pacote da seção e o cliente refaz a luz localmente (`ClientPacketListener` aplica cada bloco por `setBlock`, que chama o motor de luz do cliente), exatamente como com o `/fill`.
+- **Jogadores na borda da distância de visão:** recebem a luz calculada pelo servidor pelo caminho normal (`ChunkHolder.broadcastChanges` manda as seções de luz que o motor marcou só a eles; conferido com `javap -c`).
+- **Disco:** a luz é salva com o chunk, que fica marcado como modificado.
+
+**O que foi corrigido.** Com o **ScalableLux** (motor de luz derivado do Starlight, versão para NeoForge 1.21.1), o primeiro commit quebrava com `NullPointerException`: esse mod substitui as fontes de luz do céu e deixa `LevelChunk.getSkyLightSources()` nulo, e o escritor chamava `update` em toda escrita. O vanilla só chama no ramo "a luz muda", que o mod redireciona. O escritor agora segue o mesmo ramo e confere o nulo; o `checkBlock` continua indo ao motor do mod. E um commit que falha no meio agora guarda o snapshot parcial (dá para desfazer o que foi escrito) em vez de perdê-lo junto com a exceção.
+
+**Teste em jogo.**
+
+| Caso | Resultado |
+|---|---|
+| Servidor: a mesma cratera (casca e esfera de glowstone, 417 blocos) pela Terrain API e copiada bloco a bloco com `setBlock` (o caminho do `/fill`) em outra região | luz do céu e dos blocos igual em 37 × 31 × 37 posições (0 diferenças); brilho (`getMaxLocalRawBrightness`) igual ao meio-dia e à meia-noite; glowstone dá luz 15 |
+| Desfazer | luz igual à de antes do commit (0 diferenças) |
+| **ScalableLux** 0.3.0-alpha.0.8 | os 27 casos do servidor passam, luz igual à do `/fill` (depois da correção acima) |
+| Cliente (Xvfb, Mesa llvmpipe): luz recalculada pelo cliente na cratera da Terrain API e na do `setBlock` | 0 diferenças entre as duas e 0 diferenças em relação ao servidor |
+| Cliente: capturas das duas crateras do mesmo ângulo, de dia e de noite, comparadas em blocos de 40 px (a rotação aleatória da textura da grama impede comparar pixel a pixel) | diferença média 0,23 (dia) e 0,10 (noite) de 255, máxima 2,2 e 3,2: sem manchas escuras nem claras ([imagem](gameplay/luz-0111.jpg)) |
+
+**Mods que substituem o motor de luz.**
+
+- **ScalableLux** (NeoForge 1.21.1): testado aqui, compatível depois da correção.
+- **Moonrise** (port do sistema de chunks e do Starlight do Paper, 0.1.0-beta.15 para NeoForge 1.21.1): **não abre junto com a RimuLib 1.3.0.** O jogo para na carga com `InjectionError` no mixin `rimulib.mc1211.world.mixins.json:ServerLevelMixin` (`rimulib$discard` redireciona a mesma chamada que o `moonrise ... ServerLevelMixin.redirectClose`). É um conflito entre a RimuLib e o Moonrise, antes de o Calamidade rodar; não dá para corrigir deste lado. Avise o autor da RimuLib.
+- **Starlight** (só Fabric e Forge antigos) e outros: valem as mesmas premissas do ScalableLux (o mod precisa redirecionar `checkBlock` e `updateSectionStatus`, que o escritor chama como o vanilla). Teste com o roteiro do TESTE-REAL.md, caso 76.
+
+#### Integridade do mundo
+
+| Sistema | Antes da 0.11.1 | Teste em jogo |
+|---|---|---|
+| **Mapas de altura** (`WORLD_SURFACE`, `OCEAN_FLOOR`, `MOTION_BLOCKING`, `MOTION_BLOCKING_NO_LEAVES`) | já certo: `Heightmap.update` em cada escrita, como `LevelChunk.setBlockState` | iguais aos da cópia por `setBlock` e a uma varredura das colunas, depois do commit e do desfazer |
+| **Pontos de interesse** (`PoiManager`) | já certo: `ServerLevel.onBlockStateChange` em cada escrita (tira o POI do estado antigo e põe o do novo, na fila de tarefas do servidor) | composteira, mesa de ferraria e magnetita somem com a cratera e voltam no desfazer; composteiras do preenchimento entram e saem; os POI sobrevivem ao reinício |
+| **Chunk modificado** | já certo: `setUnsaved(true)` no fim de cada lote | depois de salvar tudo, o jogo salva de novo o chunk da cratera (`ChunkDataEvent.Save`); a cratera (224 posições) e os POI estão lá depois de fechar e abrir o servidor dedicado |
+| **Contadores da seção** (não vazios, tick aleatório, fluidos) | já certo: `LevelChunkSection.setBlockState` atualiza os três a cada troca (conferido com `javap -c`) | iguais aos de `recalcBlockCounts()` em todas as seções da cratera, depois do commit e do desfazer |
+| **Casca externa** | **faltava**: os blocos logo fora da área escrita não recebiam atualização de forma nem de vizinho | corrigido (abaixo): a cerca da borda solta a conexão com a que sumiu, a água vizinha da vedação ganha tick de fluido e a de mais longe não, nenhuma água entra na cratera; no desfazer, as cercas reconectam |
+| **Dados de block entity no cliente** | **faltava**: o pacote de seção não leva dados de block entity; uma placa devolvida pelo desfazer (ou uma estrutura com placa, estandarte, cabeça) aparecia vazia no cliente | corrigido: no fim do lote, cada block entity nova manda o seu `getUpdatePacket()`, como `ChunkHolder.broadcastBlockEntityIfNeeded`; a placa devolvida mostra o texto no cliente |
+| **Desfazer** | mesmo escritor | mesmo tratamento: mapas de altura, POI, contadores, luz, casca externa e dados de block entity |
+
+**Casca externa.** Depois da última escrita de um commit (e do assentamento dos blocos de gravidade) ou de um desfazer, a edição percorre, em lotes dentro do mesmo orçamento de blocos por tick, as posições escritas e junta os vizinhos de fora (não escritos e em chunk FULL). Cada um recebe, uma vez:
+
+- `updateShape` na direção de cada vizinho escrito; se a forma muda, `Block.updateOrDestroy` com `UPDATE_CLIENTS | UPDATE_KNOWN_SHAPE | UPDATE_SUPPRESS_DROPS` (vai ao cliente, sem nova rodada de formas, sem drops);
+- um `neighborChanged` vindo de um vizinho escrito (redstone, trilhos, fluidos);
+- tick de fluido, se tiver fluido. As posições escritas da borda que têm fluido (a água que o desfazer devolve) também ganham o tick.
+
+Dentro da área escrita nada é atualizado: tudo ali foi escrito pela edição, e a casca já veda os fluidos e queima o que não é sólido. Por isso não há cascata. O que um bloco de fora faz com a atualização é o comportamento normal dele: um observador virado para a cratera pulsa, a areia sobre um bloco que virou ar cai, o portal do Nether cuja moldura foi cavada se desfaz (o bloco de portal é protegido pela tag, mas a moldura não). O relatório mostra `N border updates (S shapes, F fluid ticks)`.
+
+**Custo** (servidor dedicado, mesma esfera de raio 24 com casca de 2 da medição da 0.11.0, 36 754 blocos escritos no mundo plano, duas rodadas): commit e casca em 9 ticks, 90,6 a 102,4 ms na thread do servidor ao todo, com 3 621 blocos na casca externa; pior tick 25,5 a 25,9 ms. Desfazer em 7 ticks, 52 a 61 ms, pior tick 18,3 a 32,1 ms. As verificações de proteção rodam uma vez, quando o plano fica pronto (antes do marcador): 19 a 22 ms para 73 508 posições planejadas, num só tick (mais o custo dos listeners de explosão instalados). Nenhum tick passou de 50 ms.
+
+#### Geração de mundo e mods de renderização
+
+**Só chunks FULL (conferido).** O escritor, a casca externa e as verificações de proteção pegam o chunk por `ServerChunkCache.getChunkNow`, que devolve `null` fora da thread do servidor e só devolve um `LevelChunk` (status `FULL`) já carregado (conferido com `javap -c`); desde a 0.11.1, o motor também exige `LevelChunk.getFullStatus()` pelo menos `FULL` (descarta um chunk cujo nível de ticket caiu, a caminho de descarregar). Nada é carregado nem gerado: seções de chunks que não estão em `FULL` (em geração, só com luz, descarregados) são puladas e contadas no relatório (`sections unloaded`). **Teste em jogo:** com um único chunk forçado, o chunk a 2 de distância é `FULL` e o a 3 está carregado sem ser `FULL`; uma cratera no limite escreve só no primeiro, pula 2 seções do segundo, não o promove a `FULL` e, carregado depois, ele está intacto. Uma cratera cortada assim fica com uma parede reta no limite, sem casca do lado que não foi escrito.
+
+**C2ME** (Concurrent Chunk Management Engine, port para NeoForge 0.4.0-alpha.0.124, gera, carrega e salva chunks em paralelo): a Terrain API só escreve, na thread do servidor, em chunks que já chegaram a `FULL`, e marca o chunk como modificado; a geração paralela não vê chunks a meio caminho escritos por ela. **Teste em jogo:** os 51 casos do servidor dedicado passam com o C2ME instalado, inclusive a cratera e os pontos de interesse depois de reiniciar.
+
+**Distant Horizons** (3.3.3 para NeoForge 1.21.1): carrega junto e os 10 casos do cliente passam. As versões distantes (LOD) são refeitas a partir dos dados salvos: o mixin do DH no servidor fica no fim de `ChunkMap.save` (conferido no bytecode do DH 3.3.3). Como a edição marca o chunk como modificado, o LOD se atualiza quando o jogo salva o chunk: em segundos num servidor ocioso (o jogo salva até 20 chunks modificados por tick com tempo sobrando), senão no salvamento automático (a cada 5 minutos). Isso vale no singleplayer e em servidores com DH. **Risco:** num servidor **sem** DH, o DH do cliente só monta o LOD com o que o cliente recebe; a cratera aparece na distância normal de renderização, mas a versão distante pode mostrar o terreno antigo até o cliente recarregar aquele chunk. O dono precisa conferir (TESTE-REAL.md, caso 79).
+
+**Sodium e Embeddium** (Sodium 0.8.13 e Embeddium 1.0.15 para NeoForge 1.21.1): as seções chegam pelo pacote do jogo e esses mods as remontam como qualquer troca de blocos. **Teste em jogo** (Xvfb, Mesa llvmpipe): com cada um, os 10 casos do cliente passam: luz igual à do `setBlock` e à do servidor, imagens de dia e de noite sem manchas, modo aventura, placa com texto depois do desfazer ([imagem: Sodium de dia, Embeddium de noite](gameplay/sodium-embeddium-0111.jpg)). O desempenho numa GPU física fica para o TESTE-REAL (caso 72). Shader packs (Iris/Oculus) não foram testados: podem não desenhar o passe `terrain`, como os outros passes de pós.
 
 ### Receitas
 
@@ -1686,7 +1772,7 @@ Desde a 0.9.0, a seleção (`FrameBudget.select`) põe as instâncias HERO na fr
 
 Desde a 0.10.0, uma instância tem orientação e fonte. `Placement` (ou as sobrecargas de `Effects.start`/`follow`) vira um `StageNetwork.Spawn` com posição ou âncora, yaw, pitch, a opção de seguir o corpo, a fonte (`EffectSource`), a recarga e o bloco vinculado. Antes de criar a instância, o servidor confere a recarga por fonte e efeito (`Cooldowns`, agora com chaves de qualquer fonte) e a admissão (`SourceLimits.admit`: total de 64, vagas reservadas para jogadores e limite por fonte, lidos de `ServerConfig`); recusas devolvem `Optional.empty()` e são contadas para o `/calamidade status`. O pacote de início passou a ser `event_v2`, com yaw, pitch, a opção de seguir o corpo e o tipo da fonte. O referencial é um `Basis` puro (eixos locais do Minecraft: x à esquerda, y para cima, z para a frente; identidade com yaw e pitch 0): o servidor o usa no centro das instâncias presas e no `Context` dos cues (com `yBodyRot` da âncora quando segue o corpo), e o cliente o calcula a cada quadro em `StageScene.basis` (com `Mth.rotLerp` de `yBodyRotO` e `yBodyRot`, como o renderizador), guarda-o no `Sample` e gira com ele os pontos do centro e os deslocamentos de trilha de feixes e luzes. Uma instância vinculada a uma block entity termina quando `BlockEntity.isRemoved()` (bloco quebrado ou trocado, chunk descarregado). Os gatilhos de `EffectTriggers` só montam `Placement`s; o de bloco decide com a máquina de estados pura `TriggerLogic`.
 
-Desde a 0.11.0, um efeito pode ter edições de terreno (TERRENO-0.11.md). `Effects.terrain` registra `TerrainEdit`s nos dois lados e um cue do motor no marcador de cada uma. No servidor, `TerrainWorks.started` (chamado por `StageNetwork.start` antes do primeiro despacho) aplica as regras da config (`ServerConfig.terrain()`), carrega a estrutura e manda o `TerrainPlanner` (puro: forma, origem, orientação, seed) para uma thread de trabalho; quando o plano fica pronto, confere o volume e dispara o `TerrainEditEvent`. O cue do marcador cria um `TerrainJob.Commit`, que `TerrainWorks.tick` (depois dos cues, no mesmo tick) avança com o orçamento de blocos por tick: o `TerrainWriter` escreve direto nas `LevelChunkSection` e, no fim de cada lote, reenvia cada seção alterada num `ClientboundSectionBlocksUpdatePacket`. O commit guarda um `TerrainSnapshot` (índices e IDs de estado antes e depois) para `TerrainJob.Undo`. O estado de cada edição vai aos clientes pelo canal `terrain_v1` (`TerrainSync`: comitida, recusada, blocos do dublê de estrutura), uma vez por mudança e logo depois do StageEvent para quem chega depois. No cliente, `TerrainClient` guarda esses estados e prevê o commit no marcador; `TerrainFrame` monta o passe `terrain` (zonas quentes calculadas no shader pela mesma forma e seed, dublês esféricos) e as luzes do calor, pagos antes do passe de luzes; `TerrainMeshes` desenha a malha em cache das estruturas que caem em `RenderLevelStageEvent.AFTER_TRANSLUCENT_BLOCKS`.
+Desde a 0.11.0, um efeito pode ter edições de terreno (TERRENO-0.11.md). `Effects.terrain` registra `TerrainEdit`s nos dois lados e um cue do motor no marcador de cada uma. No servidor, `TerrainWorks.started` (chamado por `StageNetwork.start` antes do primeiro despacho) aplica as regras da config (`ServerConfig.terrain()`), carrega a estrutura e manda o `TerrainPlanner` (puro: forma, origem, orientação, seed) para uma thread de trabalho; quando o plano fica pronto, confere o volume, dispara o `TerrainEditEvent` e, desde a 0.11.1, chama o `TerrainGuard` (borda do mundo, proteção de spawn, modo de jogo do jogador e uma `Explosion` sintética nunca executada pelos `ExplosionEvent.Start` e `Detonate` do NeoForge), que devolve um bit por entrada do plano. O cue do marcador cria um `TerrainJob.Commit`, que `TerrainWorks.tick` (depois dos cues, no mesmo tick) avança com o orçamento de blocos por tick: o `TerrainWriter` escreve direto nas `LevelChunkSection` e, no fim de cada lote, reenvia cada seção alterada num `ClientboundSectionBlocksUpdatePacket` (desde a 0.11.1, seguido dos dados de cada block entity nova). Desde a 0.11.1, depois da última escrita, o `TerrainBorder` dá aos blocos logo fora da área escrita `updateShape`, `neighborChanged` e tick de fluido, uma vez, no mesmo orçamento. O commit guarda um `TerrainSnapshot` (índices e IDs de estado antes e depois) para `TerrainJob.Undo`. O estado de cada edição vai aos clientes pelo canal `terrain_v1` (`TerrainSync`: comitida, recusada, blocos do dublê de estrutura), uma vez por mudança e logo depois do StageEvent para quem chega depois. No cliente, `TerrainClient` guarda esses estados e prevê o commit no marcador; `TerrainFrame` monta o passe `terrain` (zonas quentes calculadas no shader pela mesma forma e seed, dublês esféricos) e as luzes do calor, pagos antes do passe de luzes; `TerrainMeshes` desenha a malha em cache das estruturas que caem em `RenderLevelStageEvent.AFTER_TRANSLUCENT_BLOCKS`.
 
 ### Cliente e orçamento
 
@@ -1976,6 +2062,22 @@ Mesma preparação (servidor dedicado, dois clientes A e B, operador nos dois). 
 
 Registre para cada caso o que viu e, nos casos 63, 65, 66 e 72, uma captura e (72) os tempos.
 
+### Parte 7 — compatibilidade da Terrain API (0.11.1)
+
+Antes, rode os testes automáticos (`./gradlew testeJogo` e, numa máquina com tela, `./gradlew testeCliente`); com `-PtesteMods=<pasta com JARs>` eles rodam com outros mods instalados. Os casos abaixo são o que eles não cobrem: mods reais de proteção, jogadores de verdade, GPU física. Mesma preparação da parte 6 (servidor dedicado, A e B, mundo de teste). Capítulo: [TERRENO-0.11.md](TERRENO-0.11.md#compatibilidade-0111).
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 75 | Com **FTB Chunks**, depois com **Open Parties and Claims** e, se usar, **GriefDefender**: B reivindica uma área (com a proteção contra explosões ligada no mod); A roda `cratera_simples` com o centro na borda do claim. Repita com `terrainExplosionEvent = false`. | Ligada: a cratera abre só fora do claim e para na borda dele (os blocos do claim ficam intactos; o calor pode brilhar por cima por alguns segundos). `Start` cancelado por algum mod: nada muda e `/calamidade status` conta "evento de explosão". Desligada: a cratera ignora o claim (só o `TerrainEditEvent` vale). Anote o nome e a versão de cada mod e o que aconteceu. |
+| 76 | Com o mod de luz que o servidor usa (ScalableLux, Starlight ou outro), A roda `meteoro` de dia e `cratera_simples` à noite, ao lado de um buraco do mesmo tamanho feito com `/fill ~ ~ ~ ~ ~ ~ air`. | Nenhuma mancha escura ou clara dentro nem em volta das crateras; a cratera tem a mesma luz do buraco do `/fill`. Nenhum erro no log do servidor. Moonrise: o jogo não abre com a RimuLib 1.3.0 (conflito conhecido). |
+| 77 | A roda `cratera_simples`; o servidor é parado com `stop` 10 s depois e aberto de novo. | A cratera está lá depois do reinício, com a borda queimada e a luz certa. |
+| 78 | Numa vila: A põe uma cama e uma mesa de profissão no caminho de uma cratera, roda a cratera e espera um dia; depois `/calamidade terrain undo`. | Os aldeões perdem a cama e a profissão quando os blocos somem (procuram outros) e as recuperam depois do desfazer. Um portal do Nether com a moldura cavada se desfaz (vanilla). |
+| 79 | Com **Distant Horizons** no cliente de A, num servidor **sem** DH: A roda uma cratera grande, se afasta além da distância de renderização e olha para trás; depois reconecta. Repita com DH também no servidor, se usar. | Perto, a cratera aparece sempre. Na distância do LOD, anote se a versão distante mostra a cratera (com DH no servidor, ela deve aparecer depois que o chunk é salvo, segundos depois) ou o terreno antigo, e se muda depois de reconectar. |
+| 80 | Com **Sodium** ou **Embeddium** numa GPU física (e, se usar, Iris/Oculus com um shader pack): casos 63 e 72. | A cratera aparece na hora e sem manchas (testado em llvmpipe); anote o tempo de quadro da cratera grande. Com shader pack, anote se o passe `terrain` (brasa, fumaça) aparece. |
+| 81 | Servidor dedicado com `spawn-protection=16` e um operador: B (não operador) e A (operador) rodam `cratera_simples` com o centro na borda da área do spawn; depois B em modo aventura roda uma cratera longe do spawn. | B: nada muda dentro da área do spawn, a cratera abre fora. A (operador): a cratera abre inteira. B em aventura: o efeito toca, nenhum bloco muda (`/calamidade status`: recusa por permissão). |
+
+Registre para cada caso o que viu, com nome e versão de cada mod; nos casos 75, 76 e 79, uma captura.
+
 ### Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
@@ -1984,7 +2086,93 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 ## 16. Validação, medições e limites
 
-### Versão 0.11.0 — Terrain API (estado atual)
+### Versão 0.11.1 — compatibilidade da Terrain API (estado atual)
+
+**Compilada e coberta pelos testes de build; executada em jogo por dois roteiros automatizados que estão no repositório: `./gradlew testeJogo` (servidor dedicado sem tela, NeoForge 21.1.267: 51 de 51 verificações, em duas execuções para o reinício) e `xvfb-run -a ./gradlew testeCliente` (cliente, Mesa llvmpipe: 10 de 10). Também com ScalableLux, C2ME, Sodium, Embeddium e Distant Horizons instalados. Mods de proteção reais, jogadores de verdade e GPU física continuam pendentes (TESTE-REAL.md, parte 7).**
+
+#### Build
+
+Mesmo ambiente da 0.11.0 (OpenJDK 21.0.13, Gradle 9.2.1, glslangValidator 15.1.0, RimuLib 1.3.0 conferida por SHA-256).
+
+- `./gradlew clean build dist`: passou em cada etapa, com `checkBudget`, `checkFrustum`, `checkShaders` (12 shaders compilados com o glslangValidator), `checkApiDocs`, `checkRecipes` e `checkModVersion`. O JAR não tem nenhuma classe de `src/testeJogo`.
+- `./gradlew -p examples/vfx-sample build` (1.8.0, sem mudança de código, contra o JAR 0.11.1) e `./gradlew -p examples/consumidor build -Pcalamidade.url=file:///…/dist/calamidade_awakening-0.11.1.jar`: passaram.
+- **Build reproduzível:** dois `clean build dist` seguidos deram o mesmo SHA-256.
+- **API pública idêntica à da 0.11.0:** `javap -s` de todas as classes de `api.v1` no JAR do release v0.11.0 (baixado do GitHub, SHA-256 `db89b4b3…`, igual ao publicado) e no JAR 0.11.1: 2 586 linhas, nenhuma diferença. Só o Javadoc do `TerrainEditEvent` ganhou um parágrafo.
+- Rede sem mudança (`terrain_v1`, `event_v2`, `end_effect`, `request_v2`, `release`).
+
+SHA-256 de `dist/calamidade_awakening-0.11.1.jar`: `a4dfa44853bee79344b84bddc32a443cc0c89321b4f68bca3a0db297f03e6c21`
+
+SHA-256 de `examples/vfx-sample/build/libs/vfx-sample-1.8.0.jar` (compilado contra a 0.11.1): `10b5436279c98d34af5f73628696a3234c3900993be1df638a3a7392846ea0ac`
+
+#### Conferido com `javap -c` (NeoForge 21.1.267)
+
+- `LevelChunk.setBlockState`: `Heightmap.update` dos quatro mapas; `updateSectionStatus` quando a seção muda de vazia para não vazia (ou o contrário); `ChunkSkyLightSources.update` e `LevelLightEngine.checkBlock` **só** quando `LightEngine.hasDifferentLightProperties`. O escritor da 0.11.0 chamava `update` das fontes do céu sempre; a 0.11.1 segue o ramo do vanilla.
+- `LevelChunkSection.setBlockState`: atualiza `nonEmptyBlockCount`, `tickingBlockCount` e `tickingFluidCount` a cada troca.
+- `ServerLevel.onBlockStateChange`: tira e põe pontos de interesse (`PoiTypes.forState`) pela fila de tarefas do servidor.
+- `ChunkMap.tick` chama `ThreadedLevelLightEngine.tryScheduleUpdate` a cada tick: os `checkBlock` enfileirados são processados no fim do tick.
+- `ChunkHolder.broadcastChanges` manda a luz só aos jogadores na borda da distância de visão e `broadcastBlockEntityIfNeeded` manda `getUpdatePacket()` de cada block entity mudada; o escritor da 0.11.0 não mandava esse segundo.
+- `ServerChunkCache.getChunkNow`: `null` fora da thread do servidor; só `LevelChunk` com status `FULL` (ou o `currentlyLoading` do NeoForge, durante o evento de carga). `LevelChunk.getFullStatus` vem do nível do ticket.
+- `DedicatedServer.isUnderSpawnProtection`: só no overworld, só com operadores cadastrados, operador isento, `max(|dx|, |dz|) <= spawn-protection`. `MinecraftServer.isUnderSpawnProtection` (singleplayer) devolve sempre falso. `ServerLevel.mayInteract` = proteção de spawn + `WorldBorder.isWithinBounds`.
+- `Explosion(Level, Entity, x, y, z, raio, fogo, BlockInteraction, List<BlockPos>)` põe a lista em `toBlow`; `ExplosionEvent.Detonate.getAffectedBlocks()` é esse `toBlow`; `EventHooks.onExplosionStart` posta `ExplosionEvent.Start` (cancelável). O motor posta os dois eventos direto no `NeoForge.EVENT_BUS` e nunca chama `explode` nem `finalizeExplosion`.
+- Distant Horizons 3.3.3: o mixin do servidor injeta no `RETURN` de `ChunkMap.save(ChunkAccess)` (bytecode do JAR do DH).
+
+#### Em jogo: servidor dedicado (`./gradlew testeJogo`)
+
+Servidor dedicado do NeoForge 21.1.267 sem tela, mundo plano próprio (bedrock, 60 de pedra, 3 de terra e grama: superfície em y = 0), `spawn-protection=16`, um operador fictício em `ops.json`, mod de teste `calamidade_teste` (em `src/testeJogo`, fora do JAR) com crateras sem borda irregular (a forma não depende da seed). Cada cenário numa região própria, com os chunks forçados. A segunda execução reabre a mesma pasta.
+
+| Caso | Resultado |
+|---|---|
+| Listener que só conhece `ExplosionEvent` protege `x ≥ cx` | `Start` e `Detonate` uma vez cada; explosão sintética com 417 posições, raio 11,7, fonte nula (script); o listener tirou 234; 0 posições mudaram do lado protegido e 183 do outro; `x = cx − 1` cavado e `x = cx` intacto; nenhuma entidade de item |
+| `Start` cancelado | recusa `EXPLOSION`, nenhum bloco muda |
+| `terrainExplosionEvent = false` | listener não chamado; cratera inteira (183 e 234 posições) |
+| Borda do mundo no meio da cratera | 0 posições fora da borda; 183 dentro |
+| Proteção de spawn 16, fonte script | 0 posições na área do spawn; 183 fora |
+| Luz: cratera com casca e glowstone (417 blocos) pela Terrain API x a mesma troca por `setBlock` (`UPDATE_CLIENTS \| UPDATE_KNOWN_SHAPE`) 64 blocos ao sul | luz do céu e dos blocos igual em 37 × 31 × 37 posições; brilho igual ao meio-dia e à meia-noite (fundo 15 e 11); glowstone dá 15 |
+| Mapas de altura (4 tipos) | iguais aos da cópia e a uma varredura das colunas |
+| Contadores das seções | iguais aos de `recalcBlockCounts()` |
+| Desfazer | blocos, luz, mapas de altura e contadores iguais aos de antes |
+| Pontos de interesse | composteira, mesa de ferraria e magnetita saem com a cratera e voltam no desfazer; composteiras do preenchimento entram e saem |
+| Casca externa (cerca na borda, água ao lado) | água que tocava a cratera vedada; tick de fluido na água vizinha da vedação e não nas seguintes; formas das cercas consistentes depois do commit e do desfazer (2 formas mudadas, 132 vizinhos); nenhuma água na cratera |
+| Custo, esfera r24 com casca de 2 (36 754 escritos) | 9 ticks, 90,6 a 102,4 ms, 3 621 vizinhos na casca externa, pior tick 25,5 a 25,9 ms; verificações de proteção 19 a 22 ms num tick; desfazer em 7 ticks, pior tick 18,3 a 32,1 ms |
+| Chunks não FULL | só o chunk FULL muda; 2 seções puladas; o chunk não FULL não é carregado e, carregado depois, está intacto |
+| Reinício | depois de salvar tudo, o jogo salva de novo o chunk da cratera (`ChunkDataEvent.Save`); na segunda execução, as 224 posições e os 2 POI das composteiras estão lá |
+
+**O que o teste achou:** (1) a casca externa não recebia atualização (cerca com a conexão velha, nenhum tick de fluido): corrigido com o `TerrainBorder`. (2) Com o ScalableLux, o commit quebrava com `NullPointerException` em `ChunkSkyLightSources.update` (o mod deixa as fontes nulas): corrigido. (3) No próprio roteiro: o servidor ocioso salva até 20 chunks modificados por tick (`ChunkMap.processUnloads`), então a marca de modificado tem de ser conferida pelo salvamento (`ChunkDataEvent.Save`), não lida depois; e o `Effects.start` recusa um centro em chunk não carregado (o cenário FULL põe o centro no chunk FULL).
+
+#### Em jogo: cliente (`xvfb-run -a ./gradlew testeCliente`)
+
+Cliente de desenvolvimento sob Xvfb 1280 × 720, Mesa llvmpipe (LLVM 20.1.2), no mundo deixado pelo `testeJogo` (`--quickPlaySingleplayer`), câmera em modo espectador.
+
+| Caso | Resultado |
+|---|---|
+| Luz recalculada pelo cliente, cratera da Terrain API x a do `setBlock` (37 × 31 × 37 posições, céu e blocos) | 0 diferenças entre as duas; 0 diferenças em relação ao servidor |
+| Capturas das duas crateras do mesmo ponto, comparadas em blocos de 40 px | dia: diferença média 0,23, máxima 2,2 de 255; noite: 0,15 e 3,3 (sem manchas) |
+| Jogador em modo aventura dispara a cratera | o efeito toca, recusa `PERMISSION`, nada muda; em sobrevivência, a cratera é comitada |
+| Placa com texto na cratera (`terrainBlockEntities` e `replacingBlockEntities()`), depois desfazer | a placa sai (também no cliente) e volta com o texto no servidor **e no cliente** |
+
+**O que o teste achou:** a placa devolvida pelo desfazer aparecia vazia no cliente (o servidor tinha o texto): corrigido mandando o pacote de dados de cada block entity nova. No próprio roteiro: a textura da grama gira conforme a posição, então as crateras A e B nunca são iguais pixel a pixel; a comparação é feita por blocos de 40 × 40 px (média), que acusa manchas de luz.
+
+#### Outros mods (baixados do Modrinth, SHA-512 conferido)
+
+| Mod | Rodada | Resultado |
+|---|---|---|
+| ScalableLux 0.3.0-alpha.0.8+1.21.1 | `testeJogo` | antes da correção, o primeiro commit quebrava; depois, 27 de 27 na rodada da Etapa 2 (proteção e luz) |
+| Moonrise 0.1.0-beta.15+2eae1b1 | `testeJogo` | **não abre:** `InjectionError` no mixin `rimulib.mc1211.world.mixins.json:ServerLevelMixin` (`rimulib$discard`), cuja chamada o Moonrise já redireciona (`redirectClose`). Conflito RimuLib x Moonrise |
+| C2ME 0.4.0-alpha.0.124+1.21.1 | `testeJogo` | 51 de 51, inclusive o reinício |
+| Sodium 0.8.13+mc1.21.1 | `testeCliente` | 10 de 10 (imagem de dia 0,23/2,1; de noite 0,14/3,5) |
+| Embeddium 1.0.15+mc1.21.1 | `testeCliente` | 10 de 10 (dia 0,23/2,2; noite 0,12/3,2) |
+| Distant Horizons 3.3.3 | `testeCliente` | 10 de 10; o LOD distante não foi conferido (veja TERRENO-0.11.md) |
+
+Capturas: [luz de dia e de noite, Terrain API x setBlock](gameplay/luz-0111.jpg) · [Sodium de dia e Embeddium de noite](gameplay/sodium-embeddium-0111.jpg).
+
+#### Pendente
+
+- TESTE-REAL.md, parte 7 (casos 75 a 81): FTB Chunks, Open Parties and Claims e GriefDefender reais; proteção de spawn e modo aventura com jogadores de verdade; aldeões; LOD do Distant Horizons num servidor sem DH; GPU física com Sodium, Embeddium e shader packs.
+- Os pendentes da 0.11.0 (parte 6) continuam.
+
+---
+
+### Versão 0.11.0 — Terrain API
 
 **Compilada e coberta pelos testes de build; executada em jogo por um roteiro automatizado em renderização por software (Mesa llvmpipe), num cliente, no NeoForge 21.1.267: 27 de 27 verificações, com as medições da Etapa 7. Dois jogadores num servidor dedicado, GPU física e os casos manuais de TESTE-REAL.md (63 a 74) continuam pendentes.**
 
@@ -2669,6 +2857,13 @@ O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servid
 - Cliente: passe `terrain` com o calor (brasa, fissuras, fumaça, tremor de calor, faixa incandescente nas trincheiras) calculado da mesma forma analítica e seed, luzes que esfriam, dublês esféricos e malhas de estrutura em cache; canal novo `terrain_v1`.
 - vfx-sample 1.8.0: raio que abre trincheira, meteoro que vira blocos reais, cratera simples e torre que cai e fica.
 
+#### 0.11.1 — compatibilidade da Terrain API
+
+- Proteção territorial pelos eventos de explosão do NeoForge (`Start` e `Detonate` com uma explosão sintética), borda do mundo, proteção de spawn e modo de jogo do jogador; config `terrainExplosionEvent` e `terrainSpawnProtection`.
+- Casca externa: atualização de forma, de vizinho e ticks de fluido nos blocos logo fora da edição (commit e desfazer), sem cascata; dados de block entity reenviados ao cliente.
+- Compatível com ScalableLux (correção), C2ME, Sodium, Embeddium e Distant Horizons; Moonrise não abre com a RimuLib 1.3.0.
+- Testes em jogo no repositório: `./gradlew testeJogo` (servidor dedicado, 51 verificações, com reinício) e `xvfb-run ./gradlew testeCliente` (10 verificações). Consulte TERRENO-0.11.md, seção "Compatibilidade (0.11.1)".
+
 ### Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -2678,6 +2873,7 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 - Pipeline em Fast, Fancy, Fabulous e com mods de renderização (Sodium/Embeddium, Iris/Oculus).
 - Aparência dos feixes e da luz numa GPU física (de dia, de noite, debaixo d'água) e custo dos passes `beams` e `lights` com o teto de HIGH (128 feixes, 64 luzes).
 - Gatilhos e limites por fonte com dois jogadores num servidor dedicado (TESTE-REAL.md, parte 5) e o RespectCraft rodando o Finisher Engine com efeitos do Calamidade.
+- Terrain API com mods de proteção reais (FTB Chunks, Open Parties and Claims, GriefDefender), com jogadores reais na proteção de spawn e no modo aventura, o LOD do Distant Horizons num servidor sem DH e o custo da remontagem numa GPU física (TESTE-REAL.md, partes 6 e 7).
 
 ### Próximas versões
 

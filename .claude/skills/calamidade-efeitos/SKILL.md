@@ -66,13 +66,15 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - **GeckoLib/rigs:** a animação roda no cliente, o efeito começa no servidor no mesmo tick do `triggerAnim`; alinhe marcadores da Timeline aos keyframes (segundos × 20). O Calamidade não depende de GeckoLib.
 - Capítulo: `docs/INTEGRACAO-0.10.md`. Receitas: 14 (leque orientado), 15 (cajado), 16 (pilares), 17 (zumbi). Dependência sem Maven: `docs/ai/usar-como-dependencia.md`.
 
-### 3e. Terreno (opcional, 0.11.0)
+### 3e. Terreno (opcional, 0.11.0; compatibilidade na 0.11.1)
 
 - `Effects.terrain(id, TerrainEdit.carve(forma).commitAt("marcador")...build())` depois de `register` e `timeline` (até 4 por efeito). Formas (`TerrainShape`, referencial da instância): `sphere(r)`, `crater(r, fundo).profile(2).clearance(h)`, `trench(comprimento, r)` (ao longo da frente: gira com o yaw), `cylinder(r, altura)`, `union`, `minus`, `offset(direita, cima, frente)` e, na forma final, `rough(amplitude, célula)`.
 - Borda queimada: `.burn(TerrainPalette.burnt(), 1..4)` (ou um `TerrainPalette.builder()` com faixas FLOOR, WALL, RIM e pesos). Blocos reais no centro: `.fill(TerrainEdit.Fill.solid("minecraft:raw_gold_block", r).at(0, -3, 0))`. Estrutura: `.structure("ns:caminho")` (`data/ns/structure/caminho.nbt`, girada em 90° pelo yaw) e `.structureOffset(...)`.
 - Dublê que cai: `.standIn(TerrainEdit.StandIn.sphere(r).from(direita, cima, frente).fall(tick).reveal(ticks).build())` ou `StandIn.structure()`; o motor desenha esfera, rastro, malha, poeira e luz. Calor: `.cooling(ticks)` ou `.heatTrack("trilha")`, `.glow`, `.smoke`, `.cracks`, `.noHeat()`.
 - **Sob o impact frame:** ponha o marcador no tick do `Effects.Impact` da definição, com 4 a 8 ticks. O raio da definição cobre a queda e a cratera (frustum 2,5 × raio).
 - Servidor: regras da config `terrain` (volume 150 000, 16 384 blocos por tick, dimensões, `mobGriefing`, block entities só com `.replacingBlockEntities()` e permissão), tag `calamidade_awakening:terrain_protected`, `TerrainEditEvent` cancelável, `/calamidade terrain undo|list`. Não troque blocos em massa num cue com `setBlock`: use a API.
+- Proteção (0.11.1): depois do `TerrainEditEvent`, borda do mundo, proteção de spawn, modo de jogo de um jogador como fonte (aventura e espectador não editam) e os eventos de explosão do NeoForge (`ExplosionEvent.Start` cancelado recusa; posições tiradas de `Detonate` ficam intactas), com uma explosão sintética que nunca roda. Mods de claims que protegem contra explosões valem sem código. Para o addon: passe a fonte certa (`Placement.withCaster`/`withSource`), porque é ela que a proteção e o modo de jogo conferem. Config `terrainExplosionEvent` e `terrainSpawnProtection`.
+- Mundo (0.11.1): luz, mapas de altura, POI, contadores e salvamento como o `setBlock`; a casca externa recebe atualização de forma, de vizinho e tick de fluido no fim (sem cascata); dados de block entity vão ao cliente. Só chunks FULL; nada é carregado.
 - Capítulo: `docs/TERRENO-0.11.md`. Receitas: 18 (raio e trincheira), 19 (meteoro), 20 (cratera simples), 21 (torre que cai).
 
 ### 4. Pós-processamento e shader
@@ -100,7 +102,8 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 1. `./gradlew build` (inclui `checkShaders`, `checkApiDocs`, `checkRecipes`), `./gradlew dist`, build do addon. Feixes e luzes: `node scripts/previa_passes.cjs` mostra os passes reais numa cena sintética antes do jogo.
 2. No jogo: comando do efeito; **F7** (passes de pós, vértices, "Fontes", "Protagonistas (HERO)", "Feixes", "Luzes", "Terreno: zonas quentes · dublês · passe", "Malhas de dublê", "Atmosfera: N ativas · passe sim/não"); **F8** em LOW, BALANCED e HIGH; intensidade dos efeitos de tela em 0; "ocultar clarões" ligado; "Efeitos de movimento" desligado. Efeitos orientados: teste virado para vários lados; gatilhos: `/calamidade status` (ativas por fonte e recusas).
 3. Carga: `/calamidade bench <n> <efeito>` e `/calamidade_client record 30` (CSV em `calamidade_bench/`).
-4. Roteiro: `docs/TESTE-REAL.md`. Registre o que mediu em `docs/VALIDACAO.md`.
+4. Mexeu na Terrain API do motor (`terrain/`)? Rode os testes em jogo: `./gradlew testeJogo` (servidor dedicado sem tela, mundo plano, 51 verificações com reinício) e `xvfb-run -a ./gradlew testeCliente` (cliente, luz e imagem). Cenário novo: `src/testeJogo/java/.../teste/Roteiro.java` (mundo só dentro de `no(...)`, na thread do servidor) e `RoteiroCliente.java`. `-PtesteMods=<pasta>` instala outros mods (Sodium, ScalableLux, C2ME...).
+5. Roteiro manual: `docs/TESTE-REAL.md`. Registre o que mediu em `docs/VALIDACAO.md`.
 
 ## Orçamento e limites
 

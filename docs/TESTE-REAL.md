@@ -149,6 +149,22 @@ Mesma preparação (servidor dedicado, dois clientes A e B, operador nos dois). 
 
 Registre para cada caso o que viu e, nos casos 63, 65, 66 e 72, uma captura e (72) os tempos.
 
+## Parte 7 — compatibilidade da Terrain API (0.11.1)
+
+Antes, rode os testes automáticos (`./gradlew testeJogo` e, numa máquina com tela, `./gradlew testeCliente`); com `-PtesteMods=<pasta com JARs>` eles rodam com outros mods instalados. Os casos abaixo são o que eles não cobrem: mods reais de proteção, jogadores de verdade, GPU física. Mesma preparação da parte 6 (servidor dedicado, A e B, mundo de teste). Capítulo: [TERRENO-0.11.md](TERRENO-0.11.md#compatibilidade-0111).
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 75 | Com **FTB Chunks**, depois com **Open Parties and Claims** e, se usar, **GriefDefender**: B reivindica uma área (com a proteção contra explosões ligada no mod); A roda `cratera_simples` com o centro na borda do claim. Repita com `terrainExplosionEvent = false`. | Ligada: a cratera abre só fora do claim e para na borda dele (os blocos do claim ficam intactos; o calor pode brilhar por cima por alguns segundos). `Start` cancelado por algum mod: nada muda e `/calamidade status` conta "evento de explosão". Desligada: a cratera ignora o claim (só o `TerrainEditEvent` vale). Anote o nome e a versão de cada mod e o que aconteceu. |
+| 76 | Com o mod de luz que o servidor usa (ScalableLux, Starlight ou outro), A roda `meteoro` de dia e `cratera_simples` à noite, ao lado de um buraco do mesmo tamanho feito com `/fill ~ ~ ~ ~ ~ ~ air`. | Nenhuma mancha escura ou clara dentro nem em volta das crateras; a cratera tem a mesma luz do buraco do `/fill`. Nenhum erro no log do servidor. Moonrise: o jogo não abre com a RimuLib 1.3.0 (conflito conhecido). |
+| 77 | A roda `cratera_simples`; o servidor é parado com `stop` 10 s depois e aberto de novo. | A cratera está lá depois do reinício, com a borda queimada e a luz certa. |
+| 78 | Numa vila: A põe uma cama e uma mesa de profissão no caminho de uma cratera, roda a cratera e espera um dia; depois `/calamidade terrain undo`. | Os aldeões perdem a cama e a profissão quando os blocos somem (procuram outros) e as recuperam depois do desfazer. Um portal do Nether com a moldura cavada se desfaz (vanilla). |
+| 79 | Com **Distant Horizons** no cliente de A, num servidor **sem** DH: A roda uma cratera grande, se afasta além da distância de renderização e olha para trás; depois reconecta. Repita com DH também no servidor, se usar. | Perto, a cratera aparece sempre. Na distância do LOD, anote se a versão distante mostra a cratera (com DH no servidor, ela deve aparecer depois que o chunk é salvo, segundos depois) ou o terreno antigo, e se muda depois de reconectar. |
+| 80 | Com **Sodium** ou **Embeddium** numa GPU física (e, se usar, Iris/Oculus com um shader pack): casos 63 e 72. | A cratera aparece na hora e sem manchas (testado em llvmpipe); anote o tempo de quadro da cratera grande. Com shader pack, anote se o passe `terrain` (brasa, fumaça) aparece. |
+| 81 | Servidor dedicado com `spawn-protection=16` e um operador: B (não operador) e A (operador) rodam `cratera_simples` com o centro na borda da área do spawn; depois B em modo aventura roda uma cratera longe do spawn. | B: nada muda dentro da área do spawn, a cratera abre fora. A (operador): a cratera abre inteira. B em aventura: o efeito toca, nenhum bloco muda (`/calamidade status`: recusa por permissão). |
+
+Registre para cada caso o que viu, com nome e versão de cada mod; nos casos 75, 76 e 79, uma captura.
+
 ## Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.

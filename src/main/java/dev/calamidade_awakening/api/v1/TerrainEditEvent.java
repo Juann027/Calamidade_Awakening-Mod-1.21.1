@@ -20,6 +20,13 @@ import java.util.Objects;
  * The server config and its rules (dimensions, {@code mobGriefing}, volume) are applied before the event: a refused
  * edit is not posted.
  *
+ * <p>Since 0.11.1, right after this event (when it is not cancelled) the edit also goes through the world border, the
+ * server's spawn protection, the build permission of a player source (adventure and spectator refuse it) and, with the
+ * server option {@code terrainExplosionEvent} (on by default), NeoForge's {@code ExplosionEvent.Start} (cancel refuses
+ * the edit) and {@code ExplosionEvent.Detonate} (positions removed from the list stay intact), with a synthetic
+ * explosion that is never run. Protection mods that already handle explosions need no code for the Calamidade; this
+ * event remains the way to refuse an edit with its exact area and source.
+ *
  * <pre>{@code
  * @SubscribeEvent
  * public static void protect(TerrainEditEvent event) {
