@@ -1,5 +1,21 @@
 # Validação, medições e limites
 
+## 0.14 (Custom Sky) — fases 0 e 1, branch `claude/ceu-personalizado` (22/11/2026)
+
+**Nenhum código do motor mudou:** `build/libs/calamidade_awakening-0.12.0.jar` continua byte a byte igual ao anexo do release v0.12.0 (`a934968a…`). Esta rodada criou guardas de regressão e um experimento só no mod de teste. Arquitetura e resultados: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `checkShaders` não verificou nada nesta máquina (glslangValidator ausente; só aviso, como previsto fora do CI) |
+| `./gradlew checkApiCompat` (novo, no `check`) | verde | autoteste 7/7; 89 classes e 1038 membros da base 0.12.0 |
+| `./gradlew checkCeuReferencia` (novo) | 15/15 | duas gerações seguidas com diferença zero; escurecer a fenda em 20% é acusado nas duas cenas que a mostram |
+| `xvfb-run ./gradlew testeBackdrop` (novo) | 13/13 | três rodadas; a primeira deu 12/13 por uma hipótese minha de ordem dos passes, corrigida pelo `javap -c` |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão do céu em jogo |
+| `./gradlew testeJogo` | **60/61, duas rodadas** | falhou só o limite de tempo "cratera grande com a casca externa": pior tick 88,2 ms e depois 51,0 ms, contra o teto de 50 ms (o release teve 61/61 em outra máquina). O motor é o mesmo JAR; o mais provável é a máquina (4 núcleos compartilhados), mas a causa não foi isolada e o caso **não está aprovado** nesta rodada |
+| `./gradlew -p examples/vfx-sample build` | verde | |
+
+Pendências da 0.12.0 (multiplayer com dois jogadores, pulsação no Overworld) continuam abertas, como na seção abaixo.
+
 ## Versão 0.12.0 — Sky & World Events (estado atual)
 
 **Compilada e testada por software (Mesa llvmpipe); GPU física e dois jogadores pendentes ([TESTE-REAL.md, parte 10](TESTE-REAL.md#parte-10--céu-eventos-globais-e-céu-por-dimensão-0120)).**

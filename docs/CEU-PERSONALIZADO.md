@@ -33,7 +33,7 @@ Marcadores: **[V]** verificado (código, `javap`/fontes do NeoForge 21.1.267, by
 
 ## Backdrop: o que o experimento comprovou
 
-`xvfb-run -a ./gradlew testeBackdrop` (22/11/2026, Mesa llvmpipe, 1280 × 720, mundo plano do `testeJogo`, vfx-sample 1.9.0): **13 de 13 afirmações**. O protótipo é um cubo de raio 50 em volta da câmera, só com a rotação da vista, textura 3 × 2 com uma cor por face, desenhado em `AFTER_SKY` com `depthMask(false)`, sem teste de profundidade e sem descarte de faces, pelo shader `position_tex_color` do jogo. Capturas em `run/teste-backdrop/screenshots/` (fora do repositório).
+`xvfb-run -a ./gradlew testeBackdrop` (22/11/2026, Mesa llvmpipe, 1280 × 720, mundo plano do `testeJogo`, vfx-sample 1.9.0): **13 de 13 afirmações** (três rodadas; a primeira tinha 12 de 13, veja a linha da ordem). O protótipo é um cubo de raio 50 em volta da câmera, só com a rotação da vista, textura 3 × 2 com uma cor por face, desenhado em `AFTER_SKY` com `depthMask(false)`, sem teste de profundidade e sem descarte de faces, pelo shader `position_tex_color` do jogo. Capturas em `run/teste-backdrop/screenshots/` (fora do repositório).
 
 | Pergunta | Resultado | Tipo |
 |---|---|---|
@@ -47,10 +47,10 @@ Marcadores: **[V]** verificado (código, `javap`/fontes do NeoForge 21.1.267, by
 | Lente | O buraco negro do exemplo entorta a grade do fundo (≈ 93% dos pixels de grade deslocados); o fundo entra na lente sem código novo | PASS |
 | Nether | `AFTER_SKY` acontece mesmo sem céu do jogo; acima do teto o fundo aparece | PASS |
 | **Atmosphere** sobre fundo opaco | Pixel azul (60,80,230) vira (0,0,55): o passe soma a diferença entre o gradiente e o céu **do jogo**, que não está mais lá | INFO: precisa de mudança |
-| **Eclipse** sobre fundo opaco | Disco, coroa e raios corretos por cima; o fundo escurece com o mundo (desejado), mas as cores também se deslocam pelo mesmo motivo da Atmosphere (o eclipse do exemplo traz uma atmosfera). A marca do apagamento do sol sobre o fundo não ficou isolável nesta medição (razão dentro/fora do quadrado do sol 1,43 com a coroa por cima) | INFO: precisa de regra |
+| **Eclipse** sobre fundo opaco | Disco, coroa e raios corretos por cima; o fundo escurece com o mundo (desejado), mas as cores também se deslocam pelo mesmo motivo da Atmosphere (o eclipse do exemplo traz uma atmosfera). A marca do apagamento do sol sobre o fundo não ficou isolável nesta medição (razão de brilho dentro/fora do quadrado do sol entre 1,43 e 4,33 nas rodadas, com a coroa por cima) | INFO: precisa de regra |
 | Cegueira | O jogo não desenha céu (centro preto); o protótipo desenha assim mesmo | INFO: precisa de regra |
 | Horizonte | Uma linha clara no fim do terreno: a névoa do terreno distante usa a cor de névoa do jogo, não a do fundo | INFO: precisa de opção |
-| Custo (software, só tendência) | Mediana 21,9 → 26,4 ms e p95 29,1 → 32,2 ms na segunda rodada; 22,0 → 23,8 ms na primeira. Ruidoso; GPU física pendente | INFO |
+| Custo (software, só tendência) | Três rodadas, mediana sem → com fundo: 22,0 → 23,8; 21,9 → 26,4; 25,9 → 28,6 ms (p95 28,8 → 30,7; 29,1 → 32,2; 32,1 → 40,3). Cerca de 2 a 4,5 ms por quadro em llvmpipe a 1280 × 720, ruidoso; o fundo cobre a tela inteira e o rasterizador por software paga cada pixel. GPU física pendente | INFO |
 
 ## Arquitetura definitiva recomendada para o Backdrop (para aprovação da fase 2)
 
