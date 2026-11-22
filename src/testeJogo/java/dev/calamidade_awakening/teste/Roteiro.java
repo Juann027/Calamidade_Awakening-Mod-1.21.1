@@ -93,7 +93,95 @@ final class Roteiro implements Runnable {
         cascaExterna();
         custoDaCratera();
         soChunksFull();
+        eventosGlobais();
         prepararReinicio();
+    }
+
+    // ------------------------------------------------------------------------------------------------ 0.12.0
+
+    private static final Path EVENTOS = Path.of("eventos.txt");
+
+    /**
+     * Eventos globais e céu por dimensão no servidor dedicado (0.12.0): início, duplicado, limite com prioridades, cues
+     * no laço, release que entra na saída, comando, perfil do End; deixa um evento persistente e um não persistente
+     * rodando e grava a idade e o estado esperados para a fase 2.
+     */
+    private void eventosGlobais() throws Exception {
+        var opcoes = dev.calamidade_awakening.api.v1.WorldEvents.Options.defaults();
+        var server = this.server;
+        boolean iniciou = no(() -> dev.calamidade_awakening.api.v1.WorldEvents.start(CalamidadeTeste.GLOBAL,
+            dev.calamidade_awakening.api.v1.WorldEvents.Scope.SERVER, server.overworld(), opcoes.persistent(true).priority(70)).isPresent());
+        boolean duplicado = no(() -> dev.calamidade_awakening.api.v1.WorldEvents.start(CalamidadeTeste.GLOBAL,
+            dev.calamidade_awakening.api.v1.WorldEvents.Scope.SERVER, server.overworld(), opcoes).isEmpty());
+        check("evento global: começa (SERVER, persistente) e um segundo do mesmo efeito é recusado", iniciou && duplicado, "");
+        // Limite padrão 4: GLOBAL (70) + A (10) + B (20) + C (30); D (5) é recusado; E (40) troca A (a menor prioridade).
+        var curtos = CalamidadeTeste.CURTOS;
+        int[] prioridades = {10, 20, 30};
+        boolean tres = true;
+        for (int i = 0; i < 3; i++) {
+            int p = prioridades[i];
+            var id = curtos[i];
+            tres &= no(() -> dev.calamidade_awakening.api.v1.WorldEvents.start(id, dev.calamidade_awakening.api.v1.WorldEvents.Scope.DIMENSION,
+                server.overworld(), opcoes.priority(p)).isPresent());
+        }
+        boolean recusado = no(() -> dev.calamidade_awakening.api.v1.WorldEvents.start(curtos[3],
+            dev.calamidade_awakening.api.v1.WorldEvents.Scope.SERVER, server.overworld(), opcoes.priority(5)).isEmpty());
+        boolean trocou = no(() -> dev.calamidade_awakening.api.v1.WorldEvents.start(curtos[4],
+            dev.calamidade_awakening.api.v1.WorldEvents.Scope.SERVER, server.overworld(), opcoes.priority(40)).isPresent());
+        boolean saiuA = no(() -> dev.calamidade_awakening.api.v1.WorldEvents.get(server, curtos[0]).isEmpty());
+        int ativos = no(() -> dev.calamidade_awakening.api.v1.WorldEvents.active(server).size());
+        check("limite de 4 eventos: prioridade menor recusada, maior troca a de menor prioridade", tres && recusado && trocou
+            && saiuA && ativos == 4, "ativos " + ativos + ", recusado " + recusado + ", trocou " + trocou + ", saiu A " + saiuA);
+        // Cue dentro do laço: roda a cada volta (laço de 150 ticks).
+        CalamidadeTeste.CUES_GLOBAIS.set(0);
+        ticks(360);
+        int voltas = CalamidadeTeste.CUES_GLOBAIS.get();
+        long idade = no(() -> dev.calamidade_awakening.world.WorldEventServer.ageOf(CalamidadeTeste.GLOBAL));
+        check("laço até o release: o evento não acaba sozinho e o cue roda a cada volta", idade >= 360 && voltas >= 2,
+            "idade " + idade + ", voltas " + voltas);
+        // Comando /calamidade world list e release de um evento sem laço (recusado) e com laço (curto E não tem laço).
+        var saida = new java.util.ArrayList<String>();
+        no(() -> {
+            var fonte = server.createCommandSourceStack().withSource(new net.minecraft.commands.CommandSource() {
+                public void sendSystemMessage(net.minecraft.network.chat.Component c) { saida.add(c.getString()); }
+                public boolean acceptsSuccess() { return true; }
+                public boolean acceptsFailure() { return true; }
+                public boolean shouldInformAdmins() { return false; }
+            }).withPermission(4);
+            server.getCommands().performPrefixedCommand(fonte, "calamidade world list");
+            server.getCommands().performPrefixedCommand(fonte, "calamidade world stop " + curtos[1]);
+        });
+        boolean listou = saida.stream().anyMatch(l -> l.contains(CalamidadeTeste.GLOBAL.toString()) && l.contains("SERVER") && l.contains("laço"));
+        boolean parou = no(() -> dev.calamidade_awakening.api.v1.WorldEvents.get(server, curtos[1]).isEmpty());
+        check("/calamidade world list mostra o evento no laço e stop <id> encerra", listou && parou, String.join(" | ", saida));
+        // Perfil do End: estado inicial e troca.
+        String antes = no(() -> dev.calamidade_awakening.api.v1.SkyProfiles.state(server, CalamidadeTeste.END).orElse("?"));
+        boolean trocouCeu = no(() -> dev.calamidade_awakening.api.v1.SkyProfiles.setState(server, CalamidadeTeste.END, "b", 40));
+        String depois = no(() -> dev.calamidade_awakening.api.v1.SkyProfiles.state(server, CalamidadeTeste.END).orElse("?"));
+        check("céu do End: começa em \"a\" e vai para \"b\"", antes.equals("a") && trocouCeu && depois.equals("b"), antes + " → " + depois);
+        // Para a fase 2: o persistente continua; o curto C (não persistente) deve sumir no reinício.
+        no(() -> server.overworld().getDataStorage().save());
+        long tempo = no(() -> server.overworld().getGameTime());
+        Files.write(EVENTOS, List.of(Long.toString(idade), Long.toString(tempo)), StandardCharsets.UTF_8);
+        check("eventos: idade " + idade + " gravada para o reinício", true, "");
+    }
+
+    private void eventosGlobaisReinicio() throws Exception {
+        ticks(20);
+        List<String> linhas = Files.readAllLines(EVENTOS, StandardCharsets.UTF_8);
+        long idadeAntes = Long.parseLong(linhas.get(0));
+        long idade = no(() -> dev.calamidade_awakening.world.WorldEventServer.ageOf(CalamidadeTeste.GLOBAL));
+        boolean curtoSumiu = no(() -> dev.calamidade_awakening.api.v1.WorldEvents.get(server, CalamidadeTeste.CURTOS[2]).isEmpty());
+        check("reinício: evento persistente retomado na fase (idade continua de onde parou)", idade >= idadeAntes && idade < idadeAntes + 2000,
+            "antes " + idadeAntes + ", agora " + idade);
+        check("reinício: evento não persistente acabou com o servidor", curtoSumiu, "");
+        String ceu = no(() -> dev.calamidade_awakening.api.v1.SkyProfiles.state(server, CalamidadeTeste.END).orElse("?"));
+        check("reinício: céu do End continua em \"b\"", ceu.equals("b"), ceu);
+        boolean liberou = no(() -> dev.calamidade_awakening.api.v1.WorldEvents.get(server, CalamidadeTeste.GLOBAL)
+            .map(dev.calamidade_awakening.api.v1.WorldEvents.Handle::release).orElse(false));
+        // aguardar já avalia a condição na thread do servidor.
+        boolean acabou = aguardar(() -> dev.calamidade_awakening.api.v1.WorldEvents.get(server, CalamidadeTeste.GLOBAL).isEmpty(), 200);
+        check("reinício: release depois de retomar toca a saída e encerra (100 ticks)", liberou && acabou, liberou + " / " + acabou);
     }
 
     /** Etapa 1: um listener que só conhece o ExplosionEvent protege x >= cx; a cratera para exatamente ali. */
@@ -433,6 +521,7 @@ final class Roteiro implements Runnable {
         List<BlockPos> composteiras = procurar(caixa(cx, cz), Blocks.COMPOSTER);
         check("reinício: pontos de interesse das composteiras salvos", !composteiras.isEmpty()
             && poi(composteiras.toArray(BlockPos[]::new)) == composteiras.size(), composteiras.size() + "");
+        eventosGlobaisReinicio();
     }
 
     // ------------------------------------------------------------------------------------------------ apoio

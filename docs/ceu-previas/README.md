@@ -12,6 +12,8 @@ Renderizadas fora do jogo com `node scripts/previa_passes.cjs ceu` (folha em `bu
 
 Arquivos: [buraco_negro-formacao](buraco_negro-formacao.jpg), [buraco_negro-auge](buraco_negro-auge.jpg), [buraco_negro-dissipacao](buraco_negro-dissipacao.jpg), [portal-formacao](portal-formacao.jpg), [portal-auge](portal-auge.jpg), [portal-dissipacao](portal-dissipacao.jpg), [eclipse-formacao](eclipse-formacao.jpg), [eclipse-auge](eclipse-auge.jpg), [eclipse-dissipacao](eclipse-dissipacao.jpg).
 
+Desde a Etapa 6, a prévia usa framebuffers de 8 bits entre os passes, como o jogo (o teste em jogo mostrou que o ponto flutuante escondia um corte de brilho), e o céu da atmosfera é pintado pelo passe `sky`, debaixo das camadas. Extra: [raios-ao-longe](raios-ao-longe.jpg) (`DISTANT_BOLTS` durante a totalidade, escondidos pelas montanhas).
+
 O que fica de fora da prévia: bloom e clarões da RimuLib (vêm depois dos passes), a névoa por fragmento do jogo, nuvens e as estrelas do próprio jogo (no jogo, à noite, elas também passam pela lente).
 
 **Ajustes pedidos na aprovação (aplicados):** buraco negro bem maior e mais dramático (sombra de 1/5 do tamanho, disco largo e inclinado no estilo do cinema, arco dobrado por cima, anel de fótons fino e muito brilhante, céu em volta engolido); borda da lente sem recorte (o desvio some sem quina, o céu desviado continua céu e o terreno entorta só um terço); semente do portal como fissura que pisca e solta arcos; lua do eclipse só onde cobre o sol.

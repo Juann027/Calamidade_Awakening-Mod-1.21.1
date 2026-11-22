@@ -398,29 +398,6 @@ function skyLenses(layers) {
   return out;
 }
 
-// Máscaras da atmosfera (SkyFrame.buildMasks).
-function skyMasks(layers) {
-  const out = [];
-  for (const l of layers) {
-    const r = l.size / 2 * Math.PI / 180;
-    if (l.type === 'BLACK_HOLE') out.push([...l.dir, r * 0.2 * 1.02]);
-    else if (l.type === 'PORTAL') out.push([...l.dir, r * l.progress]);
-    else if (l.type === 'ECLIPSE') {
-      out.push([...l.dir, r * 0.97]);
-      if (l.progress < 0.9) continue;
-      // Centro do disco: SkyMath.fromLocal(basis(dir, rotação), r·(1 - p)·2,2, 0).
-      const c = l.dir, vertical = Math.abs(c[1]) > 0.999;
-      let right = norm(vertical ? [c[1], -c[0], 0] : [-c[2], 0, c[0]]);
-      let up = cross(right, c);
-      const roll = l.rotation * Math.PI / 180, cr = Math.cos(roll), sr = Math.sin(roll);
-      const rr = [0, 1, 2].map(k => right[k] * cr + up[k] * sr);
-      const ang = r * (1 - l.progress) * 2.2;
-      out.push([...norm([0, 1, 2].map(k => c[k] * Math.cos(ang) + rr[k] * Math.sin(ang))), r]);
-    }
-  }
-  return out;
-}
-
 // Sol do jogo: a textura de verdade (JAR de recursos do Minecraft baixado pelo build) ou um sol sintético.
 function sunTexture() {
   const dir = path.join(ROOT, 'build/moddev/artifacts');
@@ -468,28 +445,29 @@ function skyPasses(cena) {
   for (const l of layers) darkening = Math.max(darkening, l.type === 'ECLIPSE' ? 0.75 * l.weight * Math.pow(eclipseCoverage(l.progress), 4) : 0);
   const exposure = 1 - 0.85 * darkening;
   const hideSun = Math.max(0, ...layers.filter(l => l.anchor === 1).map(l => l.weight));
-  const masks = skyMasks(layers);
   const lens = skyLenses(layers);
+  const a = cena.atmo;
   const lensUniforms = prefix => ({ [prefix + 'Lens0']: lens.slice(0, 4), [prefix + 'Lens1']: lens.slice(4, 8),
     [prefix + 'LensExt']: [lens[8], lens[9], lens[10], 0] });
-  const a = cena.atmo;
   const passes = [
     { source: VANILLA_FSH, textures: { PreSun: 'sun' },
       f3: { PreAxisX: e.axes[0], PreAxisY: e.axes[1], PreAxisZ: e.axes[2] } },
     { program: 'sky', data: { name: 'CaSkyData', texels: 10, rows },
       textures: { CaSkySunTex: 'sun', CaSkyMoonTex: 'sun' },
-      f4: { CaSkyInfo: [rows.length, exposure, 2, 0], CaSkyVanilla: [hideSun, 0, 0, 1], CaSkyMisc: [e.renderDistance, 0, 0, 0],
-        ...lensUniforms('CaSky') },
-      f3: { CaSkyAxisX: e.axes[0], CaSkyAxisY: e.axes[1], CaSkyAxisZ: e.axes[2], CaSkyVanillaSky: e.sky, CaSkyVanillaFog: e.fog } },
+      f4: { CaSkyInfo: [rows.length, exposure, 2, layers.some(l => l.type === 'DISTANT_BOLTS') ? 1 : 0],
+        CaSkyVanilla: [hideSun, 0, 0, 1], CaSkyMisc: [e.renderDistance, 0, 0, 0], ...lensUniforms('CaSky'),
+        // Céu da atmosfera pintado aqui, debaixo das camadas (SkyFrame.draw).
+        CaSkyAtmoA: a ? [a.blend, a.fogDensity, a.stars, 1] : [0, 0, 0, 0], CaSkyAtmoB: [0, 0, 0, 0] },
+      f3: { CaSkyAxisX: e.axes[0], CaSkyAxisY: e.axes[1], CaSkyAxisZ: e.axes[2], CaSkyVanillaSky: e.sky, CaSkyVanillaFog: e.fog,
+        CaSkyAtmoTop: a ? a.skyTop : [0, 0, 0], CaSkyAtmoHorizon: a ? a.skyHorizon : [0, 0, 0], CaSkyAtmoFog: a ? a.fogColor : [1, 1, 1] },
+      f1: { GTime: 37.0 } },
   ];
   if (a) {
-    const w = a.weight;
     passes.push({ program: 'atmosphere',
       f3: { CaAtmoSkyTop: a.skyTop, CaAtmoSkyHorizon: a.skyHorizon, CaAtmoFogColor: a.fogColor, CaAtmoTint: a.tint,
         CaAtmoVanillaSky: e.sky, CaAtmoVanillaFog: e.fog },
       f4: { CaAtmoA: [a.blend, a.fogDensity, a.fogStart, a.fogEnd], CaAtmoB: [a.exposure, a.tintStrength, a.stars, 0],
-        CaAtmoC: [e.renderDistance, masks.length, 0, 0], ...lensUniforms('CaAtmo') },
-      vec4s: { CaAtmoMask: masks.flat().concat(new Array(32).fill(0)).slice(0, 32) },
+        CaAtmoC: [e.renderDistance, 1, 0, 0], ...lensUniforms('CaAtmo') },
       f1: { GTime: 37.0 } });
   }
   return passes;
@@ -587,7 +565,9 @@ async function render(page, name, cena) {
         pass.data.rows.forEach((row, i) => flat.set(row, i * pass.data.texels * 4));
         dataTex = tex(pass.data.texels, Math.max(rows, 1), gl.RGBA32F, gl.RGBA, flat);
       }
-      const out = tex(W, H, gl.RGBA32F, gl.RGBA, null);
+      // Saída em 8 bits por canal, como o framebuffer do jogo: valores acima de 1 são cortados entre os passes.
+      const out = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, out); params();
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
       const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, out, 0);
       gl.viewport(0, 0, W, H); gl.useProgram(prog);

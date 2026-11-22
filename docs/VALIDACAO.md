@@ -1,6 +1,37 @@
 # Validação, medições e limites
 
-## Versão 0.12.0 — Sky & World Events (em andamento)
+## Versão 0.12.0 — Sky & World Events (estado atual)
+
+**Compilada e testada por software (Mesa llvmpipe); GPU física e dois jogadores pendentes ([TESTE-REAL.md, parte 10](TESTE-REAL.md#parte-10--céu-eventos-globais-e-céu-por-dimensão-0120)).**
+
+### Testes automatizados (22/11/2026)
+
+| Teste | Resultado | Cobre |
+|---|---|---|
+| `./gradlew build` | verde | `checkBudget` com `SkyCheck` (direções na convenção do Minecraft e iguais a `Vec3.directionFromRotation`, ângulo, tamanho angular, trilhas, validação, registro, cobertura do eclipse, seleção por perfil, quadro do sol e da lua igual ao JOML, cantos do sol e da lua, base local, escurecimento e rampa de 34 ticks, limites 2/4/6/8, lente), `WorldEventCheck` (admissão com limite e prioridades, escopos, entrada tardia com sustain e release, fim, persistência em NBT binário, opções, raios ao longe determinísticos), `WorldEventSyncCheck`, `SkyProfileCheck` (perfis, transições, persistência, `sky_profile_v1`); `checkShaders` (13 shaders, glslangValidator 15.1), `checkApiDocs`, `checkRecipes`, `checkModVersion` |
+| `node scripts/testar_glsl.cjs` | 173/173 | 34 casos novos de céu e lente, com valores do Java |
+| `node scripts/previa_passes.cjs ceu` | folha em `docs/ceu-previas/` | passes reais `sky` e `atmosphere`; desde esta versão com framebuffers de 8 bits entre os passes, como o jogo |
+| `./gradlew testeJogo` (servidor dedicado, duas fases) | 61/61 | 10 casos novos: início SERVER persistente, duplicado recusado, limite de 4 com prioridades (menor recusada, maior troca a menor), laço até o release com o cue a cada volta, `/calamidade world list` e `stop`, céu do End de "a" para "b"; no reinício, evento persistente retomado na fase (idade 360 → 620: continuou do salvamento), não persistente acabou, céu do End em "b", release depois de retomar encerra em 100 ticks |
+| `xvfb-run ./gradlew testeCeu` (cliente, vfx-sample 1.9.0) | 20/20 | custo com 0/1/4/8 camadas (perfil de teste), eclipse global recebido e na totalidade (2 camadas, passe), F7 (linhas "Céu" e "Eventos globais"), Nether (SERVER), as três receitas novas, respawn durante o evento, relogin com o servidor integrado fechado e reaberto (evento persistente de volta na fase: idade 229 → 327), dimensão de teste com o evento e os três estados |
+
+**O que o teste em jogo achou e foi corrigido:** (1) a coroa do eclipse saía um anel laranja e as estrelas sumiam no Overworld: o passe de atmosfera, depois do passe `sky`, subtraía de novo o brilho do céu do dia, e o framebuffer de 8 bits do jogo já tinha cortado a coroa em 1. A prévia, em ponto flutuante, não mostrava. Agora o passe `sky` pinta o céu da atmosfera antes do escurecimento e das camadas, e a prévia usa 8 bits entre os passes. (2) Na dimensão de teste, com o AUTO em LOW (2 camadas), o céu da dimensão tirava a vaga do eclipse global: eventos globais agora vêm antes do perfil. (3) Abrir um mundo com a dimensão do exemplo mostra uma vez "Os mundos com ajustes experimentais são incompatíveis" (dimensão por datapack): documentado no capítulo e na receita 26; o teste confirma a tela como o jogador faria. (4) No roteiro do servidor, uma espera de teste esperava a si mesma na thread do servidor (erro do teste, não do motor).
+
+### Custo do passe de céu (software)
+
+Cliente sob Xvfb 1280 × 720, Mesa llvmpipe (LLVM 20.1.2, 256 bits), 4 núcleos, VSync desligado, distância 8, mundo plano de manhã, olhando para o sul a 25 graus; perfil de teste UNLIMITED (8 camadas por quadro); 1 camada = buraco negro de 50 graus com lente (cobre quase a tela), 4 = portal, astro com anéis, fenda e aurora, 8 = as 4 duas vezes. Janela de 6 s depois de 3 s de aquecimento.
+
+| Camadas | Quadros | Mediana (ms) | p95 (ms) |
+|---|---|---|---|
+| 0 (sem passe) | 212 | 27,00 | 41,28 |
+| 1 | 89 | 65,99 | 83,39 |
+| 4 | 76 | 78,62 | 93,46 |
+| 8 | 64 | 93,73 | 110,67 |
+
+Por software vale a tendência: o passe custa um tanto fixo (uma passada de tela cheia; o buraco negro com lente amostra a cena duas vezes em quase todos os pixels) e cada camada a mais custa pouco, porque só trabalha perto da própria direção (recorte pelo ângulo antes de ler o resto da linha). Numa GPU dedicada, o esperado é o custo de um passe de pós comum; a medição na RTX 4060 fica para o TESTE-REAL (caso 93).
+
+### Capturas
+
+`docs/gameplay/ceu-*-0120.jpg`: eclipse no Overworld, no Nether, depois do relogin e na dimensão de teste, F7, buraco negro, portal, lua gigante, quatro camadas e os três estados da dimensão de teste.
 
 ### Etapa 1: Sky API e o sol e a lua do jogo (conferido com javap, 22/11/2026)
 

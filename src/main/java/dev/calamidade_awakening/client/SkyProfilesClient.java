@@ -20,8 +20,8 @@ import java.util.Map;
  * mix, the vanilla sun and moon to hide and whether the whole vanilla sky is replaced ({@code ProfileSkyEffects}).
  */
 final class SkyProfilesClient {
-    /** Rank of profile layers in the sky selection: always kept, above global events. */
-    static final int RANK = 1000;
+    /** Rank of profile layers in the sky selection: above ordinary effects, below global events (1000 + priority). */
+    static final int RANK = 500;
     private final Map<ResourceLocation, SkyProfileMath.Transition> transitions = new HashMap<>();
 
     void receive(SkyProfileSync packet) {

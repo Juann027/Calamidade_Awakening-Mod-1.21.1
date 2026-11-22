@@ -68,6 +68,16 @@ neoForge {
             programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
         }
+        // 0.12.0: céu, eventos globais e céu por dimensão no cliente, com o vfx-sample em mods/.
+        testeCeu {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = layout.projectDirectory.dir('run/teste-ceu').asFile
+            systemProperty 'calamidade.teste', 'ceu'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
         // 0.11.2: medição de custo por efeito e por passe (CostProbe), cliente com o vfx-sample em mods/.
         testeMedicao {
             client()
@@ -490,5 +500,47 @@ tasks.register('testeAtlas') {
         if (!lines.contains('FIM atlas')) failed << "FAIL roteiro incompleto (falta 'FIM atlas')"
         logger.lifecycle("testeAtlas: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeAtlas:\n' + failed.join('\n'))
+    }
+}
+
+// 0.12.0: teste em jogo do céu (xvfb-run ./gradlew testeCeu), no mundo do testeJogo e com o vfx-sample 1.9.0: custo do
+// passe de céu com 0, 1, 4 e 8 camadas, o eclipse global no Overworld, no Nether e na dimensão de teste, respawn e
+// relogin (reabre o servidor integrado: o evento persistente volta na mesma fase), os três estados da dimensão de teste,
+// F7 e capturas. Relatório em run/teste-ceu/calamidade-ceu.txt.
+def testeCeuDir = layout.projectDirectory.dir('run/teste-ceu').asFile
+def prepararTesteCeu = tasks.register('prepararTesteCeu') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo e o JAR do vfx-sample para run/teste-ceu.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteCeu: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        def sample = fileTree('examples/vfx-sample/build/libs') { include 'vfx-sample-*.jar'; exclude '*-sources.jar' }
+        if (sample.isEmpty()) throw new GradleException('prepararTesteCeu: rode ./gradlew -p examples/vfx-sample build antes')
+        ['saves', 'mods', 'screenshots', 'logs', 'config'].each { project.delete(new File(testeCeuDir, it)) }
+        project.delete(new File(testeCeuDir, 'calamidade-ceu.txt'))
+        project.copy { from world; into new File(testeCeuDir, 'saves/teste'); exclude 'session.lock'; exclude 'data/calamidade_awakening_*' }
+        project.copy { from sample; into new File(testeCeuDir, 'mods') }
+        new File(testeCeuDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'lang:pt_br',
+            'maxFps:260', 'enableVsync:false'].join('\n') + '\n'
+        if (testeMods.isPresent()) project.copy { from(testeMods.get()) { include '*.jar' }; into new File(testeCeuDir, 'mods') }
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteCeu') task.dependsOn prepararTesteCeu }
+tasks.register('testeCeu') {
+    group = 'verification'
+    description = 'Roda o teste em jogo do céu e dos eventos globais (precisa de tela: xvfb-run) e falha se algum caso falhar.'
+    dependsOn 'runTesteCeu'
+    doLast {
+        def report = new File(testeCeuDir, 'calamidade-ceu.txt')
+        if (!report.exists()) throw new GradleException('testeCeu: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM ceu')) failed << "FAIL roteiro incompleto (falta 'FIM ceu')"
+        lines.findAll { it.startsWith('|') }.each { logger.lifecycle(it) }
+        logger.lifecycle("testeCeu: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeCeu:\n' + failed.join('\n'))
     }
 }

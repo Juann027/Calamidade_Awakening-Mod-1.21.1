@@ -6,7 +6,8 @@
 //   1. lente gravitacional dos buracos negros (calamidade_sky.glsl, a mesma conta do passe de atmosfera): a cena é
 //      amostrada com desvio (céu e terreno distante; o terreno a menos de ~12 blocos não entorta);
 //   2. sol e lua do jogo apagados onde uma camada pede (subtrai a mesma textura que o jogo somou, com a geometria
-//      conferida por javap em LevelRenderer.renderSky);
+//      conferida por javap em LevelRenderer.renderSky), e o céu da Atmosphere ativa (o passe de atmosfera, depois, não
+//      mexe mais nos pixels de céu: assim as camadas ficam por cima dele);
 //   3. escurecimento do mundo (eclipse), já com intensidade e "ocultar clarões" aplicados no Java;
 //   4. camadas, só em pixels de céu, da menos para a mais importante.
 //
@@ -25,7 +26,7 @@
 uniform sampler2D CaSkyData;
 uniform sampler2D CaSkySunTex;    // textura do sol do jogo (apagar o sol)
 uniform sampler2D CaSkyMoonTex;   // atlas de fases da lua do jogo (apagar a lua)
-uniform vec4 CaSkyInfo;           // x: camadas, y: exposição do mundo (escurecimento), z: qualidade (0, 1, 2), w: segundos do mundo
+uniform vec4 CaSkyInfo;           // x: camadas, y: exposição do mundo (escurecimento), z: qualidade (0, 1, 2), w: 1 com raios ao longe
 uniform vec4 CaSkyVanilla;        // x: apagar o sol (0..1), y: apagar a lua (0..1), z: fase da lua (0..7), w: 1 - chuva (0 sem sol/lua do jogo)
 uniform vec3 CaSkyAxisX;          // referencial do sol e da lua do jogo (colunas de Ry(-90)·Rx(hora·360))
 uniform vec3 CaSkyAxisY;
@@ -36,6 +37,11 @@ uniform vec4 CaSkyMisc;           // x: distância de renderização (blocos)
 uniform vec4 CaSkyLens0;          // lente 0: direção, raio de Einstein (rad)
 uniform vec4 CaSkyLens1;          // lente 1
 uniform vec4 CaSkyLensExt;        // x, y: alcance das lentes (rad), z: lentes (0..2)
+uniform vec3 CaSkyAtmoTop;        // céu da Atmosphere misturada do quadro: zênite, horizonte, névoa
+uniform vec3 CaSkyAtmoHorizon;
+uniform vec3 CaSkyAtmoFog;
+uniform vec4 CaSkyAtmoA;          // x: mistura do céu, y: densidade da névoa, z: estrelas, w: 1 com atmosfera ativa
+uniform vec4 CaSkyAtmoB;          // x: 1 quando o perfil da dimensão tirou o céu do jogo
 
 #include "calamidade_fx.glsl"
 #include "calamidade_sky.glsl"
@@ -459,8 +465,12 @@ void main() {
     vec3 rd0 = viewDir(uv);
     int count = int(CaSkyInfo.x + 0.5);
     bool skyOrig = skyAt(uv);
-    initPixel(uv);
-    float sceneDist = length(scenePosAt(uv));
+    // Profundidade e tamanho do pixel só para os raios ao longe (CaSkyInfo.w = 1 quando há raios no quadro).
+    float sceneDist = 0.0;
+    if (CaSkyInfo.w > 0.5) {
+        initPixel(uv);
+        sceneDist = length(scenePosAt(uv));
+    }
 
     // 1. Lente: o desvio de cada buraco negro, um depois do outro (o mesmo do passe de atmosfera).
     vec3 rd;
@@ -470,7 +480,12 @@ void main() {
     vec3 color = skyOrig && !skyAt(suv) ? vanillaFill(rd) : texture(DiffuseSampler, suv).rgb;
 
     // 2. Sol e lua do jogo, onde uma camada pede.
-    if (sky) color = removeVanilla(color, rd);
+    if (sky) {
+        color = removeVanilla(color, rd);
+        if (CaSkyAtmoA.w > 0.5)
+            color = max(color + caAtmoSkyDelta(rd, CaSkyVanillaSky, CaSkyVanillaFog, CaSkyMisc.x, CaSkyAtmoB.x > 0.5,
+                CaSkyAtmoTop, CaSkyAtmoHorizon, CaSkyAtmoFog, CaSkyAtmoA.x, CaSkyAtmoA.y, CaSkyAtmoA.z, GTime), vec3(0.0));
+    }
 
     // 3. Escurecimento do mundo (e do céu do jogo); as camadas, depois, continuam acesas.
     color *= CaSkyInfo.y;
@@ -480,11 +495,21 @@ void main() {
         if (j >= count) continue;
         vec4 t0 = skyTexel(0, j);
         vec4 t1 = skyTexel(1, j);
+        int type = int(t1.x + 0.5);
+        // O buraco negro é a própria lente: desenhado na direção sem desvio, só onde o pixel é céu de verdade.
+        bool hole = type == 0;
+        vec3 d = hole ? rd0 : rd;
+        float radius = max(t0.w, 1e-5);
+        if (type != 6) {
+            if (hole ? !skyOrig : !sky) continue;
+            // Recorte rápido pelo ângulo até o centro antes de ler o resto da linha e montar a base.
+            float reach = type == 2 ? 6.0 : (type == 4 ? 2.4 : (type == 1 ? 1.7 : 3.2));
+            if (type != 5 && caAngle(d, t0.xyz) > radius * reach) continue;
+        }
         vec4 t2 = skyTexel(2, j);
         vec4 t3 = skyTexel(3, j);
         vec4 t4 = skyTexel(4, j);
         vec4 t5 = skyTexel(5, j);
-        int type = int(t1.x + 0.5);
         if (type == 6) {
             // Raios ao longe: em qualquer pixel (o terreno na frente esconde pela profundidade) e clarão no céu.
             float skyFlash;
@@ -492,18 +517,10 @@ void main() {
             if (skyOrig) color += t3.rgb * 0.12 * min(skyFlash, 1.5) * t4.z * t2.w * (0.4 + 0.6 * max(rd0.y, 0.0));
             continue;
         }
-        // O buraco negro é a própria lente: desenhado na direção sem desvio, só onde o pixel é céu de verdade.
-        bool hole = type == 0;
-        if (hole ? !skyOrig : !sky) continue;
-        vec3 d = hole ? rd0 : rd;
-        float radius = max(t0.w, 1e-5);
         vec4 layer = vec4(0.0);
         if (type == 5) {
             layer = aurora(d, t0.xyz, radius, t1, t2, t3, t4);
         } else {
-            // Recorte rápido pelo ângulo até o centro antes de montar a base.
-            float reach = type == 2 ? 6.0 : (type == 4 ? 2.4 : (type == 1 ? 1.7 : 3.2));
-            if (caAngle(d, t0.xyz) > radius * reach) continue;
             vec2 q = caSkyLocal(d, caSkyBasis(t0.xyz, t1.y)) / radius;
             if (type == 0) layer = blackHole(q, t1, t2, t3, t4, t5);
             else if (type == 1) layer = portal(q, t1, t2, t3, t4);

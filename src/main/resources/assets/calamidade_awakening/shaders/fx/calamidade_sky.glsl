@@ -1,5 +1,5 @@
-// calamidade_sky.glsl — interno do motor (0.12.0): a lente gravitacional dos buracos negros, igual nos passes "sky" e
-// "atmosphere". Depende do common.glsl da RimuLib (viewDir, project, skyAt, scenePosAt) e de calamidade_fx.glsl
+// calamidade_sky.glsl — interno do motor (0.12.0): a lente gravitacional dos buracos negros e o céu da atmosfera,
+// iguais nos passes "sky" e "atmosphere". Depende do common.glsl da RimuLib (viewDir, project, skyAt, scenePosAt) e de calamidade_fx.glsl
 // (incluído antes). Não é para addons: a lente vem das camadas da Sky API.
 //
 // Cada lente: vec4(direção, raio de Einstein em radianos); ext = (alcance da lente 0, alcance da lente 1, lentes, 0).
@@ -36,4 +36,19 @@ vec2 caSkyLensUv(vec2 uv, vec4 lens0, vec4 lens1, vec4 ext, out vec3 dir, out bo
     vec2 result = mix(uv, target, near);
     sky = skyOrig || skyAt(result);
     return result;
+}
+
+// Céu da Atmosphere numa direção, como diferença a somar ao que está na tela: o alvo (gradiente misturado ao céu do
+// jogo, estrelas, névoa no horizonte) menos o que o jogo pintou ali (a estimativa caVanillaSky, ou só a cor de fundo,
+// a névoa, quando o perfil da dimensão tirou o céu do jogo). Somar a diferença mantém o sol, a lua e as nuvens. O passe
+// "sky" aplica isto antes de escurecer o mundo e de pintar as camadas (assim um disco negro continua negro e a coroa
+// do eclipse não perde brilho); sem passe "sky" no quadro, o passe de atmosfera aplica.
+vec3 caAtmoSkyDelta(vec3 dir, vec3 vanillaSky, vec3 vanillaFog, float renderDistance, bool replaced, vec3 top,
+                    vec3 horizon, vec3 fogColor, float blend, float fogDensity, float stars, float seconds) {
+    vec3 base = caVanillaSky(dir, vanillaSky, vanillaFog, renderDistance);
+    vec3 target = mix(base, mix(horizon, top, smoothstep(0.0, 0.6, dir.y)), blend);
+    if (replaced) base = vanillaFog;
+    if (stars > 0.0 && dir.y > -0.05) target += vec3(0.85, 0.9, 1.0) * caStars(dir, seconds) * stars;
+    target = mix(target, fogColor, fogDensity * (1.0 - smoothstep(0.0, 0.45, dir.y)));
+    return target - base;
 }

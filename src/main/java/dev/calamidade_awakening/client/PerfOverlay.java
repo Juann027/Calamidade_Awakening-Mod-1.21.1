@@ -155,6 +155,9 @@ public final class PerfOverlay {
     /** Shows the panel (measurements). */
     public static void show() { visible = true; }
 
+    /** Hides the panel (0.12.0: tests take screenshots with and without it). */
+    public static void hide() { visible = false; }
+
     static void tick() {
         while (TOGGLE.consumeClick()) visible = !visible;
     }

@@ -60,7 +60,7 @@ public final class RimuStageBackend {
         // the eclipse darkens the world under them. Outside the addon budget and independent of the frustum.
         sky.collect(camera, frame.partial(), plan.limits());
         boolean skyQueued = sky.draw(frame, camera, frame.partial(), plan.limits(), atmosphere);
-        atmosphere.skyMasks(sky.masks(), skyQueued ? sky.maskCount() : 0, skyQueued ? sky.lenses() : NO_LENSES);
+        atmosphere.skyPass(skyQueued, skyQueued ? sky.lenses() : NO_LENSES);
         PerfOverlay.sky(skyQueued ? Math.min(sky.layers().size(), SkyFrame.ROWS) : 0, sky.candidates(), skyQueued);
         beams.collect(plan, camera, frame.partial());
         terrain.collect(plan, camera, frame.partial());

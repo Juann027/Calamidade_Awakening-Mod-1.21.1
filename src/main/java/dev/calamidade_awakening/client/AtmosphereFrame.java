@@ -45,7 +45,7 @@ final class AtmosphereFrame {
     }
 
     /** True when the dimension's sky profile replaced the whole vanilla sky this frame (0.12.0). */
-    private boolean replaced() {
+    boolean replaced() {
         Minecraft mc = Minecraft.getInstance();
         return mc.level != null && mc.level.effects() instanceof dev.calamidade_awakening.api.v1.client.ProfileSkyEffects own
             && own.replacing(mc.level);
@@ -81,14 +81,14 @@ final class AtmosphereFrame {
     float[] fogColor() { return new float[] {fogR, fogG, fogB}; }
 
     /**
-     * Opaque sky regions and gravitational lenses of this frame's sky layers (0.12.0), set by the sky pass before this
-     * one: the atmosphere skips its gradient and stars on the regions and bends the scene like the sky pass.
+     * What the sky pass did this frame (0.12.0): when it ran, it already painted the atmosphere's sky under its layers,
+     * so this pass leaves sky pixels alone; the lenses bend the scene here like in the sky pass.
      */
-    void skyMasks(float[] masks, int count, float[] lenses) {
-        skyMasks = masks;
-        skyMaskCount = count;
+    void skyPass(boolean painted, float[] lenses) {
+        skyPainted = painted;
         skyLenses = lenses;
     }
+    private boolean skyPainted;
     private float[] skyLenses = new float[12];
     private float[] skyMasks = new float[32];
     private int skyMaskCount;
@@ -140,10 +140,8 @@ final class AtmosphereFrame {
         boolean screenFog = !ClientConfig.vanillaFog() && clearView(mc.gameRenderer.getMainCamera());
         float renderDistance = mc.gameRenderer.getRenderDistance();
         float fogR = this.fogR, fogG = this.fogG, fogB = this.fogB, exposure = this.exposure;
-        float[] masks = skyMasks.clone();
         float[] lens = skyLenses.clone();
-        int maskCount = skyMaskCount;
-        float replaced = replaced() ? 1 : 0;
+        float painted = skyPainted ? 1 : 0, replaced = replaced() ? 1 : 0;
         frame.pass(PROGRAM, u -> {
             u.f3("CaAtmoSkyTop", s.skyTop().r(), s.skyTop().g(), s.skyTop().b());
             u.f3("CaAtmoSkyHorizon", s.skyHorizon().r(), s.skyHorizon().g(), s.skyHorizon().b());
@@ -153,8 +151,7 @@ final class AtmosphereFrame {
             u.f3("CaAtmoVanillaFog", fogR, fogG, fogB);
             u.f4("CaAtmoA", s.skyBlend(), s.fogDensity(), s.fogStart(), s.fogEnd());
             u.f4("CaAtmoB", exposure, s.ambientStrength() * intensity, s.stars(), screenFog ? 1 : 0);
-            u.f4("CaAtmoC", renderDistance, maskCount, replaced, 0);
-            if (maskCount > 0) u.vec4s("CaAtmoMask", masks);
+            u.f4("CaAtmoC", renderDistance, painted, replaced, 0);
             u.f4("CaAtmoLens0", lens[0], lens[1], lens[2], lens[3]);
             u.f4("CaAtmoLens1", lens[4], lens[5], lens[6], lens[7]);
             u.f4("CaAtmoLensExt", lens[8], lens[9], lens[10], 0);

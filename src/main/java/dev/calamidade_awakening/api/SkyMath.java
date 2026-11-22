@@ -49,8 +49,9 @@ public final class SkyMath {
 
     /**
      * One layer competing for a frame: {@code hero} for layers of HERO effects, {@code weight} its resolved weight,
-     * {@code order} the instance order (older first on ties) and {@code rank} (0.12.0) for world events: 1 + their
-     * priority, so global events come before every ordinary effect, the highest priority first.
+     * {@code order} the instance order (older first on ties) and {@code rank} (0.12.0): 1000 + priority for global events,
+     * 500 for the dimension's sky profile, 0 for ordinary effects, so a global event (an eclipse for the whole server)
+     * is painted even when the profile cap is small.
      */
     public record Candidate<T>(T value, boolean hero, float weight, long order, int rank) {
         /** Candidate of an ordinary effect (rank 0). */
@@ -58,8 +59,8 @@ public final class SkyMath {
     }
 
     /**
-     * Layers painted this frame: those with weight above {@link Sky#ACTIVE_WEIGHT}, world events first (by rank), then
-     * HERO, then by weight (largest first), then the oldest instance; at most {@code max} (clamped to 0..{@link #MAX_LAYERS}).
+     * Layers painted this frame: those with weight above {@link Sky#ACTIVE_WEIGHT}, global events first, then the dimension's
+     * profile (by rank), then HERO, then by weight (largest first), then the oldest instance; at most {@code max} (clamped to 0..{@link #MAX_LAYERS}).
      */
     public static <T> List<T> select(List<Candidate<T>> candidates, int max) {
         int cap = Math.clamp(max, 0, MAX_LAYERS);

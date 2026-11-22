@@ -230,6 +230,12 @@ public final class WorldEventServer {
         return out;
     }
 
+    /** Real age (ticks) of the active global event of an effect, or -1 (tests and diagnostics). */
+    public static long ageOf(ResourceLocation id) {
+        for (Global g : ACTIVE) if (g.id.equals(id) && !g.ended) return g.age();
+        return -1;
+    }
+
     /** Number of active global events (F7 of an integrated server, /calamidade status). */
     public static int count() { return ACTIVE.size(); }
 

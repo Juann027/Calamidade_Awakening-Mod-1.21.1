@@ -55,11 +55,10 @@ final class SkyFrame {
     private final SkyProfilesClient profiles;
     private final DataTexture texture = new DataTexture(TEXELS, ROWS);
     private final float[] data = new float[TEXELS * 4 * ROWS];
-    private final float[] masks = new float[4 * 8];
     /** Gravitational lenses of this frame (0.12.0): two vec4 (direction, Einstein radius) and (extent 0, extent 1, count, 0). */
     private final float[] lenses = new float[12];
     private List<Resolved> layers = List.of();
-    private int candidates, maskCount;
+    private int candidates;
     private float darkening, hideSun, hideMoon, exposure = 1;
     private double previousTime = Double.NaN;
     private static final Map<Class<?>, Boolean> OVERRIDES_SKY = new ConcurrentHashMap<>();
@@ -101,7 +100,6 @@ final class SkyFrame {
         previousTime = now;
         float target = SkyMath.exposure(darkening, ClientConfig.screenEffects());
         exposure = SkyMath.displayed(exposure, target, elapsed, mc.options.hideLightningFlash().get());
-        buildMasks();
         buildLenses(limits);
     }
 
@@ -141,48 +139,6 @@ final class SkyFrame {
     /** True when this frame needs the pass: a layer, a vanilla body to hide, or exposure still easing back to 1. */
     boolean needsPass() {
         return !layers.isEmpty() || hideSun > 0 || hideMoon > 0 || Math.abs(exposure - 1) > EXPOSURE_EPSILON;
-    }
-
-    /**
-     * Opaque regions of the painted layers for the atmosphere pass (direction and angular radius, radians, per vec4):
-     * there the atmosphere's sky gradient and stars do not apply, so a black disk stays black.
-     */
-    float[] masks() { return masks; }
-    /** Number of entries in {@link #masks()}. */
-    int maskCount() { return maskCount; }
-
-    private void buildMasks() {
-        int n = 0;
-        for (Resolved r : layers) {
-            var s = r.state();
-            double radius = Math.toRadians(s.radius());
-            var dir = r.direction();
-            switch (s.type()) {
-                case BLACK_HOLE -> n = mask(n, dir, radius * SkyMath.SHADOW * 1.02);
-                case PORTAL -> n = mask(n, dir, radius * s.progress());
-                case CELESTIAL_BODY -> n = mask(n, dir, radius);
-                case ECLIPSE -> {
-                    n = mask(n, dir, radius * Sky.ECLIPSE_SUN_RATIO);
-                    // The covering disk is only opaque over the sun and at totality (sky.fsh).
-                    if (r.layer().anchor() != Sky.Anchor.MOON && s.progress() >= .9f) {
-                        double[] basis = SkyMath.basis(dir, Math.toRadians(s.rotationAt(0)));
-                        var disk = SkyMath.fromLocal(basis, radius * (1 - s.progress()) * Sky.ECLIPSE_START_DISTANCE, 0);
-                        n = mask(n, disk, radius);
-                    }
-                }
-                default -> { }
-            }
-        }
-        maskCount = n;
-    }
-
-    private int mask(int n, Sky.Direction dir, double radius) {
-        if (n >= 8 || !(radius > 0)) return n;
-        masks[n * 4] = (float) dir.x();
-        masks[n * 4 + 1] = (float) dir.y();
-        masks[n * 4 + 2] = (float) dir.z();
-        masks[n * 4 + 3] = (float) radius;
-        return n + 1;
     }
 
     /** Queues the sky pass when needed. Returns true when a pass was queued. */
@@ -247,11 +203,20 @@ final class SkyFrame {
         float info = count, worldExposure = exposure, sunHide = sunId != 0 ? hideSun : 0, moonHide = moonId != 0 ? hideMoon : 0;
         int quality = limits.tier().ordinal();
         float[] lens = lenses.clone();
+        // 0.12.0: the mixed atmosphere's sky is painted here, under the layers (the atmosphere pass then skips sky pixels).
+        var atmo = atmosphere.state(camera, partial);
+        float atmoActive = atmo.active() ? 1 : 0, replaced = atmosphere.replaced() ? 1 : 0;
+        boolean bolts = layers.stream().limit(count).anyMatch(r -> r.state().type() == Sky.Type.DISTANT_BOLTS);
         frame.pass(PROGRAM, u -> {
             u.glTexture("CaSkyData", id);
             if (sunId != 0) u.glTexture("CaSkySunTex", sunId);
             if (moonId != 0) u.glTexture("CaSkyMoonTex", moonId);
-            u.f4("CaSkyInfo", info, worldExposure, quality, 0);
+            u.f4("CaSkyInfo", info, worldExposure, quality, bolts ? 1 : 0);
+            u.f3("CaSkyAtmoTop", atmo.skyTop().r(), atmo.skyTop().g(), atmo.skyTop().b());
+            u.f3("CaSkyAtmoHorizon", atmo.skyHorizon().r(), atmo.skyHorizon().g(), atmo.skyHorizon().b());
+            u.f3("CaSkyAtmoFog", atmo.fogColor().r(), atmo.fogColor().g(), atmo.fogColor().b());
+            u.f4("CaSkyAtmoA", atmo.skyBlend(), atmo.fogDensity(), atmo.stars(), atmoActive);
+            u.f4("CaSkyAtmoB", replaced, 0, 0, 0);
             u.f4("CaSkyVanilla", sunHide, moonHide, moonPhase, vanilla);
             u.f3("CaSkyAxisX", (float) axes[0], (float) axes[1], (float) axes[2]);
             u.f3("CaSkyAxisY", (float) axes[3], (float) axes[4], (float) axes[5]);

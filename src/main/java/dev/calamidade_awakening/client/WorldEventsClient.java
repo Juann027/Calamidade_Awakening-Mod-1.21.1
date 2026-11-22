@@ -26,6 +26,8 @@ final class WorldEventsClient {
     /** One known event. */
     record Event(WorldEventSync sync, VisualKind kind) {}
 
+    /** Rank of global event layers in the sky selection (plus their priority): before the dimension's own sky. */
+    static final int RANK = 1000;
     private final Map<Long, Event> events = new LinkedHashMap<>();
 
     void receive(WorldEventSync packet) {
@@ -69,7 +71,7 @@ final class WorldEventsClient {
         return WorldEventRules.localAge(e.kind().timeline(), age, e.sync().released());
     }
 
-    /** Sky layers of the events that apply here; world events come first (rank 1 + priority). */
+    /** Sky layers of the events that apply here; world events come first (rank 1000 + priority). */
     List<SkyMath.Candidate<SkyFrame.Resolved>> skies(ClientLevel level, Vec3 camera, float partial, double timeOfDay) {
         if (level == null || events.isEmpty()) return List.of();
         List<SkyMath.Candidate<SkyFrame.Resolved>> out = new ArrayList<>(2);
@@ -91,7 +93,7 @@ final class WorldEventsClient {
                 if (anchor == null) continue;
                 out.add(new SkyMath.Candidate<>(new SkyFrame.Resolved(layer, state, state.direction(anchor),
                     (seed & 0xFFFFL) / 65535f, seed, age, -e.sync().key(), e.kind().hero()), e.kind().hero(),
-                    state.weight(), -e.sync().key(), 1 + e.sync().priority()));
+                    state.weight(), -e.sync().key(), RANK + e.sync().priority()));
             }
         }
         return out;

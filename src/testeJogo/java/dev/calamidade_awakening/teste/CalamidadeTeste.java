@@ -52,15 +52,56 @@ public final class CalamidadeTeste {
             .fill(TerrainEdit.Fill.solid("minecraft:composter", 1f).at(0, -3, 0)).build());
         registrar(GRANDE, TerrainEdit.carve(TerrainShape.sphere(24)).commitAt("impacto").burn(TerrainPalette.burnt(), 2).noHeat().build());
         registrar(ENTIDADES, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto").replacingBlockEntities().noHeat().build());
+        registrarCeu();
         NeoForge.EVENT_BUS.register(Protecao.class);
         NeoForge.EVENT_BUS.addListener((ChunkDataEvent.Save event) -> SALVOS.add(event.getChunk().getPos().toLong()));
         NeoForge.EVENT_BUS.addListener(CalamidadeTeste::started);
         if (FMLEnvironment.dist == Dist.CLIENT && "cliente".equals(System.getProperty("calamidade.teste"))) RoteiroCliente.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "medicao".equals(System.getProperty("calamidade.teste"))) RoteiroMedicao.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "atlas".equals(System.getProperty("calamidade.teste"))) RoteiroAtlas.registrar();
+        if (FMLEnvironment.dist == Dist.CLIENT && "ceu".equals(System.getProperty("calamidade.teste"))) RoteiroCeu.registrar();
     }
 
     private static ResourceLocation id(String path) { return ResourceLocation.fromNamespaceAndPath(ID, path); }
+
+    // 0.12.0: eventos globais, céu por dimensão e a carga do passe de céu.
+    /** Evento global em loop (entrada de 50 ticks, laço de 50 a 200, saída até 300) com eclipse e atmosfera. */
+    static final ResourceLocation GLOBAL = id("global");
+    /** Eventos globais curtos (10 min, sem laço) para o limite e as prioridades. */
+    static final ResourceLocation[] CURTOS = {id("curto_a"), id("curto_b"), id("curto_c"), id("curto_d"), id("curto_e")};
+    /** Uma camada (buraco negro) e quatro camadas (portal, astro, fenda, aurora): medição do passe de céu. */
+    static final ResourceLocation CEU_UM = id("ceu_um"), CEU_QUATRO = id("ceu_quatro");
+    /** Perfil de céu do End (dimensão vanilla presente no servidor dedicado): estados "a" e "b". */
+    static final ResourceLocation END = ResourceLocation.withDefaultNamespace("the_end");
+
+    private static void registrarCeu() {
+        var def = new Effects.Definition(300, 4, 0xffffffff, Effects.Shape.NONE, Effects.Material.NONE, null, null).withRange(1024);
+        Effects.register(GLOBAL, def);
+        Effects.timeline(GLOBAL, Timeline.builder(300).track("cobrir", Timeline.keyframe(0, 0f), Timeline.keyframe(50, 1f),
+            Timeline.keyframe(200, 1f), Timeline.keyframe(300, 0f)).marker("laco", 100).sustain(50, 200).build());
+        Effects.sky(GLOBAL, dev.calamidade_awakening.api.v1.Sky.eclipse().track(dev.calamidade_awakening.api.v1.Sky.Param.PROGRESS, "cobrir").build(),
+            dev.calamidade_awakening.api.v1.Sky.bolts().build());
+        Effects.atmosphere(GLOBAL, dev.calamidade_awakening.api.v1.Atmosphere.builder().sky(0xff020308, 0xff302040, .8f).stars(1).build());
+        Effects.cue(GLOBAL, "laco", ctx -> CUES_GLOBAIS.incrementAndGet());
+        for (ResourceLocation curto : CURTOS)
+            Effects.register(curto, new Effects.Definition(12000, 4, 0xffffffff, Effects.Shape.NONE, Effects.Material.NONE, null, null));
+        var longo = new Effects.Definition(12000, 8, 0xffffffff, Effects.Shape.NONE, Effects.Material.NONE, null, null).withRange(1024);
+        Effects.register(CEU_UM, longo);
+        Effects.sky(CEU_UM, dev.calamidade_awakening.api.v1.Sky.blackHole().direction(0, 30).size(50).build());
+        Effects.register(CEU_QUATRO, longo);
+        Effects.sky(CEU_QUATRO, dev.calamidade_awakening.api.v1.Sky.portal().direction(-40, 35).size(36).build(),
+            dev.calamidade_awakening.api.v1.Sky.body().direction(40, 30).size(30).tilt(20).build(),
+            dev.calamidade_awakening.api.v1.Sky.rift().direction(0, 60).size(80).build(),
+            dev.calamidade_awakening.api.v1.Sky.aurora().direction(0, 10).size(170).build());
+        dev.calamidade_awakening.api.v1.SkyProfiles.define(END, dev.calamidade_awakening.api.v1.SkyProfile.builder()
+            .state("a", dev.calamidade_awakening.api.v1.SkyProfile.State.builder().build())
+            .state("b", dev.calamidade_awakening.api.v1.SkyProfile.State.builder()
+                .layers(dev.calamidade_awakening.api.v1.Sky.body().build()).vanillaSun(false).build())
+            .build());
+    }
+
+    /** Voltas do laço do evento global em que o cue rodou (no servidor). */
+    static final java.util.concurrent.atomic.AtomicInteger CUES_GLOBAIS = new java.util.concurrent.atomic.AtomicInteger();
 
     private static void registrar(ResourceLocation id, TerrainEdit edit) {
         Effects.register(id, new Effects.Definition(60, 12, 0xffff5a14, Effects.Shape.NONE, Effects.Material.NONE, null, null));
@@ -70,7 +111,8 @@ public final class CalamidadeTeste {
 
     private static void started(ServerStartedEvent event) {
         String fase = System.getProperty("calamidade.teste");
-        if (fase == null || fase.isBlank() || fase.equals("cliente") || fase.equals("medicao") || fase.equals("atlas")) return;
+        if (fase == null || fase.isBlank() || fase.equals("cliente") || fase.equals("medicao") || fase.equals("atlas")
+            || fase.equals("ceu")) return;
         Thread thread = new Thread(new Roteiro(event.getServer(), fase), "Calamidade teste em jogo");
         thread.setDaemon(true);
         thread.start();
