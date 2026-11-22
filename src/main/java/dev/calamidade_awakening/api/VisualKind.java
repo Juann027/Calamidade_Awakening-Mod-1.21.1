@@ -173,6 +173,23 @@ public final class VisualKind {
         kind.sky = list;
     }
 
+    // 0.14.0: optional custom sky background of an external effect, drawn in AFTER_SKY. Null means none.
+    private volatile dev.calamidade_awakening.api.v1.Backdrop backdrop;
+
+    /** Registered background, or null. */
+    public dev.calamidade_awakening.api.v1.Backdrop backdrop() { return backdrop; }
+
+    /** Binds a background once; tracks and phases it reads must exist in the timeline registered before it. */
+    public static synchronized void setBackdrop(net.minecraft.resources.ResourceLocation id,
+            dev.calamidade_awakening.api.v1.Backdrop value) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its backdrop: " + id);
+        if (kind.backdrop != null) throw new IllegalArgumentException("Duplicate backdrop: " + id);
+        value.validate(kind.timeline);
+        kind.backdrop = value;
+    }
+
     // 0.11.0: optional terrain edits of an external effect (server commit, client heat and stand-in). Empty: none.
     private volatile java.util.List<dev.calamidade_awakening.api.v1.TerrainEdit> terrain = java.util.List.of();
 

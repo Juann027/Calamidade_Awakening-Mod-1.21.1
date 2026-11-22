@@ -18,6 +18,11 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Atmosphere.Param`](#atmosphereparam)
 - [`Atmosphere.Rgb`](#atmospherergb)
 - [`Atmosphere.State`](#atmospherestate)
+- [`Backdrop`](#backdrop)
+- [`Backdrop.Builder`](#backdropbuilder)
+- [`Backdrop.Kind`](#backdropkind)
+- [`Backdrop.Param`](#backdropparam)
+- [`Backdrop.State`](#backdropstate)
 - [`Beam`](#beam)
 - [`Beam.Builder`](#beambuilder)
 - [`Beam.Param`](#beamparam)
@@ -306,6 +311,97 @@ Resolved atmosphere at one moment: every parameter is a plain number already tak
 | `float ambientStrength()` | Ambient tint strength, 0..1. |
 | `float stars()` | Star field, 0..1. |
 
+## Backdrop
+
+`dev.calamidade_awakening.api.v1.Backdrop` · class
+
+Immutable custom sky background of one effect or one `SkyProfile.State` (0.14.0, "Backdrop"): a skybox drawn behind everything else, as a cubemap, an equirectangular panorama or a gradient.
+
+| Membro | Descrição |
+|---|---|
+| `static float ACTIVE_OPACITY` | Opacity below which a background is not drawn. |
+| `static float MAX_SPIN` | Fastest spin, degrees per second. |
+| `static Backdrop.Builder cubemap(String texture)` | Cubemap from one 3 × 2 PNG, as `namespace:path/file.png`. |
+| `static Backdrop.Builder panorama(String texture)` | Equirectangular panorama from one PNG, as `namespace:path/file.png`. |
+| `static Backdrop.Builder gradient(int top, int horizon, int bottom)` | Vertical gradient: `top` at the zenith, `horizon` at the horizon and `bottom` at the nadir, all ARGB with alpha as coverage (0xff opaque). |
+| `Backdrop.Kind kind()` | Mapping of the background. |
+| `String texture()` | Texture resource location of a cubemap or panorama, or null for a gradient. |
+| `int top()` | Gradient zenith color, ARGB (0 for textures). |
+| `int horizon()` | Gradient horizon color, ARGB (0 for textures). |
+| `int bottom()` | Gradient nadir color, ARGB (0 for textures). |
+| `int tint()` | Tint multiplied into the background, ARGB (alpha multiplies the opacity); white by default. |
+| `float opacity()` | Opacity, 0..1 (1 by default). |
+| `float rotation()` | Turn around the vertical axis, degrees. |
+| `float spin()` | Spin, degrees per second. |
+| `boolean vanillaSunMoon()` | True when the vanilla sun and moon are drawn again on top of the background. |
+| `boolean matchFog()` | True when the fog of distant terrain takes the background's horizon color (default). |
+| `String track(Backdrop.Param param)` | Track bound to a parameter, or null when the parameter is constant. |
+| `Map<Backdrop.Param, String> tracks()` | Every track binding, in `Param` order. |
+| `String weightPhase()` | Phase whose weight multiplies the opacity, or null. |
+| `boolean animated()` | True when the opacity or the rotation depends on the timeline. |
+| `void validate(Timeline timeline)` | Checks that every track and the phase this background reads exist in `timeline`, which may be null only when nothing is animated. |
+| `Backdrop.State sample(Timeline.Sampler timeline, float envelope)` | Resolves this background at one moment: `timeline` is the instance's sampler at its local age (any sampler works when nothing is animated); `envelope` is the instance's weight (0..1), which multiplies the opacity together with the phase, the `Param.OPACITY` track and the tint alpha. |
+| `String toString()` | Short description for logs: kind and texture. |
+
+## Backdrop.Builder
+
+`dev.calamidade_awakening.api.v1.Backdrop.Builder` · class
+
+Builder of a `Backdrop`.
+
+| Membro | Descrição |
+|---|---|
+| `Backdrop.Builder opacity(float value)` | Opacity, 0..1 (1 by default): below 1 the vanilla sky shows through everywhere. |
+| `Backdrop.Builder rotation(float degrees)` | Turn around the vertical axis, degrees, -3600..3600 (positive moves what was south toward west). |
+| `Backdrop.Builder spin(float degreesPerSecond)` | Spin, degrees per second (±`MAX_SPIN`), over the instance's real age (the world clock for a sky profile); stops when the player turns "motion effects" off. |
+| `Backdrop.Builder tint(int argb)` | Tint multiplied into the background, ARGB; its alpha multiplies the opacity (white, opaque by default). |
+| `Backdrop.Builder vanillaSunMoon(boolean draw)` | Draws the vanilla sun and moon again on top of the background (false by default: where the background covers the sky, they are hidden like the rest of the vanilla sky). |
+| `Backdrop.Builder matchFog(boolean match)` | Whether the fog of distant terrain takes the background's horizon color (true by default). |
+| `Backdrop.Builder track(Backdrop.Param param, String track)` | Takes `param` from a track of the effect's timeline instead of the constant (clamped to its range). |
+| `Backdrop.Builder weightPhase(String phase)` | Multiplies the opacity by the weight of a timeline phase (0 outside it). |
+| `Backdrop build()` | Immutable background. |
+
+## Backdrop.Kind
+
+`dev.calamidade_awakening.api.v1.Backdrop.Kind` · enum
+
+How the background is mapped onto the sky.
+
+| Membro | Descrição |
+|---|---|
+| `CUBEMAP` | Six square faces in one 3 × 2 PNG (see the class documentation for the layout). |
+| `PANORAMA` | One equirectangular PNG: azimuth across, elevation down from the zenith. |
+| `GRADIENT` | Vertical gradient from three ARGB colors (zenith, horizon, nadir); alpha is coverage. |
+
+## Backdrop.Param
+
+`dev.calamidade_awakening.api.v1.Backdrop.Param` · enum
+
+Numeric parameters that can be driven by a timeline track, each with the range used to clamp it.
+
+| Membro | Descrição |
+|---|---|
+| `OPACITY` | Opacity multiplier, 0..1. |
+| `ROTATION` | Turn around the vertical axis, degrees (positive moves what was south toward west). |
+| `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
+
+## Backdrop.State
+
+`dev.calamidade_awakening.api.v1.Backdrop.State` · record
+
+A background resolved at one moment.
+
+| Membro | Descrição |
+|---|---|
+| `new State(float opacity, float rotation, float spin)` | Canonical constructor: opacity, rotation, spin. |
+| `boolean visible()` | True when the background should be drawn. |
+| `double rotationAt(double seconds, boolean motion)` | Turn after `seconds` of real age, degrees (spin stops when `motion` is false). |
+| `float opacity()` | Effective opacity, 0..1 (the builder opacity times weight, phase and track). |
+| `float rotation()` | Turn around the vertical axis without the spin, degrees. |
+| `float spin()` | Spin, degrees per second (applied by the client over the instance's real age). |
+
 ## Beam
 
 `dev.calamidade_awakening.api.v1.Beam` · class
@@ -593,6 +689,7 @@ Public common-side API: register effects, schedule server cues and start or stop
 | `static void lights(ResourceLocation id, Light... lights)` | Attaches 1..`Light.MAX_PER_EFFECT` visual lights to a registered external effect (0.9.0). |
 | `static void terrain(ResourceLocation id, TerrainEdit... edits)` | Attaches 1..`TerrainEdit.MAX_PER_EFFECT` terrain edits to a registered external effect (0.11.0): excavation, burnt shell, real blocks or a structure placed at a marker of the effect's timeline, with the heat and the falling stand-in drawn by the client. |
 | `static void sky(ResourceLocation id, Sky... layers)` | Attaches 1..`Sky.MAX_PER_EFFECT` sky layers to a registered external effect (0.12.0): black holes, portals, eclipses, rifts, giant moons and planets, auroras, placed by direction on the sky. |
+| `static void backdrop(ResourceLocation id, Backdrop backdrop)` | Attaches a custom sky background (cubemap, panorama or gradient) to a registered external effect (0.14.0). |
 | `static void cue(ResourceLocation id, int tick, Effects.Cue cue)` | Schedules a server callback at `tick` (0 .. duration-1) of every instance of a registered external effect. |
 | `static void cue(ResourceLocation id, String marker, Effects.Cue cue)` | Schedules a cue on a marker of the effect's timeline (0.7.0). |
 | `static void onImpact(ResourceLocation id, Effects.Cue cue)` | Schedules a cue at the definition's `Impact` tick, keeping visual contact and gameplay in sync. |
@@ -1165,6 +1262,7 @@ One state of a dimension's sky.
 | `boolean vanillaSun()` | True when the vanilla sun stays visible (false: the sky pass hides it, in any dimension). |
 | `boolean vanillaMoon()` | True when the vanilla moon stays visible. |
 | `boolean vanillaSky()` | True when the vanilla sky stays (false: in a dimension whose effects are `ProfileSkyEffects`, the game does not draw its sky at all — gradient, sunrise, sun, moon, stars — and the engine paints the gradient of the state's atmosphere, or the vanilla colors, instead). |
+| `Backdrop backdrop()` | Custom background of this state (0.14.0), or null. |
 
 ## SkyProfile.StateBuilder
 
@@ -1174,6 +1272,7 @@ Builder of a `State`.
 
 | Membro | Descrição |
 |---|---|
+| `SkyProfile.StateBuilder backdrop(Backdrop value)` | Custom background of the state (0.14.0; constant: no tracks nor phase; its spin runs on the world clock). |
 | `SkyProfile.StateBuilder layers(Sky... values)` | Adds sky layers (constant: no tracks nor phase), up to `Sky.MAX_PER_EFFECT` in total. |
 | `SkyProfile.StateBuilder atmosphere(Atmosphere value)` | Atmosphere of the state (constant: no tracks nor phase). |
 | `SkyProfile.StateBuilder vanillaSun(boolean visible)` | Whether the vanilla sun stays visible (true by default). |

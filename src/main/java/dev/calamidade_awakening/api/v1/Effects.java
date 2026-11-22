@@ -375,6 +375,22 @@ public final class Effects {
     }
 
     /**
+     * Attaches a custom sky {@link Backdrop background} (cubemap, panorama or gradient) to a registered external effect
+     * (0.14.0). Call once per effect during mod construction (common side), after {@link #register} and, when the
+     * background reads tracks or a phase, after {@link #timeline}. Only effects of your namespace. While an instance is
+     * active, every player within the effect's range sees the background behind everything else, at the instance's
+     * weight; started as a global event ({@link WorldEvents}), the whole scope sees it. Nothing changes for effects
+     * without a background, and players can turn custom backgrounds off ({@code customSkies}).
+     *
+     * <pre>{@code
+     * Effects.backdrop(ID, Backdrop.cubemap("meumod:textures/sky/arena.png").build());
+     * }</pre>
+     */
+    public static void backdrop(ResourceLocation id, Backdrop backdrop) {
+        VisualKind.setBackdrop(Objects.requireNonNull(id), Objects.requireNonNull(backdrop));
+    }
+
+    /**
      * Schedules a server callback at {@code tick} (0 .. duration-1) of every instance of a registered external effect.
      * Call during mod construction, after {@link #register} (and after {@link #timeline}, if any). Several cues per
      * effect and per tick are allowed and run in registration order. Exceptions are logged and do not stop the effect.

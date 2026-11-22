@@ -42,8 +42,10 @@ public final class SkyProfile {
         private final List<Sky> layers;
         private final Atmosphere atmosphere;
         private final boolean vanillaSun, vanillaMoon, vanillaSky;
+        private final Backdrop backdrop;
 
         private State(StateBuilder b) {
+            backdrop = b.backdrop;
             layers = List.copyOf(b.layers);
             atmosphere = b.atmosphere;
             vanillaSun = b.vanillaSun;
@@ -68,6 +70,8 @@ public final class SkyProfile {
          * engine paints the gradient of the state's atmosphere, or the vanilla colors, instead).
          */
         public boolean vanillaSky() { return vanillaSky; }
+        /** Custom background of this state (0.14.0), or null. */
+        public Backdrop backdrop() { return backdrop; }
     }
 
     /** Builder of a {@link State}. */
@@ -75,8 +79,20 @@ public final class SkyProfile {
         private final java.util.ArrayList<Sky> layers = new java.util.ArrayList<>();
         private Atmosphere atmosphere;
         private boolean vanillaSun = true, vanillaMoon = true, vanillaSky = true;
+        private Backdrop backdrop;
 
         private StateBuilder() {}
+
+        /**
+         * Custom background of the state (0.14.0; constant: no tracks nor phase; its spin runs on the world clock).
+         * States crossfade their backgrounds like their layers.
+         */
+        public StateBuilder backdrop(Backdrop value) {
+            if (Objects.requireNonNull(value).animated())
+                throw new IllegalArgumentException("The backdrop of a profile cannot read tracks or a phase (no timeline)");
+            backdrop = value;
+            return this;
+        }
 
         /** Adds sky layers (constant: no tracks nor phase), up to {@link Sky#MAX_PER_EFFECT} in total. */
         public StateBuilder layers(Sky... values) {
