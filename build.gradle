@@ -253,6 +253,38 @@ def apiLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVer
 }
 tasks.named('check') { dependsOn 'checkApiDocs' }
 
+// 0.14 (fase 1): compatibilidade binária da api.v1 contra a base do último release (scripts/api-base/, gerada do JAR
+// publicado, byte a byte igual ao do release). checkApiCompat (parte do build) roda o autoteste do verificador e falha
+// se faltar classe ou membro, se um cabeçalho mudar, se um tipo extensível ganhar método abstrato ou se um enum perder
+// ou reordenar constantes. Adições são permitidas (AGENTS.md, regra 1).
+tasks.register('checkApiCompat') {
+    group = 'verification'
+    description = 'Falha se a api.v1 compilada quebra a compatibilidade binária com a base do último release.'
+    def jarFile = tasks.named('jar').flatMap { it.archiveFile }
+    dependsOn tasks.named('jar')
+    inputs.file(jarFile)
+    inputs.file('scripts/ApiCompat.java')
+    inputs.dir('scripts/api-base')
+    outputs.upToDateWhen { false }
+    def launcher = apiLauncher
+    def root = layout.projectDirectory.asFile
+    doLast {
+        def java = launcher.get().executablePath.asFile.absolutePath
+        def bases = new File(root, 'scripts/api-base').listFiles().findAll { it.name.endsWith('.txt') }.sort { it.name }
+        def runs = [[]] + bases.collect { ['--base', it.absolutePath] }
+        runs.each { extra ->
+            def process = ([java, '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', 'scripts/ApiCompat.java',
+                            '--jar', jarFile.get().asFile.absolutePath] + extra).execute(null, root)
+            def out = new StringBuilder(), err = new StringBuilder()
+            process.consumeProcessOutput(out, err)
+            int code = process.waitFor()
+            if (out) logger.lifecycle(out.toString().trim())
+            if (code != 0) throw new GradleException("checkApiCompat falhou:\n" + err.toString().trim())
+        }
+    }
+}
+tasks.named('check') { dependsOn 'checkApiCompat' }
+
 // 0.8.0: as receitas de docs/ai/receitas/ trazem o código dos efeitos reais do vfx-sample. Cada bloco de código
 // precedido por "<!-- arquivo: caminho -->" precisa ser idêntico ao arquivo. syncRecipes copia os arquivos para os
 // blocos; checkRecipes (parte do build) falha se algum bloco divergir. 0.10.0: o modelo de dependência
