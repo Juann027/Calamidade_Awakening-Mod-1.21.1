@@ -49,6 +49,13 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Placement`](#placement)
 - [`Point`](#point)
 - [`Point.Source`](#pointsource)
+- [`Sky`](#sky)
+- [`Sky.Anchor`](#skyanchor)
+- [`Sky.Builder`](#skybuilder)
+- [`Sky.Direction`](#skydirection)
+- [`Sky.Param`](#skyparam)
+- [`Sky.State`](#skystate)
+- [`Sky.Type`](#skytype)
 - [`TerrainEdit`](#terrainedit)
 - [`TerrainEdit.Builder`](#terraineditbuilder)
 - [`TerrainEdit.Fill`](#terraineditfill)
@@ -575,6 +582,7 @@ Public common-side API: register effects, schedule server cues and start or stop
 | `static void beams(ResourceLocation id, Beam... beams)` | Attaches 1..`Beam.MAX_PER_EFFECT` beams to a registered external effect (0.9.0). |
 | `static void lights(ResourceLocation id, Light... lights)` | Attaches 1..`Light.MAX_PER_EFFECT` visual lights to a registered external effect (0.9.0). |
 | `static void terrain(ResourceLocation id, TerrainEdit... edits)` | Attaches 1..`TerrainEdit.MAX_PER_EFFECT` terrain edits to a registered external effect (0.11.0): excavation, burnt shell, real blocks or a structure placed at a marker of the effect's timeline, with the heat and the falling stand-in drawn by the client. |
+| `static void sky(ResourceLocation id, Sky... layers)` | Attaches 1..`Sky.MAX_PER_EFFECT` sky layers to a registered external effect (0.12.0): black holes, portals, eclipses, rifts, giant moons and planets, auroras, placed by direction on the sky. |
 | `static void cue(ResourceLocation id, int tick, Effects.Cue cue)` | Schedules a server callback at `tick` (0 .. duration-1) of every instance of a registered external effect. |
 | `static void cue(ResourceLocation id, String marker, Effects.Cue cue)` | Schedules a cue on a marker of the effect's timeline (0.7.0). |
 | `static void onImpact(ResourceLocation id, Effects.Cue cue)` | Schedules a cue at the definition's `Impact` tick, keeping visual contact and gameplay in sync. |
@@ -928,6 +936,181 @@ What a point is attached to.
 | `boolean caster()` | True for the caster's points. |
 | `boolean aim()` | True for the look-ray points (`*_AIM`). |
 | `boolean eye()` | True for the eye points (`*_EYE`). |
+
+## Sky
+
+`dev.calamidade_awakening.api.v1.Sky` · class
+
+Immutable sky layer of one effect (0.12.0): a fantastic object painted on the sky by direction, such as a black hole, a portal opening onto another galaxy, an eclipse, a rift, a giant moon or planet, or an aurora.
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_PER_EFFECT` | Most sky layers per effect (`Effects.sky`). |
+| `static float MAX_SIZE` | Largest angular diameter, degrees. |
+| `static float MAX_INTENSITY` | Largest intensity multiplier. |
+| `static float MAX_SPIN` | Largest spin, degrees per tick (36 = one turn every half second). |
+| `static float ACTIVE_WEIGHT` | Weight below which a layer is not painted. |
+| `static double MAX_DISTANCE` | Largest distance of a center offset or world point coordinate from the origin of its frame, blocks. |
+| `static float ECLIPSE_SUN_RATIO` | Ratio between the radius of the sun an `Type.ECLIPSE` draws and the radius of its covering disk. |
+| `static float ECLIPSE_START_DISTANCE` | Distance between the centers of the eclipse disk and its sun at progress 0, in covering-disk radii. |
+| `static float eclipseCoverage(float progress)` | Fraction of the sun hidden by an `Type.ECLIPSE` at `progress` (0..1, clamped): the overlap area of the covering disk (radius 1) and the sun (radius `ECLIPSE_SUN_RATIO`) whose centers are `(1 - progress) × ``ECLIPSE_START_DISTANCE` radii apart, over the sun's area. 0 at progress 0, 1 at totality (from progress ≈ 0.986 on). |
+| `static Sky.Builder builder(Sky.Type type)` | New builder of a layer of `type`, with the defaults of that type (size, colors, progress, tilt, lens, darken and anchor: an `Type.ECLIPSE` starts on the sun, an `Type.AURORA` at azimuth 180 and elevation 12, the others at azimuth 0 and elevation 35). |
+| `static Sky.Builder blackHole()` | `builder(Type.BLACK_HOLE)`: 24 degrees, tilt 76, lens 0.6, spin 1.2 degrees per tick. |
+| `static Sky.Builder portal()` | `builder(Type.PORTAL)`: 30 degrees, open, galaxy spin 0.5 degrees per tick. |
+| `static Sky.Builder eclipse()` | `builder(Type.ECLIPSE)`: on the sun, 13 degrees, total, darken 0.75. |
+| `static Sky.Builder rift()` | `builder(Type.RIFT)`: 50 degrees long, rotation 20, open. |
+| `static Sky.Builder body()` | `builder(Type.CELESTIAL_BODY)`: 28 degrees, full. |
+| `static Sky.Builder aurora()` | `builder(Type.AURORA)`: 140 degrees of azimuth, toward the north, curtains from 12 degrees up. |
+| `Sky.Type type()` | What the layer paints. |
+| `Sky.Anchor anchor()` | Where the layer is placed. |
+| `double anchorX()` | Azimuth (degrees) for `Anchor.DIRECTION`, x (blocks) for `Anchor.WORLD` and `Anchor.CENTER`; 0 otherwise. |
+| `double anchorY()` | Elevation (degrees) for `Anchor.DIRECTION`, y (blocks) for `Anchor.WORLD` and `Anchor.CENTER`; 0 otherwise. |
+| `double anchorZ()` | z (blocks) for `Anchor.WORLD` and `Anchor.CENTER`; 0 otherwise. |
+| `float size()` | Angular diameter, degrees. |
+| `float rotation()` | Roll, degrees. |
+| `float spin()` | Spin, degrees per tick. |
+| `float tilt()` | Inclination, degrees. |
+| `float intensity()` | Brightness multiplier, 0..`MAX_INTENSITY`. |
+| `float progress()` | Per-type progress, 0..1. |
+| `float lens()` | Lens strength, 0..1. |
+| `float darken()` | World darkening, 0..1. |
+| `int primary()` | Primary color, ARGB (alpha ignored). |
+| `int secondary()` | Secondary color, ARGB (alpha ignored). |
+| `boolean hidesVanilla()` | True when the layer hides the vanilla sun or moon it is anchored on while it is active (by default for every type anchored on the sun or the moon except `Type.RIFT` and `Type.AURORA`). |
+| `String track(Sky.Param param)` | Track bound to a parameter, or null when the parameter is constant. |
+| `Map<Sky.Param, String> tracks()` | Every track binding, in `Param` order. |
+| `String weightPhase()` | Phase whose weight multiplies the layer weight, or null. |
+| `boolean animated()` | True when some parameter, the weight or the phase depends on the timeline. |
+| `void validate(Timeline timeline)` | Checks that every track and the phase this layer reads exist in `timeline`, which may be null only when nothing is animated. |
+| `Sky.State sample(Timeline.Sampler timeline, float envelope)` | Resolves this layer at one moment. |
+
+## Sky.Anchor
+
+`dev.calamidade_awakening.api.v1.Sky.Anchor` · enum
+
+Where a layer is placed on the sky.
+
+| Membro | Descrição |
+|---|---|
+| `DIRECTION` | Fixed azimuth and elevation (world axes: does not turn with the instance). |
+| `WORLD` | Toward an absolute world point (blocks); far points barely move as the player walks. |
+| `CENTER` | Toward a point relative to the instance center (blocks, instance frame: x left, y up, z forward). |
+| `SUN` | On the vanilla sun, following the time of day. |
+| `MOON` | On the vanilla moon (opposite the sun). |
+
+## Sky.Builder
+
+`dev.calamidade_awakening.api.v1.Sky.Builder` · class
+
+Builder of a `Sky` layer.
+
+| Membro | Descrição |
+|---|---|
+| `Sky.Builder direction(float azimuth, float elevation)` | Fixed direction: `azimuth` in degrees (0 = south, 90 = west, 180 = north, -90 = east; any value, wrapped) and `elevation` in degrees above the horizon, -90..90. |
+| `Sky.Builder toward(double x, double y, double z)` | Toward an absolute world point (blocks, each coordinate within ±`MAX_DISTANCE`). |
+| `Sky.Builder centerOffset(double x, double y, double z)` | Toward a point relative to the instance center (blocks, instance frame: x left, y up, z forward; each within ±`MAX_DISTANCE`). |
+| `Sky.Builder onSun()` | On the vanilla sun (it follows the time of day; the sun itself is hidden unless `hidesVanilla(boolean)` says no). |
+| `Sky.Builder onMoon()` | On the vanilla moon (opposite the sun; the moon itself is hidden unless `hidesVanilla(boolean)` says no). |
+| `Sky.Builder hidesVanilla(boolean hide)` | Whether the vanilla sun or moon this layer is anchored on is hidden while the layer is active (scaled by its weight). |
+| `Sky.Builder size(float degrees)` | Angular diameter, degrees, 0..`MAX_SIZE`. |
+| `Sky.Builder rotation(float degrees)` | Roll, degrees, -3600..3600. |
+| `Sky.Builder spin(float degreesPerTick)` | Spin, degrees per tick over the real age, -`MAX_SPIN`..`MAX_SPIN`; stops with motion effects off. |
+| `Sky.Builder tilt(float degrees)` | Inclination, degrees, -90..90 (disk of a black hole, ring of a portal, rings of a planet). |
+| `Sky.Builder intensity(float value)` | Brightness multiplier, 0..`MAX_INTENSITY`. |
+| `Sky.Builder progress(float value)` | Per-type progress, 0..1 (see `Type`); usually a track: `track(Param.PROGRESS, "abrir")`. |
+| `Sky.Builder lens(float strength)` | Gravitational lens strength of a `Type.BLACK_HOLE`, 0..1 (0 = no bending). |
+| `Sky.Builder darken(float amount)` | World darkening while the layer is active, 0..1 (an eclipse also scales it by the covered fraction). |
+| `Sky.Builder color(int primary, int secondary)` | Primary and secondary colors (ARGB, alpha ignored); see `Type` for what each one paints. |
+| `Sky.Builder track(Sky.Param param, String track)` | Takes `param` from a track of the effect's timeline instead of the constant (clamped to the parameter range). |
+| `Sky.Builder weightPhase(String phase)` | Multiplies the layer weight by the weight of a timeline phase (0 outside it). |
+| `Sky build()` | Immutable layer. |
+
+## Sky.Direction
+
+`dev.calamidade_awakening.api.v1.Sky.Direction` · record
+
+Unit direction on the sky in world axes (x east, y up, z south: Minecraft's axes), with conversions to and from azimuth and elevation in degrees (Minecraft convention: azimuth 0 = south, 90 = west, 180 = north, -90 = east, the same as an entity yaw; elevation 90 = straight up, the opposite sign of a pitch).
+
+| Membro | Descrição |
+|---|---|
+| `static Sky.Direction UP` | Straight up. |
+| `new Direction(double x, double y, double z)` | Canonical constructor: x, y, z. |
+| `static Sky.Direction of(double azimuth, double elevation)` | Direction of an azimuth and an elevation, degrees: `x = -sin(az) cos(el)`, `y = sin(el)`, `z = cos(az) cos(el)` (azimuth 90 points west, like an entity yaw of 90). |
+| `static Sky.Direction toward(double fromX, double fromY, double fromZ, double toX, double toY, double toZ)` | Direction from a point toward another one (blocks); throws when they coincide. |
+| `double azimuth()` | Azimuth in degrees, [-180, 180); 0 when the direction is vertical. |
+| `double elevation()` | Elevation in degrees, -90..90. |
+| `double angleTo(Sky.Direction other)` | Angle to another direction, degrees 0..180 (stable for tiny and for nearly opposite angles). |
+| `Sky.Direction offset(double azimuth, double elevation)` | This direction moved by `azimuth` and `elevation` degrees (the elevation is kept within -90..90). |
+| `double x()` | East component. |
+| `double y()` | Up component. |
+| `double z()` | South component. |
+
+## Sky.Param
+
+`dev.calamidade_awakening.api.v1.Sky.Param` · enum
+
+Numeric parameters that can be driven by a timeline track, each with the range used to clamp it.
+
+| Membro | Descrição |
+|---|---|
+| `AZIMUTH` | Degrees added to the anchor azimuth. |
+| `ELEVATION` | Degrees added to the anchor elevation (the result is kept within -90..90). |
+| `SIZE` | Angular diameter, degrees. |
+| `ROTATION` | Roll, degrees. |
+| `SPIN` | Spin, degrees per tick over the instance's real age. |
+| `TILT` | Inclination, degrees. |
+| `INTENSITY` | Brightness multiplier. |
+| `PROGRESS` | Per-type progress (formation, opening, coverage, lit fraction, activity), 0..1. |
+| `LENS` | Gravitational lens strength of a black hole, 0..1 (ignored by the other types). |
+| `DARKEN` | World darkening while the layer is active, 0..1. |
+| `WEIGHT` | Extra multiplier of the layer weight, 0..1 (the envelope and the phase still apply). |
+| `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
+
+## Sky.State
+
+`dev.calamidade_awakening.api.v1.Sky.State` · record
+
+Resolved layer at one moment: parameters already taken from tracks and clamped, plus the weight (0..1).
+
+| Membro | Descrição |
+|---|---|
+| `new State(Sky.Type type, float weight, float azimuth, float elevation, float size, float rotation, float spin, float tilt, float intensity, float progress, float lens, float darken, int primary, int secondary)` | Canonical constructor: type, weight, azimuth, elevation, size, rotation, spin, tilt, intensity, progress, lens, darken, primary, secondary. |
+| `boolean visible()` | True when the engine paints this layer: weight above `ACTIVE_WEIGHT`, a size and some brightness. |
+| `Sky.Direction direction(Sky.Direction anchor)` | Anchor direction moved by this state's azimuth and elevation offsets. |
+| `float radius()` | Angular radius, degrees (`size / 2`). |
+| `float darkening()` | World darkening this layer asks for, 0..1, before accessibility: `darken × weight`, and for an `Type.ECLIPSE` also times the fourth power of the covered fraction of the sun (`Sky.eclipseCoverage`), so the world only goes dark close to totality. |
+| `double rotationAt(double realAge)` | Rotation in degrees after `realAge` ticks of spin, wrapped to [0, 360). |
+| `Sky.Type type()` | What the layer paints. |
+| `float weight()` | Layer weight, 0..1. |
+| `float azimuth()` | Degrees added to the anchor azimuth. |
+| `float elevation()` | Degrees added to the anchor elevation. |
+| `float size()` | Angular diameter, degrees. |
+| `float rotation()` | Roll, degrees (spin not included). |
+| `float spin()` | Spin, degrees per tick. |
+| `float tilt()` | Inclination, degrees. |
+| `float intensity()` | Brightness multiplier. |
+| `float progress()` | Per-type progress, 0..1. |
+| `float lens()` | Lens strength, 0..1. |
+| `float darken()` | World darkening, 0..1 (before `darkening()`). |
+| `int primary()` | Primary color, ARGB (alpha ignored). |
+| `int secondary()` | Secondary color, ARGB (alpha ignored). |
+
+## Sky.Type
+
+`dev.calamidade_awakening.api.v1.Sky.Type` · enum
+
+What the layer paints.
+
+| Membro | Descrição |
+|---|---|
+| `BLACK_HOLE` | Black disk (the shadow), a thin photon ring and a tilted accretion disk with its bent far side, plus a gravitational lens that bends the sky and the terrain around it. |
+| `PORTAL` | Energy ring that opens and reveals another sky inside: nebula, dense stars and a spinning spiral galaxy. |
+| `ECLIPSE` | Disk that covers a sun (the vanilla one with `Builder.onSun()`, which is hidden and redrawn) with a corona and streamers at totality, or a reddened moon with `Builder.onMoon()`. |
+| `RIFT` | Jagged crack across the sky with an inner glow and a darker void, small branches and flicker. |
+| `CELESTIAL_BODY` | Lit sphere: a giant moon or planet with phases, a lit limb and, with a non-zero tilt, a ring system. |
+| `AURORA` | Waving curtains of light along the horizon. |
 
 ## TerrainEdit
 

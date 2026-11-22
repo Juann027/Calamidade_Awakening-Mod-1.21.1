@@ -39,8 +39,11 @@ public enum QualityProfile {
     /** The applied caps of this profile with the given (already clamped) values. */
     public FrameLimits limits(Caps caps) {
         return new FrameLimits(tier, name(), caps.effects(), caps.passes(), caps.heroPasses(), caps.heroes(),
-            caps.beams(), caps.lights(), vertices(), false);
+            caps.beams(), caps.lights(), vertices(), false, skyLayers());
     }
+
+    /** Sky layers painted per frame (0.12.0): 2, 4, 6 and 8 for LOW, BALANCED, HIGH and ULTRA. */
+    public int skyLayers() { return this == ULTRA ? SkyMath.MAX_LAYERS : SkyMath.layers(tier); }
 
     /** The applied caps with the defaults. */
     public FrameLimits limits() { return limits(defaults); }

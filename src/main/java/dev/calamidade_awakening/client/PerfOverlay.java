@@ -88,6 +88,11 @@ public final class PerfOverlay {
     /** Lights drawn and the pool that paid for the lights pass (0.9.0). */
     static void lights(int drawn, dev.calamidade_awakening.api.EnginePasses.Pool pool) { lights = drawn; lightPool = pool; }
 
+    /** Sky layers painted, active layers that competed and whether the sky pass was queued (0.12.0); outside the budget. */
+    static void sky(int painted, int active, boolean pass) { skyLayers = painted; skyActive = active; skyPass = pass; }
+    private static int skyLayers, lastSkyLayers, skyActive, lastSkyActive;
+    private static boolean skyPass, lastSkyPass;
+
     /** Hot zones and stand-ins drawn and the pool that paid for the terrain pass (0.11.0). */
     static void terrain(int zones, int standIns, dev.calamidade_awakening.api.EnginePasses.Pool pool) {
         terrainZones = zones; terrainStandIns = standIns; terrainPool = pool;
@@ -111,6 +116,9 @@ public final class PerfOverlay {
         lastBeams = beams; lastBeamPool = beamPool; lastLights = lights; lastLightPool = lightPool;
         lastTerrainZones = terrainZones; lastTerrainStandIns = terrainStandIns; lastTerrainPool = terrainPool;
         lastMeshes = meshes; lastMeshVertices = meshVertices;
+        lastSkyLayers = skyLayers; lastSkyActive = skyActive; lastSkyPass = skyPass;
+        skyLayers = skyActive = 0;
+        skyPass = false;
         terrainZones = terrainStandIns = meshes = meshVertices = 0;
         terrainPool = dev.calamidade_awakening.api.EnginePasses.Pool.NONE;
         effects = volumes = vertices = passes = atmospheres = heroes = heroPasses = beams = lights = 0;
@@ -122,11 +130,12 @@ public final class PerfOverlay {
         frameCount = Math.min(frameCount + 1, WINDOW);
         CostProbe.frame(delta, lastResident, lastEffects, lastPasses, lastBeams);
         if (recording != null) {
-            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s,%d,%d,%d,%d,%d,%s,%d,%s,%d,%d,%d,%d,%d,%d,%s,%d,%d",
+            recording.add(String.format(java.util.Locale.ROOT, "%d,%.3f,%d,%d,%d,%d,%d,%s,%d,%d,%d,%d,%d,%s,%d,%s,%d,%d,%d,%d,%d,%d,%s,%d,%d,%d,%d",
                 recording.size(), delta / 1e6, lastResident, lastEffects, lastVolumes, lastVertices, lastPasses, limits.label(),
                 lastAtmospheres, lastAtmospherePass ? 1 : 0, lastHeroes, lastHeroPasses, lastBeams, lastBeamPool.name(),
                 lastLights, lastLightPool.name(), lastSources[0], lastSources[1], lastSources[2], lastSources[3],
-                lastTerrainZones, lastTerrainStandIns, lastTerrainPool.name(), lastMeshes, lastMeshVertices));
+                lastTerrainZones, lastTerrainStandIns, lastTerrainPool.name(), lastMeshes, lastMeshVertices,
+                lastSkyLayers, lastSkyPass ? 1 : 0));
             if (System.currentTimeMillis() >= recordingEnds) finishRecording();
         }
     }
@@ -179,7 +188,7 @@ public final class PerfOverlay {
         lines.add("# renderer=" + renderer() + "; window=" + mc.getWindow().getWidth() + "x" + mc.getWindow().getHeight()
             + "; seconds=" + recordingSeconds + "; frameLimit=" + mc.options.framerateLimit().get()
             + "; renderDistance=" + mc.options.renderDistance().get() + "; graphics=" + mc.options.graphicsMode().get().name());
-        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality,atmospheres,atmospherePass,heroes,heroPasses,beams,beamPass,lights,lightPass,players,entities,blocks,scripts,terrainZones,standIns,terrainPass,meshes,meshVertices");
+        lines.add("frame,ms,resident,drawn,volumes,vertices,passes,quality,atmospheres,atmospherePass,heroes,heroPasses,beams,beamPass,lights,lightPass,players,entities,blocks,scripts,terrainZones,standIns,terrainPass,meshes,meshVertices,skyLayers,skyPass");
         lines.addAll(rows);
         Component message;
         try {
@@ -225,6 +234,10 @@ public final class PerfOverlay {
             lastMeshes, lastMeshVertices, format(meshBuildMs)));
         lines.add(Component.translatableWithFallback(PREFIX + "atmosphere", "Atmosphere: %s active · pass %s",
             lastAtmospheres, lastAtmospherePass
+                ? Component.translatableWithFallback(PREFIX + "yes", "yes")
+                : Component.translatableWithFallback(PREFIX + "no", "no")));
+        lines.add(Component.translatableWithFallback(PREFIX + "sky", "Sky: %s layers (%s active, max %s) · pass %s",
+            lastSkyLayers, lastSkyActive, lastLimits.skyLayers(), lastSkyPass
                 ? Component.translatableWithFallback(PREFIX + "yes", "yes")
                 : Component.translatableWithFallback(PREFIX + "no", "no")));
         if (CostProbe.running()) lines.add(Component.literal(CostProbe.status()));

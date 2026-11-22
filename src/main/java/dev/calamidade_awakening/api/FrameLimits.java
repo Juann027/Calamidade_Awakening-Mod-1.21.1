@@ -16,9 +16,10 @@ package dev.calamidade_awakening.api;
  * @param lights     most lights in the engine lights pass (at most {@link #MAX_LIGHTS})
  * @param vertices   world mesh vertices per frame, shared among the drawn effects
  * @param test       true for the internal test profile (shown in F7 and in recordings)
+ * @param skyLayers  most sky layers painted per frame by the engine's sky pass (0.12.0, at most {@link SkyMath#MAX_LAYERS})
  */
 public record FrameLimits(Quality tier, String name, int effects, int marks, int heroPasses, int heroes, int beams,
-                          int lights, int vertices, boolean test) {
+                          int lights, int vertices, boolean test, int skyLayers) {
     /** Resident instances per client: no profile can draw more. */
     public static final int MAX_EFFECTS = 96;
     /** Rows of the beams data texture. */
@@ -36,6 +37,13 @@ public record FrameLimits(Quality tier, String name, int effects, int marks, int
         beams = Math.clamp(beams, 0, MAX_BEAMS);
         lights = Math.clamp(lights, 0, MAX_LIGHTS);
         vertices = Math.max(0, vertices);
+        skyLayers = Math.clamp(skyLayers, 0, SkyMath.MAX_LAYERS);
+    }
+
+    /** 0.11.2 form: the sky layers of the tier ({@link SkyMath#layers}). */
+    public FrameLimits(Quality tier, String name, int effects, int marks, int heroPasses, int heroes, int beams,
+                       int lights, int vertices, boolean test) {
+        this(tier, name, effects, marks, heroPasses, heroes, beams, lights, vertices, test, SkyMath.layers(tier));
     }
 
     /** The caps of a quality tier exactly as before 0.11.2 (LOW, BALANCED, HIGH with 2 HERO). */
@@ -52,7 +60,7 @@ public record FrameLimits(Quality tier, String name, int effects, int marks, int
     public static FrameLimits unlimited(int effects, int passes) {
         int e = Math.clamp(effects, 0, MAX_EFFECTS), p = Math.clamp(passes, 0, MAX_PASSES);
         return new FrameLimits(Quality.HIGH, "UNLIMITED(" + e + "/" + p + ")", e, p, p, FrameBudget.MAX_HEROES,
-            MAX_BEAMS, MAX_LIGHTS, Quality.HIGH.vertices * 2, true);
+            MAX_BEAMS, MAX_LIGHTS, Quality.HIGH.vertices * 2, true, SkyMath.MAX_LAYERS);
     }
 
     /** {@link #unlimited(int, int)} with no cap on drawn instances nor on passes. */

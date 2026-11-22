@@ -152,6 +152,27 @@ public final class VisualKind {
         kind.lights = list;
     }
 
+    // 0.12.0: optional sky layers of an external effect, painted by the engine's sky pass. Empty means none.
+    private volatile java.util.List<dev.calamidade_awakening.api.v1.Sky> sky = java.util.List.of();
+
+    /** Registered sky layers, in registration order (empty when none). */
+    public java.util.List<dev.calamidade_awakening.api.v1.Sky> sky() { return sky; }
+
+    /** Binds 1..6 sky layers once; tracks and phases they read must exist in the timeline registered before them. */
+    public static synchronized void setSky(net.minecraft.resources.ResourceLocation id,
+            java.util.List<dev.calamidade_awakening.api.v1.Sky> value) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its sky layers: " + id);
+        if (!kind.sky.isEmpty()) throw new IllegalArgumentException("Duplicate sky layers: " + id);
+        var list = java.util.List.copyOf(value);
+        if (list.isEmpty() || list.size() > dev.calamidade_awakening.api.v1.Sky.MAX_PER_EFFECT)
+            throw new IllegalArgumentException("Expected 1.." + dev.calamidade_awakening.api.v1.Sky.MAX_PER_EFFECT
+                + " sky layers per effect: " + id);
+        for (var layer : list) layer.validate(kind.timeline);
+        kind.sky = list;
+    }
+
     // 0.11.0: optional terrain edits of an external effect (server commit, client heat and stand-in). Empty: none.
     private volatile java.util.List<dev.calamidade_awakening.api.v1.TerrainEdit> terrain = java.util.List.of();
 

@@ -61,6 +61,17 @@ final class AtmosphereFrame {
         return state;
     }
 
+    /** Game fog color recorded in this frame's ComputeFogColor (0.12.0: the sky pass estimates the vanilla sky). */
+    float[] fogColor() { return new float[] {fogR, fogG, fogB}; }
+
+    /** Opaque sky regions of this frame's sky layers (0.12.0), set by the sky pass before this one. */
+    void skyMasks(float[] masks, int count) {
+        skyMasks = masks;
+        skyMaskCount = count;
+    }
+    private float[] skyMasks = new float[32];
+    private int skyMaskCount;
+
     /** Active atmospheres in the last computed frame (F7). */
     int active() { return active; }
 
@@ -108,6 +119,8 @@ final class AtmosphereFrame {
         boolean screenFog = !ClientConfig.vanillaFog() && clearView(mc.gameRenderer.getMainCamera());
         float renderDistance = mc.gameRenderer.getRenderDistance();
         float fogR = this.fogR, fogG = this.fogG, fogB = this.fogB, exposure = this.exposure;
+        float[] masks = skyMasks.clone();
+        int maskCount = skyMaskCount;
         frame.pass(PROGRAM, u -> {
             u.f3("CaAtmoSkyTop", s.skyTop().r(), s.skyTop().g(), s.skyTop().b());
             u.f3("CaAtmoSkyHorizon", s.skyHorizon().r(), s.skyHorizon().g(), s.skyHorizon().b());
@@ -117,7 +130,8 @@ final class AtmosphereFrame {
             u.f3("CaAtmoVanillaFog", fogR, fogG, fogB);
             u.f4("CaAtmoA", s.skyBlend(), s.fogDensity(), s.fogStart(), s.fogEnd());
             u.f4("CaAtmoB", exposure, s.ambientStrength() * intensity, s.stars(), screenFog ? 1 : 0);
-            u.f4("CaAtmoC", renderDistance, 0, 0, 0);
+            u.f4("CaAtmoC", renderDistance, maskCount, 0, 0);
+            if (maskCount > 0) u.vec4s("CaAtmoMask", masks);
         });
         return true;
     }

@@ -18,7 +18,7 @@ import java.util.Optional;
  *
  * <p>Register during mod construction, on both sides (the common mod constructor), in this order:
  * {@link #register}, then optionally {@link #timeline}, {@link #atmosphere}, {@link #beams} and {@link #lights}
- * (0.9.0), {@link #terrain} (0.11.0) and the cues ({@link #cue}, {@link #onImpact}). Start, follow and stop instances on the server thread; since
+ * (0.9.0), {@link #terrain} (0.11.0), {@link #sky} (0.12.0) and the cues ({@link #cue}, {@link #onImpact}). Start, follow and stop instances on the server thread; since
  * 0.10.0 an instance can be turned by a yaw and a pitch or started from a {@link Placement}. Times are in game ticks (20 per
  * second), distances in blocks, colors in ARGB ints. Invalid input throws {@link IllegalArgumentException}.
  *
@@ -355,6 +355,23 @@ public final class Effects {
      */
     public static void terrain(ResourceLocation id, TerrainEdit... edits) {
         VisualKind.setTerrain(Objects.requireNonNull(id), List.of(Objects.requireNonNull(edits)));
+    }
+
+    /**
+     * Attaches 1..{@value Sky#MAX_PER_EFFECT} {@link Sky sky layers} to a registered external effect (0.12.0): black
+     * holes, portals, eclipses, rifts, giant moons and planets, auroras, placed by direction on the sky. Call once per
+     * effect during mod construction (common side, so a dedicated server validates it too), after {@link #register} and,
+     * when a layer reads tracks or a phase, after {@link #timeline}. Only effects of your namespace. Works on ordinary
+     * effects: every player within the effect's range sees the layers on their own sky, wherever they look. The client
+     * paints every active layer in one engine pass per frame ("sky"), outside the addon pass budget, at most 2/4/6/8 per
+     * frame (LOW/BALANCED/HIGH/ULTRA), HERO effects first.
+     *
+     * <pre>{@code
+     * Effects.sky(ID, Sky.portal().direction(0, 40).size(36).track(Sky.Param.PROGRESS, "abrir").build());
+     * }</pre>
+     */
+    public static void sky(ResourceLocation id, Sky... layers) {
+        VisualKind.setSky(Objects.requireNonNull(id), List.of(Objects.requireNonNull(layers)));
     }
 
     /**

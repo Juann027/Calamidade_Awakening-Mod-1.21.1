@@ -45,8 +45,10 @@ public final class ClientHooks {
     private static final TerrainClient TERRAIN = new TerrainClient();
     private static final TerrainFrame TERRAIN_FRAME = new TerrainFrame(SCENE, TERRAIN);
     private static final TerrainMeshes TERRAIN_MESHES = new TerrainMeshes(TERRAIN);
+    /** Sky layers of the frame (0.12.0). */
+    private static final SkyFrame SKY = new SkyFrame(SCENE);
     private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS,
-        TERRAIN_FRAME);
+        TERRAIN_FRAME, SKY);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
     static {
         CostProbe.install(COORDINATOR);

@@ -286,6 +286,58 @@ public final class StageScene {
         return states;
     }
 
+    /**
+     * Sky layers of every active instance that has them (0.12.0), resolved at the local age: candidates for the sky pass,
+     * not limited by the frustum or the effect budget. The instance weight is the opacity envelope times a fade over the
+     * last quarter of the effect's range, as for the atmosphere; {@code timeOfDay} places layers on the sun and moon.
+     */
+    List<dev.calamidade_awakening.api.SkyMath.Candidate<SkyFrame.Resolved>> skies(Vec3 camera, float partial, double timeOfDay) {
+        if (level == null || active.isEmpty()) return List.of();
+        List<dev.calamidade_awakening.api.SkyMath.Candidate<SkyFrame.Resolved>> out = new ArrayList<>(2);
+        double now = level.getGameTime() + partial;
+        for (StageEvent effect : active.values()) {
+            VisualKind kind = VisualKind.byId(effect.visual());
+            var layers = kind.sky();
+            if (layers.isEmpty()) continue;
+            double age = now - effect.tick();
+            Vec3 origin = age < 0 ? null : center(effect, partial);
+            if (origin == null) continue;
+            double local = localAge(effect, age);
+            float weight = (float) FrameBudget.envelope(local, kind.duration)
+                * dev.calamidade_awakening.api.AtmosphereMath.rangeFade(origin.distanceTo(camera), kind.range);
+            if (!(weight > 0)) continue;
+            var sampler = kind.clock().at(local);
+            Basis basis = basis(effect, partial);
+            float seed = (effect.seed() & 0xFFFFL) / 65535f;
+            for (var layer : layers) {
+                var state = layer.sample(sampler, weight);
+                if (!state.visible()) continue;
+                var anchor = anchorDirection(layer, camera, origin, basis, timeOfDay);
+                if (anchor == null) continue;
+                out.add(new dev.calamidade_awakening.api.SkyMath.Candidate<>(new SkyFrame.Resolved(layer, state,
+                    state.direction(anchor), seed, age, effect.order(), kind.hero()), kind.hero(), state.weight(), effect.order()));
+            }
+        }
+        return out;
+    }
+
+    /** Anchor direction of a sky layer from the camera, or null when its point coincides with the camera. */
+    static dev.calamidade_awakening.api.v1.Sky.Direction anchorDirection(dev.calamidade_awakening.api.v1.Sky layer,
+            Vec3 camera, Vec3 center, Basis basis, double timeOfDay) {
+        return switch (layer.anchor()) {
+            case DIRECTION -> dev.calamidade_awakening.api.v1.Sky.Direction.of(layer.anchorX(), layer.anchorY());
+            case SUN -> dev.calamidade_awakening.api.SkyMath.sunDirection(timeOfDay);
+            case MOON -> dev.calamidade_awakening.api.SkyMath.moonDirection(timeOfDay);
+            case WORLD -> toward(camera, new Vec3(layer.anchorX(), layer.anchorY(), layer.anchorZ()));
+            case CENTER -> toward(camera, center.add(turn(basis, layer.anchorX(), layer.anchorY(), layer.anchorZ())));
+        };
+    }
+
+    private static dev.calamidade_awakening.api.v1.Sky.Direction toward(Vec3 camera, Vec3 point) {
+        Vec3 d = point.subtract(camera);
+        return d.lengthSqr() < 1e-6 ? null : new dev.calamidade_awakening.api.v1.Sky.Direction(d.x, d.y, d.z);
+    }
+
     static boolean isVisible(Frustum frustum, Vec3 center, double radius) {
         if (frustum == null) return true;
         double extent = Math.max(2.5, radius * 2.5);

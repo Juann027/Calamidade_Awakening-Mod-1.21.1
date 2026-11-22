@@ -8,7 +8,8 @@ import net.minecraft.world.phys.Vec3;
 import java.util.List;
 
 /**
- * One shared RimuLib layer. Pass order in a frame: the lights pass (0.9.0, so effects and atmosphere stay on top),
+ * One shared RimuLib layer. Pass order in a frame: the sky pass (0.12.0: sky layers, vanilla sun and moon hidden, world
+ * darkening; outside the budget), the lights pass (0.9.0, so effects and atmosphere stay on top),
  * the terrain pass (0.11.0: heat over edited terrain and falling stand-ins), the engine field (one pass for all
  * selected marks), the addon passes (card shaders and post layers), the beams pass (0.9.0) and the atmosphere pass
  * (0.8.0). Addon passes and the beams, terrain and lights passes spend the per-frame budget: the HERO pool for HERO
@@ -22,13 +23,15 @@ public final class RimuStageBackend {
     private final BeamFrame beams;
     private final LightFrame lights;
     private final TerrainFrame terrain;
+    private final SkyFrame sky;
     private FxApi.Stage stage;
     private final FxApi.Layer layer = this::draw;
     private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
     private final java.util.Set<String> failedPosts = new java.util.HashSet<>();
 
     RimuStageBackend(FrameCoordinator coordinator, StageFilms films, AtmosphereFrame atmosphere, BeamFrame beams,
-                     LightFrame lights, TerrainFrame terrain) {
+                     LightFrame lights, TerrainFrame terrain, SkyFrame sky) {
+        this.sky = sky;
         this.coordinator = coordinator;
         this.films = films;
         this.atmosphere = atmosphere;
@@ -51,6 +54,12 @@ public final class RimuStageBackend {
         var look = view.getLookVector();
         StageScene.Plan plan = coordinator.plan(camera, new Vec3(look.x(), look.y(), look.z()), frame.partial());
         float orbit = films.orbitalMix(frame.partial());
+        // 0.12.0: the sky pass first, so lights, effects, beams and the atmosphere stay in front of the sky layers and
+        // the eclipse darkens the world under them. Outside the addon budget and independent of the frustum.
+        sky.collect(camera, frame.partial(), plan.limits());
+        boolean skyQueued = sky.draw(frame, camera, frame.partial(), plan.limits(), atmosphere);
+        atmosphere.skyMasks(sky.masks(), skyQueued ? sky.maskCount() : 0);
+        PerfOverlay.sky(skyQueued ? Math.min(sky.layers().size(), SkyFrame.ROWS) : 0, sky.candidates(), skyQueued);
         beams.collect(plan, camera, frame.partial());
         terrain.collect(plan, camera, frame.partial());
         lights.collect(plan, camera, frame.partial(), terrain);

@@ -51,6 +51,7 @@
   "perf.calamidade_awakening.pool.common": "common",
   "perf.calamidade_awakening.lights": "Lights: %s drawn (max %s) · pass %s",
   "perf.calamidade_awakening.atmosphere": "Atmosphere: %s active · pass %s",
+  "perf.calamidade_awakening.sky": "Sky: %s layers (%s active, max %s) · pass %s",
   "perf.calamidade_awakening.yes": "yes",
   "perf.calamidade_awakening.no": "no",
   "calamidade_awakening.configuration.vanillaFog": "Atmosphere fog through the game fog",
