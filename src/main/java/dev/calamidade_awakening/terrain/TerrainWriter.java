@@ -1,5 +1,7 @@
 package dev.calamidade_awakening.terrain;
 
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.shorts.ShortOpenHashSet;
 import it.unimi.dsi.fastutil.shorts.ShortSet;
 import net.minecraft.core.BlockPos;
@@ -26,9 +28,11 @@ import java.util.Map;
  * thread and keeps what {@code LevelChunk.setBlockState} keeps (conferred with {@code javap -c}): the four heightmaps,
  * the light engine (section status when a section stops or starts being empty; sky light sources and {@code checkBlock}
  * only when the light properties change, as vanilla), points of interest and the unsaved flag. It skips on
- * purpose {@code onRemove}/{@code onPlace}, drops, neighbour and shape updates and physics. {@link #flush()} ends a
- * batch: every changed section goes once to the players that track its chunk, as a section update packet; the client
- * relights locally, and players at the edge of their view distance get light through the game's own path.
+ * purpose {@code onRemove}/{@code onPlace}, drops, neighbour and shape updates and physics inside the volume (the
+ * outer shell gets them from {@link TerrainBorder} at the end). {@link #flush()} ends a batch: every changed section
+ * goes once to the players that track its chunk, as a section update packet, followed by the data packet of each new
+ * block entity; the client relights locally, and players at the edge of their view distance get light through the
+ * game's own path.
  */
 final class TerrainWriter {
     private static final Heightmap.Types[] HEIGHTMAPS = {Heightmap.Types.MOTION_BLOCKING,
@@ -38,6 +42,8 @@ final class TerrainWriter {
     private final ThreadedLevelLightEngine light;
     private final BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
     private final Map<Long, Touched> touched = new LinkedHashMap<>();
+    /** Every position written by this writer (0.11.1): the inside of the outer shell ({@link TerrainBorder}). */
+    private final LongOpenHashSet positions = new LongOpenHashSet();
     private Touched current;
     private int written, sectionsSent;
 
@@ -48,6 +54,8 @@ final class TerrainWriter {
         final SectionPos sectionPos;
         final Heightmap[] heightmaps = new Heightmap[HEIGHTMAPS.length];
         final ShortSet changed = new ShortOpenHashSet();
+        /** Positions whose new state has a block entity: their data packet follows the section packet (0.11.1). */
+        final LongArrayList entities = new LongArrayList();
         boolean empty;
 
         Touched(LevelChunk chunk, LevelChunkSection section, SectionPos sectionPos) {
@@ -148,6 +156,8 @@ final class TerrainWriter {
         // The packet uses Minecraft's packing (SectionPos.sectionRelativePos: x << 8 | z << 4 | y, conferred with
         // javap -c), not the plan's (y << 8 | z << 4 | x).
         t.changed.add((short) ((lx << 8) | (lz << 4) | ly));
+        if (target.hasBlockEntity()) t.entities.add(fixed.asLong());
+        positions.add(fixed.asLong());
         written++;
     }
 
@@ -171,12 +181,22 @@ final class TerrainWriter {
             if (!players.isEmpty()) {
                 var packet = new ClientboundSectionBlocksUpdatePacket(t.sectionPos, t.changed, t.section);
                 for (ServerPlayer player : players) player.connection.send(packet);
+                // As ChunkHolder.broadcastBlockEntityIfNeeded (javap -c): the section packet carries no block entity
+                // data, so signs, banners, skulls and modded blocks would show defaults on the client.
+                for (int i = 0; i < t.entities.size(); i++) {
+                    BlockEntity entity = level.getBlockEntity(BlockPos.of(t.entities.getLong(i)));
+                    var data = entity == null ? null : entity.getUpdatePacket();
+                    if (data != null) for (ServerPlayer player : players) player.connection.send(data);
+                }
             }
             sectionsSent++;
         }
         touched.clear();
         current = null;
     }
+
+    /** Positions written since this writer was made (packed {@link BlockPos#asLong}). */
+    LongOpenHashSet writtenPositions() { return positions; }
 
     /** Blocks written since this writer was made. */
     int written() { return written; }

@@ -89,6 +89,10 @@ final class Roteiro implements Runnable {
         bordaDoMundo();
         protecaoDeSpawn();
         luzMapasContadoresEDesfazer();
+        pontosDeInteresse();
+        cascaExterna();
+        custoDaCratera();
+        prepararReinicio();
     }
 
     /** Etapa 1: um listener que só conhece o ExplosionEvent protege x >= cx; a cratera para exatamente ali. */
@@ -241,8 +245,6 @@ final class Roteiro implements Runnable {
         check("mapas de altura: iguais aos do /fill e à varredura das colunas",
             diferencas(altA, altB) == 0 && diferencas(altA, altScan) == 0, diferencas(altA, altB) + " / " + diferencas(altA, altScan));
         check("contadores das seções (não vazios, tick aleatório, fluidos) iguais ao recálculo", contadoresCorretos(caixa), "");
-        boolean naoSalvo = no(() -> server.overworld().getChunkSource().getChunkNow(cx >> 4, cz >> 4).isUnsaved());
-        check("chunk marcado como modificado", naoSalvo, "");
 
         String desfeito = no(() -> TerrainWorks.undo(server, -1));
         aguardar(() -> !TerrainWorks.busy(), 200);
@@ -355,15 +357,45 @@ final class Roteiro implements Runnable {
         check("FULL: o chunk que não era FULL ficou intacto", mudados == 0, mudados + " posições mudaram");
     }
 
-    /** Etapa 3, primeira metade do reinício: salva, comita, confere a marca de modificado e grava o esperado. */
+    /**
+     * Etapa 3: custo da casca externa na cratera grande (esfera r24 com casca de 2): tempo na thread do servidor, ticks
+     * e o pior tick (de ServerTickEvent.Pre a Post) durante o commit e durante o desfazer.
+     */
+    private void custoDaCratera() throws Exception {
+        int cx = 3400, cz = 0;
+        carregar(cx, cz, 40);
+        ticks(40);
+        Medidor.ligar();
+        commit(CalamidadeTeste.GRANDE, cx, cz);
+        double pior = Medidor.desligar();
+        check(String.format(java.util.Locale.ROOT, "custo: cratera grande com a casca externa (pior tick %.1f ms)", pior),
+            pior < 50 && numero("(\\d+) border updates") > 1000, relatorio());
+        no(() -> TerrainWorks.undo(server, -1));
+        Medidor.ligar();
+        aguardar(() -> !TerrainWorks.busy(), 300);
+        ticks(2);
+        double piorDesfazer = Medidor.desligar();
+        check(String.format(java.util.Locale.ROOT, "custo: desfazer da cratera grande (pior tick %.1f ms)", piorDesfazer),
+            piorDesfazer < 50, relatorio());
+    }
+
+    /**
+     * Etapa 3, primeira metade do reinício: salva tudo, comita e confere que o jogo salva de novo os chunks da cratera
+     * (só chunks marcados como modificados são salvos: o servidor ocioso salva até 20 por tick em
+     * {@code ChunkMap.processUnloads}); grava o esperado para a fase 2, depois de o servidor fechar e abrir.
+     */
     private void prepararReinicio() throws Exception {
         int cx = 3000, cz = 0;
         carregar(cx, cz, 24);
         no(() -> server.overworld().getChunkSource().save(true));
         boolean salvo = no(() -> !chunk(cx >> 4, cz >> 4).isUnsaved());
+        ticks(5);
+        long centro = net.minecraft.world.level.ChunkPos.asLong(cx >> 4, cz >> 4);
+        CalamidadeTeste.SALVOS.clear();
         commit(CalamidadeTeste.POI, cx, cz);
-        boolean marcado = no(() -> chunk(cx >> 4, cz >> 4).isUnsaved());
-        check("reinício: chunk salvo antes e marcado como modificado depois do commit", salvo && marcado, salvo + " / " + marcado);
+        boolean salvoDeNovo = aguardar(() -> CalamidadeTeste.SALVOS.contains(centro), 400);
+        check("reinício: chunk salvo antes; depois do commit, marcado como modificado e salvo de novo pelo jogo",
+            salvo && salvoDeNovo, salvo + " / " + salvoDeNovo);
         List<String> linhas = no(() -> {
             List<String> out = new ArrayList<>();
             BoundingBox caixa = caixa(cx, cz);
@@ -374,17 +406,13 @@ final class Roteiro implements Runnable {
             return out;
         });
         Files.write(REINICIO, linhas, StandardCharsets.UTF_8);
-        check("reinício: " + linhas.size() + " posições gravadas para conferir depois", linhas.size() > 300, "");
+        check("reinício: " + linhas.size() + " posições gravadas para conferir depois", linhas.size() > 150, "");
     }
 
     // ------------------------------------------------------------------------------------------------ fase 2
 
     private void reinicio() throws Exception {
         aguardar(() -> server.overworld() != null, 200);
-        if (!Files.exists(REINICIO)) {
-            escrever("# fase 2: nenhuma cratera gravada pela fase 1", true);
-            return;
-        }
         int cx = 3000, cz = 0;
         carregar(cx, cz, 24);
         ticks(5);

@@ -117,9 +117,9 @@ início ──► regras + plano numa thread de trabalho ──► plano pronto:
 1. **Início da instância (servidor):** regras da config (ligado, dimensão, `mobGriefing` para fontes mob) e o plano numa thread de trabalho. O plano é **puro**: forma, origem, orientação, seed e estrutura viram uma lista ordenada de posições e ações, em lotes por seção de chunk (a seção da origem primeiro, depois pela distância). Nenhum acesso ao mundo fora da thread do servidor; não há cópia de seções porque o plano não precisa do mundo.
 2. **Plano pronto:** volume máximo (`terrainMaxVolume`) e **um** `TerrainEditEvent` com a área exata (`BoundingBox` de todas as posições) e o volume. Instâncias presas a uma entidade só sabem a origem no marcador: planejam e disparam o evento ali.
 3. **Marcador:** o commit começa no mesmo tick e escreve até `terrainBlocksPerTick` blocos por tick (padrão 16 384, **dividido** entre todas as edições em andamento; uma edição pode pedir menos com `blocksPerTick`). As decisões que dependem do mundo (sólido, fluido, protegido, block entity) acontecem aqui, na thread do servidor.
-4. **Escrita direta:** `LevelChunkSection.setBlockState(x, y, z, estado, false)`, mais o essencial do `LevelChunk.setBlockState` (heightmaps, fontes de luz do céu, estado da seção no motor de luz, `checkBlock` só quando a luz muda, pontos de interesse, chunk marcado para salvar). **Sem** drops, `onRemove`/`onPlace`, atualização de vizinhos e de forma, nem física. Uma edição de raio 12 (7 200 blocos) cabe num tick; a de raio 24 (73 000) em cinco.
-5. **Fim de cada lote:** cada seção alterada vai **uma vez** aos jogadores que veem o chunk (`ClientboundSectionBlocksUpdatePacket`, só as posições alteradas); o cliente recalcula a luz local e remonta só as seções tocadas.
-6. **Fim do commit:** blocos de gravidade escritos sobre o ar são assentados, o snapshot de desfazer fica guardado e `/calamidade terrain list` mostra o relatório (blocos, ticks, tempo na thread do servidor, pacotes).
+4. **Escrita direta:** `LevelChunkSection.setBlockState(x, y, z, estado, false)`, mais o essencial do `LevelChunk.setBlockState` (heightmaps, fontes de luz do céu, estado da seção no motor de luz, `checkBlock` só quando a luz muda, pontos de interesse, chunk marcado para salvar). Dentro da área escrita, **sem** drops, `onRemove`/`onPlace`, atualização de vizinhos e de forma, nem física (desde a 0.11.1, a casca externa recebe essas atualizações no fim; veja [Integridade do mundo](#integridade-do-mundo)). Uma edição de raio 12 (7 200 blocos) cabe num tick; a de raio 24 (73 000) em cinco.
+5. **Fim de cada lote:** cada seção alterada vai **uma vez** aos jogadores que veem o chunk (`ClientboundSectionBlocksUpdatePacket`, só as posições alteradas), seguida, desde a 0.11.1, dos dados de cada block entity nova; o cliente recalcula a luz local e remonta só as seções tocadas.
+6. **Fim do commit:** blocos de gravidade escritos sobre o ar são assentados; desde a 0.11.1, a casca externa recebe atualização de forma, de vizinho e ticks de fluido (em lotes, no mesmo orçamento); o snapshot de desfazer fica guardado e `/calamidade terrain list` mostra o relatório (blocos, ticks, tempo na thread do servidor, pacotes).
 
 **Para esconder a troca:** ponha o `Effects.Impact` da definição no tick do marcador, com 4 a 8 ticks (o pacote leva ~1 tick e o cliente remonta as seções nos quadros seguintes). Nos primeiros 1,5 s depois do commit, o passe `terrain` ainda pinta o fundo quente da cratera nos pixels em que o raio atravessa a forma cavada e só acha céu (as seções sendo remontadas), então nem sem clarão aparece um buraco para o céu. Com "ocultar clarões" ligado, o clarão do impacto some e a troca fica visível: acessibilidade vem antes do truque.
 
@@ -263,7 +263,7 @@ O commit é mais barato que o `/fill` porque escreve na seção sem trava, sem `
 ## Limites e cuidados
 
 - **Chunks não carregados são pulados:** o commit nunca carrega chunks. Se ninguém estiver perto quando o marcador chega, as seções daquele chunk ficam como estão (o relatório conta "sections unloaded"). Para edições longe de jogadores, mantenha os chunks carregados (`/forceload`).
-- **Sem física de propósito:** água fora da casca não escorre, areia não cai, redstone não atualiza. Blocos protegidos podem ficar flutuando.
+- **Sem física dentro da cratera, de propósito:** o volume escrito não recebe atualizações; só a casca externa (0.11.1), uma vez, sem cascata. Água vizinha da vedação recebe tick e fica parada atrás dela; a areia de fora cai só se o bloco embaixo dela virou ar. Blocos protegidos dentro da área podem ficar flutuando.
 - **Mobs:** a navegação recalcula quando trava; não é avisada bloco a bloco.
 - **Instâncias presas a entidades** planejam no marcador (na thread do servidor), não durante a cena.
 - **Mods de renderização:** com Sodium/Embeddium, as seções chegam pelo pacote do jogo e devem aparecer igual; shader packs (Iris/Oculus) podem não desenhar o passe `terrain` (como os outros passes de pós). Veja TESTE-REAL.md, parte 6.
@@ -318,6 +318,28 @@ O relatório de `/calamidade terrain list` conta as posições guardadas: `N gua
 - **ScalableLux** (NeoForge 1.21.1): testado aqui, compatível depois da correção.
 - **Moonrise** (port do sistema de chunks e do Starlight do Paper, 0.1.0-beta.15 para NeoForge 1.21.1): **não abre junto com a RimuLib 1.3.0.** O jogo para na carga com `InjectionError` no mixin `rimulib.mc1211.world.mixins.json:ServerLevelMixin` (`rimulib$discard` redireciona a mesma chamada que o `moonrise ... ServerLevelMixin.redirectClose`). É um conflito entre a RimuLib e o Moonrise, antes de o Calamidade rodar; não dá para corrigir deste lado. Avise o autor da RimuLib.
 - **Starlight** (só Fabric e Forge antigos) e outros: valem as mesmas premissas do ScalableLux (o mod precisa redirecionar `checkBlock` e `updateSectionStatus`, que o escritor chama como o vanilla). Teste com o roteiro do TESTE-REAL.md, caso 76.
+
+### Integridade do mundo
+
+| Sistema | Antes da 0.11.1 | Teste em jogo |
+|---|---|---|
+| **Mapas de altura** (`WORLD_SURFACE`, `OCEAN_FLOOR`, `MOTION_BLOCKING`, `MOTION_BLOCKING_NO_LEAVES`) | já certo: `Heightmap.update` em cada escrita, como `LevelChunk.setBlockState` | iguais aos da cópia por `setBlock` e a uma varredura das colunas, depois do commit e do desfazer |
+| **Pontos de interesse** (`PoiManager`) | já certo: `ServerLevel.onBlockStateChange` em cada escrita (tira o POI do estado antigo e põe o do novo, na fila de tarefas do servidor) | composteira, mesa de ferraria e magnetita somem com a cratera e voltam no desfazer; composteiras do preenchimento entram e saem; os POI sobrevivem ao reinício |
+| **Chunk modificado** | já certo: `setUnsaved(true)` no fim de cada lote | depois de salvar tudo, o jogo salva de novo o chunk da cratera (`ChunkDataEvent.Save`); a cratera (224 posições) e os POI estão lá depois de fechar e abrir o servidor dedicado |
+| **Contadores da seção** (não vazios, tick aleatório, fluidos) | já certo: `LevelChunkSection.setBlockState` atualiza os três a cada troca (conferido com `javap -c`) | iguais aos de `recalcBlockCounts()` em todas as seções da cratera, depois do commit e do desfazer |
+| **Casca externa** | **faltava**: os blocos logo fora da área escrita não recebiam atualização de forma nem de vizinho | corrigido (abaixo): a cerca da borda solta a conexão com a que sumiu, a água vizinha da vedação ganha tick de fluido e a de mais longe não, nenhuma água entra na cratera; no desfazer, as cercas reconectam |
+| **Dados de block entity no cliente** | **faltava**: o pacote de seção não leva dados de block entity; uma placa devolvida pelo desfazer (ou uma estrutura com placa, estandarte, cabeça) aparecia vazia no cliente | corrigido: no fim do lote, cada block entity nova manda o seu `getUpdatePacket()`, como `ChunkHolder.broadcastBlockEntityIfNeeded`; a placa devolvida mostra o texto no cliente |
+| **Desfazer** | mesmo escritor | mesmo tratamento: mapas de altura, POI, contadores, luz, casca externa e dados de block entity |
+
+**Casca externa.** Depois da última escrita de um commit (e do assentamento dos blocos de gravidade) ou de um desfazer, a edição percorre, em lotes dentro do mesmo orçamento de blocos por tick, as posições escritas e junta os vizinhos de fora (não escritos e em chunk FULL). Cada um recebe, uma vez:
+
+- `updateShape` na direção de cada vizinho escrito; se a forma muda, `Block.updateOrDestroy` com `UPDATE_CLIENTS | UPDATE_KNOWN_SHAPE | UPDATE_SUPPRESS_DROPS` (vai ao cliente, sem nova rodada de formas, sem drops);
+- um `neighborChanged` vindo de um vizinho escrito (redstone, trilhos, fluidos);
+- tick de fluido, se tiver fluido. As posições escritas da borda que têm fluido (a água que o desfazer devolve) também ganham o tick.
+
+Dentro da área escrita nada é atualizado: tudo ali foi escrito pela edição, e a casca já veda os fluidos e queima o que não é sólido. Por isso não há cascata. O que um bloco de fora faz com a atualização é o comportamento normal dele: um observador virado para a cratera pulsa, a areia sobre um bloco que virou ar cai, o portal do Nether cuja moldura foi cavada se desfaz (o bloco de portal é protegido pela tag, mas a moldura não). O relatório mostra `N border updates (S shapes, F fluid ticks)`.
+
+**Custo** (servidor dedicado, mesma esfera de raio 24 com casca de 2 da medição da 0.11.0, 36 754 blocos escritos no mundo plano): commit e casca em 9 ticks, 90,6 ms na thread do servidor ao todo, com 3 621 blocos na casca externa; pior tick 25,5 ms. Desfazer em 7 ticks, 52 ms, pior tick 18,3 ms. As verificações de proteção rodam uma vez, quando o plano fica pronto (antes do marcador): 21,9 ms para 73 508 posições planejadas, num só tick (mais o custo dos listeners de explosão instalados).
 
 ## Receitas
 

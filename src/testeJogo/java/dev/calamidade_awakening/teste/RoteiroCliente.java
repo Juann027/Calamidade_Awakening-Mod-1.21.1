@@ -1,6 +1,7 @@
 package dev.calamidade_awakening.teste;
 
 import dev.calamidade_awakening.api.v1.Effects;
+import dev.calamidade_awakening.config.ServerConfig;
 import dev.calamidade_awakening.terrain.TerrainWorks;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
@@ -13,6 +14,9 @@ import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.SignBlockEntity;
+import net.minecraft.world.level.block.entity.SignText;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -21,6 +25,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -89,6 +94,53 @@ final class RoteiroCliente implements Runnable {
         noCliente(() -> { mc.options.hideGui = true; mc.options.pauseOnLostFocus = false; return null; });
         luzNoCliente();
         modoAventura();
+        dadosDeBlockEntity();
+    }
+
+    /**
+     * Etapa 3: o texto de uma placa trocada pela edição volta no desfazer, e o cliente o vê (o pacote de seção não
+     * leva dados de block entity; o caminho do jogo manda {@code getUpdatePacket()} de cada block entity mudada).
+     */
+    private void dadosDeBlockEntity() throws Exception {
+        int cx = 5400, cz = 0;
+        forcar(cx, cz, 24);
+        olhar(cx, cz);
+        renderizado();
+        BlockPos placa = new BlockPos(cx + 1, 1, cz);
+        noServidor(() -> {
+            level().setBlock(placa, Blocks.OAK_SIGN.defaultBlockState(), Block.UPDATE_ALL);
+            if (level().getBlockEntity(placa) instanceof SignBlockEntity sign)
+                sign.setText(new SignText().setMessage(0, Component.literal("Calamidade")), true);
+        });
+        ticks(20);
+        check("block entity: o cliente vê o texto da placa antes", "Calamidade".equals(textoNoCliente(placa)), textoNoCliente(placa));
+        Field campo = ServerConfig.class.getDeclaredField("TERRAIN_BLOCK_ENTITIES");
+        campo.setAccessible(true);
+        var opcao = (net.neoforged.neoforge.common.ModConfigSpec.BooleanValue) campo.get(null);
+        noServidor(() -> opcao.set(true));
+        try {
+            int c0 = TerrainWorks.counters()[2];
+            noServidor(() -> Effects.start(CalamidadeTeste.ENTIDADES, level(), new Vec3(cx + .5, 1, cz + .5)).isPresent());
+            aguardar(() -> TerrainWorks.counters()[2] > c0 && !TerrainWorks.busy(), 200);
+        } finally {
+            noServidor(() -> opcao.set(false));
+        }
+        ticks(20);
+        boolean sumiu = noCliente(() -> mc.level.getBlockState(placa).isAir());
+        check("block entity: a placa saiu com a cratera (no cliente)", sumiu, TerrainWorks.lastReport());
+        noServidor(() -> TerrainWorks.undo(server(), -1));
+        aguardar(() -> !TerrainWorks.busy(), 200);
+        ticks(20);
+        String servidor = noServidor(() -> level().getBlockEntity(placa) instanceof SignBlockEntity sign
+            ? sign.getFrontText().getMessage(0, false).getString() : "(sem placa)");
+        check("block entity: desfazer devolve a placa com o texto (servidor)", "Calamidade".equals(servidor), servidor);
+        check("block entity: o cliente recebe o texto da placa devolvida", "Calamidade".equals(textoNoCliente(placa)),
+            "cliente vê '" + textoNoCliente(placa) + "'");
+    }
+
+    private String textoNoCliente(BlockPos pos) throws Exception {
+        return noCliente(() -> mc.level.getBlockEntity(pos) instanceof SignBlockEntity sign
+            ? sign.getFrontText().getMessage(0, false).getString() : "(sem placa)");
     }
 
     /** Etapa 2: luz recalculada pelo cliente e imagem de dia e de noite, Terrain API x setBlock. */

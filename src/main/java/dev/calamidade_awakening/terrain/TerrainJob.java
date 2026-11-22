@@ -42,22 +42,48 @@ abstract class TerrainJob {
         this.startedTick = level.getServer().getTickCount();
     }
 
-    /** Writes up to {@code budget} entries; true when the job is finished (its last batch already flushed). */
+    /** Outer shell, once every write is done (0.11.1). */
+    TerrainBorder border;
+    int borderUpdates, borderShapes, borderFluidTicks;
+
+    /**
+     * Writes up to {@code budget} entries, or, once the writes are done, updates up to {@code budget} units of the
+     * outer shell (starting in the next tick); true when the job is finished (its last batch already flushed).
+     */
     final boolean step(int budget) {
         long t0 = System.nanoTime();
-        boolean done;
+        boolean done = false;
         try {
-            done = work(budget);
+            if (border == null) {
+                boolean written;
+                try {
+                    written = work(budget);
+                } finally {
+                    writer.flush();
+                }
+                if (written) {
+                    afterWrites();
+                    writer.flush();
+                    border = new TerrainBorder(level, writer.writtenPositions());
+                }
+            } else {
+                done = border.step(budget);
+                borderUpdates = border.updated;
+                borderShapes = border.shapes;
+                borderFluidTicks = border.fluidTicks;
+            }
         } finally {
-            writer.flush();
+            ticks++;
+            nanos += System.nanoTime() - t0;
         }
-        ticks++;
-        nanos += System.nanoTime() - t0;
         if (done) finish();
         return done;
     }
 
     abstract boolean work(int budget);
+
+    /** Last writes before the outer shell (a commit settles gravity blocks here). */
+    void afterWrites() {}
 
     void finish() {}
 
@@ -179,7 +205,7 @@ abstract class TerrainJob {
         }
 
         /** Settles gravity blocks the edit itself wrote over air (a palette, fill or structure with sand or gravel). */
-        @Override void finish() {
+        @Override void afterWrites() {
             for (BlockPos pos : falling) {
                 BlockState state = level.getBlockState(pos);
                 if (!(state.getBlock() instanceof FallingBlock) || !FallingBlock.isFree(level.getBlockState(pos.below()))) continue;
@@ -190,9 +216,9 @@ abstract class TerrainJob {
                 snapshot.add(sx, sy, sz, index, Block.getId(state), Block.getId(settled));
                 writer.put(index, state, settled, null);
             }
-            writer.flush();
-            TerrainWorks.committed(this);
         }
+
+        @Override void finish() { TerrainWorks.committed(this); }
 
         @Override void abort() {
             writer.flush();
@@ -200,6 +226,7 @@ abstract class TerrainJob {
         }
 
         @Override int remaining() {
+            if (border != null) return border.remaining();
             int left = 0;
             for (int i = section; i < plan.sections().size(); i++) left += plan.sections().get(i).size();
             return left - entry;
@@ -245,7 +272,13 @@ abstract class TerrainJob {
 
         @Override void finish() { TerrainWorks.undone(this); }
 
+        @Override void abort() {
+            writer.flush();
+            TerrainWorks.undone(this);
+        }
+
         @Override int remaining() {
+            if (border != null) return border.remaining();
             int left = 0;
             for (int i = section; i < snapshot.sections.size(); i++) left += snapshot.sections.get(i).index().length;
             return left - entry;

@@ -13,6 +13,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.level.ChunkDataEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 
@@ -24,6 +25,8 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent;
 @Mod(CalamidadeTeste.ID)
 public final class CalamidadeTeste {
     public static final String ID = "calamidade_teste";
+    /** Chunks serializados pelo jogo (ChunkDataEvent.Save), para conferir que a cratera foi salva. */
+    static final java.util.Set<Long> SALVOS = java.util.concurrent.ConcurrentHashMap.newKeySet();
     static final Timeline TIMELINE = Timeline.builder(60).marker("impacto", 5).build();
 
     /** Cratera com casca queimada de 1. */
@@ -34,6 +37,10 @@ public final class CalamidadeTeste {
     static final ResourceLocation LUZ = id("luz");
     /** Cratera com composteiras no fundo: pontos de interesse adicionados. */
     static final ResourceLocation POI = id("poi");
+    /** Cratera que troca blocos com block entity (com terrainBlockEntities ligado): dados de volta no desfazer. */
+    static final ResourceLocation ENTIDADES = id("entidades");
+    /** Esfera de raio 24 com casca de 2 (~73 000 blocos), a cratera grande da medição da 0.11.0: custo da casca externa. */
+    static final ResourceLocation GRANDE = id("grande");
 
     public CalamidadeTeste() {
         registrar(CRATERA, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto").burn(TerrainPalette.burnt(), 1).build());
@@ -43,7 +50,10 @@ public final class CalamidadeTeste {
             .fill(TerrainEdit.Fill.solid("minecraft:glowstone", 1.5f).at(0, -3, 0)).noHeat().build());
         registrar(POI, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto")
             .fill(TerrainEdit.Fill.solid("minecraft:composter", 1f).at(0, -3, 0)).build());
+        registrar(GRANDE, TerrainEdit.carve(TerrainShape.sphere(24)).commitAt("impacto").burn(TerrainPalette.burnt(), 2).noHeat().build());
+        registrar(ENTIDADES, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto").replacingBlockEntities().noHeat().build());
         NeoForge.EVENT_BUS.register(Protecao.class);
+        NeoForge.EVENT_BUS.addListener((ChunkDataEvent.Save event) -> SALVOS.add(event.getChunk().getPos().toLong()));
         NeoForge.EVENT_BUS.addListener(CalamidadeTeste::started);
         if (FMLEnvironment.dist == Dist.CLIENT && "cliente".equals(System.getProperty("calamidade.teste"))) RoteiroCliente.registrar();
     }

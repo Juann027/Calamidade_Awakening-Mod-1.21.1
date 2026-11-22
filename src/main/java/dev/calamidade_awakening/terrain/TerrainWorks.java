@@ -139,6 +139,8 @@ public final class TerrainWorks {
         /** Plan entries the protection checks allow (null = all), and how many each layer left out (0.11.1). */
         java.util.BitSet allowed;
         int guardedRules, guardedListeners;
+        /** Server-thread time of the protection checks (when the plan was ready), for the report. */
+        long guardNanos;
 
         Run(Instance instance, int index, TerrainEdit edit) { this.instance = instance; this.index = index; this.edit = edit; }
 
@@ -266,8 +268,10 @@ public final class TerrainWorks {
             return;
         }
         // 0.11.1: world border, spawn protection, build permission and NeoForge's explosion events (protection mods).
+        long guardStart = System.nanoTime();
         TerrainGuard.Result guard = TerrainGuard.check(instance.level, plan, run.origin, instance.source, entityOf(instance),
             ServerConfig.terrain());
+        run.guardNanos = System.nanoTime() - guardStart;
         if (guard.refusal() != null) {
             refuse(run, guard.refusal(), broadcast);
             return;
@@ -367,9 +371,10 @@ public final class TerrainWorks {
             while (HISTORY.size() > rules.undoEdits()) HISTORY.removeFirst();
         }
         lastReport = String.format(java.util.Locale.ROOT,
-            "%s: %d planned, %d written, %d protected kept, %d guarded (%d border/spawn, %d explosion listeners), %d sections unloaded, %d ticks, %.2f ms on the server thread, %d section packets",
+            "%s: %d planned, %d written, %d protected kept, %d guarded (%d border/spawn, %d explosion listeners), %d sections unloaded, %d border updates (%d shapes, %d fluid ticks), %d ticks, %.2f ms on the server thread (+ %.2f ms of protection checks before the marker), %d section packets",
             job.label, job.plan.total(), job.writer.written(), job.protectedSkipped, job.guardedSkipped, job.run.guardedRules,
-            job.run.guardedListeners, job.unloadedSkipped, job.ticks, job.nanos / 1e6, job.writer.sectionsSent());
+            job.run.guardedListeners, job.unloadedSkipped, job.borderUpdates, job.borderShapes, job.borderFluidTicks, job.ticks,
+            job.nanos / 1e6, job.run.guardNanos / 1e6, job.writer.sectionsSent());
         LOGGER.debug("Terrain commit {}", lastReport);
     }
 
@@ -377,8 +382,8 @@ public final class TerrainWorks {
     static void undone(TerrainJob.Undo job) {
         undos++;
         blocksWritten += job.writer.written();
-        lastReport = String.format(java.util.Locale.ROOT, "undo #%d: %d restored, %d kept (changed since), %d ticks, %.2f ms",
-            job.snapshot.id, job.restored, job.kept, job.ticks, job.nanos / 1e6);
+        lastReport = String.format(java.util.Locale.ROOT, "undo #%d: %d restored, %d kept (changed since), %d border updates (%d shapes, %d fluid ticks), %d ticks, %.2f ms",
+            job.snapshot.id, job.restored, job.kept, job.borderUpdates, job.borderShapes, job.borderFluidTicks, job.ticks, job.nanos / 1e6);
     }
 
     /** Every server tick, after the cues (so a commit writes its first batch in the marker's tick). */
