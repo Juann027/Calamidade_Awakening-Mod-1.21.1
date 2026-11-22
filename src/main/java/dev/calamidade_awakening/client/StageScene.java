@@ -88,6 +88,12 @@ public final class StageScene {
     /** True while the instance with this order is resident (0.11.0, terrain state pruning). */
     public boolean has(long order) { return active.containsKey(order); }
 
+    /** True while a HERO effect is resident on this client (0.11.2: AUTO quality never changes during one). */
+    public boolean heroActive() {
+        for (StageEvent effect : active.values()) if (VisualKind.byId(effect.visual()).hero()) return true;
+        return false;
+    }
+
     /** Resident sequences on this client, for diagnostics. */
     public int size() { return active.size(); }
 

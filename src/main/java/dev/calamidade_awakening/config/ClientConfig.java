@@ -12,8 +12,10 @@ public final class ClientConfig {
     private static final ModConfigSpec.BooleanValue CAMERA_SHAKE;
     private static final ModConfigSpec.BooleanValue MOTION_EFFECTS;
     private static final ModConfigSpec.BooleanValue VANILLA_FOG;
-    /** Quality profile chosen with F8 or in the Atlas (0.11.2). */
-    private static final ModConfigSpec.EnumValue<dev.calamidade_awakening.api.QualityProfile> QUALITY;
+    /** Quality mode chosen with F8 or in the Atlas (0.11.2): AUTO or a forced profile. */
+    private static final ModConfigSpec.EnumValue<dev.calamidade_awakening.api.QualityMode> QUALITY;
+    /** Frame rate AUTO aims at (0.11.2). */
+    private static final ModConfigSpec.IntValue AUTO_TARGET_FPS;
     /** Caps of each profile (0.11.2): drawn, passes, heroPasses, heroes, beams, lights, in the order of the enum. */
     private static final java.util.Map<dev.calamidade_awakening.api.QualityProfile, ModConfigSpec.IntValue[]> CAPS =
         new java.util.EnumMap<>(dev.calamidade_awakening.api.QualityProfile.class);
@@ -42,9 +44,13 @@ public final class ClientConfig {
         builder.comment("Quality profiles (0.11.2): the profile in use and the per-frame caps of each one.")
             .translation("calamidade_awakening.configuration.quality").push("quality");
         QUALITY = builder
-            .comment("Profile in use: LOW (integrated graphics), BALANCED, HIGH or ULTRA (strong machines). F8 cycles it.")
-            .translation("calamidade_awakening.configuration.profile")
-            .defineEnum("profile", dev.calamidade_awakening.api.QualityProfile.BALANCED);
+            .comment("AUTO (default: moves between the profiles by the p95 of the frame time, with hysteresis) or a forced profile: LOW (integrated graphics), BALANCED, HIGH or ULTRA (strong machines). F8 cycles it.")
+            .translation("calamidade_awakening.configuration.mode")
+            .defineEnum("mode", dev.calamidade_awakening.api.QualityMode.AUTO);
+        AUTO_TARGET_FPS = builder
+            .comment("Frame rate AUTO aims at: it goes down when the p95 frame time stays 20% above 1000/fps while effects are drawn, and up when it stays 30% below while the caps cut effects. With VSync or a frame cap at this rate, AUTO only goes down.")
+            .translation("calamidade_awakening.configuration.autoTargetFps")
+            .defineInRange("autoTargetFps", 60, 30, 240);
         for (var profile : dev.calamidade_awakening.api.QualityProfile.values()) {
             var d = profile.defaults;
             String key = profile.name().toLowerCase(java.util.Locale.ROOT);
@@ -76,19 +82,38 @@ public final class ClientConfig {
             .defineInRange(name, value, min, max);
     }
 
-    /** Profile in use (0.11.2); BALANCED until the config file is loaded. */
-    public static dev.calamidade_awakening.api.QualityProfile qualityProfile() {
+    /** Quality mode (0.11.2); AUTO until the config file is loaded. */
+    public static dev.calamidade_awakening.api.QualityMode qualityMode() {
         try {
             return QUALITY.get();
         } catch (IllegalStateException notLoaded) {
-            return dev.calamidade_awakening.api.QualityProfile.BALANCED;
+            return dev.calamidade_awakening.api.QualityMode.AUTO;
         }
     }
 
-    /** Stores the profile in use (F8, Atlas); ignored before the config file is loaded. */
-    public static void qualityProfile(dev.calamidade_awakening.api.QualityProfile profile) {
+    /** Frame rate AUTO aims at; 60 until the config file is loaded. */
+    public static int autoTargetFps() {
         try {
-            QUALITY.set(profile);
+            return AUTO_TARGET_FPS.get();
+        } catch (IllegalStateException notLoaded) {
+            return 60;
+        }
+    }
+
+    /** Changes the AUTO target frame rate and saves; ignored before loading. */
+    public static void autoTargetFps(int fps) {
+        try {
+            AUTO_TARGET_FPS.set(Math.clamp(fps, 30, 240));
+            AUTO_TARGET_FPS.save();
+        } catch (IllegalStateException notLoaded) {
+            // Nothing to store yet.
+        }
+    }
+
+    /** Stores the quality mode (F8, Atlas); ignored before the config file is loaded. */
+    public static void qualityMode(dev.calamidade_awakening.api.QualityMode mode) {
+        try {
+            QUALITY.set(mode);
             QUALITY.save();
         } catch (IllegalStateException notLoaded) {
             // Nothing to store yet.

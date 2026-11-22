@@ -56,6 +56,7 @@ final class RoteiroMedicao implements Runnable {
             escrever("# " + noCliente(() -> com.mojang.blaze3d.systems.RenderSystem.getBackendDescription() + " · "
                 + org.lwjgl.opengl.GL11.glGetString(org.lwjgl.opengl.GL11.GL_RENDERER)), true);
             medir();
+            autoQualidade();
             escrever("FIM medicao", true);
         } catch (Throwable failure) {
             check("medição sem exceção", false, failure.toString());
@@ -136,6 +137,93 @@ final class RoteiroMedicao implements Runnable {
         escrever(String.format(Locale.ROOT, "# inclinação passes: %+.3f ms de mediana e %+.3f ms de p95 por passe de addon",
             inclinacao(r, "passes", false, false), inclinacao(r, "passes", false, true)), true);
         check("capturas da carga de 60 efeitos e de 12 passes", viu60 && viu12, "");
+    }
+
+    /**
+     * Etapa 3: o modo AUTO desce sob carga (com o motivo no F7), não sobe nem desce sem efeitos na tela e não troca
+     * durante um efeito HERO (a receita protagonista, 12 s). A subida depende de folga de quadro que o llvmpipe não tem:
+     * coberta pelo AutoQualityCheck e pelo TESTE-REAL.
+     */
+    private void autoQualidade() throws Exception {
+        var coord = dev.calamidade_awakening.client.ClientHooks.coordinator();
+        var reserva = (ModConfigSpec.IntValue) campoReserva().get(null);
+        int antes = noServidor(reserva::get);
+        noServidor(() -> reserva.set(0));
+        try {
+            noCliente(() -> {
+                coord.select(dev.calamidade_awakening.api.QualityMode.HIGH);
+                coord.select(dev.calamidade_awakening.api.QualityMode.AUTO);
+                mc.getConnection().sendCommand("calamidade bench 24 mix");
+                return null;
+            });
+            long t0 = System.currentTimeMillis();
+            boolean desceu = aguardarMs(() -> noClienteSemErro(() -> coord.profile() != dev.calamidade_awakening.api.QualityProfile.HIGH), 60_000);
+            var r = noCliente(() -> coord.auto().reason());
+            check(String.format(Locale.ROOT, "AUTO: desce de HIGH sob carga (%s em %.0f s, p95 %.1f ms > %.1f ms)", r.to(),
+                (System.currentTimeMillis() - t0) / 1000.0, r.p95(), r.thresholdMs()),
+                desceu && r.change() == dev.calamidade_awakening.api.AutoQuality.Change.DOWN && r.from() == dev.calamidade_awakening.api.QualityProfile.HIGH
+                    && r.p95() > r.thresholdMs(), "");
+            // F7 com a linha do AUTO, para a documentação.
+            noCliente(() -> { mc.options.hideGui = false; return null; });
+            noCliente(() -> { dev.calamidade_awakening.client.PerfOverlay.show(); return null; });
+            Thread.sleep(1500);
+            captura("auto-f7");
+            String linha = noCliente(() -> dev.calamidade_awakening.client.ClientHooks.qualityLine().getString());
+            check("AUTO: F7 mostra o perfil e o motivo da troca", linha.contains("AUTO") && linha.contains(r.to().name())
+                && linha.contains("p95"), linha);
+            noCliente(() -> { mc.options.hideGui = true; return null; });
+            aguardarMs(() -> noClienteSemErro(() -> coord.profile() == dev.calamidade_awakening.api.QualityProfile.LOW), 60_000);
+            noCliente(() -> { mc.getConnection().sendCommand("calamidade bench stop"); return null; });
+            Thread.sleep(3000);
+            var parado = noCliente(coord::profile);
+            Thread.sleep(20_000);
+            check("AUTO: sem efeitos na tela, o perfil fica (" + parado + ")", noCliente(coord::profile) == parado, "");
+            // HERO: carga pesada com a protagonista; nenhuma troca enquanto ela existe.
+            noCliente(() -> {
+                coord.select(dev.calamidade_awakening.api.QualityMode.HIGH);
+                coord.select(dev.calamidade_awakening.api.QualityMode.AUTO);
+                mc.getConnection().sendCommand("calamidade bench 24 mix");
+                return null;
+            });
+            Thread.sleep(500);
+            noServidor(() -> dev.calamidade_awakening.api.v1.Effects.start(
+                net.minecraft.resources.ResourceLocation.parse("vfxsample:receita_protagonista"), level(),
+                jogador().position().add(0, 0, 20)).isPresent());
+            boolean trocou = false, viuHero = false;
+            long fim = System.currentTimeMillis() + 11_000;
+            while (System.currentTimeMillis() < fim) {
+                boolean hero = noCliente(() -> dev.calamidade_awakening.client.ClientHooks.heroActive());
+                viuHero |= hero;
+                if (hero && noCliente(coord::profile) != dev.calamidade_awakening.api.QualityProfile.HIGH) trocou = true;
+                Thread.sleep(250);
+            }
+            check("AUTO: não troca durante o efeito HERO (12 s de carga pesada)", viuHero && !trocou,
+                "viu HERO " + viuHero + ", trocou " + trocou);
+            boolean depois = aguardarMs(() -> noClienteSemErro(() -> coord.profile() != dev.calamidade_awakening.api.QualityProfile.HIGH), 40_000);
+            check("AUTO: depois do HERO, desce", depois, noCliente(() -> coord.auto().reason().toString()));
+        } finally {
+            noCliente(() -> {
+                mc.getConnection().sendCommand("calamidade bench stop");
+                coord.select(dev.calamidade_awakening.api.QualityMode.AUTO);
+                return null;
+            });
+            noServidor(() -> reserva.set(antes));
+        }
+    }
+
+    private static Field campoReserva() throws NoSuchFieldException {
+        Field campo = ServerConfig.class.getDeclaredField("PLAYER_RESERVE");
+        campo.setAccessible(true);
+        return campo;
+    }
+
+    private boolean aguardarMs(java.util.function.BooleanSupplier condicao, long ms) throws InterruptedException {
+        long fim = System.currentTimeMillis() + ms;
+        while (System.currentTimeMillis() < fim) {
+            if (condicao.getAsBoolean()) return true;
+            Thread.sleep(200);
+        }
+        return false;
     }
 
     /** Mínimos quadrados de mediana (ou p95) contra desenhados (ou passes) dos passos de um grupo, base incluída. */

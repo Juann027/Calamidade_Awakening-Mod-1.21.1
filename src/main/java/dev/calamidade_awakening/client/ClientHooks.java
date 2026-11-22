@@ -48,7 +48,10 @@ public final class ClientHooks {
     private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS,
         TERRAIN_FRAME);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
-    static { CostProbe.install(COORDINATOR); }
+    static {
+        CostProbe.install(COORDINATOR);
+        PerfOverlay.qualityLine = ClientHooks::qualityLine;
+    }
     private static final Map<VisualKind, KeyMapping> DEMOS = new LinkedHashMap<>();
     private static final KeyMapping QUALITY = new KeyMapping("key.calamidade_awakening.quality",
         GLFW.GLFW_KEY_F8, "key.categories.calamidade_awakening");
@@ -174,9 +177,11 @@ public final class ClientHooks {
         PerfOverlay.tick();
         CostProbe.tick();
         while (QUALITY.consumeClick()) {
-            var quality = COORDINATOR.cycleQuality();
-            if (mc.player != null) mc.player.displayClientMessage(
-                Component.literal("Calamidade_Awakening: " + quality.name()), true);
+            var mode = COORDINATOR.cycleQuality();
+            if (mc.player != null) mc.player.displayClientMessage(mode == dev.calamidade_awakening.api.QualityMode.AUTO
+                ? Component.translatableWithFallback("perf.calamidade_awakening.mode.auto", "Calamidade_Awakening: AUTO (now %s)",
+                    COORDINATOR.profile().name())
+                : Component.literal("Calamidade_Awakening: " + mode.name()), true);
         }
         DEMOS.forEach((kind, key) -> poll(mc, key, kind));
         if (mc.player != null && SkillApi.holds(mc.player, AwakeningSkills.SET)) {
@@ -190,6 +195,8 @@ public final class ClientHooks {
     @SubscribeEvent
     public static void frame(RenderFrameEvent.Pre event) {
         PerfOverlay.frameStart(SCENE.size(), SCENE.sizeBySource(), COORDINATOR.limits());
+        if (PerfOverlay.lastFrameMs() > 0)
+            COORDINATOR.frame(System.currentTimeMillis(), PerfOverlay.lastFrameMs(), PerfOverlay.lastPassCut());
         COORDINATOR.invalidate();
         ATMOSPHERE.invalidate();
     }
@@ -245,6 +252,40 @@ public final class ClientHooks {
                                 "A recording is already running"), false);
                         return started ? 1 : 0;
                     }))));
+    }
+
+    /** True while a HERO effect is resident on this client. */
+    public static boolean heroActive() { return SCENE.heroActive(); }
+
+    /** Selection and quality mode of this client (0.11.2: tests and the Atlas). */
+    public static FrameCoordinator coordinator() { return COORDINATOR; }
+
+    /**
+     * F7 line of the quality mode (0.11.2): the mode, the profile in use and, under AUTO, the last change with its p95
+     * and threshold and how long ago.
+     */
+    public static Component qualityLine() {
+        String p = "perf.calamidade_awakening.quality.";
+        if (COORDINATOR.testing())
+            return Component.translatableWithFallback(p + "test", "Quality: %s (test profile)", COORDINATOR.limits().label());
+        var mode = COORDINATOR.mode();
+        if (mode != dev.calamidade_awakening.api.QualityMode.AUTO)
+            return Component.translatableWithFallback(p + "forced", "Quality: %s (forced with F8)", mode.name());
+        var auto = COORDINATOR.auto();
+        var r = auto.reason();
+        long ago = Math.max(0, (System.currentTimeMillis() - r.atMs()) / 1000);
+        String target = String.format(java.util.Locale.ROOT, "%.1f", auto.target());
+        return switch (r.change()) {
+            case START -> Component.translatableWithFallback(p + "start", "Quality: AUTO → %s · started %s s ago · target %s ms",
+                auto.current().name(), ago, target);
+            case DOWN -> Component.translatableWithFallback(p + "down",
+                "Quality: AUTO → %s · down from %s %s s ago (p95 %s ms > %s ms)", auto.current().name(), r.from().name(),
+                ago, String.format(java.util.Locale.ROOT, "%.1f", r.p95()), String.format(java.util.Locale.ROOT, "%.1f", r.thresholdMs()));
+            case UP -> Component.translatableWithFallback(p + "up",
+                "Quality: AUTO → %s · up from %s %s s ago (p95 %s ms < %s ms, effects cut)", auto.current().name(),
+                r.from().name(), ago, String.format(java.util.Locale.ROOT, "%.1f", r.p95()),
+                String.format(java.util.Locale.ROOT, "%.1f", r.thresholdMs()));
+        };
     }
 
     private static int unlimited(dev.calamidade_awakening.api.FrameLimits limits) {

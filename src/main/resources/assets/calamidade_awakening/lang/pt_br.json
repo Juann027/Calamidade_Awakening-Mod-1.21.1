@@ -105,8 +105,6 @@
   "command.calamidade_awakening.bench.mix": "Carga mista: %s de %s (%s) · ativas no servidor: %s",
   "calamidade_awakening.configuration.quality": "Qualidade dos efeitos",
   "calamidade_awakening.configuration.quality.tooltip": "Perfil em uso e limites por quadro de cada perfil. Os valores têm máximos de segurança.",
-  "calamidade_awakening.configuration.profile": "Perfil",
-  "calamidade_awakening.configuration.profile.tooltip": "LOW (placa integrada), BALANCED, HIGH ou ULTRA (máquinas fortes). O F8 troca.",
   "calamidade_awakening.configuration.low": "LOW",
   "calamidade_awakening.configuration.low.tooltip": "Limites do perfil LOW, pensado para placa integrada.",
   "calamidade_awakening.configuration.balanced": "BALANCED",
@@ -126,5 +124,15 @@
   "calamidade_awakening.configuration.beams": "Feixes",
   "calamidade_awakening.configuration.beams.tooltip": "Feixes desenhados por quadro. Máximo 128.",
   "calamidade_awakening.configuration.lights": "Luzes",
-  "calamidade_awakening.configuration.lights.tooltip": "Luzes visuais desenhadas por quadro. Máximo 64."
+  "calamidade_awakening.configuration.lights.tooltip": "Luzes visuais desenhadas por quadro. Máximo 64.",
+  "perf.calamidade_awakening.mode.auto": "Calamidade_Awakening: AUTO (agora %s)",
+  "perf.calamidade_awakening.quality.test": "Qualidade: %s (perfil de teste)",
+  "perf.calamidade_awakening.quality.forced": "Qualidade: %s (forçada pelo F8)",
+  "perf.calamidade_awakening.quality.start": "Qualidade: AUTO → %s · começou há %s s · alvo %s ms",
+  "perf.calamidade_awakening.quality.down": "Qualidade: AUTO → %s · desceu de %s há %s s (p95 %s ms > %s ms)",
+  "perf.calamidade_awakening.quality.up": "Qualidade: AUTO → %s · subiu de %s há %s s (p95 %s ms < %s ms, efeitos cortados)",
+  "calamidade_awakening.configuration.mode": "Modo de qualidade",
+  "calamidade_awakening.configuration.mode.tooltip": "AUTO (padrão) troca de perfil pelo p95 do tempo de quadro, com histerese e nunca durante um efeito HERO. LOW, BALANCED, HIGH ou ULTRA forçam um perfil. O F8 troca.",
+  "calamidade_awakening.configuration.autoTargetFps": "FPS alvo do AUTO",
+  "calamidade_awakening.configuration.autoTargetFps.tooltip": "O AUTO desce quando o p95 do quadro fica 20% acima de 1000/FPS com efeitos na tela, e sobe quando fica 30% abaixo enquanto o teto corta efeitos. Com VSync ou limite de FPS neste valor, o AUTO só desce."
 }

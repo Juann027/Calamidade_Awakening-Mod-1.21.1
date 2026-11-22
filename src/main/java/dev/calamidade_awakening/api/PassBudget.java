@@ -7,7 +7,7 @@ package dev.calamidade_awakening.api;
  */
 public final class PassBudget {
     private final int commonLimit, heroLimit;
-    private int common, hero;
+    private int common, hero, refused;
 
     public PassBudget(Quality quality) { this(quality.marks, quality.heroPasses); }
 
@@ -18,7 +18,10 @@ public final class PassBudget {
 
     /** Takes one pass from the HERO or the common pool; false (and nothing changes) when that pool is spent. */
     public boolean take(boolean heroPool) {
-        if (left(heroPool) <= 0) return false;
+        if (left(heroPool) <= 0) {
+            refused++;
+            return false;
+        }
         if (heroPool) hero++; else common++;
         return true;
     }
@@ -31,6 +34,9 @@ public final class PassBudget {
 
     /** Passes still free in a pool. */
     public int left(boolean heroPool) { return heroPool ? heroLimit - hero : commonLimit - common; }
+
+    /** Passes asked with {@link #take} and refused for lack of budget, in both pools (0.11.2). */
+    public int refused() { return refused; }
 
     /** Passes already taken from a pool. */
     public int used(boolean heroPool) { return heroPool ? hero : common; }

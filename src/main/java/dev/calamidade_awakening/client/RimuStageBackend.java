@@ -144,6 +144,7 @@ public final class RimuStageBackend {
         PerfOverlay.lights(lightPool.drawn() ? Math.min(lights.lights().size(), LightFrame.ROWS) : 0, lightPool);
         PerfOverlay.heroes(heroes, budget.used(true));
         PerfOverlay.passes(passes);
+        PerfOverlay.passCut(budget.refused() > 0);
         float strongest = 0;
         float impulse = 0;
         float flash = 0, monochrome = 0;

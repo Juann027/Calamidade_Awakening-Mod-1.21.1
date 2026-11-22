@@ -69,6 +69,16 @@ public final class PerfOverlay {
     }
     static void vertices(int count) { vertices = count; }
     static void passes(int count) { passes = count; }
+    /** The pass budget refused a pass this frame (0.11.2, for AUTO). */
+    static void passCut(boolean cut) { passCut = cut; }
+    private static boolean passCut, lastPassCut;
+    private static double lastFrameMs;
+    /** Duration of the last complete frame, ms (0 before the second frame). */
+    static double lastFrameMs() { return lastFrameMs; }
+    /** Whether the pass budget refused a pass in the last complete frame. */
+    static boolean lastPassCut() { return lastPassCut; }
+    /** F7 line about the quality mode (0.11.2), set by ClientHooks. */
+    static java.util.function.Supplier<Component> qualityLine = () -> null;
     /** Active atmospheres and whether the atmosphere pass was queued (0.8.0); outside the addon budget. */
     static void atmosphere(int active, boolean pass) { atmospheres = active; atmospherePass = pass; }
     /** HERO instances drawn and the passes they took from their own budget (0.9.0). */
@@ -94,6 +104,8 @@ public final class PerfOverlay {
         previousFrame = now;
         lastEffects = effects; lastVolumes = volumes; lastVertices = vertices; lastPasses = passes;
         lastResident = resident; lastLimits = limits;
+        lastPassCut = passCut; passCut = false;
+        lastFrameMs = delta / 1e6;
         lastAtmospheres = atmospheres; lastAtmospherePass = atmospherePass;
         lastHeroes = heroes; lastHeroPasses = heroPasses;
         lastBeams = beams; lastBeamPool = beamPool; lastLights = lights; lastLightPool = lightPool;
@@ -120,7 +132,7 @@ public final class PerfOverlay {
     }
 
     /** Shows the panel (measurements). */
-    static void show() { visible = true; }
+    public static void show() { visible = true; }
 
     static void tick() {
         while (TOGGLE.consumeClick()) visible = !visible;
@@ -174,6 +186,8 @@ public final class PerfOverlay {
         lines.add(Component.translatableWithFallback(PREFIX + "gpu", "GPU: %s", renderer()));
         lines.add(Component.translatableWithFallback(PREFIX + "frame", "%s FPS · frame %s ms · p95 %s ms · %s",
             mc.getFps(), format(percentile(window, .5)), format(percentile(window, .95)), lastLimits.label()));
+        Component quality = qualityLine.get();
+        if (quality != null) lines.add(quality);
         lines.add(Component.translatableWithFallback(PREFIX + "scene", "Events: %s resident · %s drawn · %s volumes",
             lastResident, lastEffects, lastVolumes));
         lines.add(Component.translatableWithFallback(PREFIX + "sources", "Sources: %s players · %s mobs · %s blocks · %s scripts",

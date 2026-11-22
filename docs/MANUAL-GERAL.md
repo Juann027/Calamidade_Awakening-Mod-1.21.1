@@ -2164,9 +2164,17 @@ Capturas da carga (não versionadas): `run/teste-medicao/screenshots/medicao-60-
 
 Conferido com javap (NeoForge 21.1.267): `ClientPacketListener.sendCommand(String)`, `Minecraft.getConnection()`, `Options.framerateLimit()` e `enableVsync()`, `PlayerList.op(GameProfile)`, `ServerTickEvent$Post`.
 
+#### Etapas 2 e 3: perfis configuráveis e qualidade automática (22/11/2026)
+
+- **Perfis (provisório):** `QualityProfile` LOW, BALANCED, HIGH e ULTRA. LOW, BALANCED e HIGH mantêm os tetos da 0.11.1 até os números da GPU física; ULTRA provisório com 24 desenhados, 8 passes, 4 passes HERO, 2 HERO, 128 feixes, 64 luzes e 1,5 vez os vértices do HIGH, e aparece aos addons como HIGH. Cada perfil tem os seis tetos no config de cliente (`[quality.low]`, `[quality.balanced]`...), com máximos de segurança (desenhados 64, passes 16, passes HERO 8, HERO 4, feixes 128, luzes 64; HERO nunca acima dos desenhados).
+- **AUTO (padrão novo, `quality.mode`):** janelas de 2 s; desce depois de 2 janelas seguidas com p95 acima de 1,2 × o alvo (`autoTargetFps`, padrão 60) com efeitos na tela em pelo menos metade dos quadros; sobe depois de 4 janelas com p95 abaixo de 0,7 × o alvo enquanto o teto cortou algo em pelo menos um quarto dos quadros; 6 s sem avaliar depois de qualquer troca (e ao entrar no AUTO); voltar ao perfil de onde desceu fica bloqueado por 60 s, o dobro a cada nova descida do mesmo perfil (até 10 min); janela que viu um efeito HERO é descartada e zera as sequências. F8: AUTO → LOW → BALANCED → HIGH → ULTRA → AUTO. F7: "Qualidade: AUTO → perfil · desceu/subiu de X há N s (p95 … ms > … ms)".
+- **Testes puros (`AutoQualityCheck`, no `checkBudget`):** desce em 2 janelas e respeita o intervalo, até LOW e nunca abaixo; quadros lentos sem efeitos não descem; sobe em 4 janelas com corte, até ULTRA; quadros rápidos sem corte não sobem; nada muda durante um HERO e as sequências recomeçam depois; um caso que oscilaria (HIGH lento, BALANCED com folga e cortes) troca no máximo 7 vezes em 10 minutos e no máximo mais uma nos 5 minutos seguintes; picos de 2% dos quadros não descem. `LimitsCheck` ganhou os perfis novos, os máximos de segurança e o teto de HERO configurável.
+- **Em jogo (`testeMedicao`, llvmpipe): 30 de 30.** AUTO desceu de HIGH para BALANCED em 8 s sob 24 instâncias da mistura (p95 67,3 ms > 20,0 ms), o F7 mostrou o motivo ([captura](gameplay/auto-f7-0112.jpg)); sem efeitos na tela o perfil ficou parado 20 s; com a receita protagonista (HERO, 12 s) e carga pesada, nenhuma troca enquanto ela existia, e a descida veio depois. A subida precisa de folga de quadro que o llvmpipe não tem: fica para o TESTE-REAL na GPU.
+
 #### Pendente
 
 - Medição do autor na RTX 4060 (TESTE-REAL.md, casos 82 a 84) antes de fixar os padrões novos.
+- AUTO subindo numa GPU física (TESTE-REAL).
 
 ### Versão 0.11.1 — compatibilidade da Terrain API (estado atual)
 

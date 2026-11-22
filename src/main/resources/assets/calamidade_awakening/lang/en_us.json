@@ -105,8 +105,6 @@
   "command.calamidade_awakening.bench.mix": "Mixed load: %s of %s (%s) · live on server: %s",
   "calamidade_awakening.configuration.quality": "Effect quality",
   "calamidade_awakening.configuration.quality.tooltip": "Profile in use and per-frame caps of each profile. Values have safety maxima.",
-  "calamidade_awakening.configuration.profile": "Profile",
-  "calamidade_awakening.configuration.profile.tooltip": "LOW (integrated graphics), BALANCED, HIGH or ULTRA (strong machines). F8 cycles it.",
   "calamidade_awakening.configuration.low": "LOW",
   "calamidade_awakening.configuration.low.tooltip": "Caps of the LOW profile, aimed at integrated graphics.",
   "calamidade_awakening.configuration.balanced": "BALANCED",
@@ -126,5 +124,15 @@
   "calamidade_awakening.configuration.beams": "Beams",
   "calamidade_awakening.configuration.beams.tooltip": "Beams drawn per frame. At most 128.",
   "calamidade_awakening.configuration.lights": "Lights",
-  "calamidade_awakening.configuration.lights.tooltip": "Visual lights drawn per frame. At most 64."
+  "calamidade_awakening.configuration.lights.tooltip": "Visual lights drawn per frame. At most 64.",
+  "perf.calamidade_awakening.mode.auto": "Calamidade_Awakening: AUTO (now %s)",
+  "perf.calamidade_awakening.quality.test": "Quality: %s (test profile)",
+  "perf.calamidade_awakening.quality.forced": "Quality: %s (forced with F8)",
+  "perf.calamidade_awakening.quality.start": "Quality: AUTO → %s · started %s s ago · target %s ms",
+  "perf.calamidade_awakening.quality.down": "Quality: AUTO → %s · down from %s %s s ago (p95 %s ms > %s ms)",
+  "perf.calamidade_awakening.quality.up": "Quality: AUTO → %s · up from %s %s s ago (p95 %s ms < %s ms, effects cut)",
+  "calamidade_awakening.configuration.mode": "Quality mode",
+  "calamidade_awakening.configuration.mode.tooltip": "AUTO (default) switches profiles by the p95 frame time, with hysteresis and never during a HERO effect. LOW, BALANCED, HIGH or ULTRA force a profile. F8 cycles it.",
+  "calamidade_awakening.configuration.autoTargetFps": "AUTO target FPS",
+  "calamidade_awakening.configuration.autoTargetFps.tooltip": "AUTO goes down when the p95 frame time stays 20% above 1000/FPS with effects on screen, and up when it stays 30% below while the caps cut effects. With VSync or a frame cap at this value, AUTO only goes down."
 }
