@@ -1,6 +1,6 @@
 # Custom Sky Engine: arquitetura (0.14 e 0.15)
 
-Documento de trabalho do branch `claude/ceu-personalizado`. Fases 0 e 1 concluídas; a fase 2 (primeiros renderizadores) espera aprovação. Ainda não é capítulo do manual: entra em `gerar_manual.py` quando a 0.14 tiver API.
+Documento de trabalho do branch `claude/ceu-personalizado`. Fases 0, 1 e 2 (Backdrop) concluídas; a fase 3 espera aprovação. Ainda não é capítulo do manual: entra em `gerar_manual.py` quando a 0.14 for lançada (a versão do build continua 0.12.0 até lá).
 
 Marcadores: **[V]** verificado (código, `javap`/fontes do NeoForge 21.1.267, bytecode da RimuLib 1.3.0 ou experimento em jogo, com a fonte indicada); **[H]** hipótese; **[D]** decisão de arquitetura.
 
@@ -11,14 +11,15 @@ Marcadores: **[V]** verificado (código, `javap`/fontes do NeoForge 21.1.267, by
 3. **Quem não usa não paga.** Cada modalidade tem o próprio caminho de desenho; um céu estático não liga o passe procedural.
 4. **Limites medidos.** Os números das propostas são pontos de partida; só viram limite depois de benchmark.
 
-## Guardas de regressão (fase 1)
+## Guardas de regressão (fase 1; atualizadas na fase 2)
 
 | Guarda | Como roda | O que garante |
 |---|---|---|
 | Compatibilidade binária (`checkApiCompat`, no `check`) | `scripts/ApiCompat.java` contra `scripts/api-base/api-v1-0.12.0.txt` (89 classes, 1038 membros, do JAR byte a byte igual ao release v0.12.0) | Nenhuma classe ou membro público/protegido some ou muda de descritor; cabeçalhos iguais; tipos extensíveis sem método abstrato novo; enums sem constante removida ou reordenada. Autoteste com as cinco quebras simuladas. |
-| Referência visual (`./gradlew checkCeuReferencia`) | `scripts/referencia_ceu.cjs`: passes reais `sky` e `atmosphere` (SwiftShader, 8 bits entre os passes) em 15 cenas contra `src/test/resources/referencia-ceu/` | Aparência dos sete fenômenos, de quatro camadas juntas e da atmosfera sozinha igual à 0.12.0 (tolerância só para ruído de ponto flutuante; escurecer a fenda em 20% é acusado). |
+| Referência visual (`./gradlew checkCeuReferencia`) | `scripts/referencia_ceu.cjs`: passes reais `sky` e `atmosphere` (SwiftShader, 8 bits entre os passes) em 26 cenas contra `src/test/resources/referencia-ceu/` | As 15 cenas da 0.12.0 (sete fenômenos, quatro camadas juntas, atmosfera sozinha) iguais à 0.12.0 — na fase 2, com diferença zero — e 11 cenas com fundos estáveis. |
+| Composição dos fundos (`./gradlew checkFundoComposicao`, roda depois do anterior) | `scripts/fundo_composicao.cjs`: sondas de pixel na prévia | Atmosphere sobre fundo opaco, parcial e com buraco de alfa; sol do jogo apagado sob fundo opaco e parcial; eclipse escurecendo o fundo; dois controles negativos (o comportamento do protótipo) que precisam falhar. |
 | Testes em jogo existentes | `testeJogo`, `testeCeu` | Eventos globais, perfis, eclipse em três dimensões, respawn, relogin. |
-| Experimento do Backdrop (`xvfb-run ./gradlew testeBackdrop`) | Protótipo só no mod de teste (`BackdropExperimento`, `RoteiroBackdrop`) | As afirmações da seção "Backdrop: o que o experimento comprovou". |
+| Backdrop em jogo (`xvfb-run ./gradlew testeBackdrop`) | Fase 1: protótipo só no mod de teste. Fase 2: os fundos reais do motor (`RoteiroBackdrop`, `SondasDoQuadro`, texturas de `scripts/gerar_fundos_teste.py`) | 34 afirmações com sondas de pixel (lista na seção da fase 2 e em VALIDACAO.md). |
 
 ## Fatos verificados que a arquitetura usa
 
@@ -64,12 +65,35 @@ Marcadores: **[V]** verificado (código, `javap`/fontes do NeoForge 21.1.267, by
 8. **[D] Prioridade:** um fundo por quadro (eventos globais, depois céu da dimensão, depois efeitos, como as camadas da 0.12), dois durante uma transição (crossfade). Texturas carregadas uma vez por recarga de recursos, liberadas na recarga e ao sair; nada enviado por quadro.
 9. **Riscos que só teste resolve:** Iris/Oculus e shaderpacks (o pipeline pode não disparar `AFTER_SKY` do mesmo jeito), outros mods que desenham em `AFTER_SKY` e o custo numa GPU física. Nenhum é afirmado como compatível.
 
+## Fase 2: Backdrop implementado
+
+A arquitetura acima foi seguida; o que mudou em relação a ela está marcado.
+
+**API (só aditiva; `checkApiCompat` verde contra a base 0.12.0).** `Backdrop` (Java puro): `cubemap("ns:textures/…png")` (um PNG 3 × 2; linha 0: norte, leste, sul; linha 1: oeste, cima, baixo; faces laterais vistas de dentro com o topo para cima; cima com o norte no topo; baixo com o sul no topo), `panorama(...)` (equirretangular, sul no meio, oeste à direita, zênite em cima) e `gradient(topo, horizonte, nadir)` (ARGB, alfa = cobertura). Opções: `opacity`, `rotation` (graus, positivo leva o sul para o oeste), `spin` (graus por segundo; para com "efeitos de movimento" desligado), `tint`, `vanillaSunMoon(true)` (sol e lua do jogo redesenhados sobre o fundo), `matchFog(false)` (desliga a névoa casada), trilhas `OPACITY` e `ROTATION` e `weightPhase`. Ligação: `Effects.backdrop(id, fundo)` (um por efeito; também vale para eventos globais, que são efeitos) e `SkyProfile.StateBuilder.backdrop(fundo)` (constante; estados fazem crossfade). `Sky.Type` não mudou e os sete fenômenos continuam os mesmos.
+
+**Desenho (`BackdropFrame`, `BackdropTextures`).** **[V]** Em `AFTER_SKY`, ouvinte de prioridade alta, no framebuffer principal, sem gravar profundidade e sem teste de profundidade. Um cubo (cantos de `BackdropMath.cubeDirection`) para todo cubemap e uma esfera UV 64 × 32 (cantos de `BackdropMath.panoramaDirection`) para panoramas e gradientes, enviados uma vez (`VertexBuffer` estático) e reaproveitados por todos os fundos; o giro é só a matriz. Shader `position_tex_color` do jogo; amostragem sem filtro (como o jogo e como o passe confere). Cada PNG vira uma textura do `TextureManager` (compartilhada por todos os fundos que a usam); o gradiente vira uma textura gerada de 4 × 512 e segue o mesmo caminho dos panoramas. Uma cópia grosseira (128 × 64) das cores e da cobertura fica na CPU para a névoa e para o sol e a lua. Tudo é liberado na recarga de recursos e ao sair do mundo. Estado devolvido ao jogo depois de desenhar (máscara e teste de profundidade, culling, mistura, cor do shader) — **[V]** terreno idêntico com e sem fundo no teste em jogo.
+
+**Seleção.** No máximo dois fundos por quadro (`BackdropMath.select`): o mais importante (eventos globais, depois o perfil da dimensão, depois HERO e opacidade) e, enquanto ele não é opaco, o de baixo, com opacidade base × min(1, peso dele + peso do de cima). Numa transição (pesos somando 1) o de baixo fica inteiro e o de cima aparece sobre ele: o céu do jogo não aparece no meio (**[V]** em jogo, no End).
+
+**Os quatro problemas do protótipo, resolvidos.**
+
+| Problema (fase 1) | Solução (fase 2) | Prova |
+|---|---|---|
+| Atmosphere sobre fundo opaco desloca as cores (azul virava quase preto) | Os passes `sky` e `atmosphere` recebem os fundos do quadro (texturas, opacidade, giro, tinta) e calculam a cor e a cobertura deles em cada direção (`calamidade_sky.glsl`, mesmas consultas do `BackdropMath`). O "céu de baixo" da atmosfera passa a ser o fundo composto sobre a estimativa do céu do jogo (`caAtmoSkyDeltaOver`). Resultado: a atmosfera tinge o céu que aparece, com fundo opaco, parcial ou com buraco de alfa. Sem fundo, o código da 0.12.0 roda inalterado. | Prévia: 4 cenas com erro máximo de 0,5 a 1,0/255 contra mix(tela, gradiente, blend); controle negativo (passes sem o fundo) erra 77,5/255. Em jogo: medido (37,32,92) = esperado (37,32,92). |
+| Eclipse e apagamento do sol e da lua sobre o fundo | O passe só tira a parte do sol e da lua que os fundos não cobrem (1 − cobertura); sob fundo, a saturação do miolo do sol é prevista pelo céu do jogo estimado (a tela já não a mostra). Com `vanillaSunMoon(true)`, o Backdrop redesenha o sol e a lua com a geometria do jogo, só a parte que ele cobriu e menos o que uma camada esconde: um eclipse impede o redesenho. O escurecimento do eclipse vale para o fundo. | Prévia: fundo opaco sem marca (0,0/255; controle negativo 217/255); fundo parcial 8/255, metade do erro do próprio apagamento da 0.12.0 sem fundo (16/255); escurecimento 0,5/255. Em jogo: alfa do sol redesenhado 1,00 → 0,00 na totalidade; fundo escurecido longe do disco. |
+| Fundo aparecendo onde o jogo não desenha céu | Mesmas condições do `LevelRenderer.renderSky` (javap): cegueira, escuridão, câmera em lava ou neve em pó, névoa de bioma ou de chefe (`isFoggyAt`, `shouldCreateWorldFog`); e a opção de cliente `customSkies`. | Em jogo: os quatro bloqueios, a ilha central do End com a barra do dragão (névoa de chefe) e `customSkies` desligado. |
+| Linha clara no horizonte | `ComputeFogColor` (antes da Atmosphere): com `matchFog` (padrão), a névoa toma a cor dos fundos 1,5° acima do horizonte, na direção do olhar, composta pela cobertura. **[V]** `setupColor` (offset 326) vem antes de `renderSky` (450) e de `AFTER_SKY` (453) no `renderLevel`: névoa e fundo usam a mesma seleção no quadro. | Em jogo, mundo plano: faixa do horizonte 0/255 mais clara que o fundo com a névoa casada, 90/255 sem ela. |
+
+**[D] Mudança em relação à arquitetura aprovada:** a cobertura que os passes usam não vem de um alvo próprio nem de uma estimativa: eles leem as mesmas texturas do fundo por direção. Custa duas consultas de textura por pixel de céu, só nos quadros em que o passe já roda por outro motivo (camada, atmosfera); um fundo estático sozinho não liga passe nenhum.
+
+**Limitações conhecidas.** Névoa casada é uma cor por quadro (a do horizonte na direção do olhar), como a do jogo: com faces muito diferentes, o terreno distante nas bordas da tela pode diferir do fundo atrás dele. Amostragem sem filtro (pixel a pixel); filtro linear daria costuras nas arestas do cubo e fica para depois, se pedido. Na prévia e em jogo, o fundo usa a cobertura amostrada; o redesenho do sol usa a cobertura no centro do sol (pode diferir nas bordas de uma textura com alfa variável). Sob fundo parcial o apagamento do sol herda o erro de 8 bits do mecanismo da 0.12.0, pela metade. O fundo não muda com o dia e a noite (a hora não o escurece; um perfil ou uma trilha `OPACITY` fazem isso). Iris/Oculus, shaderpacks, Sodium/Embeddium e GPU física **não foram testados** com o fundo.
+
 ## Visão geral consolidada (0.14 e 0.15)
 
 | Modalidade | Caminho de desenho | Versão |
 |---|---|---|
 | Procedural (sete tipos da 0.12) | Passe `sky`, sem mudança | já existe |
-| Backdrop (cubemap, panorama, gradiente) | Geometria em `AFTER_SKY` (acima) | 0.14, fase 2 |
+| Backdrop (cubemap, panorama, gradiente) | Geometria em `AFTER_SKY` (acima) | 0.14, fase 2 — **feito** |
 | Estrelas procedurais, nebulosas procedurais | Domo em `AFTER_SKY` com shader próprio | 0.14, fase 3 |
 | Catálogo de estrelas e constelações | Um `VertexBuffer` estático em `AFTER_SKY` | 0.14, fase 3 |
 | Imagens e impostors atrás das camadas | Quads em `AFTER_SKY`, atlas próprio com `.mcmeta` | 0.14, fase 4 |
@@ -79,8 +103,19 @@ Marcadores: **[V]** verificado (código, `javap`/fontes do NeoForge 21.1.267, by
 
 Regras que valem para todas: nada novo sem um addon pedir; separação entre definição (comum, só `ResourceLocation`s e parâmetros), configuração visual e instância ativa (cliente); nenhum pacote por quadro; limites só depois de benchmark; `checkApiCompat` e `checkCeuReferencia` em toda etapa.
 
+## O que a fase 2 deixa pronto para a fase 3 (sem implementar nada dela)
+
+- **Ponto de desenho em `AFTER_SKY` com estado devolvido**: estrelas e nebulosas procedurais (domo com shader próprio), o catálogo de estrelas e constelações (um `VertexBuffer` estático) e imagens e impostors atrás das camadas podem entrar no mesmo ouvinte, depois do fundo, com a mesma disciplina de estado.
+- **Composição já resolvida para "algo pintado antes dos passes"**: os passes sabem compor a Atmosphere, o apagamento do sol e da lua e a lente sobre o que foi desenhado em `AFTER_SKY` desde que conheçam a cor e a cobertura por direção. Estrelas e imagens opacas precisam entrar nessa conta (ou ser declaradas aditivas) — decisão da fase 3, com prova na prévia como nesta fase.
+- **Texturas**: `BackdropTextures` (carga pelo `TextureManager`, cópia na CPU, liberação na recarga e ao sair) serve de base para o atlas próprio com `.mcmeta` (spritesheets e imagens animadas) da fase 4.
+- **Seleção e transição**: `BackdropMath.select` (dois por quadro, crossfade sem buraco) é o modelo para objetos do céu com transição.
+- **Testes**: a prévia aceita texturas de teste e pré-passes que fazem o papel de `AFTER_SKY`; o `testeBackdrop` tem sondas, capturas e o padrão de registrar fundos no mod de teste.
+- Continuam planejados e **não** começados: na 0.14, estrelas luminosas, constelações, nebulosas, PNGs e billboards, spritesheets e imagens animadas, objetos 3D pré-renderizados e impostors, personalização mais completa da atmosfera e do céu; na 0.15, modelos Blockbench reais, modelos personalizados e animados, Sky, World e Entity Space, objetos gigantescos no céu, transições 2D ↔ 3D, portais cinematográficos, objetos atravessando portais e integração opcional com entidades e chefes. A 0.13 continua reservada aos Bosses.
+
 ## Pendências que continuam abertas
 
 - Da 0.12.0 (VALIDACAO.md): multiplayer manual com dois jogadores; a pulsação observada no Overworld (causa não identificada, não é bug confirmado). Quando a fase 2 tocar em Atmosphere ou no estado do céu entre dimensões, entra um teste de regressão que captura o céu do Overworld antes e depois de mudar os estados da dimensão de teste, com a hora congelada.
 - Da 0.15: validar os formatos reais de exportação do Blockbench (Bedrock `.geo.json`, Java, OBJ) e o subconjunto de animação antes de qualquer leitor.
-- GPU física, Iris/Oculus e Sodium/Embeddium com os renderizadores novos.
+- GPU física, Iris/Oculus e Sodium/Embeddium com os renderizadores novos (o Backdrop foi medido só por software; nenhuma compatibilidade com shaderpacks ou outros mods é afirmada).
+- Uma receita do vfx-sample com um fundo de céu, quando a 0.14 tiver capítulo próprio (nesta fase, os exemplos estão no Javadoc, nesta página e no mod de teste).
+- Da 0.12.0, continuam: a falha intermitente do limite de 50 ms da cratera grande do `testeJogo` (causa não isolada; nesta rodada passou com 33,6 ms, o que não a resolve) e a pulsação no Overworld (o teste de regressão de céu entre dimensões da fase 2 deu diferença zero com a hora parada, mas a pulsação relatada não foi reproduzida nem explicada).

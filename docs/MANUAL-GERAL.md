@@ -2663,6 +2663,29 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 ## 18. Validação, medições e limites
 
+### 0.14 (Custom Sky) — fase 2: Backdrop, branch `claude/ceu-personalizado` (22/11/2026)
+
+**O motor mudou (só aditivo):** API `Backdrop`, `Effects.backdrop`, `SkyProfile.StateBuilder.backdrop`; cliente `BackdropFrame` e `BackdropTextures`; passes `sky` e `atmosphere` com os fundos; opção de cliente `customSkies`. A versão do build continua 0.12.0 até o release da 0.14, então `build/libs/calamidade_awakening-0.12.0.jar` deste branch **não** é mais igual ao anexo do release (SHA-256 `c1d90a41…` contra `a934968a…` do release, que não foi tocado, nem a tag `v0.12.0`, nem a `main`). Arquitetura e resultados: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-2-backdrop-implementado).
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `BackdropCheck` novo no `checkBudget`; `checkShaders` não verificou nada nesta máquina (glslangValidator ausente; os shaders compilam no WebGL da prévia) |
+| `./gradlew checkApiCompat` | verde | 89 classes e 1038 membros da base 0.12.0 presentes e compatíveis (94 classes no JAR) |
+| `./gradlew checkCeuReferencia` | 26/26 | as 15 cenas da 0.12.0 com diferença **zero** (sem fundo, o caminho dos passes é o da 0.12.0); 11 cenas novas com fundos |
+| `./gradlew checkFundoComposicao` (novo) | 9/9 | Atmosphere sobre fundo opaco, parcial e com buraco de alfa, com e sem passe `sky`: erro máximo 0,5 a 1,0/255 contra mix(tela, gradiente, blend); sol apagado sob fundo opaco 0,0/255 e sob fundo parcial 8/255 (o apagamento da 0.12.0 sem fundo, medido no mesmo teste, erra 16/255); eclipse 0,5/255. Controles negativos (o comportamento do protótipo da fase 1): 77,5/255 e 217/255, como deviam |
+| `xvfb-run ./gradlew testeBackdrop` | 34/34 | terceira rodada; as duas primeiras falharam por erros do teste (fotos antes da entrada de 168 ticks do envelope dos efeitos longos, sondas na face de cima, a névoa da barra do dragão no End, métrica do horizonte), sem mudança no motor para isso. Lista abaixo |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão do céu procedural em jogo (eclipse em três dimensões, respawn, relogin, dimensão de teste) |
+| `./gradlew testeJogo` | 61/61 | nesta rodada, a cratera grande deu pior tick de 33,6 ms (limite 50). **Isso não resolve a falha anterior** (88,2 e 51,0 ms, abaixo): a causa continua não isolada e o caso continua pendente |
+| `./gradlew -p examples/vfx-sample build` | verde | |
+
+**`testeBackdrop` (llvmpipe, 1280 × 720):** nada desenhado nem carregado sem addon; ordem `AFTER_SKY` → RimuLib → `AFTER_LEVEL`, framebuffer principal, profundidade 1 depois do fundo; as cinco faces visíveis do cubemap na direção documentada (cor exata); fundo estático sem passe `sky` nem `atmosphere`; giro de 90°; panorama com alfa 0,5; gradiente; sol e lua cobertos pelo fundo opaco e redesenhados com `vanillaSunMoon` (alfa 1,00); Atmosphere sobre o fundo (medido (37,32,92) = esperado); lente (81% dos pixels da grade deslocados); eclipse escurece o fundo e o sol redesenhado vai de 1,00 a 0,00 na totalidade; sem fundo com cegueira, escuridão, câmera em lava e em neve em pó, e na ilha central do End com a névoa da barra do dragão; horizonte: faixa 0/255 mais clara que o fundo com a névoa casada, 90/255 sem ela; terreno idêntico com e sem fundo (estado de renderização devolvido); `customSkies` desligado e ligado; textura reaproveitada entre fundos e instâncias; recarga de recursos libera as 4 texturas e recarrega só a que está em uso; transição de perfil no End com dois fundos desenhados e a tela na mistura de A e B (t = 0,55), sem o céu do jogo; céu do Overworld igual (diferença zero) antes e depois de tudo, com a hora parada. Capturas: [jogo](ceu-previas/backdrop-fase2-jogo.jpg) e [prévia](ceu-previas/backdrop-fase2-previa.jpg).
+
+**Custo (software, llvmpipe, só tendência; GPU física pendente):** mediana do tempo de quadro em três rodadas — sem fundo 20,4 / 17,8 / 19,2 ms; cubemap 20,7 / 19,2 / 22,1 ms; panorama (esfera 64 × 32) 22,0 / 20,9 / 20,9 ms. A diferença fica dentro do ruído entre rodadas (até ~3 ms); o rasterizador por software paga cada pixel do fundo. Nenhum passe de pós é ligado por um fundo estático; com camadas ou atmosfera, os passes que já rodam fazem duas consultas de textura a mais por pixel de céu.
+
+**Não testado:** GPU física, Iris/Oculus e shaderpacks, Sodium/Embeddium, outros mods que desenham em `AFTER_SKY`, multiplayer com dois jogadores. Nenhuma compatibilidade é afirmada.
+
+**Pendências mantidas:** a cratera grande do `testeJogo` (abaixo; não aprovada até isolar a causa), a pulsação no Overworld e o multiplayer manual da 0.12.0, e os números de custo das receitas 18 a 21, que divergem do volume planejado e precisam de medição em jogo (revisão documental, abaixo).
+
 ### Revisão documental da Terrain API — escolha da operação e custo (22/11/2026)
 
 **Só documentação; nenhum código mudou.** `build/libs/calamidade_awakening-0.12.0.jar` continua com o SHA-256 do release v0.12.0 (`a934968a…`). Novas seções em [TERRENO-0.11.md](TERRENO-0.11.md): "Escolher a operação" (modos, tabela de decisão, cinco exemplos comparáveis, papel das receitas 18 a 21) e "Custo de uma destruição"; regra 11 no `AGENTS.md`; skill `calamidade-efeitos`; notas nas receitas 18 a 21 (só texto, código intacto).
