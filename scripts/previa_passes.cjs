@@ -372,6 +372,26 @@ const SKY_CENAS = {
     atmo: ECLIPSE_SKY(0.8, 0.5), darkening: true },
 };
 
+// 0.14 (fase 1): cenas de referência visual da Sky API da 0.12.0 (scripts/referencia_ceu.cjs compara os PNGs com
+// src/test/resources/referencia-ceu/). Cobrem os tipos que as cenas acima não mostram (fenda, astro com anéis, aurora),
+// quatro camadas juntas e a atmosfera sozinha (sem passe sky, como no jogo quando não há camada). Fora da folha.
+const RIFT_DIR = skyDir(-10, 35), BODY_DIR = skyDir(30, 22), AURORA_DIR = skyDir(0, 20);
+const rift = o => ({ ...layer('PORTAL', {}), type: 'RIFT', dir: RIFT_DIR, size: 40, tilt: 0, rotation: 25, intensity: 1.3,
+  primary: 0xffd8b0ff, secondary: 0xff100018, ...o });
+const body = o => ({ ...layer('PORTAL', {}), type: 'CELESTIAL_BODY', dir: BODY_DIR, size: 24, tilt: 70, rotation: 15, intensity: 1,
+  primary: 0xffc89070, secondary: 0xffe8d0a0, progress: 0.7, ...o });
+const aurora = o => ({ ...layer('PORTAL', {}), type: 'AURORA', dir: AURORA_DIR, size: 160, tilt: 0, rotation: 0, intensity: 1,
+  primary: 0xff40ff90, secondary: 0xff8040ff, progress: 0.8, ...o });
+const REF_CENAS = {
+  ref_fenda: { env: env(DUSK, 0.23), look: [RIFT_DIR, -10, 0], layers: [rift({ progress: 0.8, seconds: 6 })], atmo: NIGHTFALL(0.6, 0.5, 0.6) },
+  ref_astro: { env: env(DUSK, 0.23), look: [BODY_DIR, -8, 0], layers: [body({ seconds: 6, spinDegrees: 40 })], atmo: NIGHTFALL(0.6, 0.5, 0.6) },
+  ref_aurora: { env: env(DUSK, 0.25), look: [AURORA_DIR, -14, 0], layers: [aurora({ seconds: 9 })], atmo: NIGHTFALL(0.9, 0.8, 0.8) },
+  ref_quatro: { env: env(DUSK, 0.23), look: [skyDir(5, 28), -14, 0], atmo: NIGHTFALL(0.8, 0.7, 0.7),
+    layers: [portal({ size: 26, progress: 1, seconds: 9, spinDegrees: 90 }), body({ seconds: 6 }), rift({ progress: 0.6, seconds: 6 }),
+      aurora({ seconds: 9, weight: 0.7 })] },
+  ref_atmosfera: { env: env(DUSK, 0.21), look: [BH_DIR, -8, 4], layers: [], atmo: NIGHTFALL(1, 0.8, 0.9), noSkyPass: true },
+};
+
 // Cobertura do eclipse (Sky.eclipseCoverage) e exposição do mundo (SkyMath.exposure), para o escurecimento.
 function eclipseCoverage(progress) {
   const p = Math.min(Math.max(progress, 0), 1), d = (1 - p) * 2.2, big = 1, small = 0.97;
@@ -462,12 +482,13 @@ function skyPasses(cena) {
         CaSkyAtmoTop: a ? a.skyTop : [0, 0, 0], CaSkyAtmoHorizon: a ? a.skyHorizon : [0, 0, 0], CaSkyAtmoFog: a ? a.fogColor : [1, 1, 1] },
       f1: { GTime: 37.0 } },
   ];
+  if (cena.noSkyPass) passes.splice(1, 1);
   if (a) {
     passes.push({ program: 'atmosphere',
       f3: { CaAtmoSkyTop: a.skyTop, CaAtmoSkyHorizon: a.skyHorizon, CaAtmoFogColor: a.fogColor, CaAtmoTint: a.tint,
         CaAtmoVanillaSky: e.sky, CaAtmoVanillaFog: e.fog },
       f4: { CaAtmoA: [a.blend, a.fogDensity, a.fogStart, a.fogEnd], CaAtmoB: [a.exposure, a.tintStrength, a.stars, 0],
-        CaAtmoC: [e.renderDistance, 1, 0, 0], ...lensUniforms('CaAtmo') },
+        CaAtmoC: [e.renderDistance, cena.noSkyPass ? 0 : 1, 0, 0], ...lensUniforms('CaAtmo') },
       f1: { GTime: 37.0 } });
   }
   return passes;
@@ -627,7 +648,8 @@ async function contactSheet(page, files) {
   return file;
 }
 
-const ALL = { ...CENAS, ...SKY_CENAS };
+const ALL = { ...CENAS, ...SKY_CENAS, ...REF_CENAS };
+module.exports = { SKY_CENAS, REF_CENAS };
 
 async function main() {
   const { chromium } = require('playwright');
@@ -654,4 +676,4 @@ async function main() {
   }
 }
 
-main().catch(err => { console.error(err.message || err); process.exit(1); });
+if (require.main === module) main().catch(err => { console.error(err.message || err); process.exit(1); });

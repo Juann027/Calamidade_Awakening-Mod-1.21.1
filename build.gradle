@@ -285,6 +285,17 @@ tasks.register('checkApiCompat') {
 }
 tasks.named('check') { dependsOn 'checkApiCompat' }
 
+// 0.14 (fase 1): referência visual da Sky API da 0.12.0. Roda os passes reais sky e atmosphere pela prévia (Node e
+// Playwright, ~2 min) e compara 15 cenas com src/test/resources/referencia-ceu/. Fora do check (precisa de Node);
+// rode em toda etapa que tocar em céu, atmosfera ou shaders: ./gradlew checkCeuReferencia.
+tasks.register('checkCeuReferencia', Exec) {
+    group = 'verification'
+    description = 'Compara a aparência dos passes sky e atmosphere com as referências da 0.12.0 (node scripts/referencia_ceu.cjs).'
+    dependsOn tasks.named('jar')
+    workingDir = layout.projectDirectory.asFile
+    commandLine 'node', 'scripts/referencia_ceu.cjs'
+}
+
 // 0.8.0: as receitas de docs/ai/receitas/ trazem o código dos efeitos reais do vfx-sample. Cada bloco de código
 // precedido por "<!-- arquivo: caminho -->" precisa ser idêntico ao arquivo. syncRecipes copia os arquivos para os
 // blocos; checkRecipes (parte do build) falha se algum bloco divergir. 0.10.0: o modelo de dependência
