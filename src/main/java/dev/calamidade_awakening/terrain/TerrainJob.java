@@ -61,6 +61,12 @@ abstract class TerrainJob {
 
     void finish() {}
 
+    /**
+     * The job failed mid-way and is stopped (0.11.1): what was written stays recorded (a commit keeps its partial
+     * snapshot for undo) instead of being lost with the exception.
+     */
+    void abort() {}
+
     /** Entries still to visit (for diagnostics). */
     abstract int remaining();
 
@@ -184,6 +190,11 @@ abstract class TerrainJob {
                 snapshot.add(sx, sy, sz, index, Block.getId(state), Block.getId(settled));
                 writer.put(index, state, settled, null);
             }
+            writer.flush();
+            TerrainWorks.committed(this);
+        }
+
+        @Override void abort() {
             writer.flush();
             TerrainWorks.committed(this);
         }

@@ -88,6 +88,7 @@ final class Roteiro implements Runnable {
         eventoDesligado();
         bordaDoMundo();
         protecaoDeSpawn();
+        luzMapasContadoresEDesfazer();
     }
 
     /** Etapa 1: um listener que só conhece o ExplosionEvent protege x >= cx; a cratera para exatamente ali. */

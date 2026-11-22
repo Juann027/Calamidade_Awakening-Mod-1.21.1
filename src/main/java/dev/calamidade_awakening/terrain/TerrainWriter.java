@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.lighting.ChunkSkyLightSources;
 import net.minecraft.world.level.lighting.LightEngine;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,8 +24,8 @@ import java.util.Map;
 /**
  * Bulk writer of the Terrain API (0.11.0): writes block states straight into {@link LevelChunkSection}s on the server
  * thread and keeps what {@code LevelChunk.setBlockState} keeps (conferred with {@code javap -c}): the four heightmaps,
- * the sky light sources of the column, the light engine (section status when a section stops or starts being empty,
- * {@code checkBlock} only when the light properties change), points of interest and the unsaved flag. It skips on
+ * the light engine (section status when a section stops or starts being empty; sky light sources and {@code checkBlock}
+ * only when the light properties change, as vanilla), points of interest and the unsaved flag. It skips on
  * purpose {@code onRemove}/{@code onPlace}, drops, neighbour and shape updates and physics. {@link #flush()} ends a
  * batch: every changed section goes once to the players that track its chunk, as a section update packet; the client
  * relights locally, and players at the edge of their view distance get light through the game's own path.
@@ -127,9 +128,15 @@ final class TerrainWriter {
         }
         t.section.setBlockState(lx, ly, lz, target, false);
         for (Heightmap heightmap : t.heightmaps) heightmap.update(lx, y, lz, target);
-        t.chunk.getSkyLightSources().update(t.chunk, lx, y, lz);
         BlockPos fixed = at.immutable();
-        if (LightEngine.hasDifferentLightProperties(t.chunk, at, old, target)) light.checkBlock(fixed);
+        // Same branch as LevelChunk.setBlockState (javap -c): sky light sources and the light check only when the light
+        // properties change. Light engine mods (ScalableLux, Starlight-based) replace the sources and leave the field
+        // null, so it is checked; their engine still gets checkBlock, which they redirect.
+        if (LightEngine.hasDifferentLightProperties(t.chunk, at, old, target)) {
+            ChunkSkyLightSources sources = t.chunk.getSkyLightSources();
+            if (sources != null) sources.update(t.chunk, lx, y, lz);
+            light.checkBlock(fixed);
+        }
         level.onBlockStateChange(fixed, old, target);
         if (target.hasBlockEntity()) {
             BlockEntity entity = t.chunk.getBlockEntity(at, LevelChunk.EntityCreationType.IMMEDIATE);

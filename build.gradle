@@ -22,6 +22,7 @@ sourceSets {
 }
 
 def testeJogoDir = layout.projectDirectory.dir('run/teste-jogo').asFile
+def testeClienteDir = layout.projectDirectory.dir('run/teste-cliente').asFile
 neoForge {
     version = neoForgeVersion
     mods {
@@ -44,6 +45,16 @@ neoForge {
             sourceSet = sourceSets.testeJogo
             gameDirectory = testeJogoDir
             systemProperty 'calamidade.teste', 'reinicio'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
+        // Cliente (precisa de tela: xvfb-run), no mundo deixado pelo testeJogo, copiado para saves/teste.
+        testeCliente {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = testeClienteDir
+            systemProperty 'calamidade.teste', 'cliente'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
         }
     }
@@ -340,5 +351,45 @@ tasks.register('testeJogo') {
         }
         logger.lifecycle("testeJogo: ${passed} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeJogo:\n' + failed.join('\n'))
+    }
+}
+
+// 0.11.1: teste em jogo no cliente (xvfb-run ./gradlew testeCliente). Usa o mundo plano deixado pelo testeJogo:
+// luz recalculada pelo cliente e capturas de dia e de noite (Terrain API x setBlock), modo aventura. Relatório em
+// run/teste-cliente/calamidade-teste-cliente.txt, capturas em run/teste-cliente/screenshots/. -PtesteMods=<pasta>
+// copia JARs para mods/ (Sodium, por exemplo).
+def prepararTesteCliente = tasks.register('prepararTesteCliente') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo para run/teste-cliente/saves/teste e grava options.txt.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteCliente: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        def saves = new File(testeClienteDir, 'saves/teste')
+        ['saves', 'mods', 'screenshots', 'logs'].each { project.delete(new File(testeClienteDir, it)) }
+        project.delete(new File(testeClienteDir, 'calamidade-teste-cliente.txt'))
+        project.copy { from world; into saves; exclude 'session.lock' }
+        new File(testeClienteDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true'].join('\n') + '\n'
+        if (testeMods.isPresent()) {
+            def mods = new File(testeClienteDir, 'mods'); mods.mkdirs()
+            project.copy { from(testeMods.get()) { include '*.jar' }; into mods }
+        }
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteCliente') task.dependsOn prepararTesteCliente }
+tasks.register('testeCliente') {
+    group = 'verification'
+    description = 'Roda o teste em jogo no cliente (precisa de tela: xvfb-run) e falha se algum caso falhar.'
+    dependsOn 'runTesteCliente'
+    doLast {
+        def report = new File(testeClienteDir, 'calamidade-teste-cliente.txt')
+        if (!report.exists()) throw new GradleException('testeCliente: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM cliente')) failed << "FAIL roteiro incompleto (falta 'FIM cliente')"
+        logger.lifecycle("testeCliente: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeCliente:\n' + failed.join('\n'))
     }
 }

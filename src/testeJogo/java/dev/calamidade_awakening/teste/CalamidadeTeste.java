@@ -8,7 +8,9 @@ import dev.calamidade_awakening.api.v1.Timeline;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
@@ -36,12 +38,14 @@ public final class CalamidadeTeste {
     public CalamidadeTeste() {
         registrar(CRATERA, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto").burn(TerrainPalette.burnt(), 1).build());
         registrar(VEDADA, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto").build());
+        // Sem calor: no cliente, a cratera da Terrain API é comparada pixel a pixel com a mesma troca feita por setBlock.
         registrar(LUZ, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto").burn(TerrainPalette.burnt(), 1)
-            .fill(TerrainEdit.Fill.solid("minecraft:glowstone", 1.5f).at(0, -3, 0)).build());
+            .fill(TerrainEdit.Fill.solid("minecraft:glowstone", 1.5f).at(0, -3, 0)).noHeat().build());
         registrar(POI, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto")
             .fill(TerrainEdit.Fill.solid("minecraft:composter", 1f).at(0, -3, 0)).build());
         NeoForge.EVENT_BUS.register(Protecao.class);
         NeoForge.EVENT_BUS.addListener(CalamidadeTeste::started);
+        if (FMLEnvironment.dist == Dist.CLIENT && "cliente".equals(System.getProperty("calamidade.teste"))) RoteiroCliente.registrar();
     }
 
     private static ResourceLocation id(String path) { return ResourceLocation.fromNamespaceAndPath(ID, path); }
@@ -54,7 +58,7 @@ public final class CalamidadeTeste {
 
     private static void started(ServerStartedEvent event) {
         String fase = System.getProperty("calamidade.teste");
-        if (fase == null || fase.isBlank()) return;
+        if (fase == null || fase.isBlank() || fase.equals("cliente")) return;
         Thread thread = new Thread(new Roteiro(event.getServer(), fase), "Calamidade teste em jogo");
         thread.setDaemon(true);
         thread.start();

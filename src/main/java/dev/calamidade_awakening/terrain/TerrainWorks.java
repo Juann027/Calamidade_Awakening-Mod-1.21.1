@@ -398,6 +398,11 @@ public final class TerrainWorks {
                     done = job.step(cap);
                 } catch (RuntimeException failure) {
                     LOGGER.error("Terrain job {} failed and was stopped", job.label, failure);
+                    try {
+                        job.abort();
+                    } catch (RuntimeException again) {
+                        LOGGER.error("Terrain job {} could not keep its partial snapshot", job.label, again);
+                    }
                     done = true;
                 }
                 budget -= cap;
