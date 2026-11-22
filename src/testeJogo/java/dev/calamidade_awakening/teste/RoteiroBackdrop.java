@@ -116,7 +116,10 @@ final class RoteiroBackdrop implements Runnable {
         BackdropExperimento.alfa = 1;
         ticks(10);
         long[] seq = noCliente(() -> new long[] {BackdropExperimento.seqCeu, BackdropExperimento.seqNivel, BackdropExperimento.seqRimu});
-        check("ordem no quadro: AFTER_SKY, depois AFTER_LEVEL, depois a camada da RimuLib", seq[0] < seq[1] && seq[1] < seq[2],
+        // A RimuLib desenha no RETURN de LevelRenderer.renderLevel (LevelRendererMixin); o NeoForge dispara AFTER_LEVEL
+        // depois, em GameRenderer.renderLevel (javap -c). Tudo o que for desenhado antes do fim do nível (AFTER_SKY
+        // incluído) entra nos passes; o que for desenhado em AFTER_LEVEL fica por cima deles.
+        check("ordem no quadro: AFTER_SKY, depois a camada da RimuLib, depois AFTER_LEVEL", seq[0] < seq[2] && seq[2] < seq[1],
             Arrays.toString(seq));
         check("AFTER_SKY desenha no framebuffer principal", BackdropExperimento.fboCeu == BackdropExperimento.fboPrincipal
             && BackdropExperimento.fboCeu != 0, BackdropExperimento.fboCeu + " / " + BackdropExperimento.fboPrincipal);
@@ -134,7 +137,7 @@ final class RoteiroBackdrop implements Runnable {
 
     /** Meio-dia olhando o sol no zênite: o fundo opaco cobre sol e céu inteiro. */
     private void coberturaDeDia() throws Exception {
-        noServidor(() -> overworld().setDayTime(6000));
+        hora(6000);
         olhar(0, -90);
         int[] vanilla = foto("backdrop-sol-vanilla");
         int sol = pixel(vanilla, 640, 360);
@@ -168,7 +171,7 @@ final class RoteiroBackdrop implements Runnable {
 
     /** Meia-noite olhando a lua no zênite: lua e estrelas do jogo somem sob o fundo opaco. */
     private void noite() throws Exception {
-        noServidor(() -> overworld().setDayTime(18000));
+        hora(18000);
         olhar(0, -90);
         int[] vanilla = foto("backdrop-lua-vanilla");
         int brilhantesJogo = brilhantes(vanilla, 0, 0, 1280, 720, 140);
@@ -180,7 +183,7 @@ final class RoteiroBackdrop implements Runnable {
         check("fundo opaco cobre a lua e as estrelas do jogo", perto(pixel(opaco, 640, 360), BackdropExperimento.FACES[2], TOL)
             && brilhantes(opaco, 0, 0, 1280, 720, 140) == 0 && brilhantesJogo > 0,
             "centro " + rgb(pixel(opaco, 640, 360)) + ", brilhantes " + brilhantes(opaco, 0, 0, 1280, 720, 140));
-        noServidor(() -> overworld().setDayTime(6000));
+        hora(6000);
     }
 
     /** As nuvens do jogo vêm depois de AFTER_SKY: ficam na frente do fundo. */
@@ -231,7 +234,7 @@ final class RoteiroBackdrop implements Runnable {
 
     /** Buraco negro do exemplo sobre o fundo com grade: o passe sky lê a cena (com o fundo) pela coordenada desviada. */
     private void lente() throws Exception {
-        noServidor(() -> overworld().setDayTime(13500));
+        hora(13500);
         olhar(0, -18);
         BackdropExperimento.grade = true;
         BackdropExperimento.alfa = 1;
@@ -253,12 +256,12 @@ final class RoteiroBackdrop implements Runnable {
         }
         check("lente entorta o fundo desenhado em AFTER_SKY (linhas da grade deslocadas com o buraco negro)",
             camadas >= 1 && mudou > total / 20, camadas + " camadas; " + mudou + " de " + total + " pixels de grade mudaram");
-        noServidor(() -> overworld().setDayTime(6000));
+        hora(6000);
     }
 
     /** Eclipse global do exemplo, na totalidade, com e sem fundo opaco: escurecimento e o apagamento do sol. */
     private void eclipse() throws Exception {
-        noServidor(() -> overworld().setDayTime(2000));
+        hora(2000);
         olhar(-90, -38);
         comando("vfxsample evento eclipse start");
         aguardar(() -> noClienteSemErro(() -> ClientHooks.worldEvents() == 1), 100);
@@ -297,7 +300,7 @@ final class RoteiroBackdrop implements Runnable {
     }
 
     private void custo() throws Exception {
-        noServidor(() -> overworld().setDayTime(6000));
+        hora(6000);
         olhar(0, -20);
         ticks(40);
         double[] sem = janela(5000);
@@ -398,6 +401,14 @@ final class RoteiroBackdrop implements Runnable {
     private void olhar(float yaw, float pitch) throws Exception {
         noServidor(() -> jogador().teleportTo(jogador().serverLevel(), jogador().getX(), jogador().getY(), jogador().getZ(), yaw, pitch));
         ticks(10);
+    }
+
+    /** Muda a hora no servidor e espera o cliente recebê-la (sem isso, a captura seguinte pode sair na hora antiga). */
+    private void hora(long tempo) throws Exception {
+        noServidor(() -> overworld().setDayTime(tempo));
+        boolean chegou = aguardar(() -> noClienteSemErro(() -> mc.level != null && mc.level.getDayTime() % 24000 == tempo % 24000), 200);
+        if (!chegou) info("a hora " + tempo + " não chegou ao cliente em 200 ticks");
+        ticks(5);
     }
 
     private void comando(String linha) throws Exception {

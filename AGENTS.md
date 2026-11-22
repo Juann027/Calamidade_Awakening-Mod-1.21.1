@@ -12,6 +12,8 @@ Desde a 0.11.2, perfis de qualidade medidos (LOW, BALANCED, HIGH e ULTRA, `Quali
 
 Desde a 0.12.0, **Sky API** (`Sky`, `Effects.sky`): camadas de céu por direção — buraco negro com lente gravitacional, portal para outra galáxia, eclipse, fenda, astro gigante, aurora e raios ao longe — pintadas no passe `sky` do motor (primeiro do quadro, fora do orçamento), que também apaga o sol e a lua do jogo; **eventos globais** (`WorldEvents`: escopos AREA, DIMENSION e SERVER, entrada tardia, persistência, `/calamidade world`) e **céu por dimensão** (`SkyProfile`, `SkyProfiles`, `ProfileSkyEffects`: estados com transição, salvos no mundo). Capítulo: [CEU-0.12.md](docs/CEU-0.12.md).
 
+Em desenvolvimento no branch `claude/ceu-personalizado`: a Custom Sky Engine (0.14 Custom Sky e 0.15 Sky Objects & Cinematics, depois da 0.13 Bosses), só aditiva; arquitetura e verificações em [CEU-PERSONALIZADO.md](docs/CEU-PERSONALIZADO.md).
+
 Versão atual: motor **0.12.0**; exemplo `examples/vfx-sample` **1.9.0** (depende de `[0.12.0,0.13.0)`). NeoForge 21.1.267 no build; conferido com 21.1.265 (`-Pneoforge.version=21.1.265`).
 
 ## Mapa do repositório
@@ -69,6 +71,9 @@ Versão atual: motor **0.12.0**; exemplo `examples/vfx-sample` **1.9.0** (depend
 | `./gradlew build -Pneoforge.version=21.1.265` | Compila e testa contra outra versão do NeoForge 21.1 (também vale para o exemplo). |
 | `./gradlew -p examples/consumidor build` | Baixa o Calamidade do release do GitHub e a RimuLib, confere o SHA-256 e compila o consumidor (`-Pcalamidade.url=file:///…` para testar um JAR local). |
 | `./gradlew apiDocs` | Regenera `docs/ai/API-REFERENCIA.md` (javap no JAR + Javadoc). |
+| `./gradlew checkApiCompat` | (0.14, parte do `check`) Compatibilidade binária da `api.v1` contra a base do último release (`scripts/api-base/api-v1-0.12.0.txt`): falha se sumir classe ou membro, mudar descritor ou cabeçalho, um tipo extensível ganhar método abstrato ou um enum perder ou reordenar constantes. |
+| `./gradlew checkCeuReferencia` | (0.14) Referência visual da Sky API: passes reais `sky` e `atmosphere` em 15 cenas contra `src/test/resources/referencia-ceu/` (Node e Playwright, ~2 min). Rode em toda etapa que tocar em céu, atmosfera ou shaders; `node scripts/referencia_ceu.cjs --atualizar` só com mudança visual aprovada. |
+| `xvfb-run -a ./gradlew testeBackdrop` | (0.14, fase 1) Experimento do fundo de céu em `AFTER_SKY` com um protótipo só no mod de teste: ordem dos passes, profundidade, cobertura, transparência, nuvens, lente, eclipse, Atmosphere. Relatório em `run/teste-backdrop/`. |
 | `./gradlew syncRecipes` | Copia o código do exemplo para os blocos de `docs/ai/receitas/*.md` e do consumidor para `docs/ai/usar-como-dependencia.md`. |
 | `node scripts/testar_glsl.cjs` | Executa os testes de `calamidade_fx.glsl` numa GPU (WebGL2 no Chromium headless; requer Node e Playwright). |
 | `node scripts/previa_passes.cjs [cena]` | Roda os passes `beams` e `lights` do motor (shader real, `common.glsl` da RimuLib) sobre uma cena sintética com profundidade e grava PNGs em `build/previa/`; `ceu` (0.12) roda os passes `sky` e `atmosphere` sobre montanhas com o sol do jogo e monta a folha `ceu-0120.png`. |
