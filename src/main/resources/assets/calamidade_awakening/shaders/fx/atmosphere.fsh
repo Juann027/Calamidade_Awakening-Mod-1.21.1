@@ -55,8 +55,9 @@ void main() {
     // 0.12.0: perto de um buraco negro o passe "sky" mostrou aqui a cor de outro ponto da cena; o céu e a névoa seguem
     // esse ponto (céu desviado é céu, terreno desviado é terreno).
     vec3 dir;
-    vec2 suv = caSkyLensUv(texCoord, CaAtmoLens0, CaAtmoLens1, CaAtmoLensExt, dir);
-    if (skyAt(suv)) {
+    bool sky;
+    vec2 suv = caSkyLensUv(texCoord, CaAtmoLens0, CaAtmoLens1, CaAtmoLensExt, dir, sky);
+    if (sky) {
         vec3 base = atmoVanillaSky(dir);
         vec3 target = mix(base, atmoGradient(dir), CaAtmoA.x);
         if (CaAtmoB.z > 0.0 && dir.y > -0.05)

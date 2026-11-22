@@ -108,47 +108,96 @@ mat2 rot2(float a) {
     return mat2(c, s, -s, c);
 }
 
+// Buraco negro: sombra (0,2 do raio), anel de fótons fino e muito brilhante, disco largo inclinado atravessando a
+// sombra de lado a lado, a metade de trás do disco dobrada pela lente por cima da sombra (e um fio por baixo) e o céu
+// em volta levemente escurecido, como se ele engolisse a luz. q em unidades do raio externo do disco.
+const float BH_SHADOW = 0.2;
+const float BH_INNER = 0.3;
+
+float diskProfile(float rd) {
+    return smoothstep(BH_INNER - 0.015, BH_INNER + 0.04, rd) * (1.0 - smoothstep(0.55, 1.0, rd));
+}
+
+float diskStreaks(float rd, float angle, float spin, float seed) {
+    float omega = pow(BH_INNER / max(rd, 0.2), 1.5);
+    return caFbm2(vec2(rd * 11.0 + seed * 7.0, (angle - spin * omega) * 2.4), octaves());
+}
+
 vec4 blackHole(vec2 q, vec4 t1, vec4 t2, vec4 t3, vec4 t4, vec4 t5) {
     float r = length(q);
-    if (r > 2.6) return vec4(0.0);
+    if (r > 3.2) return vec4(0.0);
     float progress = t1.w, tilt = t1.z, spin = t5.x, seed = t4.x;
     float side = tilt >= 0.0 ? 1.0 : -1.0;
-    float shadow = 0.34, inner = 0.5;
     vec3 hot = t2.rgb, cool = t3.rgb;
-    // Disco (imagem direta): o plano do disco inclinado achata o eixo vertical.
-    float ci = max(cos(tilt), 0.06);
+    float shadow = BH_SHADOW;
+    // Imagem direta: o plano inclinado achata o eixo vertical; quase de lado, o disco vira uma faixa larga.
+    float ci = max(cos(tilt), 0.05);
     vec2 dq = vec2(q.x, q.y / ci);
     float rd = length(dq);
-    float angle = atan(dq.y, dq.x);
-    float heat = clamp((1.0 - rd) / (1.0 - inner), 0.0, 1.0);
-    float profile = smoothstep(inner - 0.02, inner + 0.05, rd) * (1.0 - smoothstep(0.62, 1.0, rd));
-    // Rotação diferencial (o miolo gira mais rápido, 1 × o giro na borda de dentro) e estrias espirais.
-    float omega = pow(inner / max(rd, 0.3), 1.5);
-    float streak = caFbm2(vec2(rd * 9.0 + seed * 7.0, (angle - spin * omega) * 2.2), octaves());
-    float doppler = 1.0 - 0.6 * (dq.x / max(rd, 1e-3)) * sin(tilt);
-    vec3 diskColor = mix(cool, hot, heat * heat) + vec3(1.0) * pow(heat, 6.0) * 0.6;
-    float diskLight = profile * (0.35 + 0.9 * streak) * doppler * progress;
-    // Metade de trás (q.y > 0 quando inclinado) fica atrás da sombra; a da frente passa na frente dela.
+    float heat = clamp((1.0 - rd) / (1.0 - BH_INNER), 0.0, 1.0);
+    float doppler = 1.0 - 0.5 * (q.x / max(rd, 1e-3)) * sin(abs(tilt));
+    vec3 diskColor = mix(cool, hot, heat * heat) + vec3(1.0, 0.95, 0.85) * pow(heat, 5.0) * 0.9;
+    float streak = diskStreaks(rd, atan(dq.y, dq.x), spin, seed);
+    float diskLight = diskProfile(rd) * (0.4 + 0.9 * streak) * doppler * progress;
+    // A metade de trás fica escondida atrás da sombra; a da frente passa na frente dela.
     bool far = q.y * side > 0.0;
-    float direct = (far && r < shadow) ? 0.0 : diskLight;
-    // Imagem curvada da metade de trás: um anel em volta da sombra, mais forte em cima, que a lente traz por cima.
-    float ring2 = (r - shadow * 1.05) / 0.3;
-    float bent = 0.0;
-    if (ring2 > 0.0 && ring2 < 1.0) {
-        float rr = inner + ring2 * 0.45;
-        float a2 = atan(q.y, q.x);
-        float s2 = caFbm2(vec2(rr * 9.0 + seed * 7.0, (a2 - spin * pow(inner / rr, 1.5)) * 2.2), octaves());
-        float top = 0.35 + 0.65 * smoothstep(-0.2, 0.9, side * q.y / max(r, 1e-3));
-        bent = smoothstep(0.0, 0.12, ring2) * (1.0 - smoothstep(0.55, 1.0, ring2)) * (0.3 + 0.8 * s2) * top
-            * progress * (0.25 + 0.75 * abs(sin(tilt)));
+    float direct = (far && r < shadow * 1.02) ? 0.0 : diskLight;
+    // Metade de trás dobrada pela lente: um arco largo que abraça a sombra por cima e encontra o disco nas pontas.
+    float sinA = side * q.y / max(r, 1e-3);
+    float arcIn = shadow * 1.05;
+    float top = smoothstep(-0.2, 0.3, sinA);
+    float bottom = smoothstep(-0.2, 0.3, -sinA);
+    float arc = 0.0;
+    float ta = (r - arcIn) / 0.24;
+    if (ta > 0.0 && ta < 1.0) {
+        float rdA = BH_INNER + ta * (0.95 - BH_INNER);
+        float sA = diskStreaks(rdA, atan(q.y, q.x) * 1.0, spin, seed + 0.31);
+        arc += diskProfile(rdA) * (0.35 + 0.85 * sA) * top * (0.25 + 0.75 * abs(sin(tilt)));
     }
-    // Anel de fótons: fino e brilhante logo fora da sombra.
-    float photon = bump((r - shadow * 1.03) / 0.014);
-    vec3 light = diskColor * (direct + bent * 0.8) + hot * photon * (0.35 + 0.65 * progress);
-    // Halo fraco do disco e sombra opaca.
-    light += cool * 0.08 * progress * exp(-max(r - 1.0, 0.0) / 0.35) * step(shadow, r);
-    float cover = caDisc(r, shadow, 0.006);
+    float tb = (r - arcIn) / 0.12;
+    if (tb > 0.0 && tb < 1.0) {
+        float rdB = BH_INNER + tb * (0.8 - BH_INNER);
+        arc += diskProfile(rdB) * 0.45 * bottom * (0.25 + 0.75 * abs(sin(tilt)));
+    }
+    float arcHeat = clamp(1.0 - (r - arcIn) / 0.24, 0.0, 1.0);
+    vec3 arcColor = mix(cool, hot, arcHeat * arcHeat) + vec3(1.0, 0.95, 0.85) * pow(arcHeat, 5.0) * 0.6;
+    // Anel de fótons: fio muito brilhante colado na sombra.
+    float photon = bump((r - shadow * 1.02) / 0.0055) * 3.2 + bump((r - shadow * 1.02) / 0.02) * 0.5;
+    vec3 light = diskColor * direct * 1.3 + arcColor * arc * progress * 1.1
+        + mix(hot, vec3(1.0), 0.6) * photon * (0.4 + 0.6 * progress);
+    // Brilho morno bem fraco e o céu engolido em volta.
+    light += cool * 0.05 * progress * exp(-max(r - 1.0, 0.0) / 0.4) * step(shadow, r);
+    float swallow = 0.5 * exp(-max(r - shadow, 0.0) / 0.85) * (1.0 - smoothstep(2.4, 3.2, r));
+    float cover = max(caDisc(r, shadow, 0.004), swallow);
     return vec4(light * t2.w, cover * t2.w);
+}
+
+// Semente do portal: fissura vertical serrilhada que pisca e arcos de energia curtos que saltam dela e mudam a cada
+// quarto de segundo. Sem clarões ("ocultar clarões"), a fissura fica acesa sem piscar e os arcos ficam fracos.
+float portalSeed(vec2 p, float seed, float seconds, float flash) {
+    float y = p.y;
+    float len = 0.2;
+    float taper = 1.0 - smoothstep(0.0, len, abs(y));
+    float x0 = 0.018 * (caNoise2(vec2(y * 28.0 + seed * 9.0, 0.5)) - 0.5) + 0.01 * (caNoise2(vec2(y * 70.0, seed)) - 0.5);
+    float crack = exp(-abs(p.x - x0) / 0.004) * taper;
+    float glow = exp(-length(vec2(p.x * 1.6, p.y * 0.8)) / 0.05);
+    float blinkRaw = 0.5 + 0.5 * sin(seconds * 9.0 + 2.0 * sin(seconds * 3.1));
+    float blink = mix(0.8, 0.35 + 0.65 * blinkRaw, flash);
+    float arcs = 0.0;
+    float slot = floor(seconds * 4.0);
+    for (int k = 0; k < 5; k++) {
+        float fk = float(k);
+        float ang = caHash13(vec3(slot, fk, seed * 50.0)) * 6.2831853;
+        float alen = 0.08 + 0.16 * caHash13(vec3(slot, fk, seed * 50.0 + 1.0));
+        vec2 d = vec2(cos(ang), sin(ang));
+        vec2 o = vec2(x0, (caHash13(vec3(slot, fk, seed * 50.0 + 2.0)) - 0.5) * len);
+        float along = dot(p - o, d);
+        if (along < 0.0 || along > alen) continue;
+        float across = dot(p - o, vec2(-d.y, d.x))
+            - 0.02 * (caNoise2(vec2(along * 40.0 + fk * 7.0, slot)) - 0.5) * (along / alen) * 3.0;
+        arcs += exp(-abs(across) / 0.003) * (1.0 - along / alen);
+    }
+    return (crack * 2.2 + glow * 0.9) * blink + arcs * (0.25 + 0.95 * flash) * 1.4;
 }
 
 vec4 portal(vec2 q, vec4 t1, vec4 t2, vec4 t3, vec4 t4) {
@@ -157,16 +206,20 @@ vec4 portal(vec2 q, vec4 t1, vec4 t2, vec4 t3, vec4 t4) {
     float r = length(p);
     if (r > open + 0.6) return vec4(0.0);
     float a = atan(p.y, p.x);
-    // Semente antes de abrir: um ponto que pulsa.
-    float spark = exp(-r * r / 0.0025) * (1.0 - smoothstep(0.0, 0.15, open));
+    // Semente antes de abrir (0 < abertura < 0,15): uma fissura que pisca e solta pequenos arcos de energia.
+    float seedPhase = (1.0 - smoothstep(0.06, 0.15, open)) * step(1e-4, open);
+    float spark = 0.0;
+    if (seedPhase > 0.0) spark = portalSeed(p * 0.55, seed, seconds, flash) * seedPhase;
     // Anel com arcos de energia (ruído ao longo do ângulo, andando com o tempo).
     float crackle = caFbm2(vec2(a * 4.0 + seed * 13.0, seconds * 1.7), octaves());
     float width = 0.025 + 0.03 * crackle;
-    float ring = bump((r - open) / width) * step(0.001, open);
-    float birth = (1.0 - smoothstep(0.0, 0.25, open)) * step(0.001, open) * flash;
-    vec3 light = t2.rgb * (ring * (1.2 + 1.5 * crackle) + spark * 3.0) * (1.0 + 2.5 * birth);
-    light += t2.rgb * 0.25 * exp(-max(r - open, 0.0) / 0.12) * step(open, r) * step(0.001, open) * (1.0 + 3.0 * birth);
-    float inside = caDisc(r, open, 0.012) * step(0.001, open);
+    // O anel só aparece quando a fissura se abre (abertura > 0,06).
+    float opened = smoothstep(0.04, 0.12, open);
+    float ring = bump((r - open) / width) * opened;
+    float birth = (1.0 - smoothstep(0.08, 0.3, open)) * opened * flash;
+    vec3 light = t2.rgb * ring * (1.2 + 1.5 * crackle) * (1.0 + 2.5 * birth) + mix(t2.rgb, vec3(1.0), 0.5) * spark;
+    light += t2.rgb * 0.25 * exp(-max(r - open, 0.0) / 0.12) * step(open, r) * opened * (1.0 + 3.0 * birth);
+    float inside = caDisc(r, open, 0.012) * opened;
     if (inside > 0.0) {
         // Outro céu, preso ao anel (que gira com a rotação e o giro): abrir revela mais dele. Perto da borda, refração
         // em redemoinho.
@@ -200,8 +253,8 @@ vec4 eclipseSun(vec2 q, vec4 t1, vec4 t2, vec4 t3, vec4 t4) {
     float moonDisc = caDisc(length(q - offset), 1.0, 0.012);
     float total = smoothstep(0.9, 0.995, progress);
     float sunMask = caDisc(r, 0.97, 0.01);
-    // O disco só aparece inteiro sobre o sol e na totalidade; fora do sol, no céu claro, é uma sombra leve.
-    float moon = moonDisc * max(sunMask, 0.18 + 0.82 * total);
+    // Como num eclipse real, o disco só existe onde cobre o sol (a mordida); inteiro só na totalidade.
+    float moon = moonDisc * max(sunMask, total);
     float sunR = 0.97;
     float limb = pow(max(1.0 - r * r / (sunR * sunR), 0.0), 0.35);
     vec3 sunLight = vec3(1.0, 0.94, 0.82) * (0.55 + 0.9 * limb) * 1.4;
@@ -363,9 +416,10 @@ void main() {
 
     // 1. Lente: o desvio de cada buraco negro, um depois do outro (o mesmo do passe de atmosfera).
     vec3 rd;
-    vec2 suv = caSkyLensUv(uv, CaSkyLens0, CaSkyLens1, CaSkyLensExt, rd);
-    vec3 color = texture(DiffuseSampler, suv).rgb;
-    bool sky = skyAt(suv);
+    bool sky;
+    vec2 suv = caSkyLensUv(uv, CaSkyLens0, CaSkyLens1, CaSkyLensExt, rd, sky);
+    // Céu desviado continua céu: onde o desvio cairia num morro, entra o céu do jogo naquela direção.
+    vec3 color = skyOrig && !skyAt(suv) ? vanillaFill(rd) : texture(DiffuseSampler, suv).rgb;
 
     // 2. Sol e lua do jogo, onde uma camada pede.
     if (sky) color = removeVanilla(color, rd);
@@ -393,7 +447,7 @@ void main() {
             layer = aurora(d, t0.xyz, radius, t1, t2, t3, t4);
         } else {
             // Recorte rápido pelo ângulo até o centro antes de montar a base.
-            float reach = type == 2 ? 6.0 : (type == 4 ? 2.4 : (type == 1 ? 1.7 : 2.6));
+            float reach = type == 2 ? 6.0 : (type == 4 ? 2.4 : (type == 1 ? 1.7 : 3.2));
             if (caAngle(d, t0.xyz) > radius * reach) continue;
             vec2 q = caSkyLocal(d, caSkyBasis(t0.xyz, t1.y)) / radius;
             if (type == 0) layer = blackHole(q, t1, t2, t3, t4, t5);

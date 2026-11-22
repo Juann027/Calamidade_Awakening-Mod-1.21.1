@@ -955,7 +955,7 @@ Immutable sky layer of one effect (0.12.0): a fantastic object painted on the sk
 | `static float ECLIPSE_START_DISTANCE` | Distance between the centers of the eclipse disk and its sun at progress 0, in covering-disk radii. |
 | `static float eclipseCoverage(float progress)` | Fraction of the sun hidden by an `Type.ECLIPSE` at `progress` (0..1, clamped): the overlap area of the covering disk (radius 1) and the sun (radius `ECLIPSE_SUN_RATIO`) whose centers are `(1 - progress) × ``ECLIPSE_START_DISTANCE` radii apart, over the sun's area. 0 at progress 0, 1 at totality (from progress ≈ 0.986 on). |
 | `static Sky.Builder builder(Sky.Type type)` | New builder of a layer of `type`, with the defaults of that type (size, colors, progress, tilt, lens, darken and anchor: an `Type.ECLIPSE` starts on the sun, an `Type.AURORA` at azimuth 180 and elevation 12, the others at azimuth 0 and elevation 35). |
-| `static Sky.Builder blackHole()` | `builder(Type.BLACK_HOLE)`: 24 degrees, tilt 76, lens 0.6, spin 1.2 degrees per tick. |
+| `static Sky.Builder blackHole()` | `builder(Type.BLACK_HOLE)`: 40 degrees, tilt 80 (a wide disk seen almost edge-on), lens 0.6, spin 1.2 degrees per tick. |
 | `static Sky.Builder portal()` | `builder(Type.PORTAL)`: 30 degrees, open, galaxy spin 0.5 degrees per tick. |
 | `static Sky.Builder eclipse()` | `builder(Type.ECLIPSE)`: on the sun, 13 degrees, total, darken 0.75. |
 | `static Sky.Builder rift()` | `builder(Type.RIFT)`: 50 degrees long, rotation 20, open. |
@@ -1105,7 +1105,7 @@ What the layer paints.
 
 | Membro | Descrição |
 |---|---|
-| `BLACK_HOLE` | Black disk (the shadow), a thin photon ring and a tilted accretion disk with its bent far side, plus a gravitational lens that bends the sky and the terrain around it. |
+| `BLACK_HOLE` | Black disk (the shadow, a fifth of the size), a thin and very bright photon ring, a wide tilted accretion disk crossing the shadow from side to side with its far half bent over the top of the shadow by the lens, the sky around slightly darkened, and a gravitational lens that bends the sky and the terrain around it. |
 | `PORTAL` | Energy ring that opens and reveals another sky inside: nebula, dense stars and a spinning spiral galaxy. |
 | `ECLIPSE` | Disk that covers a sun (the vanilla one with `Builder.onSun()`, which is hidden and redrawn) with a corona and streamers at totality, or a reddened moon with `Builder.onMoon()`. |
 | `RIFT` | Jagged crack across the sky with an inner glow and a darker void, small branches and flicker. |

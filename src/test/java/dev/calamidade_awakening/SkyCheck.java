@@ -69,7 +69,7 @@ final class SkyCheck {
 
     private static void sizesAndDefaults() {
         var hole = Sky.blackHole().build();
-        require(hole.type() == Sky.Type.BLACK_HOLE && hole.size() == 24 && hole.tilt() == 76 && hole.lens() == .6f
+        require(hole.type() == Sky.Type.BLACK_HOLE && hole.size() == 40 && hole.tilt() == 80 && hole.lens() == .6f
             && hole.anchor() == Sky.Anchor.DIRECTION && hole.anchorY() == 35 && !hole.hidesVanilla(), "black hole defaults");
         var eclipse = Sky.eclipse().build();
         require(eclipse.anchor() == Sky.Anchor.SUN && eclipse.hidesVanilla() && eclipse.darken() == .75f, "eclipse on the sun");
@@ -285,6 +285,7 @@ final class SkyCheck {
         require(SkyMath.lenses(2) == 1 && SkyMath.lenses(4) == 2 && SkyMath.lenses(8) == 2, "lenses");
         double r = Math.toRadians(15);
         require(Math.abs(SkyMath.einstein(r, 0) - r * SkyMath.SHADOW * 1.05) < 1e-12, "lens 0: ring just outside the shadow");
+        require(SkyMath.SHADOW == .2, "shadow is a fifth of the size (sky.fsh BH_SHADOW)");
         require(SkyMath.einstein(r, 1) > SkyMath.einstein(r, .5) && SkyMath.lensExtent(r, 1) > SkyMath.lensExtent(r, .5),
             "stronger lens: larger ring and reach");
         require(SkyMath.lensExtent(r, 0) > SkyMath.einstein(r, 1), "the lens reaches beyond its Einstein ring");

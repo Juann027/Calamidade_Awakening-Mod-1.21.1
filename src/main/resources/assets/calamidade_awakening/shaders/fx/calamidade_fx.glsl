@@ -343,11 +343,13 @@ vec3 caSkyFromLocal(vec2 local, mat3 basis) {
 
 // Lente gravitacional de massa pontual: de onde vem a luz vista nas coordenadas locais theta (radianos) de uma lente
 // com raio de Einstein einstein: beta = theta (1 - E² / |theta|²). No anel de Einstein (|theta| = E) a luz vem de trás
-// do centro; dentro dele a imagem se inverte. O desvio some suave entre 0,6 e 1 × extent, sem borda dura.
+// do centro; dentro dele a imagem se inverte. O desvio some aos poucos até extent: vezes (1 - (|theta| / extent)²)²,
+// que chega a 0 sem quina (sem borda visível onde a distorção termina).
 vec2 caLensSource(vec2 theta, float einstein, float extent) {
     float t = length(theta);
     if (t < 1e-6 || einstein <= 0.0 || t >= extent) return theta;
-    float fade = 1.0 - smoothstep(0.6 * extent, extent, t);
+    float k = 1.0 - (t / extent) * (t / extent);
+    float fade = k * k;
     return theta * (1.0 - fade * einstein * einstein / (t * t));
 }
 

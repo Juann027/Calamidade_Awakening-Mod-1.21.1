@@ -321,7 +321,7 @@ function skyRow(l) {
 }
 // Peso de uma camada no momento, como Sky.State: o mesmo que o Java faria com as trilhas da receita.
 function layer(type, o) {
-  const d = { BLACK_HOLE: { size: 24, tilt: 76, lens: 0.6, intensity: 1.4, primary: 0xffffe6c0, secondary: 0xffff6a20 },
+  const d = { BLACK_HOLE: { size: 40, tilt: 80, lens: 0.6, intensity: 1.4, primary: 0xffffe6c0, secondary: 0xffff6a20 },
     PORTAL: { size: 30, tilt: 0, intensity: 1.2, primary: 0xffb8ecff, secondary: 0xffb040ff },
     ECLIPSE: { size: 13, tilt: 0, intensity: 1, primary: 0xffeaf2ff, secondary: 0xffff5a3a } }[type];
   return { type, rotation: 0, progress: 1, weight: 1, seed: 0.37, seconds: 12, lens: 0, ...d, ...o };
@@ -335,7 +335,7 @@ function env(base, timeOfDay) {
   const axes = vanillaAxes(timeOfDay);
   return { ...base, timeOfDay, axes, sunDir: axes[1] };
 }
-const BH_DIR = skyDir(-25, 13), PORTAL_DIR = skyDir(15, 28);
+const BH_DIR = skyDir(-25, 16), PORTAL_DIR = skyDir(15, 28);
 const ECL_TIME = 0.8194;   // manhã: sol a ~25 graus, a leste
 const ECL_DIR = vanillaAxes(ECL_TIME)[1];
 function bh(o) { return layer('BLACK_HOLE', { dir: BH_DIR, rotation: -8, ...o }); }
@@ -346,13 +346,13 @@ const NIGHTFALL = (w, stars, blend) => ({ skyTop: [0.03, 0.03, 0.09], skyHorizon
 const ECLIPSE_SKY = (w, stars) => ({ skyTop: [0.02, 0.03, 0.08], skyHorizon: [0.42, 0.3, 0.38], blend: 0.85 * w, fogColor: [0.25, 0.22, 0.32],
   fogDensity: 0.2 * w, fogStart: 80, fogEnd: 256, exposure: 1, tint: [0.75, 0.82, 1.0], tintStrength: 0.15 * w, stars: stars, weight: w });
 const SKY_CENAS = {
-  buraco_negro_formacao: { env: env(DUSK, 0.21), look: [BH_DIR, -6, 8], layers: [bh({ size: 10, progress: 0.3, weight: 0.8, seconds: 2 })],
+  buraco_negro_formacao: { env: env(DUSK, 0.21), look: [BH_DIR, -8, 4], layers: [bh({ size: 18, progress: 0.3, weight: 0.8, seconds: 2 })],
     atmo: NIGHTFALL(0.6, 0.6, 0.6) },
-  buraco_negro_auge: { env: env(DUSK, 0.21), look: [BH_DIR, -6, 8], layers: [bh({ size: 30, progress: 1, seconds: 14, spinDegrees: 260 })],
+  buraco_negro_auge: { env: env(DUSK, 0.21), look: [BH_DIR, -8, 4], layers: [bh({ size: 64, progress: 1, seconds: 14, spinDegrees: 260 })],
     atmo: NIGHTFALL(1, 0.8, 0.9) },
-  buraco_negro_dissipacao: { env: env(DUSK, 0.21), look: [BH_DIR, -6, 8], layers: [bh({ size: 7, progress: 0.55, weight: 0.85, seconds: 30, spinDegrees: 600 })],
+  buraco_negro_dissipacao: { env: env(DUSK, 0.21), look: [BH_DIR, -8, 4], layers: [bh({ size: 12, progress: 0.55, weight: 0.85, seconds: 30, spinDegrees: 600 })],
     atmo: NIGHTFALL(0.7, 0.8, 0.7) },
-  portal_formacao: { env: env(DUSK, 0.23), look: [PORTAL_DIR, -12, 0], layers: [portal({ size: 34, progress: 0.14, seconds: 1 })],
+  portal_formacao: { env: env(DUSK, 0.23), look: [PORTAL_DIR, -12, 0], layers: [portal({ size: 34, progress: 0.05, seconds: 1.13 })],
     atmo: NIGHTFALL(0.5, 0.5, 0.5) },
   portal_auge: { env: env(DUSK, 0.23), look: [PORTAL_DIR, -12, 0], layers: [portal({ size: 34, progress: 1, seconds: 9, spinDegrees: 90 })],
     atmo: NIGHTFALL(0.9, 0.8, 0.8) },
@@ -384,8 +384,8 @@ function skyLenses(layers) {
   for (const l of layers) {
     if (n >= 2 || l.type !== 'BLACK_HOLE' || !(l.lens > 0)) continue;
     const s = l.lens * l.weight, r = l.size / 2 * Math.PI / 180;
-    out.splice(n * 4, 4, ...l.dir, r * 0.34 * (1.05 + 1.6 * s));
-    out[8 + n] = r * (1.6 + 2.2 * s);
+    out.splice(n * 4, 4, ...l.dir, r * 0.2 * (1.05 + 2.2 * s));
+    out[8 + n] = r * (2.2 + 2.0 * s);
     n++;
   }
   out[10] = n;
@@ -397,7 +397,7 @@ function skyMasks(layers) {
   const out = [];
   for (const l of layers) {
     const r = l.size / 2 * Math.PI / 180;
-    if (l.type === 'BLACK_HOLE') out.push([...l.dir, r * 0.34 * 1.02]);
+    if (l.type === 'BLACK_HOLE') out.push([...l.dir, r * 0.2 * 1.02]);
     else if (l.type === 'PORTAL') out.push([...l.dir, r * l.progress]);
     else if (l.type === 'ECLIPSE') {
       out.push([...l.dir, r * 0.97]);

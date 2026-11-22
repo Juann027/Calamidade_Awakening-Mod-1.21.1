@@ -73,8 +73,10 @@ public final class Sky {
      */
     public enum Type {
         /**
-         * Black disk (the shadow), a thin photon ring and a tilted accretion disk with its bent far side, plus a
-         * gravitational lens that bends the sky and the terrain around it. Size: outer diameter of the disk. Primary:
+         * Black disk (the shadow, a fifth of the size), a thin and very bright photon ring, a wide tilted accretion disk
+         * crossing the shadow from side to side with its far half bent over the top of the shadow by the lens, the sky
+         * around slightly darkened, and a gravitational lens that bends the sky and the terrain around it. Size: outer
+         * diameter of the disk. Primary:
          * hot inner color; secondary: outer color of the disk. Progress: how much of the disk is lit (0 = a bare
          * shadow, 1 = a full disk). Tilt: disk inclination (90 = edge-on). Lens: bending strength.
          */
@@ -323,7 +325,7 @@ public final class Sky {
      */
     public static Builder builder(Type type) { return new Builder(type); }
 
-    /** {@code builder(Type.BLACK_HOLE)}: 24 degrees, tilt 76, lens 0.6, spin 1.2 degrees per tick. */
+    /** {@code builder(Type.BLACK_HOLE)}: 40 degrees, tilt 80 (a wide disk seen almost edge-on), lens 0.6, spin 1.2 degrees per tick. */
     public static Builder blackHole() { return builder(Type.BLACK_HOLE); }
     /** {@code builder(Type.PORTAL)}: 30 degrees, open, galaxy spin 0.5 degrees per tick. */
     public static Builder portal() { return builder(Type.PORTAL); }
@@ -431,7 +433,7 @@ public final class Sky {
         private Builder(Type type) {
             this.type = Objects.requireNonNull(type, "type");
             switch (type) {
-                case BLACK_HOLE -> { size = 24; tilt = 76; lens = .6f; spin = 1.2f; intensity = 1.4f;
+                case BLACK_HOLE -> { size = 40; tilt = 80; lens = .6f; spin = 1.2f; intensity = 1.4f;
                     primary = 0xffffe6c0; secondary = 0xffff6a20; }
                 case PORTAL -> { size = 30; spin = .5f; intensity = 1.2f; primary = 0xffb8ecff; secondary = 0xffb040ff; }
                 case ECLIPSE -> { anchor = Anchor.SUN; ay = 0; size = 13; darken = .75f; primary = 0xffeaf2ff;

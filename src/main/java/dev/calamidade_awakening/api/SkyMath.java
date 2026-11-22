@@ -39,13 +39,13 @@ public final class SkyMath {
     public static int lenses(int layers) { return layers <= 2 ? 1 : 2; }
 
     /** Shadow radius of a black hole over its angular radius (sky.fsh). */
-    public static final double SHADOW = .34;
+    public static final double SHADOW = .2;
 
     /** Einstein radius (radians) of a black hole of angular radius {@code radius} (radians) and lens strength 0..1. */
-    public static double einstein(double radius, double strength) { return radius * SHADOW * (1.05 + 1.6 * strength); }
+    public static double einstein(double radius, double strength) { return radius * SHADOW * (1.05 + 2.2 * strength); }
 
-    /** Extent of the lens (radians) beyond which nothing bends; the bending fades out from 60% of it. */
-    public static double lensExtent(double radius, double strength) { return radius * (1.6 + 2.2 * strength); }
+    /** Extent of the lens (radians) beyond which nothing bends; the bending fades out smoothly toward it. */
+    public static double lensExtent(double radius, double strength) { return radius * (2.2 + 2.0 * strength); }
 
     /**
      * One layer competing for a frame: {@code hero} for layers of HERO effects, {@code weight} its resolved weight and

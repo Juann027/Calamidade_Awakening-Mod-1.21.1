@@ -145,7 +145,7 @@ final class SkyFrame {
             double radius = Math.toRadians(s.radius());
             var dir = r.direction();
             switch (s.type()) {
-                case BLACK_HOLE -> n = mask(n, dir, radius * .34 * 1.02);
+                case BLACK_HOLE -> n = mask(n, dir, radius * SkyMath.SHADOW * 1.02);
                 case PORTAL -> n = mask(n, dir, radius * s.progress());
                 case CELESTIAL_BODY -> n = mask(n, dir, radius);
                 case ECLIPSE -> {
