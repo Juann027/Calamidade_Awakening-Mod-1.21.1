@@ -190,6 +190,41 @@ public final class VisualKind {
         kind.backdrop = value;
     }
 
+    // 0.14.0: optional star fields and nebulae of an external effect, drawn in AFTER_SKY. Empty: none.
+    private volatile java.util.List<dev.calamidade_awakening.api.v1.StarField> stars = java.util.List.of();
+    private volatile java.util.List<dev.calamidade_awakening.api.v1.Nebula> nebulae = java.util.List.of();
+
+    /** Registered star fields, possibly empty. */
+    public java.util.List<dev.calamidade_awakening.api.v1.StarField> stars() { return stars; }
+    /** Registered nebulae, possibly empty. */
+    public java.util.List<dev.calamidade_awakening.api.v1.Nebula> nebulae() { return nebulae; }
+
+    /** Binds 1..4 star fields once; tracks and phases they read must exist in the timeline registered before them. */
+    public static synchronized void setStars(net.minecraft.resources.ResourceLocation id,
+            java.util.List<dev.calamidade_awakening.api.v1.StarField> list) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its star fields: " + id);
+        if (!kind.stars.isEmpty()) throw new IllegalArgumentException("Duplicate star fields: " + id);
+        if (list.isEmpty() || list.size() > dev.calamidade_awakening.api.v1.StarField.MAX_PER_EFFECT)
+            throw new IllegalArgumentException("Expected 1.." + dev.calamidade_awakening.api.v1.StarField.MAX_PER_EFFECT + " star fields");
+        for (var field : list) java.util.Objects.requireNonNull(field, "star field").validate(kind.timeline);
+        kind.stars = java.util.List.copyOf(list);
+    }
+
+    /** Binds 1..8 nebulae once; tracks and phases they read must exist in the timeline registered before them. */
+    public static synchronized void setNebulae(net.minecraft.resources.ResourceLocation id,
+            java.util.List<dev.calamidade_awakening.api.v1.Nebula> list) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its nebulae: " + id);
+        if (!kind.nebulae.isEmpty()) throw new IllegalArgumentException("Duplicate nebulae: " + id);
+        if (list.isEmpty() || list.size() > dev.calamidade_awakening.api.v1.Nebula.MAX_PER_EFFECT)
+            throw new IllegalArgumentException("Expected 1.." + dev.calamidade_awakening.api.v1.Nebula.MAX_PER_EFFECT + " nebulae");
+        for (var nebula : list) java.util.Objects.requireNonNull(nebula, "nebula").validate(kind.timeline);
+        kind.nebulae = java.util.List.copyOf(list);
+    }
+
     // 0.11.0: optional terrain edits of an external effect (server commit, client heat and stand-in). Empty: none.
     private volatile java.util.List<dev.calamidade_awakening.api.v1.TerrainEdit> terrain = java.util.List.of();
 

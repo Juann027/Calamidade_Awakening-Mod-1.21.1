@@ -140,3 +140,27 @@ vec3 caAtmoSkyDeltaOver(vec3 dir, vec3 vanillaSky, vec3 vanillaFog, float render
     target = mix(target, fogColor, fogDensity * (1.0 - smoothstep(0.0, 0.45, dir.y)));
     return target - base;
 }
+
+// ------------------------------------------------------------------------------- objetos do céu (0.14.0, fase 3)
+// Estrelas, constelações e nebulosas (e, depois, imagens) são desenhadas em AFTER_SKY, depois dos fundos, em alfa
+// pré-multiplicado (sky_objects.glsl). Quando um destes passes roda no quadro, o motor desenha os mesmos objetos uma
+// segunda vez numa camada de cobertura do tamanho da tela (CaElTex, RGBA8, limpa em zero): rgb = a luz que os objetos
+// trouxeram, a = a cobertura combinada, sem o terreno na frente. Cada objeto já aplicou a própria reação ao véu da
+// atmosfera e ao escurecimento; os passes usam a camada para não aplicar de novo:
+//   atmosfera: a diferença do céu vale só para o que os objetos deixaram ver (× (1 − a));
+//   escurecimento: tela × exposição + rgb × (1 − exposição) (os objetos ficam como se desenharam);
+//   sol e lua do jogo: a parte visível também é × (1 − a);
+//   preenchimento da lente sobre um morro: o céu estimado com os objetos por cima (a camada não tem terreno).
+// Sem objetos, CaEl.x = 0 e nada disto roda: os passes seguem o caminho da 0.14.0 (fase 2).
+uniform sampler2D CaElTex;
+uniform vec4 CaEl;          // x: 1 com a camada de cobertura deste quadro
+
+bool caElementsOn() {
+    return CaEl.x > 0.5;
+}
+
+// Luz e cobertura dos objetos do céu no pixel uv da tela (vizinho mais próximo; a camada tem o tamanho da tela).
+vec4 caElementsAt(vec2 uv) {
+    ivec2 size = textureSize(CaElTex, 0);
+    return texelFetch(CaElTex, clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1), 0);
+}

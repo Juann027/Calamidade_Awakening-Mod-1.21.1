@@ -96,6 +96,9 @@ final class AtmosphereFrame {
     /** 0.14.0: the frame's custom backgrounds, under the atmosphere sky when this pass paints it. */
     private BackdropFrame backdrop;
     void backdrop(BackdropFrame value) { backdrop = value; }
+    /** 0.14.0 (phase 3): the frame's sky objects; the pass reads their coverage layer. */
+    private SkyObjectsFrame objects;
+    void objects(SkyObjectsFrame value) { objects = value; }
 
     /** Active atmospheres in the last computed frame (F7). */
     int active() { return active; }
@@ -147,8 +150,10 @@ final class AtmosphereFrame {
         float[] lens = skyLenses.clone();
         float painted = skyPainted ? 1 : 0, replaced = replaced() ? 1 : 0;
         var backdropUniforms = backdrop == null ? null : backdrop.uniforms();
+        var objectUniforms = objects == null ? null : objects.uniforms();
         frame.pass(PROGRAM, u -> {
             if (backdropUniforms != null) backdropUniforms.accept(u);
+            if (objectUniforms != null) objectUniforms.accept(u);
             u.f3("CaAtmoSkyTop", s.skyTop().r(), s.skyTop().g(), s.skyTop().b());
             u.f3("CaAtmoSkyHorizon", s.skyHorizon().r(), s.skyHorizon().g(), s.skyHorizon().b());
             u.f3("CaAtmoFogColor", s.fogColor().r(), s.fogColor().g(), s.fogColor().b());

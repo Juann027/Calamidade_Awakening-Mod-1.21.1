@@ -53,6 +53,8 @@ public final class ClientHooks {
     private static final SkyFrame SKY = new SkyFrame(SCENE, WORLD, PROFILES);
     /** Custom sky backgrounds of the frame (0.14.0). */
     private static final BackdropFrame BACKDROP = new BackdropFrame(SCENE, WORLD, PROFILES);
+    /** Star fields and nebulae of the frame (0.14.0, phase 3). */
+    private static final SkyObjectsFrame SKY_OBJECTS = new SkyObjectsFrame(SCENE, WORLD, PROFILES);
     private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS,
         TERRAIN_FRAME, SKY);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
@@ -62,6 +64,9 @@ public final class ClientHooks {
         dev.calamidade_awakening.api.v1.client.ProfileSkyEffects.engine(PROFILES::replacesSky);
         SKY.backdrop(BACKDROP);
         ATMOSPHERE.backdrop(BACKDROP);
+        SKY_OBJECTS.bind(SKY, ATMOSPHERE);
+        SKY.objects(SKY_OBJECTS);
+        ATMOSPHERE.objects(SKY_OBJECTS);
     }
     private static final Map<VisualKind, KeyMapping> DEMOS = new LinkedHashMap<>();
     private static final KeyMapping QUALITY = new KeyMapping("key.calamidade_awakening.quality",
@@ -147,8 +152,9 @@ public final class ClientHooks {
         @SubscribeEvent
         public static void reloadListeners(net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent event) {
             event.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener) manager -> {
-                LOGGER.debug("Resource reload: releasing sky background textures");
+                LOGGER.debug("Resource reload: releasing sky background textures and sky object meshes");
                 BACKDROP.clear();
+                SKY_OBJECTS.clear();
             });
         }
 
@@ -158,6 +164,15 @@ public final class ClientHooks {
             event.registerShader(new ShaderInstance(event.getResourceProvider(),
                 ResourceLocation.fromNamespaceAndPath(CalamidadeAwakening.ID, "energy"),
                 DefaultVertexFormat.POSITION_COLOR), GEOMETRY::shader);
+            // 0.14.0 (phase 3): stars, constellation lines and nebulae drawn in AFTER_SKY.
+            SKY_OBJECTS.starShader(null);
+            SKY_OBJECTS.nebulaShader(null);
+            event.registerShader(new ShaderInstance(event.getResourceProvider(),
+                ResourceLocation.fromNamespaceAndPath(CalamidadeAwakening.ID, "sky_stars"), SkyObjectsFrame.STAR_FORMAT),
+                SKY_OBJECTS::starShader);
+            event.registerShader(new ShaderInstance(event.getResourceProvider(),
+                ResourceLocation.fromNamespaceAndPath(CalamidadeAwakening.ID, "sky_nebula"), DefaultVertexFormat.POSITION_TEX),
+                SKY_OBJECTS::nebulaShader);
         }
     }
 
@@ -231,6 +246,8 @@ public final class ClientHooks {
         COORDINATOR.invalidate();
         ATMOSPHERE.invalidate();
         BACKDROP.invalidate();
+        SKY_OBJECTS.invalidate();
+        SKY_OBJECTS.sweep();
     }
 
     // 0.8.0: atmosphere fog through the game's own fog. Lowest priority, so it applies after other mods' changes.
@@ -297,6 +314,7 @@ public final class ClientHooks {
         WORLD.clear();
         PROFILES.clear();
         BACKDROP.clear();
+        SKY_OBJECTS.clear();
     }
 
     /**
@@ -308,7 +326,26 @@ public final class ClientHooks {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_SKY || Minecraft.getInstance().level == null) return;
         BACKDROP.draw(event, SKY.hiddenSun(), SKY.hiddenMoon());
         PerfOverlay.backdrop(BACKDROP.drawn(), BACKDROP.candidates(), BACKDROP.opaque(), BACKDROP.blocked());
+        // 0.14.0 (phase 3): stars, constellations and nebulae over the backgrounds, under terrain, clouds and the layers.
+        SKY_OBJECTS.draw(event);
+        PerfOverlay.skyObjects(SKY_OBJECTS.fields(), SKY_OBJECTS.stars(), SKY_OBJECTS.nebulae(), SKY_OBJECTS.candidates(),
+            SKY_OBJECTS.coverageDrawn(), SKY_OBJECTS.blocked());
     }
+
+    /** Sky objects of the frame (0.14.0, phase 3: tests): star fields, stars and nebulae drawn, candidates. */
+    public static int[] skyObjects() {
+        return new int[] {SKY_OBJECTS.fields(), SKY_OBJECTS.stars(), SKY_OBJECTS.nebulae(), SKY_OBJECTS.candidates()};
+    }
+    /** Coverage layer of the sky objects (0.14.0, phase 3: tests): drawn this frame, allocated at all, texture, size. */
+    public static boolean skyCoverageDrawn() { return SKY_OBJECTS.coverageDrawn(); }
+    public static boolean skyCoverageAllocated() { return SKY_OBJECTS.coverageAllocated(); }
+    public static int skyCoverageTexture() { return SKY_OBJECTS.coverageTexture(); }
+    public static int[] skyCoverageSize() { return SKY_OBJECTS.coverageSize(); }
+    /** Draw calls of the sky objects since start and meshes built/kept (0.14.0, phase 3: tests). */
+    public static int skyObjectDraws() { return SKY_OBJECTS.draws(); }
+    public static long[] skyObjectMeshes() { return SKY_OBJECTS.meshes(); }
+    /** True while sky objects are active but the game's sky is blocked (0.14.0, phase 3: tests). */
+    public static boolean skyObjectsBlocked() { return SKY_OBJECTS.blocked(); }
 
     /** Backgrounds of the frame (0.14.0: tests). */
     public static int backdrops() { return BACKDROP.drawn(); }

@@ -349,6 +349,41 @@ public final class StageScene {
         return out;
     }
 
+    /**
+     * Star fields and nebulae of every active instance that has them (0.14.0, phase 3), weighted like the backgrounds
+     * (opacity envelope times the range fade), with the instance's real age in seconds for the spin and the twinkle.
+     */
+    List<dev.calamidade_awakening.api.SkyObjectsMath.Candidate<SkyObjectsFrame.Source>> skyObjects(Vec3 camera, float partial) {
+        if (level == null || active.isEmpty()) return List.of();
+        List<dev.calamidade_awakening.api.SkyObjectsMath.Candidate<SkyObjectsFrame.Source>> out = new ArrayList<>(2);
+        double now = level.getGameTime() + partial;
+        for (StageEvent effect : active.values()) {
+            VisualKind kind = VisualKind.byId(effect.visual());
+            if (kind.stars().isEmpty() && kind.nebulae().isEmpty()) continue;
+            double age = now - effect.tick();
+            Vec3 origin = age < 0 ? null : center(effect, partial);
+            if (origin == null) continue;
+            double local = localAge(effect, age);
+            float weight = (float) FrameBudget.envelope(local, kind.duration)
+                * dev.calamidade_awakening.api.AtmosphereMath.rangeFade(origin.distanceTo(camera), kind.range);
+            if (!(weight > 0)) continue;
+            var sampler = kind.clock().at(local);
+            for (var field : kind.stars()) {
+                var state = field.sample(sampler, 1f);
+                out.add(new dev.calamidade_awakening.api.SkyObjectsMath.Candidate<>(new SkyObjectsFrame.Source(field,
+                    state.brightness(), state.rotation(), state.spin(), age / 20.0), kind.hero(), weight, state.opacity(),
+                    effect.order(), dev.calamidade_awakening.api.SkyObjectsMath.RANK_EFFECT, field.order()));
+            }
+            for (var nebula : kind.nebulae()) {
+                var state = nebula.sample(sampler, 1f);
+                out.add(new dev.calamidade_awakening.api.SkyObjectsMath.Candidate<>(new SkyObjectsFrame.Source(nebula,
+                    state.brightness(), state.rotation(), state.spin(), age / 20.0), kind.hero(), weight, state.opacity(),
+                    effect.order(), dev.calamidade_awakening.api.SkyObjectsMath.RANK_EFFECT, nebula.order()));
+            }
+        }
+        return out;
+    }
+
     /** Anchor direction of a sky layer from the camera, or null when its point coincides with the camera. */
     static dev.calamidade_awakening.api.v1.Sky.Direction anchorDirection(dev.calamidade_awakening.api.v1.Sky layer,
             Vec3 camera, Vec3 center, Basis basis, double timeOfDay) {

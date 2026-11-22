@@ -391,6 +391,35 @@ public final class Effects {
     }
 
     /**
+     * Attaches 1..{@value StarField#MAX_PER_EFFECT} {@link StarField star fields} (procedural fields or catalogs with
+     * constellations) to a registered external effect (0.14.0). Call once per effect during mod construction (common
+     * side), after {@link #register} and, when a field reads tracks or a phase, after {@link #timeline}. Only effects of
+     * your namespace. While an instance is active, every player within the effect's range sees the stars at the
+     * instance's weight (started as a global event, the whole scope); nothing changes for effects without star fields,
+     * and players can turn custom skies off ({@code customSkies}).
+     *
+     * <pre>{@code
+     * Effects.stars(ID, StarField.random(42, 6000).band(90, 30, 14, .5f).build());
+     * }</pre>
+     */
+    public static void stars(ResourceLocation id, StarField... fields) {
+        VisualKind.setStars(Objects.requireNonNull(id), List.of(Objects.requireNonNull(fields)));
+    }
+
+    /**
+     * Attaches 1..{@value Nebula#MAX_PER_EFFECT} procedural {@link Nebula nebulae} to a registered external effect
+     * (0.14.0). Same rules as {@link #stars}: once per effect, during mod construction, after {@link #register} and,
+     * when a nebula reads tracks or a phase, after {@link #timeline}.
+     *
+     * <pre>{@code
+     * Effects.nebulae(ID, Nebula.cloud(120, 35, 22).colors(0xffff70c0, 0x803060ff).build());
+     * }</pre>
+     */
+    public static void nebulae(ResourceLocation id, Nebula... nebulae) {
+        VisualKind.setNebulae(Objects.requireNonNull(id), List.of(Objects.requireNonNull(nebulae)));
+    }
+
+    /**
      * Schedules a server callback at {@code tick} (0 .. duration-1) of every instance of a registered external effect.
      * Call during mod construction, after {@link #register} (and after {@link #timeline}, if any). Several cues per
      * effect and per tick are allowed and run in registration order. Exceptions are logged and do not stop the effect.

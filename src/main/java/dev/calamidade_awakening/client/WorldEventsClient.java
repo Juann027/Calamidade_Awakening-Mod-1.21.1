@@ -119,6 +119,37 @@ final class WorldEventsClient {
         return out;
     }
 
+    /** Star fields and nebulae of the events that apply here (0.14.0, phase 3); rank 1000 + priority. */
+    List<dev.calamidade_awakening.api.SkyObjectsMath.Candidate<SkyObjectsFrame.Source>> skyObjects(ClientLevel level, float partial) {
+        if (level == null || events.isEmpty()) return List.of();
+        List<dev.calamidade_awakening.api.SkyObjectsMath.Candidate<SkyObjectsFrame.Source>> out = new ArrayList<>(2);
+        double now = level.getGameTime() + partial;
+        for (Event e : events.values()) {
+            var kind = e.kind();
+            if ((kind.stars().isEmpty() && kind.nebulae().isEmpty()) || !applies(e, level)) continue;
+            double age = now - e.sync().tick();
+            if (age < 0) continue;
+            double local = localAge(e, age);
+            float weight = (float) FrameBudget.envelope(local, kind.duration);
+            if (!(weight > 0)) continue;
+            var sampler = kind.clock().at(local);
+            int rank = dev.calamidade_awakening.api.SkyObjectsMath.RANK_EVENT + e.sync().priority();
+            for (var field : kind.stars()) {
+                var state = field.sample(sampler, 1f);
+                out.add(new dev.calamidade_awakening.api.SkyObjectsMath.Candidate<>(new SkyObjectsFrame.Source(field,
+                    state.brightness(), state.rotation(), state.spin(), age / 20.0), kind.hero(), weight, state.opacity(),
+                    -e.sync().key(), rank, field.order()));
+            }
+            for (var nebula : kind.nebulae()) {
+                var state = nebula.sample(sampler, 1f);
+                out.add(new dev.calamidade_awakening.api.SkyObjectsMath.Candidate<>(new SkyObjectsFrame.Source(nebula,
+                    state.brightness(), state.rotation(), state.spin(), age / 20.0), kind.hero(), weight, state.opacity(),
+                    -e.sync().key(), rank, nebula.order()));
+            }
+        }
+        return out;
+    }
+
     /** Atmospheres of the events that apply here, for the engine's mix. */
     List<Atmosphere.State> atmospheres(ClientLevel level, float partial) {
         if (level == null || events.isEmpty()) return List.of();

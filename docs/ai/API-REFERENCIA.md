@@ -51,6 +51,11 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Light.Param`](#lightparam)
 - [`Light.Shape`](#lightshape)
 - [`Light.State`](#lightstate)
+- [`Nebula`](#nebula)
+- [`Nebula.Builder`](#nebulabuilder)
+- [`Nebula.Param`](#nebulaparam)
+- [`Nebula.Shape`](#nebulashape)
+- [`Nebula.State`](#nebulastate)
 - [`Placement`](#placement)
 - [`Point`](#point)
 - [`Point.Source`](#pointsource)
@@ -61,11 +66,20 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Sky.Param`](#skyparam)
 - [`Sky.State`](#skystate)
 - [`Sky.Type`](#skytype)
+- [`SkyBlend`](#skyblend)
+- [`SkyDarkening`](#skydarkening)
 - [`SkyProfile`](#skyprofile)
 - [`SkyProfile.Builder`](#skyprofilebuilder)
 - [`SkyProfile.State`](#skyprofilestate)
 - [`SkyProfile.StateBuilder`](#skyprofilestatebuilder)
 - [`SkyProfiles`](#skyprofiles)
+- [`StarField`](#starfield)
+- [`StarField.Builder`](#starfieldbuilder)
+- [`StarField.Kind`](#starfieldkind)
+- [`StarField.Line`](#starfieldline)
+- [`StarField.Param`](#starfieldparam)
+- [`StarField.Star`](#starfieldstar)
+- [`StarField.State`](#starfieldstate)
 - [`TerrainEdit`](#terrainedit)
 - [`TerrainEdit.Builder`](#terraineditbuilder)
 - [`TerrainEdit.Fill`](#terraineditfill)
@@ -690,6 +704,8 @@ Public common-side API: register effects, schedule server cues and start or stop
 | `static void terrain(ResourceLocation id, TerrainEdit... edits)` | Attaches 1..`TerrainEdit.MAX_PER_EFFECT` terrain edits to a registered external effect (0.11.0): excavation, burnt shell, real blocks or a structure placed at a marker of the effect's timeline, with the heat and the falling stand-in drawn by the client. |
 | `static void sky(ResourceLocation id, Sky... layers)` | Attaches 1..`Sky.MAX_PER_EFFECT` sky layers to a registered external effect (0.12.0): black holes, portals, eclipses, rifts, giant moons and planets, auroras, placed by direction on the sky. |
 | `static void backdrop(ResourceLocation id, Backdrop backdrop)` | Attaches a custom sky background (cubemap, panorama or gradient) to a registered external effect (0.14.0). |
+| `static void stars(ResourceLocation id, StarField... fields)` | Attaches 1..`StarField.MAX_PER_EFFECT` star fields (procedural fields or catalogs with constellations) to a registered external effect (0.14.0). |
+| `static void nebulae(ResourceLocation id, Nebula... nebulae)` | Attaches 1..`Nebula.MAX_PER_EFFECT` procedural nebulae to a registered external effect (0.14.0). |
 | `static void cue(ResourceLocation id, int tick, Effects.Cue cue)` | Schedules a server callback at `tick` (0 .. duration-1) of every instance of a registered external effect. |
 | `static void cue(ResourceLocation id, String marker, Effects.Cue cue)` | Schedules a cue on a marker of the effect's timeline (0.7.0). |
 | `static void onImpact(ResourceLocation id, Effects.Cue cue)` | Schedules a cue at the definition's `Impact` tick, keeping visual contact and gameplay in sync. |
@@ -958,6 +974,122 @@ Resolved light at one moment: parameters taken from tracks and clamped, flicker 
 | `float width()` | Ring band width or disc edge, blocks. |
 | `float height()` | Vertical reach of a disc or ring, blocks. |
 
+## Nebula
+
+`dev.calamidade_awakening.api.v1.Nebula` · class
+
+Immutable procedural nebula of one effect or one `SkyProfile.State` (0.14.0): a cloud around a direction or a band across the whole sky (like the dust and glow of a galaxy seen edge-on), shaped by seeded noise (every client sees the same nebula).
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_PER_EFFECT` | Most nebulae per effect or profile state. |
+| `static float ACTIVE_OPACITY` | Opacity below which a nebula is not drawn. |
+| `static float MAX_SPIN` | Fastest spin, degrees per second. |
+| `static int DEFAULT_ORDER` | Default draw order of nebulae (lower is drawn first, behind): behind the star fields. |
+| `static Nebula.Builder cloud(double azimuth, double elevation, float radius)` | Cloud centered on (`azimuth`, `elevation`) degrees (azimuth 0 = south, 90 = west; the direction seen at midnight when celestial) with an angular radius of 1..80 degrees. |
+| `static Nebula.Builder band(double poleAzimuth, double poleElevation, float halfWidth)` | Band around the great circle perpendicular to the pole (`poleAzimuth`, `poleElevation`) degrees, with a half width of 1..60 degrees (the gas thins out to about twice that). |
+| `Nebula.Shape shape()` | Shape of the nebula. |
+| `double azimuth()` | Azimuth of the cloud center or of the band pole, degrees. |
+| `double elevation()` | Elevation of the cloud center or of the band pole, degrees. |
+| `float extent()` | Cloud radius or band half width, degrees. |
+| `float roll()` | Turn of the noise pattern around the cloud center, degrees. |
+| `int inner()` | Color where the gas is densest, ARGB (alpha scales the density there). |
+| `int outer()` | Color at the thin edges, ARGB (alpha scales the density there). |
+| `float density()` | Density, 0..1. |
+| `float detail()` | Noise scale, 0.5..16 (higher: smaller features). |
+| `float warp()` | Domain warp of the noise, 0..2 (higher: more swirling). |
+| `long seed()` | Noise seed. |
+| `float brightness()` | Brightness multiplier, 0..16. |
+| `SkyBlend blend()` | Composition mode. |
+| `float atmosphere()` | How much the Atmosphere sky veils the nebula, 0..1. |
+| `SkyDarkening darkening()` | Reaction to the darkening of sky layers. |
+| `float darkeningStrength()` | Strength of the darkening reaction, 0..1. |
+| `float daylight()` | How much daylight hides the nebula, 0..1. |
+| `float horizon()` | Height of the fade at the horizon, degrees (0: none). |
+| `float opacity()` | Opacity, 0..1. |
+| `float rotation()` | Turn around the vertical axis, degrees. |
+| `float spin()` | Spin, degrees per second. |
+| `boolean celestial()` | True when the nebula turns with the time of day like the vanilla stars. |
+| `int order()` | Draw order among sky objects: lower is drawn first, behind (default `DEFAULT_ORDER`). |
+| `String track(Nebula.Param param)` | Track bound to a parameter, or null when the parameter is constant. |
+| `Map<Nebula.Param, String> tracks()` | Every track binding, in `Param` order. |
+| `String weightPhase()` | Phase whose weight multiplies the opacity, or null. |
+| `boolean animated()` | True when the opacity, the brightness or the rotation depends on the timeline. |
+| `void validate(Timeline timeline)` | Checks that every track and the phase this nebula reads exist in `timeline`, which may be null only when nothing is animated. |
+| `Nebula.State sample(Timeline.Sampler timeline, float envelope)` | Resolves this nebula at one moment: `timeline` is the instance's sampler at its local age (any sampler works when nothing is animated); `envelope` is the instance's weight (0..1), which multiplies the opacity together with the phase and the `Param.OPACITY` track. |
+| `String toString()` | Short description for logs: shape and extent. |
+
+## Nebula.Builder
+
+`dev.calamidade_awakening.api.v1.Nebula.Builder` · class
+
+Builder of a `Nebula`.
+
+| Membro | Descrição |
+|---|---|
+| `Nebula.Builder colors(int inner, int outer)` | Colors where the gas is densest and at its thin edges, ARGB; alpha scales the density there. |
+| `Nebula.Builder density(float value)` | Density, 0..1 (default 0.7). |
+| `Nebula.Builder detail(float value)` | Noise scale, 0.5..16 (default 3; higher: smaller features). |
+| `Nebula.Builder warp(float value)` | Domain warp, 0..2 (default 0.7; higher: more swirling). |
+| `Nebula.Builder seed(long value)` | Noise seed (default 0): the same seed always gives the same nebula. |
+| `Nebula.Builder roll(float degrees)` | Turn of a cloud's pattern around its center, degrees, ±360. |
+| `Nebula.Builder brightness(float value)` | Brightness multiplier, 0..16 (default 1). |
+| `Nebula.Builder blend(SkyBlend value)` | Composition with the sky behind (`SkyBlend`; default `SkyBlend.NORMAL`). |
+| `Nebula.Builder atmosphere(float value)` | How much the Atmosphere sky veils the nebula, 0..1 (default 1). |
+| `Nebula.Builder darkening(SkyDarkening mode, float strength)` | Reaction to sky layers that darken the world and its strength 0..1 (default `SkyDarkening.REVEAL`, 1). |
+| `Nebula.Builder daylight(float value)` | How much daylight and rain hide the nebula, 0..1 (default 1; 0: always visible). |
+| `Nebula.Builder horizon(float degrees)` | Fade near the horizon, 0..30 degrees (default 4; 0: no fade). |
+| `Nebula.Builder opacity(float value)` | Opacity, 0..1 (default 1). |
+| `Nebula.Builder rotation(float degrees)` | Turn around the vertical axis, degrees, −3600..3600 (positive moves what was south toward west). |
+| `Nebula.Builder spin(float degreesPerSecond)` | Spin around the vertical axis, degrees per second (±`MAX_SPIN`); stops with "motion effects" off. |
+| `Nebula.Builder celestial(boolean value)` | Whether the nebula turns with the time of day like the vanilla stars (default true). |
+| `Nebula.Builder order(int value)` | Draw order among sky objects, −1000..1000: lower is drawn first, behind (default `DEFAULT_ORDER`). |
+| `Nebula.Builder track(Nebula.Param param, String track)` | Takes `param` from a track of the effect's timeline instead of the constant (clamped to its range). |
+| `Nebula.Builder weightPhase(String phase)` | Multiplies the opacity by the weight of a timeline phase (0 outside it). |
+| `Nebula build()` | Immutable nebula. |
+
+## Nebula.Param
+
+`dev.calamidade_awakening.api.v1.Nebula.Param` · enum
+
+Numeric parameters that can be driven by a timeline track, each with the range used to clamp it.
+
+| Membro | Descrição |
+|---|---|
+| `OPACITY` | Opacity multiplier, 0..1. |
+| `BRIGHTNESS` | Brightness multiplier, 0..16. |
+| `ROTATION` | Turn around the vertical axis, degrees (positive moves what was south toward west). |
+| `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
+
+## Nebula.Shape
+
+`dev.calamidade_awakening.api.v1.Nebula.Shape` · enum
+
+Shape of the nebula.
+
+| Membro | Descrição |
+|---|---|
+| `CLOUD` | A cloud around a direction, within an angular radius. |
+| `BAND` | A band around a great circle of the sky, defined by its pole. |
+
+## Nebula.State
+
+`dev.calamidade_awakening.api.v1.Nebula.State` · record
+
+A nebula resolved at one moment.
+
+| Membro | Descrição |
+|---|---|
+| `new State(float opacity, float brightness, float rotation, float spin)` | Canonical constructor: opacity, brightness, rotation, spin. |
+| `boolean visible()` | True when the nebula should be drawn. |
+| `double rotationAt(double seconds, boolean motion)` | Turn after `seconds` of real age, degrees (spin stops when `motion` is false). |
+| `float opacity()` | Effective opacity, 0..1 (builder opacity times weight, phase and track). |
+| `float brightness()` | Brightness multiplier, 0..16. |
+| `float rotation()` | Turn around the vertical axis without the spin, degrees. |
+| `float spin()` | Spin, degrees per second (applied by the client over the instance's real age). |
+
 ## Placement
 
 `dev.calamidade_awakening.api.v1.Placement` · class
@@ -1221,6 +1353,30 @@ What the layer paints.
 | `AURORA` | Waving curtains of light along the horizon. |
 | `DISTANT_BOLTS` | Distant lightning (0.12.0, "raios ao longe"): bolts and beams that fall far away, at random spots around each player (70 to 300 blocks), with a flash on the sky. |
 
+## SkyBlend
+
+`dev.calamidade_awakening.api.v1.SkyBlend` · enum
+
+How a sky object is composed over what is already in the sky (0.14.0): the vanilla sky, a `Backdrop` and the objects drawn before it.
+
+| Membro | Descrição |
+|---|---|
+| `NORMAL` | Alpha blending: coverage = alpha (times opacity), exact colors. |
+| `LUMINOUS` | Additive light: no coverage, the sky behind always stays. |
+| `COVER` | Silhouette: full coverage where alpha is at least 0.5 (times opacity), none elsewhere. |
+
+## SkyDarkening
+
+`dev.calamidade_awakening.api.v1.SkyDarkening` · enum
+
+How a sky object reacts when sky layers darken the world (0.14.0), for example during the totality of an eclipse.
+
+| Membro | Descrição |
+|---|---|
+| `DIM` | Darkened like the world and the background (strength 1: exactly as much). |
+| `REVEAL` | Revealed by the darkness: the darkening removes daylight, so an object that daylight hides (`daylight` above 0) shows up as the sky darkens, like stars during a total eclipse. |
+| `IGNORE` | Not affected. |
+
 ## SkyProfile
 
 `dev.calamidade_awakening.api.v1.SkyProfile` · class
@@ -1263,6 +1419,8 @@ One state of a dimension's sky.
 | `boolean vanillaMoon()` | True when the vanilla moon stays visible. |
 | `boolean vanillaSky()` | True when the vanilla sky stays (false: in a dimension whose effects are `ProfileSkyEffects`, the game does not draw its sky at all — gradient, sunrise, sun, moon, stars — and the engine paints the gradient of the state's atmosphere, or the vanilla colors, instead). |
 | `Backdrop backdrop()` | Custom background of this state (0.14.0), or null. |
+| `List<StarField> stars()` | Star fields of this state (0.14.0; at most `StarField.MAX_PER_EFFECT`). |
+| `List<Nebula> nebulae()` | Nebulae of this state (0.14.0; at most `Nebula.MAX_PER_EFFECT`). |
 
 ## SkyProfile.StateBuilder
 
@@ -1272,6 +1430,8 @@ Builder of a `State`.
 
 | Membro | Descrição |
 |---|---|
+| `SkyProfile.StateBuilder stars(StarField... values)` | Adds star fields (0.14.0; constant: no tracks nor phase; spin and twinkle run on the world clock), up to `StarField.MAX_PER_EFFECT` in total. |
+| `SkyProfile.StateBuilder nebulae(Nebula... values)` | Adds nebulae (0.14.0; constant: no tracks nor phase), up to `Nebula.MAX_PER_EFFECT` in total. |
 | `SkyProfile.StateBuilder backdrop(Backdrop value)` | Custom background of the state (0.14.0; constant: no tracks nor phase; its spin runs on the world clock). |
 | `SkyProfile.StateBuilder layers(Sky... values)` | Adds sky layers (constant: no tracks nor phase), up to `Sky.MAX_PER_EFFECT` in total. |
 | `SkyProfile.StateBuilder atmosphere(Atmosphere value)` | Atmosphere of the state (constant: no tracks nor phase). |
@@ -1294,6 +1454,166 @@ Sky of each dimension (0.12.0): one `SkyProfile` per dimension, with named state
 | `static Map<ResourceLocation, SkyProfile> profiles()` | Every defined profile, by dimension. |
 | `static boolean setState(MinecraftServer server, ResourceLocation dimension, String state, int ticks)` | Crossfades the sky of `dimension` to `state` in `ticks` (0..`MAX_TICKS`; 0 is instant). |
 | `static Optional<String> state(MinecraftServer server, ResourceLocation dimension)` | The state the sky of `dimension` is in or going to, if it has a profile. |
+
+## StarField
+
+`dev.calamidade_awakening.api.v1.StarField` · class
+
+Immutable star field of one effect or one `SkyProfile.State` (0.14.0): a procedural field (seeded, deterministic: every client sees the same stars) or a catalog of named stars with constellation lines.
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_PER_EFFECT` | Most star fields per effect or profile state. |
+| `static int MAX_RANDOM` | Most stars of a procedural field. |
+| `static int MAX_CATALOG` | Most stars of a catalog. |
+| `static int MAX_LINES` | Most constellation line segments of a catalog. |
+| `static float ACTIVE_OPACITY` | Opacity below which a field is not drawn. |
+| `static float MAX_SPIN` | Fastest spin, degrees per second. |
+| `static int DEFAULT_ORDER` | Default draw order of star fields (lower is drawn first, behind). |
+| `static StarField.Builder random(long seed, int count)` | Procedural field: `count` stars (1..`MAX_RANDOM`) spread over the whole sky (or a region), with magnitudes distributed like the real sky (about four times more stars per fainter magnitude) and colors from a palette of star temperatures. |
+| `static StarField.Builder catalog()` | Catalog: stars added one by one with `Builder.star`, joined by `Builder.constellation` lines. |
+| `StarField.Kind kind()` | How the stars are produced. |
+| `long seed()` | Seed of a procedural field (0 for a catalog). |
+| `int count()` | Number of stars: the procedural count or the catalog size. |
+| `float brightest()` | Brightest magnitude of a procedural field. |
+| `float faintest()` | Faintest magnitude of a procedural field. |
+| `int[] colors()` | Palette of a procedural field, ARGB (a copy). |
+| `float[] colorWeights()` | Relative weights of the palette colors (a copy, same length as `colors()`). |
+| `double bandAzimuth()` | Azimuth of the band's pole, degrees (procedural fields with a band). |
+| `double bandElevation()` | Elevation of the band's pole, degrees. |
+| `float bandWidth()` | Half width of the band, degrees (0: no band). |
+| `float bandFraction()` | Fraction of the stars concentrated in the band, 0..1. |
+| `double regionAzimuth()` | Azimuth of the region center, degrees. |
+| `double regionElevation()` | Elevation of the region center, degrees. |
+| `float regionRadius()` | Angular radius of the region, degrees (180: the whole sky). |
+| `List<StarField.Star> stars()` | Catalog stars, in insertion order (empty for a procedural field). |
+| `List<StarField.Line> lines()` | Constellation segments (empty for a procedural field). |
+| `float lineWidth()` | Width of the constellation lines, degrees. |
+| `float size()` | Star size multiplier, 0.1..16 (1: about 0.09 degrees across for a magnitude-1 star). |
+| `float brightness()` | Brightness multiplier, 0..16. |
+| `float twinkle()` | Twinkle amount, 0..1. |
+| `float twinkleSpeed()` | Twinkle speed, cycles per second (about), 0..8. |
+| `SkyBlend blend()` | Composition mode. |
+| `float atmosphere()` | How much the Atmosphere sky veils the stars, 0..1. |
+| `SkyDarkening darkening()` | Reaction to the darkening of sky layers. |
+| `float darkeningStrength()` | Strength of the darkening reaction, 0..1. |
+| `float daylight()` | How much daylight hides the stars, 0..1 (1: like the vanilla stars). |
+| `float horizon()` | Height of the fade at the horizon, degrees (0: none). |
+| `float opacity()` | Opacity, 0..1. |
+| `float rotation()` | Turn around the vertical axis, degrees. |
+| `float spin()` | Spin, degrees per second. |
+| `boolean celestial()` | True when the field turns with the time of day like the vanilla stars. |
+| `int order()` | Draw order among sky objects: lower is drawn first, behind (default `DEFAULT_ORDER`). |
+| `String track(StarField.Param param)` | Track bound to a parameter, or null when the parameter is constant. |
+| `Map<StarField.Param, String> tracks()` | Every track binding, in `Param` order. |
+| `String weightPhase()` | Phase whose weight multiplies the opacity, or null. |
+| `boolean animated()` | True when the opacity, the brightness or the rotation depends on the timeline. |
+| `void validate(Timeline timeline)` | Checks that every track and the phase this field reads exist in `timeline`, which may be null only when nothing is animated. |
+| `StarField.State sample(Timeline.Sampler timeline, float envelope)` | Resolves this field at one moment: `timeline` is the instance's sampler at its local age (any sampler works when nothing is animated); `envelope` is the instance's weight (0..1), which multiplies the opacity together with the phase and the `Param.OPACITY` track. |
+| `String toString()` | Short description for logs: kind and count. |
+
+## StarField.Builder
+
+`dev.calamidade_awakening.api.v1.StarField.Builder` · class
+
+Builder of a `StarField`.
+
+| Membro | Descrição |
+|---|---|
+| `StarField.Builder magnitudes(float brightest, float faintest)` | Magnitude range of a procedural field, −30..30, brightest first (default −1 to 6). |
+| `StarField.Builder colors(int... argb)` | Palette of a procedural field, 1..16 ARGB colors with equal weights (default: star temperatures). |
+| `StarField.Builder band(double poleAzimuth, double poleElevation, float halfWidth, float fraction)` | Concentrates a fraction (0..1) of a procedural field's stars in a band around a great circle, like a galaxy seen edge-on: the circle is the one perpendicular to the pole at (`azimuth`, `elevation`), and `halfWidth` (1..60 degrees) is the band's half width. |
+| `StarField.Builder region(double azimuth, double elevation, float radius)` | Keeps a procedural field inside a circle of the sky: center (`azimuth`, `elevation`), radius 1..180 degrees. |
+| `StarField.Builder star(double azimuth, double elevation, float magnitude, int argb)` | Adds a catalog star without a name (see double, double, float, int)). |
+| `StarField.Builder star(String name, double azimuth, double elevation, float magnitude, int argb)` | Adds a named catalog star: name `[a-z0-9_]`, unique in the field; direction in degrees (azimuth 0 = south, 90 = west); magnitude −30..30; ARGB color (alpha multiplies the brightness). |
+| `StarField.Builder constellation(int argb, String... path)` | Joins named catalog stars with lines, in order (`"a", "b", "c"` draws a–b and b–c); call again for branches. |
+| `StarField.Builder lineWidth(float degrees)` | Width of the constellation lines, 0.02..2 degrees (default 0.12; at least about one pixel on screen). |
+| `StarField.Builder size(float value)` | Star size multiplier, 0.1..16 (default 1). |
+| `StarField.Builder brightness(float value)` | Brightness multiplier, 0..16 (default 1). |
+| `StarField.Builder twinkle(float amount, float speed)` | Twinkle: amount 0..1 (default 0.25) and speed 0..8 cycles per second (default 1). |
+| `StarField.Builder blend(SkyBlend value)` | Composition with the sky behind (`SkyBlend`; default `SkyBlend.LUMINOUS`). |
+| `StarField.Builder atmosphere(float value)` | How much the Atmosphere sky veils the stars, 0..1 (default 1; 0: they shine through any atmosphere). |
+| `StarField.Builder darkening(SkyDarkening mode, float strength)` | Reaction to sky layers that darken the world and its strength 0..1 (default `SkyDarkening.REVEAL`, 1). |
+| `StarField.Builder daylight(float value)` | How much daylight and rain hide the stars, 0..1 (default 1, like the vanilla stars; 0: always visible). |
+| `StarField.Builder horizon(float degrees)` | Fade near the horizon: stars reach full brightness this many degrees up, 0..30 (default 4; 0: no fade). |
+| `StarField.Builder opacity(float value)` | Opacity, 0..1 (default 1). |
+| `StarField.Builder rotation(float degrees)` | Turn around the vertical axis, degrees, −3600..3600 (positive moves what was south toward west). |
+| `StarField.Builder spin(float degreesPerSecond)` | Spin around the vertical axis, degrees per second (±`MAX_SPIN`); stops with "motion effects" off. |
+| `StarField.Builder celestial(boolean value)` | Whether the field turns with the time of day like the vanilla stars (default true). |
+| `StarField.Builder order(int value)` | Draw order among sky objects, −1000..1000: lower is drawn first, behind (default `DEFAULT_ORDER`). |
+| `StarField.Builder track(StarField.Param param, String track)` | Takes `param` from a track of the effect's timeline instead of the constant (clamped to its range). |
+| `StarField.Builder weightPhase(String phase)` | Multiplies the opacity by the weight of a timeline phase (0 outside it). |
+| `StarField build()` | Immutable star field; a catalog needs at least one star. |
+
+## StarField.Kind
+
+`dev.calamidade_awakening.api.v1.StarField.Kind` · enum
+
+How the stars are produced.
+
+| Membro | Descrição |
+|---|---|
+| `RANDOM` | Procedural, from a seed and a count. |
+| `CATALOG` | Listed one by one, with optional constellation lines. |
+
+## StarField.Line
+
+`dev.calamidade_awakening.api.v1.StarField.Line` · record
+
+One constellation segment between two catalog stars.
+
+| Membro | Descrição |
+|---|---|
+| `new Line(int from, int to, int argb)` | Canonical constructor: from, to, argb. |
+| `int from()` | Index of the first star in `stars()`. |
+| `int to()` | Index of the second star. |
+| `int argb()` | Line color; alpha is the line opacity. |
+
+## StarField.Param
+
+`dev.calamidade_awakening.api.v1.StarField.Param` · enum
+
+Numeric parameters that can be driven by a timeline track, each with the range used to clamp it.
+
+| Membro | Descrição |
+|---|---|
+| `OPACITY` | Opacity multiplier, 0..1. |
+| `BRIGHTNESS` | Brightness multiplier, 0..16. |
+| `ROTATION` | Turn around the vertical axis, degrees (positive moves what was south toward west). |
+| `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
+
+## StarField.Star
+
+`dev.calamidade_awakening.api.v1.StarField.Star` · record
+
+One catalog star.
+
+| Membro | Descrição |
+|---|---|
+| `new Star(String name, double azimuth, double elevation, float magnitude, int argb)` | Canonical constructor: name, azimuth, elevation, magnitude, argb. |
+| `String name()` | Name used by constellation lines, or null. |
+| `double azimuth()` | Degrees (0 = south, 90 = west), as seen at midnight when the field is celestial. |
+| `double elevation()` | Degrees, −90..90. |
+| `float magnitude()` | Astronomical magnitude, −30..30 (smaller is brighter). |
+| `int argb()` | Color (alpha multiplies the star's brightness). |
+
+## StarField.State
+
+`dev.calamidade_awakening.api.v1.StarField.State` · record
+
+A field resolved at one moment.
+
+| Membro | Descrição |
+|---|---|
+| `new State(float opacity, float brightness, float rotation, float spin)` | Canonical constructor: opacity, brightness, rotation, spin. |
+| `boolean visible()` | True when the field should be drawn. |
+| `double rotationAt(double seconds, boolean motion)` | Turn after `seconds` of real age, degrees (spin stops when `motion` is false). |
+| `float opacity()` | Effective opacity, 0..1 (builder opacity times weight, phase and track). |
+| `float brightness()` | Brightness multiplier, 0..16. |
+| `float rotation()` | Turn around the vertical axis without the spin, degrees. |
+| `float spin()` | Spin, degrees per second (applied by the client over the instance's real age). |
 
 ## TerrainEdit
 

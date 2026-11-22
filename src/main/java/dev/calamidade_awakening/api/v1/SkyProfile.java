@@ -43,9 +43,13 @@ public final class SkyProfile {
         private final Atmosphere atmosphere;
         private final boolean vanillaSun, vanillaMoon, vanillaSky;
         private final Backdrop backdrop;
+        private final List<StarField> stars;
+        private final List<Nebula> nebulae;
 
         private State(StateBuilder b) {
             backdrop = b.backdrop;
+            stars = List.copyOf(b.stars);
+            nebulae = List.copyOf(b.nebulae);
             layers = List.copyOf(b.layers);
             atmosphere = b.atmosphere;
             vanillaSun = b.vanillaSun;
@@ -72,6 +76,10 @@ public final class SkyProfile {
         public boolean vanillaSky() { return vanillaSky; }
         /** Custom background of this state (0.14.0), or null. */
         public Backdrop backdrop() { return backdrop; }
+        /** Star fields of this state (0.14.0; at most {@link StarField#MAX_PER_EFFECT}). */
+        public List<StarField> stars() { return stars; }
+        /** Nebulae of this state (0.14.0; at most {@link Nebula#MAX_PER_EFFECT}). */
+        public List<Nebula> nebulae() { return nebulae; }
     }
 
     /** Builder of a {@link State}. */
@@ -80,8 +88,40 @@ public final class SkyProfile {
         private Atmosphere atmosphere;
         private boolean vanillaSun = true, vanillaMoon = true, vanillaSky = true;
         private Backdrop backdrop;
+        private final java.util.ArrayList<StarField> stars = new java.util.ArrayList<>();
+        private final java.util.ArrayList<Nebula> nebulae = new java.util.ArrayList<>();
 
         private StateBuilder() {}
+
+        /**
+         * Adds star fields (0.14.0; constant: no tracks nor phase; spin and twinkle run on the world clock), up to
+         * {@link StarField#MAX_PER_EFFECT} in total. States crossfade their fields like their layers.
+         */
+        public StateBuilder stars(StarField... values) {
+            for (StarField field : values) {
+                if (Objects.requireNonNull(field).animated())
+                    throw new IllegalArgumentException("The star fields of a profile cannot read tracks or a phase (no timeline)");
+                if (stars.size() >= StarField.MAX_PER_EFFECT)
+                    throw new IllegalArgumentException("At most " + StarField.MAX_PER_EFFECT + " star fields per state");
+                stars.add(field);
+            }
+            return this;
+        }
+
+        /**
+         * Adds nebulae (0.14.0; constant: no tracks nor phase), up to {@link Nebula#MAX_PER_EFFECT} in total. States
+         * crossfade their nebulae like their layers.
+         */
+        public StateBuilder nebulae(Nebula... values) {
+            for (Nebula nebula : values) {
+                if (Objects.requireNonNull(nebula).animated())
+                    throw new IllegalArgumentException("The nebulae of a profile cannot read tracks or a phase (no timeline)");
+                if (nebulae.size() >= Nebula.MAX_PER_EFFECT)
+                    throw new IllegalArgumentException("At most " + Nebula.MAX_PER_EFFECT + " nebulae per state");
+                nebulae.add(nebula);
+            }
+            return this;
+        }
 
         /**
          * Custom background of the state (0.14.0; constant: no tracks nor phase; its spin runs on the world clock).

@@ -101,6 +101,12 @@ public final class PerfOverlay {
         backdropDrawn = drawn; backdropActive = active; backdropOpaque = opaque; backdropBlocked = blocked;
     }
     private static int backdropDrawn, backdropActive;
+    /** Sky objects of the frame (0.14.0, phase 3): fields, stars and nebulae drawn, candidates, coverage layer, blocked. */
+    static void skyObjects(int fields, int stars, int nebulae, int active, boolean coverage, boolean blocked) {
+        objFields = fields; objStars = stars; objNebulae = nebulae; objActive = active; objCoverage = coverage; objBlocked = blocked;
+    }
+    private static int objFields, objStars, objNebulae, objActive;
+    private static boolean objCoverage, objBlocked;
     private static boolean backdropOpaque, backdropBlocked;
 
     /** Whether the atmosphere pass ran in the last complete frame (0.14.0, tests: a static background needs none). */
@@ -271,6 +277,12 @@ public final class PerfOverlay {
                     ? Component.translatableWithFallback(PREFIX + "backdrop.blocked", "blocked (game sky hidden)")
                     : backdropOpaque ? Component.translatableWithFallback(PREFIX + "backdrop.opaque", "opaque")
                     : Component.translatableWithFallback(PREFIX + "backdrop.partial", "partial")));
+        if (objActive > 0)
+            lines.add(Component.translatableWithFallback(PREFIX + "skyobjects", "Sky objects: %s fields (%s stars) · %s nebulae (%s active) · coverage %s",
+                objFields, objStars, objNebulae, objActive, objBlocked
+                    ? Component.translatableWithFallback(PREFIX + "backdrop.blocked", "blocked (game sky hidden)")
+                    : objCoverage ? Component.translatableWithFallback(PREFIX + "yes", "yes")
+                    : Component.translatableWithFallback(PREFIX + "no", "no")));
         lines.add(Component.translatableWithFallback(PREFIX + "world", "Global events: %s", worldEvents));
         if (skyState != null)
             lines.add(Component.translatableWithFallback(PREFIX + "skystate", "Dimension sky: %s", skyState));

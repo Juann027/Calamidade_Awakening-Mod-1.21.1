@@ -43,7 +43,7 @@ public final class ClientConfig {
             .translation("calamidade_awakening.configuration.vanillaFog")
             .define("vanillaFog", true);
         CUSTOM_SKIES = builder
-            .comment("Custom sky backgrounds (skyboxes) of addons (0.14.0). Off: the vanilla sky stays; the engine's procedural sky layers are not affected.")
+            .comment("Custom skies of addons (0.14.0): backgrounds (skyboxes), star fields, constellations and nebulae. Off: the vanilla sky stays; the engine's procedural sky layers are not affected.")
             .translation("calamidade_awakening.configuration.customSkies")
             .define("customSkies", true);
         // 0.11.2: quality profiles. The caps are clamped again by QualityProfile.Caps (safety maxima).

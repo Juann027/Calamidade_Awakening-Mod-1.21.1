@@ -223,6 +223,36 @@ tasks.register('checkShaders') {
             }
         }
         zip.close()
+        // 0.14.0 (fase 3): shaders de núcleo (shaders/core, GLSL 150 do jogo), com cada "#moj_import <ns:arquivo>"
+        // trocado por assets/<ns>/shaders/include/<arquivo>, como o NeoForge resolve (ClientHooks.getShaderImportLocation).
+        roots.each { root ->
+            root.eachDir { ns ->
+                def core = new File(ns, 'shaders/core')
+                if (!core.isDirectory()) return
+                core.listFiles().findAll { it.name.endsWith('.vsh') || it.name.endsWith('.fsh') }.sort().each { shader ->
+                    def body = new StringBuilder()
+                    shader.getText('UTF-8').split('\n', -1).each { line ->
+                        def m = line.trim() =~ /^#moj_import <([a-z0-9_.-]+):([a-z0-9_.\/-]+)>$/
+                        if (m.matches()) {
+                            def include = new File(root, "${m.group(1)}/shaders/include/${m.group(2)}")
+                            if (!include.isFile()) throw new GradleException("${shader}: #moj_import ${m.group(1)}:${m.group(2)} não encontrado")
+                            body.append(include.getText('UTF-8')).append('\n')
+                        } else body.append(line).append('\n')
+                    }
+                    def stage = shader.name.endsWith('.vsh') ? 'vert' : 'frag'
+                    def target = new File(out, "${ns.name}_core_${shader.name}.${stage}")
+                    target.setText(body.toString(), 'UTF-8')
+                    def result = processes.exec {
+                        commandLine validator.absolutePath, '-S', stage, target.absolutePath
+                        ignoreExitValue = true
+                    }
+                    def text = result.standardOutput.asText.get() + result.standardError.asText.get()
+                    if (result.result.get().exitValue != 0)
+                        throw new GradleException("checkShaders: ${ns.name}:core/${shader.name} não compila:\n${text}")
+                    checked++
+                }
+            }
+        }
         // Cópias da biblioteca em outros namespaces (addons não alcançam o namespace do motor) devem ser idênticas.
         def library = new File(roots[0], 'calamidade_awakening/shaders/fx/calamidade_fx.glsl')
         roots.each { root ->

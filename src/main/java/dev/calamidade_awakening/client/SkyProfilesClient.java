@@ -105,6 +105,36 @@ final class SkyProfilesClient {
         return out;
     }
 
+    /**
+     * Star fields and nebulae of the level's profile (0.14.0, phase 3), for every state of the transition, weighted by
+     * it; spin and twinkle run on the world clock.
+     */
+    List<dev.calamidade_awakening.api.SkyObjectsMath.Candidate<SkyObjectsFrame.Source>> skyObjects(ClientLevel level, float partial) {
+        Current c = current(level);
+        if (c == null) return List.of();
+        double now = level.getGameTime() + partial;
+        var sampler = dev.calamidade_awakening.api.v1.Timeline.empty(1).at(0);
+        List<dev.calamidade_awakening.api.SkyObjectsMath.Candidate<SkyObjectsFrame.Source>> out = new ArrayList<>(4);
+        int index = 0;
+        for (var entry : states(c, now)) {
+            index++;
+            float weight = entry.getValue();
+            for (var field : entry.getKey().stars()) {
+                var state = field.sample(sampler, 1f);
+                out.add(new dev.calamidade_awakening.api.SkyObjectsMath.Candidate<>(new SkyObjectsFrame.Source(field,
+                    state.brightness(), state.rotation(), state.spin(), now / 20.0), false, weight, state.opacity(),
+                    Long.MIN_VALUE + index, dev.calamidade_awakening.api.SkyObjectsMath.RANK_PROFILE, field.order()));
+            }
+            for (var nebula : entry.getKey().nebulae()) {
+                var state = nebula.sample(sampler, 1f);
+                out.add(new dev.calamidade_awakening.api.SkyObjectsMath.Candidate<>(new SkyObjectsFrame.Source(nebula,
+                    state.brightness(), state.rotation(), state.spin(), now / 20.0), false, weight, state.opacity(),
+                    Long.MIN_VALUE + index, dev.calamidade_awakening.api.SkyObjectsMath.RANK_PROFILE, nebula.order()));
+            }
+        }
+        return out;
+    }
+
     /** Atmospheres of the level's profile, weighted by the transition. */
     List<Atmosphere.State> atmospheres(ClientLevel level, float partial) {
         Current c = current(level);

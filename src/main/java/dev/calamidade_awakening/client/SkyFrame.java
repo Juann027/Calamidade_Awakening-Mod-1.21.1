@@ -72,6 +72,9 @@ final class SkyFrame {
     /** 0.14.0: the frame's custom backgrounds, composed by the pass (lens fill, sun and moon removal, atmosphere sky). */
     private BackdropFrame backdrop;
     void backdrop(BackdropFrame value) { backdrop = value; }
+    /** 0.14.0 (phase 3): the frame's sky objects; the pass reads their coverage layer. */
+    private SkyObjectsFrame objects;
+    void objects(SkyObjectsFrame value) { objects = value; }
 
     /** How much the last frame hid the vanilla sun and moon (0..1): the background redraws them only for the rest. */
     float hiddenSun() { return hideSun; }
@@ -216,8 +219,10 @@ final class SkyFrame {
         float atmoActive = atmo.active() ? 1 : 0, replaced = atmosphere.replaced() ? 1 : 0;
         boolean bolts = layers.stream().limit(count).anyMatch(r -> r.state().type() == Sky.Type.DISTANT_BOLTS);
         var backdropUniforms = backdrop == null ? null : backdrop.uniforms();
+        var objectUniforms = objects == null ? null : objects.uniforms();
         frame.pass(PROGRAM, u -> {
             if (backdropUniforms != null) backdropUniforms.accept(u);
+            if (objectUniforms != null) objectUniforms.accept(u);
             u.glTexture("CaSkyData", id);
             if (sunId != 0) u.glTexture("CaSkySunTex", sunId);
             if (moonId != 0) u.glTexture("CaSkyMoonTex", moonId);
