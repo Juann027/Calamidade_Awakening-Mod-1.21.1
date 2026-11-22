@@ -4,6 +4,7 @@ import dev.calamidade_awakening.api.FrameBudget;
 import dev.calamidade_awakening.api.FrameLimits;
 import dev.calamidade_awakening.api.FrameStats;
 import dev.calamidade_awakening.api.Quality;
+import dev.calamidade_awakening.api.QualityProfile;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,6 +14,7 @@ final class LimitsCheck {
 
     static void run() {
         profiles();
+        newProfiles();
         unlimited();
         stats();
     }
@@ -33,9 +35,9 @@ final class LimitsCheck {
         require(u.effects() == FrameLimits.MAX_EFFECTS && u.marks() == FrameLimits.MAX_PASSES
             && u.beams() == FrameLimits.MAX_BEAMS && u.lights() == FrameLimits.MAX_LIGHTS, "test profile lifts the caps");
         require(u.label().equals("UNLIMITED(96/96)"), "test profile label " + u.label());
-        FrameLimits clamped = new FrameLimits(Quality.LOW, 500, -3, 999, 1000, 1000, -1, true);
-        require(clamped.effects() == 96 && clamped.marks() == 0 && clamped.heroPasses() == 96 && clamped.beams() == 128
-            && clamped.lights() == 64 && clamped.vertices() == 0, "caps clamped to the safety maxima");
+        FrameLimits clamped = new FrameLimits(Quality.LOW, "x", 500, -3, 999, 999, 1000, 1000, -1, true);
+        require(clamped.effects() == 96 && clamped.marks() == 0 && clamped.heroPasses() == 96 && clamped.heroes() == 96
+            && clamped.beams() == 128 && clamped.lights() == 64 && clamped.vertices() == 0, "caps clamped to the hard maxima");
         // 60 NORMAL candidates: all drawn under UNLIMITED, 12 under HIGH; HERO still capped at 2.
         List<FrameBudget.Candidate<Integer>> c = new ArrayList<>();
         for (int i = 0; i < 60; i++) c.add(new FrameBudget.Candidate<>(i, 14, 1, i, 128, i < 5));
@@ -43,6 +45,34 @@ final class LimitsCheck {
         require(all.size() == 57, "unlimited draws every NORMAL and the 2 nearest HERO: " + all.size());
         require(FrameBudget.select(c, FrameLimits.of(Quality.HIGH).effects()).size() == 12, "HIGH still draws 12");
         require(FrameLimits.unlimited(12, 4).marks() == 4 && FrameLimits.unlimited(12, 4).effects() == 12, "test caps");
+    }
+
+    /** 0.11.2: LOW, BALANCED and HIGH keep the caps of 0.11.1; ULTRA shows HIGH to addons; config caps clamped. */
+    private static void newProfiles() {
+        for (QualityProfile p : List.of(QualityProfile.LOW, QualityProfile.BALANCED, QualityProfile.HIGH)) {
+            FrameLimits a = p.limits(), b = FrameLimits.of(p.tier);
+            require(a.effects() == b.effects() && a.marks() == b.marks() && a.heroPasses() == b.heroPasses()
+                && a.heroes() == b.heroes() && a.beams() == b.beams() && a.lights() == b.lights()
+                && a.vertices() == b.vertices() && a.tier() == p.tier, "profile " + p + " keeps the 0.11.1 caps");
+        }
+        FrameLimits ultra = QualityProfile.ULTRA.limits();
+        require(ultra.tier() == Quality.HIGH && ultra.label().equals("ULTRA"), "ULTRA shows HIGH to addons");
+        require(ultra.effects() > QualityProfile.HIGH.defaults.effects() && ultra.marks() > QualityProfile.HIGH.defaults.passes()
+            && ultra.vertices() == Quality.HIGH.vertices * 3 / 2, "ULTRA above HIGH");
+        require(QualityProfile.LOW.lower() == QualityProfile.LOW && QualityProfile.ULTRA.higher() == QualityProfile.ULTRA
+            && QualityProfile.BALANCED.higher() == QualityProfile.HIGH && QualityProfile.HIGH.lower() == QualityProfile.BALANCED,
+            "profile steps");
+        var caps = new QualityProfile.Caps(1000, 1000, 1000, 1000, 1000, 1000);
+        require(caps.effects() == QualityProfile.Caps.MAX_EFFECTS && caps.passes() == QualityProfile.Caps.MAX_PASSES
+            && caps.heroPasses() == QualityProfile.Caps.MAX_HERO_PASSES && caps.heroes() == QualityProfile.Caps.MAX_HEROES
+            && caps.beams() == FrameLimits.MAX_BEAMS && caps.lights() == FrameLimits.MAX_LIGHTS, "config caps: safety maxima");
+        var low = new QualityProfile.Caps(0, -1, -1, 3, -1, -1);
+        require(low.effects() == 1 && low.heroes() == 1 && low.passes() == 0, "at least 1 drawn; HERO never above drawn");
+        // HERO cap from the config: 3 HERO with a cap of 1 draw the nearest one only.
+        List<FrameBudget.Candidate<Integer>> c = new ArrayList<>();
+        for (int i = 0; i < 3; i++) c.add(new FrameBudget.Candidate<>(i, 10 + i, 1, i, 128, true));
+        require(FrameBudget.select(c, 6, 1).equals(List.of(0)), "configured HERO cap");
+        require(FrameBudget.select(c, 2, 4).size() == 2, "HERO cap clamped to the drawn cap");
     }
 
     private static void stats() {

@@ -34,10 +34,13 @@ public final class StageScene {
     }
     /**
      * Selection of one frame. {@code limits} are the caps applied (0.11.2: a quality profile or the test profile);
-     * {@code quality()} is the tier addons see.
+     * {@code quality()} is the tier addons see. {@code eligible} counts the visible instances that competed for the
+     * frame, so {@code eligible > effects.size()} means the caps cut something (AUTO quality, 0.11.2).
      */
-    public record Plan(List<Sample> effects, List<Sample> volumes, FrameLimits limits) {
+    public record Plan(List<Sample> effects, List<Sample> volumes, FrameLimits limits, int eligible) {
         public Quality quality() { return limits.tier(); }
+        /** True when the effect cap left visible instances out of this frame. */
+        public boolean cut() { return eligible > effects.size(); }
     }
     private final Map<Long, StageEvent> active = new LinkedHashMap<>();
     /** Real release age of sustained instances, by order (0.7.0). */
@@ -222,7 +225,7 @@ public final class StageScene {
     }
 
     public Plan frame(Vec3 camera, Vec3 look, float partial, FrameLimits limits) {
-        if (level == null || active.isEmpty()) return new Plan(List.of(), List.of(), limits);
+        if (level == null || active.isEmpty()) return new Plan(List.of(), List.of(), limits, 0);
         List<FrameBudget.Candidate<Sample>> candidates = new ArrayList<>(active.size());
         double now = level.getGameTime() + partial;
         Frustum frustum = Minecraft.getInstance().levelRenderer.getFrustum();
@@ -245,11 +248,12 @@ public final class StageScene {
             candidates.add(new FrameBudget.Candidate<>(mark, distance, alpha, effect.order(), kind.range, kind.hero()));
         }
         // 0.9.0: HERO instances first (nearest 2), never cut by the effect limit; NORMAL ones fill the rest.
-        List<Sample> selected = FrameBudget.select(candidates, limits.effects());
+        List<Sample> selected = FrameBudget.select(candidates, limits.effects(), limits.heroes());
         // The engine field shader has 4 mark slots (AwakeningMark0..3), whatever the pass budget of the profile.
         List<Sample> volumes = selected.stream().filter(sample -> sample.kind().volume != VisualKind.Volume.NONE)
             .limit(Math.min(limits.marks(), MAX_VOLUMES)).toList();
-        return new Plan(selected, volumes, limits);
+        int eligible = (int) candidates.stream().filter(FrameBudget.Candidate::eligible).count();
+        return new Plan(selected, volumes, limits, eligible);
     }
 
     /**

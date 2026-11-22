@@ -21,7 +21,8 @@ public final class FrameBudget {
             this(value, distance, intensity, order, range, false);
         }
         public double weight() { return intensity / (1 + distance / 24); }
-        boolean eligible() {
+        /** In range, finite and visible enough to compete for the frame. */
+        public boolean eligible() {
             return Double.isFinite(distance) && distance >= 0 && distance <= range
                 && Double.isFinite(intensity) && intensity > .001;
         }
@@ -34,13 +35,21 @@ public final class FrameBudget {
      * it (it is at least 3). NORMAL candidates fill the remaining slots by weight, exactly as before 0.9.0.
      */
     public static <T> List<T> select(List<Candidate<T>> candidates, int maxMarks) {
+        return select(candidates, maxMarks, MAX_HEROES);
+    }
+
+    /**
+     * {@link #select(List, int)} with a HERO cap other than {@link #MAX_HEROES} (0.11.2: per quality profile, from the
+     * client config). {@code maxHeroes} is clamped to {@code maxMarks}, so a HERO is still never cut by the effect limit.
+     */
+    public static <T> List<T> select(List<Candidate<T>> candidates, int maxMarks, int maxHeroes) {
         if (maxMarks <= 0) return List.of();
         List<Candidate<T>> heroes = new ArrayList<>(), normal = new ArrayList<>(candidates.size());
         for (Candidate<T> c : candidates) (c.hero() ? heroes : normal).add(c);
         if (heroes.isEmpty()) return selectNormal(normal, maxMarks);
         List<T> chosen = new ArrayList<>(heroes.stream().filter(Candidate::eligible)
             .sorted(Comparator.<Candidate<T>>comparingDouble(Candidate::distance).thenComparingLong(Candidate::order))
-            .limit(Math.min(MAX_HEROES, maxMarks)).map(Candidate::value).toList());
+            .limit(Math.clamp(maxHeroes, 0, maxMarks)).map(Candidate::value).toList());
         chosen.addAll(selectNormal(normal, maxMarks - chosen.size()));
         return chosen;
     }
