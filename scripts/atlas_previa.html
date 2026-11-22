@@ -1,0 +1,379 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=block" rel="stylesheet">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c" width="1600" height="900"></canvas>
+<script>
+// Protótipo das direções visuais do Atlas Estelar 0.11.2 (fora do jogo). Cartões são quads 3D no mundo, projetados
+// por uma câmera de perspectiva; o texto é desenhado num canvas por cartão e mapeado no quad (afim por triângulos).
+const P = new URLSearchParams(location.search);
+const DIR = P.get('dir') || 'A', TAB = P.get('tab') || 'hab', T = parseFloat(P.get('t') || '1'), NIGHT = P.get('night') === '1';
+const W = 1600, H = 900, cv = document.getElementById('c'), g = cv.getContext('2d');
+const FONT = '"Pixelify Sans", monospace';
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x)), smooth = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ---------------------------------------------------------------- câmera: olho na origem, olhando para +z, leve giro
+const CAM = { f: 1150, yaw: -.10, pitch: .04 };
+function project(p) {
+  let [x, y, z] = p;
+  const cy = Math.cos(CAM.yaw), sy = Math.sin(CAM.yaw);
+  [x, z] = [x * cy - z * sy, x * sy + z * cy];
+  const cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch);
+  [y, z] = [y * cp - z * sp, y * sp + z * cp];
+  return [W / 2 + x / z * CAM.f, H / 2 - y / z * CAM.f, z];
+}
+
+// ---------------------------------------------------------------- cenário do jogo (procedural, estilo blocos)
+function scene() {
+  const sky = g.createLinearGradient(0, 0, 0, H * .55);
+  if (NIGHT) { sky.addColorStop(0, '#05070f'); sky.addColorStop(1, '#141b33'); }
+  else { sky.addColorStop(0, '#7ea6ff'); sky.addColorStop(1, '#bcd3ff'); }
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  if (NIGHT) { seed = 3; for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(255,255,255,${.3 + rnd() * .6})`; g.fillRect(rnd() * W, rnd() * H * .5, 2, 2); } }
+  // chão de grama em perspectiva, blocos de 1 m
+  const hy = project([0, -1.62, 400])[1];
+  g.fillStyle = NIGHT ? '#18261a' : '#5d8f3a'; g.fillRect(0, hy, W, H - hy);
+  seed = 11;
+  for (let zi = 2; zi < 120; zi++) for (let xi = -60; xi < 60; xi++) {
+    const a = project([xi, -1.62, zi]), b = project([xi + 1, -1.62, zi + 1]);
+    if (a[2] < .5 || b[2] < .5 || b[1] < hy || a[0] > W + 50 || b[0] < -50) continue;
+    const v = rnd();
+    const base = NIGHT ? [24, 38, 26] : [93, 143, 58];
+    const k = .86 + v * .22;
+    g.fillStyle = `rgb(${base[0] * k | 0},${base[1] * k | 0},${base[2] * k | 0})`;
+    g.fillRect(a[0], b[1], b[0] - a[0] + 1, a[1] - b[1] + 1);
+  }
+  // alguns blocos e árvores longe
+  const blocks = [[-14, 0, 30, '#8a6a43'], [-13, 0, 30, '#8a6a43'], [9, 0, 26, '#7d7d7d'], [22, 0, 48, '#5a3d22']];
+  for (const [x, y, z, c] of blocks) {
+    const a = project([x, -1.62 + 1, z]), b = project([x + 1, -1.62, z]);
+    g.fillStyle = NIGHT ? '#222' : c; g.fillRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+  }
+  for (const [x, z] of [[-30, 70], [-24, 75], [28, 66], [40, 90]]) {
+    const t1 = project([x, -1.62 + 4, z]), t2 = project([x + 1, -1.62, z]);
+    g.fillStyle = NIGHT ? '#1b130c' : '#5a3d22'; g.fillRect(t1[0], t1[1], t2[0] - t1[0], t2[1] - t1[1]);
+    const l1 = project([x - 2, -1.62 + 6.5, z]), l2 = project([x + 3, -1.62 + 3.5, z]);
+    g.fillStyle = NIGHT ? '#0f2412' : '#2f6b26'; g.fillRect(l1[0], l1[1], l2[0] - l1[0], l2[1] - l1[1]);
+  }
+  // mão e hotbar
+  g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(W / 2 - 364, H - 88, 728, 80);
+  for (let i = 0; i < 9; i++) { g.strokeStyle = i === 0 ? '#fff' : '#8b8b8b'; g.lineWidth = 4; g.strokeRect(W / 2 - 360 + i * 80 + 4, H - 84, 72, 72); }
+  g.fillStyle = '#c69b6d'; g.beginPath(); g.moveTo(W - 300, H); g.lineTo(W - 230, H - 230); g.lineTo(W - 90, H - 180); g.lineTo(W - 120, H); g.fill();
+}
+
+// ---------------------------------------------------------------- dados
+const SKILLS = [
+  { k: 'prism', n: 'Pulso Prismático', d: 'Anéis, partículas e ondas de energia procedural.', c: '#78b8ff', cd: '4 s' },
+  { k: 'lattice', n: 'Florescência cristalina', d: 'Uma malha luminosa tridimensional que floresce e se dissolve.', c: '#65e8c9', cd: '6 s' },
+  { k: 'veil', n: 'Vitrais do Horizonte', d: 'Vitrais de energia refrativa acompanhados por uma cinemática.', c: '#ffad68', cd: '8 s' },
+  { k: 'aurora', n: 'Convergência da Aurora', d: 'Uma passagem orbital com lente gravitacional e feixes.', c: '#83f5ea', cd: '10 s' },
+  { k: 'nexus', n: 'Núcleo do Horizonte', d: 'Nebulosa, núcleo refrativo, malhas e ondas concêntricas.', c: '#e5b3ff', cd: '12 s' },
+];
+const TABS = ['Habilidades', 'Qualidade', 'Acessibilidade', 'Terreno', 'Diagnóstico'];
+const TABI = { hab: 0, qual: 1 }[TAB];
+
+// ---------------------------------------------------------------- estilos das três direções
+const STYLE = {
+  A: { name: 'Constelação viva', glass: 'rgba(10,14,38,.80)', glass2: 'rgba(24,30,74,.80)', edge: '#bfe4ff', star: '#fff2c2', line: 'rgba(255,236,180,.85)', accent: '#ffd98a', text: '#eef6ff', sub: '#a9bcdc' },
+  B: { name: 'Astrolábio', glass: 'rgba(8,22,26,.82)', glass2: 'rgba(14,40,44,.82)', edge: '#f2b04a', star: '#ffe0a0', line: 'rgba(242,176,74,.75)', accent: '#f2b04a', text: '#f6efe2', sub: '#b8c9c4' },
+  C: { name: 'Carta celeste', glass: 'rgba(16,8,34,.84)', glass2: 'rgba(40,16,70,.84)', edge: '#d7a6ff', star: '#ffffff', line: 'rgba(196,160,255,.80)', accent: '#7fe3ff', text: '#f4eeff', sub: '#c0b0dc' },
+}[DIR];
+
+// ---------------------------------------------------------------- textura de um cartão
+const PX = 3; // pixels de textura por "pixel de fonte"
+function wrap(ctx, text, maxW) {
+  const words = text.split(' '), lines = []; let cur = '';
+  for (const w of words) { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; }
+  if (cur) lines.push(cur); return lines;
+}
+function fitLines(ctx, text, maxW, maxLines) {
+  let lines = wrap(ctx, text, maxW);
+  if (lines.length > maxLines) {
+    lines = lines.slice(0, maxLines); let l = lines[maxLines - 1];
+    while (ctx.measureText(l + '…').width > maxW && l.length) l = l.slice(0, -1);
+    lines[maxLines - 1] = l + '…';
+  }
+  return lines;
+}
+function glyph(ctx, kind, cx, cy, r, color, t) {
+  ctx.save(); ctx.translate(cx, cy); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 3; ctx.shadowColor = color; ctx.shadowBlur = 14;
+  const pts = n => Array.from({ length: n }, (_, i) => [Math.cos(i / n * 6.283 + t) * r, Math.sin(i / n * 6.283 + t) * r]);
+  if (kind === 'prism') { for (let i = 1; i <= 3; i++) { ctx.beginPath(); ctx.arc(0, 0, r * i / 3, 0, 6.283); ctx.stroke(); } }
+  else if (kind === 'lattice') { const p = pts(6); ctx.beginPath(); p.forEach((q, i) => p.forEach((s, j) => { if (j > i) { ctx.moveTo(...q); ctx.lineTo(...s); } })); ctx.stroke(); }
+  else if (kind === 'veil') { for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * r * .35, -r); ctx.lineTo(i * r * .35 + r * .2, r); ctx.stroke(); } ctx.beginPath(); ctx.arc(0, 0, r, 3.4, 6.0); ctx.stroke(); }
+  else if (kind === 'aurora') { ctx.beginPath(); ctx.ellipse(0, 0, r, r * .4, .5, 0, 6.283); ctx.stroke(); ctx.beginPath(); ctx.ellipse(0, 0, r, r * .4, -.5, 0, 6.283); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, r * .18, 0, 6.283); ctx.fill(); }
+  else { const p = pts(5); ctx.beginPath(); p.forEach((q, i) => { const s = p[(i + 2) % 5]; ctx.moveTo(...q); ctx.lineTo(...s); }); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, r * 1.1, 0, 6.283); ctx.stroke(); }
+  ctx.restore();
+}
+function cardTexture(card) {
+  const w = card.tw, h = card.th, c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  const r = DIR === 'C' ? 6 : DIR === 'B' ? 18 : 12;
+  // vidro
+  const grd = x.createLinearGradient(0, 0, w, h); grd.addColorStop(0, STYLE.glass2); grd.addColorStop(1, STYLE.glass);
+  x.fillStyle = grd; x.beginPath(); x.roundRect(4, 4, w - 8, h - 8, r); x.fill();
+  // brilho de borda: duas passadas
+  x.strokeStyle = card.hover ? STYLE.accent : STYLE.edge; x.globalAlpha = .9; x.lineWidth = card.hover ? 5 : 3;
+  x.shadowColor = card.hover ? STYLE.accent : STYLE.edge; x.shadowBlur = card.hover ? 22 : 12;
+  x.beginPath(); x.roundRect(4, 4, w - 8, h - 8, r); x.stroke(); x.shadowBlur = 0; x.globalAlpha = 1;
+  if (DIR === 'C') { x.strokeStyle = 'rgba(255,255,255,.12)'; x.lineWidth = 1; for (let i = 1; i < 6; i++) { x.beginPath(); x.moveTo(0, h * i / 6); x.lineTo(w, h * i / 6); x.stroke(); } }
+  card.draw(x, w, h);
+  return c;
+}
+
+// texto com sombra escura atrás (legível em céu claro e escuro)
+function txt(x, s, px, py, size, color, weight = 400, align = 'left') {
+  s = s.replace(/f([il])/g, 'f\u200C$1');
+  x.font = `${weight} ${size}px ${FONT}`; x.textAlign = align; x.textBaseline = 'top';
+  x.fillStyle = 'rgba(0,0,0,.55)'; x.fillText(s, px + 2, py + 2); x.fillStyle = color; x.fillText(s, px, py);
+}
+
+function skillCard(s, hover) {
+  return {
+    tw: 420, th: 300, hover, draw(x, w, h) {
+      // área do ícone
+      x.fillStyle = 'rgba(0,0,0,.35)'; x.beginPath(); x.roundRect(20, 20, w - 40, 128, 8); x.fill();
+      glyph(x, s.k, w / 2, 84, 44, s.c, .3);
+      x.font = `600 30px ${FONT}`; const title = fitLines(x, s.n, w - 40, 1)[0];
+      txt(x, title, 20, 160, 30, STYLE.text, 600);
+      x.font = `400 21px ${FONT}`;
+      fitLines(x, s.d, w - 40, 2).forEach((l, i) => txt(x, l, 20, 198 + i * 25, 21, STYLE.sub));
+      txt(x, 'Recarga ' + s.cd, 20, h - 42, 19, STYLE.sub);
+      txt(x, hover ? '▶ Conjurar' : 'Conjurar', w - 20, h - 42, 19, hover ? STYLE.accent : STYLE.sub, 600, 'right');
+    }
+  };
+}
+
+function qualityCards() {
+  const prof = [['AUTO', 'ajusta sozinho', true], ['LOW', 'placa integrada'], ['BALANCED', 'padrão'], ['HIGH', 'placa dedicada'], ['ULTRA', 'máquinas fortes']];
+  const chips = {
+    tw: 1180, th: 170, draw(x, w, h) {
+      txt(x, 'Perfil de qualidade', 24, 18, 28, STYLE.text, 600);
+      txt(x, 'agora: HIGH · p95 9,8 ms · subiu há 40 s (folga de quadro)', w - 24, 22, 20, STYLE.sub, 400, 'right');
+      prof.forEach(([n, d, on], i) => {
+        const cx = 24 + i * 230, cy = 66;
+        x.fillStyle = on ? STYLE.accent : 'rgba(255,255,255,.08)'; x.beginPath(); x.roundRect(cx, cy, 212, 84, 10); x.fill();
+        if (!on) { x.strokeStyle = 'rgba(255,255,255,.25)'; x.lineWidth = 2; x.stroke(); }
+        txt(x, n, cx + 106, cy + 12, 28, on ? '#14101e' : STYLE.text, 600, 'center');
+        txt(x, d, cx + 106, cy + 50, 18, on ? '#14101e' : STYLE.sub, 400, 'center');
+      });
+    }
+  };
+  const sliders = {
+    tw: 1180, th: 360, draw(x, w, h) {
+      txt(x, 'Ajustes finos (máximos de segurança)', 24, 18, 26, STYLE.text, 600);
+      const rows = [['Efeitos desenhados', 12, 48], ['Passes de addon', 4, 16], ['Feixes', 96, 128], ['Luzes', 48, 64], ['Passes HERO', 3, 6]];
+      rows.forEach(([n, v, m], i) => {
+        const y = 70 + i * 56;
+        txt(x, n, 24, y, 22, STYLE.text);
+        const x0 = 330, x1 = w - 170, k = v / m;
+        x.fillStyle = 'rgba(255,255,255,.14)'; x.beginPath(); x.roundRect(x0, y + 10, x1 - x0, 8, 4); x.fill();
+        x.fillStyle = STYLE.accent; x.beginPath(); x.roundRect(x0, y + 10, (x1 - x0) * k, 8, 4); x.fill();
+        x.shadowColor = STYLE.accent; x.shadowBlur = 14; x.beginPath(); x.arc(x0 + (x1 - x0) * k, y + 14, 12, 0, 6.283); x.fill(); x.shadowBlur = 0;
+        txt(x, v + ' / ' + m, w - 24, y, 22, STYLE.text, 600, 'right');
+      });
+    }
+  };
+  const table = {
+    tw: 520, th: 360, draw(x, w, h) {
+      txt(x, 'Limites por perfil', 22, 18, 26, STYLE.text, 600);
+      const head = ['', 'LOW', 'BAL', 'HIGH', 'ULTRA'], rows = [['desenh.', 3, 6, 12, 24], ['passes', 1, 2, 4, 8], ['HERO', 1, 2, 3, 4], ['feixes', 16, 48, 128, 128], ['luzes', 8, 24, 64, 64]];
+      head.forEach((s, i) => txt(x, s, 22 + (i ? 120 + (i - 1) * 92 : 0), 64, 20, STYLE.accent, 600));
+      rows.forEach((r, j) => r.forEach((s, i) => txt(x, String(s), 22 + (i ? 120 + (i - 1) * 92 : 0), 100 + j * 44, 21, i ? STYLE.text : STYLE.sub)));
+      txt(x, 'valores ilustrativos', 22, h - 36, 17, STYLE.sub);
+    }
+  };
+  return { chips, sliders, table };
+}
+
+// ---------------------------------------------------------------- layout 3D por direção
+// unidades: blocos. O painel fica ~3,2 blocos à frente do olho.
+function layout() {
+  const Z = 3.3, cards = [];
+  const S = DIR === 'A' ? .0024 : .0019; // blocos por pixel de textura
+  const add = (card, cx, cy, z, rot = 0) => { card.c3 = [cx, cy, z]; card.s = S; card.rot = rot; cards.push(card); return card; };
+  if (TAB === 'hab') {
+    if (DIR === 'A') {
+      const pos = [[0, .05, Z - .25], [-1.15, .42, Z + .1], [1.15, .42, Z + .1], [-1.05, -.40, Z + .35], [1.05, -.40, Z + .35]];
+      SKILLS.forEach((s, i) => add(skillCard(s, i === 0), ...pos[i], i === 1 ? .12 : i === 2 ? -.12 : 0));
+    } else if (DIR === 'B') {
+      const pos = [[-1.28, .08, Z + .12], [-.66, -.58, Z + .04], [0, .26, Z - .12], [.66, -.58, Z + .04], [1.28, .08, Z + .12]];
+      SKILLS.forEach((s, i) => add(skillCard(s, i === 2), ...pos[i], i === 0 ? .18 : i === 4 ? -.18 : 0));
+    } else {
+      const xs = [-.9, -.03, .84];
+      SKILLS.forEach((s, i) => add(skillCard(s, i === 0), i < 3 ? xs[i] : [-.47, .4][i - 3], i < 3 ? .33 : -.3, Z, 0));
+    }
+  } else {
+    const q = qualityCards();
+    q.sliders.tw = 760;
+    const dz = DIR === 'A' ? .25 : 0;
+    if (DIR === 'A') { add(q.chips, 0, .62, Z - dz); add(q.sliders, -.6, -.3, Z); add(q.table, .97, -.3, Z + dz, -.15); }
+    else if (DIR === 'B') { add(q.chips, 0, .5, Z); add(q.sliders, -.45, -.28, Z); add(q.table, .82, -.28, Z); }
+    else { add(q.chips, .05, .5, Z); add(q.sliders, -.63, -.3, Z); add(q.table, .67, -.3, Z); }
+  }
+  return cards;
+}
+
+// mapeia a textura num quad projetado: dois triângulos afins
+function drawQuad(tex, corners, alpha) {
+  const [a, b, c, d] = corners.map(project); // tl, tr, br, bl
+  const tri = (p0, p1, p2, u0, u1, u2) => {
+    g.save(); g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.closePath(); g.clip();
+    const [x0, y0] = u0, [x1, y1] = u1, [x2, y2] = u2;
+    const den = x0 * (y2 - y1) - x1 * y2 + x2 * y1 + (x1 - x2) * y0;
+    const m11 = -(y0 * (p2[0] - p1[0]) - y1 * p2[0] + y2 * p1[0] + (y1 - y2) * p0[0]) / den;
+    const m12 = (y1 * p2[1] + y0 * (p1[1] - p2[1]) - y2 * p1[1] + (y2 - y1) * p0[1]) / den;
+    const m21 = (x0 * (p2[0] - p1[0]) - x1 * p2[0] + x2 * p1[0] + (x1 - x2) * p0[0]) / den;
+    const m22 = -(x1 * p2[1] + x0 * (p1[1] - p2[1]) - x2 * p1[1] + (x2 - x1) * p0[1]) / den;
+    const dx = (x0 * (y2 * p1[0] - y1 * p2[0]) + y0 * (x1 * p2[0] - x2 * p1[0]) + (x2 * y1 - x1 * y2) * p0[0]) / den;
+    const dy = (x0 * (y2 * p1[1] - y1 * p2[1]) + y0 * (x1 * p2[1] - x2 * p1[1]) + (x2 * y1 - x1 * y2) * p0[1]) / den;
+    g.setTransform(m11, m12, m21, m22, dx, dy); g.globalAlpha = alpha; g.drawImage(tex, 0, 0); g.restore();
+  };
+  const w = tex.width, h = tex.height;
+  tri(a, b, c, [0, 0], [w, 0], [w, h]); tri(a, c, d, [0, 0], [w, h], [0, h]);
+}
+function corners(card, scale = 1) {
+  const [cx, cy, cz] = card.c3, hw = card.tw * card.s / 2 * scale, hh = card.th * card.s / 2 * scale;
+  const cr = Math.cos(card.rot), sr = Math.sin(card.rot);
+  const pt = (u, v) => [cx + u * cr, cy + v, cz + u * sr];
+  return [pt(-hw, hh), pt(hw, hh), pt(hw, -hh), pt(-hw, -hh)];
+}
+
+// ---------------------------------------------------------------- estrelas, poeira, linhas
+function starAt(p, r, color, a) {
+  const [x, y, z] = project(p); const rr = r * CAM.f / z / 140;
+  const grd = g.createRadialGradient(x, y, 0, x, y, rr * 6); grd.addColorStop(0, color); grd.addColorStop(.25, color.replace(')', ',.35)').replace('rgb', 'rgba')); grd.addColorStop(1, 'rgba(0,0,0,0)');
+  g.globalAlpha = a; g.fillStyle = grd; g.beginPath(); g.arc(x, y, rr * 6, 0, 6.283); g.fill();
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, Math.max(1.2, rr), 0, 6.283); g.fill();
+  // cruz de difração
+  g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x - rr * 5, y); g.lineTo(x + rr * 5, y); g.moveTo(x, y - rr * 5); g.lineTo(x, y + rr * 5); g.stroke();
+  g.globalAlpha = 1;
+}
+function line3(p, q, color, width, k = 1, dash = null) {
+  const a = project(p), b = project(q);
+  const e = [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+  g.strokeStyle = color; g.lineWidth = width; g.shadowColor = color; g.shadowBlur = 8; if (dash) g.setLineDash(dash);
+  g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(e[0], e[1]); g.stroke(); g.setLineDash([]); g.shadowBlur = 0;
+}
+function dust(cards, a) {
+  seed = 99;
+  for (let i = 0; i < 420; i++) {
+    const p = [(rnd() - .5) * 4.6, (rnd() - .5) * 2.4, 3.0 + rnd() * 1.4];
+    const [x, y, z] = project(p); const s = (rnd() * 2.2 + 1) * 3.2 / z;
+    const tw = .35 + .65 * Math.abs(Math.sin(i * 12.9898));
+    g.globalAlpha = a * tw * (DIR === 'B' ? .7 : 1);
+    g.fillStyle = i % 7 === 0 ? STYLE.accent : i % 3 === 0 ? STYLE.edge : '#ffffff';
+    g.fillRect(x, y, s, s);
+  }
+  g.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- moldura de cada direção (atrás dos cartões)
+function backdrop(cards, open) {
+  const Z = 3.55;
+  if (DIR === 'A') {
+    // abas: cinco estrelas num arco acima, com o nome sob cada uma
+    TABS.forEach((n, i) => {
+      const a = (i - 2) * .17, p = [Math.sin(a) * 3.2, 1.02 - Math.abs(i - 2) * .035, Z - .2 + (1 - Math.cos(a)) * 1.5];
+      if (i) line3([Math.sin(a - .17) * 3.2, 1.02 - Math.abs(i - 3) * .035, Z - .2 + (1 - Math.cos(a - .17)) * 1.5], p, 'rgba(255,236,180,.35)', 1.5, smooth(open * 1.6 - .2));
+      starAt(p, i === TABI ? 1.8 : 1.0, i === TABI ? 'rgb(255,217,138)' : 'rgb(191,228,255)', smooth(open * 2));
+      const [x, y] = project(p);
+      g.globalAlpha = smooth(open * 1.5 - .5);
+      g.font = `${i === TABI ? 600 : 400} ${i === TABI ? 24 : 20}px ${FONT}`; g.textAlign = 'center'; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillText(n, x + 2, y + 24);
+      g.fillStyle = i === TABI ? STYLE.accent : STYLE.text; g.fillText(n, x, y + 22); g.globalAlpha = 1;
+    });
+  } else if (DIR === 'B') {
+    // anel do astrolábio, com marcas e as abas em setores
+    const C = [0, -.05, Z + .3];
+    const ring = (r, w, col, a, ticks) => {
+      const pts = Array.from({ length: 121 }, (_, i) => { const t = i / 120 * 6.283; return project([C[0] + Math.cos(t) * r * 1.25, C[1] + Math.sin(t) * r * .62, C[2] + Math.sin(t) * .05]); });
+      g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = w; g.shadowColor = col; g.shadowBlur = 10; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); g.shadowBlur = 0;
+      if (ticks) for (let i = 0; i < ticks; i++) { const t = i / ticks * 6.283, l = i % 6 === 0 ? .09 : .04; line3([C[0] + Math.cos(t) * r * 1.25, C[1] + Math.sin(t) * r * .62, C[2]], [C[0] + Math.cos(t) * (r - l) * 1.25, C[1] + Math.sin(t) * (r - l) * .62, C[2]], col, 1.5); }
+      g.globalAlpha = 1;
+    };
+    const k = smooth(open * 1.4);
+    ring(1.62 * k, 3, 'rgba(242,176,74,.9)', k, 72);
+    ring(1.5 * k, 1.5, 'rgba(120,220,210,.6)', k, 0);
+    ring(.5 * k, 1.5, 'rgba(242,176,74,.5)', k, 24);
+    // abas: setores no arco de cima
+    TABS.forEach((n, i) => {
+      const t = Math.PI / 2 + (2 - i) * .27, r = 1.62, p = [C[0] + Math.cos(t) * r * 1.25, C[1] + Math.sin(t) * r * .62 + .1, C[2]];
+      const [x, y] = project(p);
+      g.globalAlpha = smooth(open * 1.6 - .5);
+      g.save(); g.translate(x, y); g.rotate(-(t - Math.PI / 2) * .55);
+      g.font = `${i === TABI ? 600 : 400} ${i === TABI ? 24 : 20}px ${FONT}`; g.textAlign = 'center';
+      if (i === TABI) { g.fillStyle = 'rgba(242,176,74,.22)'; g.fillRect(-82, -26, 164, 36); g.strokeStyle = STYLE.accent; g.strokeRect(-82, -26, 164, 36); }
+      g.fillStyle = 'rgba(0,0,0,.6)'; g.fillText(n, 2, 2); g.fillStyle = i === TABI ? STYLE.accent : STYLE.text; g.fillText(n, 0, 0); g.restore(); g.globalAlpha = 1;
+    });
+  } else {
+    // placa única de carta celeste, com grade curva e abas à esquerda
+    const k = smooth(open * 1.3);
+    const slab = { tw: 1900, th: 860, s: .0019, rot: 0, c3: [-.3, .02, Z + .05] };
+    const tex = document.createElement('canvas'); tex.width = slab.tw; tex.height = slab.th; const x = tex.getContext('2d');
+    const grd = x.createRadialGradient(slab.tw * .6, slab.th * .45, 50, slab.tw * .6, slab.th * .45, slab.tw * .7);
+    grd.addColorStop(0, 'rgba(70,24,110,.62)'); grd.addColorStop(.5, 'rgba(24,10,52,.66)'); grd.addColorStop(1, 'rgba(8,6,24,.70)');
+    x.fillStyle = grd; x.beginPath(); x.roundRect(6, 6, slab.tw - 12, slab.th - 12, 10); x.fill();
+    x.strokeStyle = 'rgba(215,166,255,.85)'; x.lineWidth = 3; x.shadowColor = '#d7a6ff'; x.shadowBlur = 16; x.stroke(); x.shadowBlur = 0;
+    x.strokeStyle = 'rgba(200,180,255,.14)'; x.lineWidth = 1.5;
+    for (let i = -6; i <= 6; i++) { x.beginPath(); x.ellipse(slab.tw * .62, slab.th * 1.6, slab.tw * (.3 + Math.abs(i) * .09), slab.th * (1.0 + Math.abs(i) * .1), 0, Math.PI * 1.15, Math.PI * 1.85); x.stroke(); }
+    for (let i = 0; i < 9; i++) { x.beginPath(); x.moveTo(380 + i * 175, 20); x.quadraticCurveTo(380 + i * 175 + (i - 4) * 20, slab.th / 2, 380 + i * 175, slab.th - 20); x.stroke(); }
+    x.fillStyle = 'rgba(255,255,255,.06)'; x.fillRect(20, 20, 320, slab.th - 40);
+    txt(x, 'ATLAS ESTELAR', 40, 40, 34, '#f4eeff', 600);
+    txt(x, 'Calamidade_Awakening', 40, 82, 20, STYLE.sub);
+    TABS.forEach((n, i) => {
+      const y = 150 + i * 78, on = i === TABI;
+      if (on) { x.fillStyle = 'rgba(127,227,255,.16)'; x.fillRect(28, y - 10, 304, 60); x.fillStyle = STYLE.accent; x.fillRect(28, y - 10, 5, 60); }
+      x.fillStyle = on ? STYLE.accent : '#d7a6ff'; x.beginPath(); x.arc(58, y + 20, on ? 8 : 5, 0, 6.283); x.fill();
+      txt(x, ['I', 'II', 'III', 'IV', 'V'][i], 80, y + 6, 20, STYLE.sub);
+      txt(x, n, 124, y + 4, on ? 28 : 25, on ? '#ffffff' : STYLE.text, on ? 600 : 400);
+    });
+    txt(x, 'mira + ataque: escolher · roda: rolar · N: fechar', 40, slab.th - 60, 18, STYLE.sub);
+    g.globalAlpha = 1; drawQuad(tex, corners(slab, .2 + .8 * k), k);
+  }
+}
+
+function links(cards, open) {
+  // constelações: liga os cartões pelos cantos (estrelas nos vértices)
+  const k = smooth(open * 1.8 - .25);
+  const anchor = (c, ix) => corners(c)[ix];
+  const pairs = [];
+  if (TAB === 'hab') {
+    if (DIR === 'A') pairs.push([0, 1, 0, 2], [0, 2, 1, 3], [0, 3, 3, 1], [0, 4, 2, 0], [1, 3, 3, 0], [2, 4, 2, 1]);
+    if (DIR === 'B') pairs.push([2, 0, 0, 1], [2, 4, 1, 0], [0, 1, 3, 0], [4, 3, 2, 1], [1, 3, 1, 0]);
+    if (DIR === 'C') pairs.push([0, 1, 1, 0], [1, 2, 1, 0], [0, 3, 2, 0], [3, 4, 1, 0], [1, 4, 2, 1]);
+  } else pairs.push([0, 1, 3, 0], [0, 2, 2, 1], [1, 2, 1, 0]);
+  for (const [i, j, ci, cj] of pairs) line3(anchor(cards[i], ci), anchor(cards[j], cj), STYLE.line, DIR === 'C' ? 1.5 : 2, k, DIR === 'B' ? [10, 6] : null);
+}
+
+// ---------------------------------------------------------------- quadro
+function frame() {
+  scene();
+  const cards = layout();
+  const open = T;
+  // véu leve atrás do painel para leitura em céu claro
+  const vg = g.createRadialGradient(W / 2, H / 2 - 40, 100, W / 2, H / 2 - 40, 900);
+  vg.addColorStop(0, `rgba(4,6,18,${.42 * smooth(open * 3)})`); vg.addColorStop(1, 'rgba(4,6,18,0)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+  dust(cards, smooth(open * 2.5) * .9);
+  backdrop(cards, open);
+  // ordem: de trás para a frente
+  const sorted = [...cards].sort((a, b) => b.c3[2] - a.c3[2]);
+  links(cards, open);
+  sorted.forEach((c, idx) => {
+    const born = smooth((open - .35 - idx * .06) / .45);
+    if (born <= 0) return;
+    drawQuad(cardTexture(c), corners(c, .15 + .85 * born), born);
+  });
+  // estrelas dos vértices: acendem primeiro (maiores enquanto o cartão nasce), ficam sobre os cartões
+  cards.forEach(c => corners(c).forEach((p, i) => starAt(p, ((i + c.tw) % 3 === 0 ? 1.1 : .75) * (1 + 1.4 * (1 - smooth((open - .35) / .5))), 'rgb(255,242,194)', smooth(open * 4))));
+  // mira
+  g.strokeStyle = '#fff'; g.lineWidth = 3; g.beginPath(); g.moveTo(W / 2 - 14, H / 2); g.lineTo(W / 2 + 14, H / 2); g.moveTo(W / 2, H / 2 - 14); g.lineTo(W / 2, H / 2 + 14); g.stroke();
+  if (DIR !== 'C' && open > .8) {
+    g.globalAlpha = smooth((open - .8) / .2); g.font = `400 20px ${FONT}`; g.textAlign = 'center'; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillText('mira + ataque: escolher  ·  roda: rolar  ·  N: fechar', W / 2 + 2, DIR === 'B' ? 94 : H - 112);
+    g.fillStyle = '#eef6ff'; g.fillText('mira + ataque: escolher  ·  roda: rolar  ·  N: fechar', W / 2, DIR === 'B' ? 92 : H - 114); g.globalAlpha = 1;
+  }
+  document.title = 'ok';
+}
+document.fonts.load(`600 20px ${FONT}`).then(() => document.fonts.ready).then(frame, frame);
+</script></body></html>
