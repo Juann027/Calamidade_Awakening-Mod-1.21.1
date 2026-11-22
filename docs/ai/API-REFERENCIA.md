@@ -1006,8 +1006,8 @@ Where a layer is placed on the sky.
 | `DIRECTION` | Fixed azimuth and elevation (world axes: does not turn with the instance). |
 | `WORLD` | Toward an absolute world point (blocks); far points barely move as the player walks. |
 | `CENTER` | Toward a point relative to the instance center (blocks, instance frame: x left, y up, z forward). |
-| `SUN` | On the vanilla sun, following the time of day. |
-| `MOON` | On the vanilla moon (opposite the sun). |
+| `SUN` | On the vanilla sun, following the time of day (below the horizon at night). |
+| `MOON` | On the vanilla moon (opposite the sun); azimuth 180, elevation 50 where there is no vanilla moon. |
 
 ## Sky.Builder
 

@@ -20,5 +20,10 @@
   "command.vfxsample.zumbi.off": "Zombie beams off.",
   "command.vfxsample.ceu.ok": "Test dimension sky: %s (5 s)",
   "command.vfxsample.ceu.unknown": "Unknown sky state: %s",
-  "command.vfxsample.ceu.missing": "Dimension not loaded: %s"
+  "command.vfxsample.ceu.missing": "Dimension not loaded: %s",
+  "command.vfxsample.evento.started": "Eclipse started for the whole server (persistent)",
+  "command.vfxsample.evento.refused": "Eclipse not started: already running, or the global event limit is full",
+  "command.vfxsample.evento.released": "Eclipse released: the sun comes back in 16 s",
+  "command.vfxsample.evento.stopped": "Eclipse stopped",
+  "command.vfxsample.evento.none": "No eclipse running"
 }

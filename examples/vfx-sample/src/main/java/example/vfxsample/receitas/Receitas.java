@@ -26,7 +26,10 @@ import java.util.function.Function;
  * HERO do motor 0.9.0; só a onda de luz tem camada de cliente. As receitas 14 a 17 (1.7.0) usam a orientação e os
  * gatilhos do motor 0.10.0: o leque (comando), o cajado (item), os pilares (blocos) e o zumbi (mob vanilla). As
  * receitas 18 a 21 (1.8.0) usam a Terrain API do motor 0.11.0: o raio que abre uma trincheira, o meteoro que vira
- * blocos reais, a cratera simples e a torre que cai e fica; todas se desfazem com /calamidade terrain undo.
+ * blocos reais, a cratera simples e a torre que cai e fica; todas se desfazem com /calamidade terrain undo. As receitas
+ * 22 a 26 (1.9.0) usam a Sky API, os eventos globais e o céu por dimensão do motor 0.12.0: buraco negro, portal para
+ * outra galáxia, lua gigante, o eclipse como evento global (/vfxsample evento eclipse) e a dimensão de teste
+ * (/vfxsample dimensao e /vfxsample ceu).
  */
 public final class Receitas {
     /** Nome do comando, efeito e como ele começa no servidor. */
@@ -64,7 +67,11 @@ public final class Receitas {
         new Receita("raio_trincheira", RaioTrincheira.ID, RaioTrincheira::iniciar),
         new Receita("meteoro", Meteoro.ID, Meteoro::iniciar),
         Receita.em("cratera_simples", CrateraSimples.ID, p -> chao(p, 12)),
-        new Receita("torre_caindo", TorreCaindo.ID, TorreCaindo::iniciar));
+        new Receita("torre_caindo", TorreCaindo.ID, TorreCaindo::iniciar),
+        // 1.9.0 — Sky API: camadas presas a pontos muito longe à frente do jogador.
+        new Receita("buraco_negro", BuracoNegro.ID, BuracoNegro::iniciar),
+        new Receita("portal_galaxia", PortalGalaxia.ID, PortalGalaxia::iniciar),
+        new Receita("lua_gigante", LuaGigante.ID, LuaGigante::iniciar));
 
     /** Última receita iniciada por jogador, para release e stop. */
     private static final Map<UUID, Effects.Handle> ULTIMA = new HashMap<>();
@@ -97,6 +104,10 @@ public final class Receitas {
         CrateraSimples.register();
         TorreCaindo.register();
         // 1.9.0 — Sky API, eventos globais e céu por dimensão do motor 0.12.0.
+        BuracoNegro.register();
+        PortalGalaxia.register();
+        LuaGigante.register();
+        EclipseGlobal.register();
         DimensaoTeste.register();
         bus.addListener(Receitas::abas);
     }

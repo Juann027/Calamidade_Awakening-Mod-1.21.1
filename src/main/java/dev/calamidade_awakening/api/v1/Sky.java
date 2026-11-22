@@ -131,9 +131,12 @@ public final class Sky {
         WORLD,
         /** Toward a point relative to the instance center (blocks, instance frame: x left, y up, z forward). */
         CENTER,
-        /** On the vanilla sun, following the time of day. */
+        /**
+         * On the vanilla sun, following the time of day (below the horizon at night). In a dimension without a vanilla
+         * sun (the Nether, the End) the layer stays at azimuth 0, elevation 50, so a global eclipse is seen there too.
+         */
         SUN,
-        /** On the vanilla moon (opposite the sun). */
+        /** On the vanilla moon (opposite the sun); azimuth 180, elevation 50 where there is no vanilla moon. */
         MOON
     }
 

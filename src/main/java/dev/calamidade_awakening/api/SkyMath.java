@@ -87,14 +87,25 @@ public final class SkyMath {
         return new double[] {0, 0, 1, -s, c, 0, -c, -s, 0};
     }
 
-    /** Direction of the vanilla sun for a time of day (unit, world axes): {@code (-sin a, cos a, 0)}. */
+    /** Where sun layers go in a dimension without a vanilla sun (NaN time of day): azimuth 0, elevation 50. */
+    public static final Sky.Direction NO_SUN = Sky.Direction.of(0, 50);
+    /** Where moon layers go in a dimension without a vanilla moon: azimuth 180, elevation 50. */
+    public static final Sky.Direction NO_MOON = Sky.Direction.of(180, 50);
+
+    /**
+     * Direction of the vanilla sun for a time of day (unit, world axes): {@code (-sin a, cos a, 0)}. NaN means the
+     * dimension draws no vanilla sun (sky type other than NORMAL: the Nether, the End): {@link #NO_SUN}, so layers on
+     * the sun (a global eclipse) are still seen there.
+     */
     public static Sky.Direction sunDirection(double timeOfDay) {
+        if (Double.isNaN(timeOfDay)) return NO_SUN;
         double a = timeOfDay * Math.PI * 2;
         return new Sky.Direction(-Math.sin(a), Math.cos(a), 0);
     }
 
     /** Direction of the vanilla moon: opposite the sun. */
     public static Sky.Direction moonDirection(double timeOfDay) {
+        if (Double.isNaN(timeOfDay)) return NO_MOON;
         var sun = sunDirection(timeOfDay);
         return new Sky.Direction(-sun.x(), -sun.y(), -sun.z());
     }

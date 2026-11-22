@@ -73,7 +73,9 @@ final class SkyFrame {
     /** Resolves this frame's layers, the darkening and the vanilla bodies to hide. */
     void collect(Vec3 camera, float partial, FrameLimits limits) {
         Minecraft mc = Minecraft.getInstance();
-        double timeOfDay = mc.level == null ? 0 : mc.level.getTimeOfDay(partial);
+        // NaN: no vanilla sun in this dimension (the Nether, the End); sun and moon layers go to a fixed spot (0.12.0).
+        double timeOfDay = mc.level == null || mc.level.effects().skyType() != DimensionSpecialEffects.SkyType.NORMAL
+            ? Double.NaN : mc.level.getTimeOfDay(partial);
         List<SkyMath.Candidate<Resolved>> all = new java.util.ArrayList<>(scene.skies(camera, partial, timeOfDay));
         all.addAll(world.skies(mc.level, camera, partial, timeOfDay));
         all.addAll(profiles.skies(mc.level, camera, partial, timeOfDay));

@@ -153,7 +153,8 @@ public final class Sample {
             .then(example.vfxsample.receitas.Receitas.comandoZumbi())
             // 1.9.0 — céu da dimensão de teste.
             .then(example.vfxsample.receitas.DimensaoTeste.comandoCeu())
-            .then(example.vfxsample.receitas.DimensaoTeste.comandoDimensao()));
+            .then(example.vfxsample.receitas.DimensaoTeste.comandoDimensao())
+            .then(example.vfxsample.receitas.EclipseGlobal.comando()));
     }
 
     private static void impact(Effects.Context context) {

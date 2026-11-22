@@ -212,6 +212,8 @@ final class SkyCheck {
             require(SkyMath.sunUv(axes, moon.x(), moon.y(), moon.z()) == null, "the moon direction misses the sun");
         }
         near(SkyMath.sunDirection(0), 0, 1, 0, "noon: sun at the zenith");
+        require(SkyMath.sunDirection(Double.NaN).angleTo(Sky.Direction.of(0, 50)) < 1e-9
+            && SkyMath.moonDirection(Double.NaN).angleTo(Sky.Direction.of(180, 50)) < 1e-9, "no vanilla sun: fixed spots");
         require(SkyMath.sunDirection(.25).x() < -.99, "sunset (time of day 0.25): sun to the west");
         double[] axes = SkyMath.vanillaAxes(0);
         // Corners of the sun quad (local (±30, 100, ±30)) map to the game's uv corners.
