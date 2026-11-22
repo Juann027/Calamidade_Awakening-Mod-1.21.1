@@ -109,11 +109,18 @@
 - Compatível com ScalableLux (correção), C2ME, Sodium, Embeddium e Distant Horizons; Moonrise não abre com a RimuLib 1.3.0.
 - Testes em jogo no repositório: `./gradlew testeJogo` (servidor dedicado, 51 verificações, com reinício) e `xvfb-run ./gradlew testeCliente` (10 verificações). Consulte TERRENO-0.11.md, seção "Compatibilidade (0.11.1)".
 
+### 0.11.2 — perfis medidos, qualidade automática e Atlas no mundo
+
+- Medição de custo por efeito e por passe no próprio jogo (`/calamidade_client debug measure`, perfil de teste UNLIMITED, `bench <n> mix`), por software e na RTX 4060 do autor; perfis novos (LOW igual, BALANCED 8, HIGH 16, ULTRA 32 desenhados) com limites no config de cliente.
+- Qualidade automática AUTO (padrão): p95 do quadro, histerese, nunca durante um efeito HERO; F8 força um perfil, F7 mostra o motivo.
+- Atlas Estelar refeito como placas paradas no mundo (engenharia adaptada do menu holográfico do RespectCraft), visual de astrolábio, abas de habilidades, qualidade, acessibilidade, terreno e diagnóstico. Consulte ATLAS-0.11.2.md.
+- Testes em jogo novos: `testeMedicao` e `testeAtlas`.
+
 ## Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
 
-- Tempo de quadro com 1, 3, 6 e 12 eventos em GPU física, em 1080p e 1440p, nos três perfis de qualidade.
+- Custo absoluto por efeito e por passe na RTX 4060 com VSync desligado (a medição da 0.11.2 estava presa a 144 Hz) e numa placa integrada (perfil LOW); AUTO subindo numa GPU física.
 - Sincronização entre dois clientes em servidor dedicado: observador, entrada tardia, saída e retorno ao alcance, troca de dimensão.
 - Pipeline em Fast, Fancy, Fabulous e com mods de renderização (Sodium/Embeddium, Iris/Oculus).
 - Aparência dos feixes e da luz numa GPU física (de dia, de noite, debaixo d'água) e custo dos passes `beams` e `lights` com o teto de HIGH (128 feixes, 64 luzes).

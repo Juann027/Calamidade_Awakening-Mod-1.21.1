@@ -82,7 +82,7 @@ A versão de referência usa RimuLib 1.3.0, NeoForge 21.1.267 e JDK 21. A RimuLi
 
 ## Atlas Estelar
 
-StarAtlas registra a posição e a orientação da câmera uma vez na abertura. Cartões, órbita e textos usam coordenadas de mundo e profundidades diferentes. A seleção cruza o raio da câmera com o plano de cada cartão e testa os blocos até o ponto alcançado. O clique envia CastRequest para o mesmo caminho de validação das teclas de habilidade. O servidor mantém o controle da recarga e da execução. Cada cliente vê seu próprio atlas.
+Desde a 0.11.2, `client/holo/AtlasWorld` guarda a âncora (olhos e yaw na abertura) e desenha placas paradas no mundo: conteúdo em framebuffers por placa, passada 3D no AFTER_LEVEL com a câmera real, mira e clique pelas mesmas matrizes e dono da entrada decidido no aperto (`api/holo/HoloInputArbiter`). O clique num cartão envia CastRequest para o mesmo caminho de validação das teclas de habilidade; o servidor mantém o controle da recarga e da execução. Cada cliente vê seu próprio Atlas. Detalhes em ATLAS-0.11.2.md.
 
 ## Horizon Core na 0.2.0
 

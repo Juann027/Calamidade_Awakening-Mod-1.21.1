@@ -6,38 +6,39 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
 ## Por onde começar
 
-**Para jogar**, instale a RimuLib e o JAR do Calamidade na pasta mods do cliente e do servidor. Pressione N para abrir o Atlas no mundo, mire em um cartão e ataque para conjurar. Usar item passa à próxima página quando há addons. Para o segundo menu, obtenha o Focus com `/give @s calamidade_awakening:focus`, segure-o e pressione H. Veja o capítulo 1.
+**Para jogar**, instale a RimuLib e o JAR do Calamidade na pasta mods do cliente e do servidor. Pressione N para abrir o Atlas Estelar, um painel holográfico parado no mundo à sua frente (capítulo 2): mire num cartão e ataque para conjurar; as outras abas trazem qualidade, acessibilidade, terreno e diagnóstico. Para o segundo menu, obtenha o Focus com `/give @s calamidade_awakening:focus`, segure-o e pressione H. Veja o capítulo 1.
 
-**Para criar seu primeiro efeito**, comece pelo capítulo 2. Use uma posição fixa para um portal ou uma âncora de entidade para acompanhar um personagem. Para que o efeito cause dano ou outra consequência no mundo, registre um cue (capítulo 3). Para publicar um cartão, adicionar uma câmera ou fornecer um shader pelo JAR do seu mod, siga o capítulo 4. O Sinal de Maré é o exemplo executável de todo esse fluxo.
+**Para criar seu primeiro efeito**, comece pelo capítulo 3. Use uma posição fixa para um portal ou uma âncora de entidade para acompanhar um personagem. Para que o efeito cause dano ou outra consequência no mundo, registre um cue (capítulo 4). Para publicar um cartão, adicionar uma câmera ou fornecer um shader pelo JAR do seu mod, siga o capítulo 5. O Sinal de Maré é o exemplo executável de todo esse fluxo.
 
-**Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 5. Para escrever o roteiro do efeito uma vez só (fases, trilhas e marcadores que servidor, shader e câmera compartilham) e para efeitos ambientes em loop, use a Timeline do capítulo 6. Para mudar o clima da cena (céu, névoa, exposição, tinta e estrelas) sem escrever shader, use a Atmosphere do capítulo 7. Para feixes (lasers, pilares, teias) e para luz que clareia o terreno em volta do efeito, também sem shader, use o Beam e a Light dos capítulos 8 e 9. Para que o efeito principal de uma cena apareça inteiro com dezenas de outros na tela, marque-o como protagonista (HERO, capítulo 10, que também explica para leigos a diferença entre quantos efeitos são desenhados e quanto cada um custa). Para virar efeitos, dispará-los de itens, blocos e mobs e usar o Calamidade a partir de outro mod, veja o capítulo 11. Para crateras, trincheiras, um meteoro que vira bloco real ou uma construção que cai e fica no mundo, use a Terrain API do capítulo 12.
+**Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 6. Para escrever o roteiro do efeito uma vez só (fases, trilhas e marcadores que servidor, shader e câmera compartilham) e para efeitos ambientes em loop, use a Timeline do capítulo 7. Para mudar o clima da cena (céu, névoa, exposição, tinta e estrelas) sem escrever shader, use a Atmosphere do capítulo 8. Para feixes (lasers, pilares, teias) e para luz que clareia o terreno em volta do efeito, também sem shader, use o Beam e a Light dos capítulos 9 e 10. Para que o efeito principal de uma cena apareça inteiro com dezenas de outros na tela, marque-o como protagonista (HERO, capítulo 11, que também explica para leigos a diferença entre quantos efeitos são desenhados e quanto cada um custa). Para virar efeitos, dispará-los de itens, blocos e mobs e usar o Calamidade a partir de outro mod, veja o capítulo 12. Para crateras, trincheiras, um meteoro que vira bloco real ou uma construção que cai e fica no mundo, use a Terrain API do capítulo 13.
 
 **Para IAs e agentes**, comece por `AGENTS.md` na raiz do repositório e pelo material de `docs/ai/`: referência da API gerada do JAR, guia de GLSL com a biblioteca `calamidade_fx.glsl`, vinte e uma receitas completas (`/vfxsample receita <nome>`, item, blocos e mob do exemplo) e o modelo para usar o Calamidade como dependência (`docs/ai/usar-como-dependencia.md`). `python3 scripts/novo_efeito.py <namespace> <nome>` gera o esqueleto de um efeito novo.
 
-**Para modificar o motor**, consulte os capítulos 13 e 14. O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256; ela não é versionada. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
+**Para modificar o motor**, consulte os capítulos 14 e 15. O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256; ela não é versionada. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
 
-**Para medir e validar**, use o capítulo 15 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 16.
+**Para medir e validar**, use o capítulo 16 (painel F7, gravação de quadros e `/calamidade bench`) e registre os resultados no capítulo 17.
 
 **Escopo.** As cinco habilidades internas são cosméticas. O motor oferece iluminação visual por materiais e shaders, desde a 0.8 tingimento do céu e névoa por efeito (Atmosphere) e, desde a 0.9, feixes e luz visual sobre o que a câmera vê (Beam e Light) , desde a 0.10, efeitos orientados e gatilhos de item, bloco e mob e, desde a 0.11, edições de terreno (Terrain API) com regras de segurança do servidor e desfazer; a luz da 0.9 não muda o nível de luz da simulação (spawn de mobs, plantas), e substituir o skybox por texturas próprias exige implementação adicional. Consequências de gameplay pertencem aos addons, pelos cues de servidor e pela Terrain API.
 
 
 1. [Jogar e instalar](#cap1)
-2. [API de efeitos e impact frames](#cap2)
-3. [Gameplay sincronizado no servidor](#cap3)
-4. [Criar addons e publicar cartões](#cap4)
-5. [Ganchos avançados: pós-processamento, câmera e início](#cap5)
-6. [Timeline: fases, trilhas, marcadores e sustain](#cap6)
-7. [Atmosphere: céu, névoa, exposição e tinta](#cap7)
-8. [Beam: feixes de luz](#cap8)
-9. [Light: luz visual sobre o mundo](#cap9)
-10. [Prioridade protagonista e orçamento por quadro](#cap10)
-11. [Integração com outros mods: orientação, fontes, limites e gatilhos](#cap11)
-12. [Terrain API: destruição, crateras e objetos que viram blocos reais](#cap12)
-13. [Arquitetura do motor](#cap13)
-14. [Criar habilidades dentro do motor](#cap14)
-15. [Testes em GPU real e multiplayer](#cap15)
-16. [Validação, medições e limites](#cap16)
-17. [Histórico e evolução prevista](#cap17)
+2. [Atlas Estelar: o painel holográfico no mundo](#cap2)
+3. [API de efeitos e impact frames](#cap3)
+4. [Gameplay sincronizado no servidor](#cap4)
+5. [Criar addons e publicar cartões](#cap5)
+6. [Ganchos avançados: pós-processamento, câmera e início](#cap6)
+7. [Timeline: fases, trilhas, marcadores e sustain](#cap7)
+8. [Atmosphere: céu, névoa, exposição e tinta](#cap8)
+9. [Beam: feixes de luz](#cap9)
+10. [Light: luz visual sobre o mundo](#cap10)
+11. [Prioridade protagonista e orçamento por quadro](#cap11)
+12. [Integração com outros mods: orientação, fontes, limites e gatilhos](#cap12)
+13. [Terrain API: destruição, crateras e objetos que viram blocos reais](#cap13)
+14. [Arquitetura do motor](#cap14)
+15. [Criar habilidades dentro do motor](#cap15)
+16. [Testes em GPU real e multiplayer](#cap16)
+17. [Validação, medições e limites](#cap17)
+18. [Histórico e evolução prevista](#cap18)
 
 Leitura complementar, fora do manual: [estudo técnico da integração da SA Series](ESTUDO-SA-SERIES.md).
 
@@ -45,17 +46,19 @@ Leitura complementar, fora do manual: [estudo técnico da integração da SA Ser
 
 ## 1. Jogar e instalar
 
-Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.11.1 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor e, desde a 0.11.0, crateras e estruturas que caem pela Terrain API (que respeita as regras de terreno da config do servidor, desde a 0.11.1 também claims de mods de proteção, a borda do mundo, a proteção de spawn e o modo aventura, e se desfaz com `/calamidade terrain undo`).
+Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.11.2 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor e, desde a 0.11.0, crateras e estruturas que caem pela Terrain API (que respeita as regras de terreno da config do servidor, desde a 0.11.1 também claims de mods de proteção, a borda do mundo, a proteção de spawn e o modo aventura, e se desfaz com `/calamidade terrain undo`).
 
 ### Instalação
 
-Coloque o JAR `dist/calamidade_awakening-0.11.1.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes (a 0.10.0 mudou o pacote de início de efeito para `event_v2` e a 0.11.0 criou o `terrain_v1`, mantido na 0.11.1; versões diferentes simplesmente não trocam efeitos ou o terreno). Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
+Coloque o JAR `dist/calamidade_awakening-0.11.2.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes (a 0.10.0 mudou o pacote de início de efeito para `event_v2` e a 0.11.0 criou o `terrain_v1`, mantido na 0.11.1 e na 0.11.2; versões diferentes simplesmente não trocam efeitos ou o terreno). Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
 
 A interface usa inglês como padrão e tem tradução para português do Brasil pela opção de idioma do Minecraft.
 
 | Tecla padrão | Ação |
 |---|---|
 | N | Abrir ou fechar o Atlas Estelar |
+| B | Trazer o Atlas aberto para a frente da mira |
+| Alt esquerdo (segurar) | Apontar no Atlas com o cursor |
 | K | Pulso Prismático |
 | U | Florescência Cristalina |
 | I | Vitrais do Horizonte |
@@ -63,15 +66,15 @@ A interface usa inglês como padrão e tem tradução para português do Brasil 
 | Y | Núcleo do Horizonte |
 | O | Interromper a câmera cinematográfica |
 | F7 | Painel de diagnóstico |
-| F8 | Alternar a qualidade visual |
+| F8 | Qualidade: AUTO, LOW, BALANCED, HIGH, ULTRA |
 
 Se a Convergência da Aurora ainda estiver em L depois de atualizar, reatribua para V em Controles. L abre a tela de Progressos do Minecraft.
 
 ### Atlas Estelar
 
-Abra o **Atlas Estelar** pelo menu de pausa ou pressione **N** durante o jogo. Cinco cartões aparecem quatro blocos à frente da câmera. É possível andar em volta deles ou olhar para outro lado. Mire em um cartão e pressione **Atacar** (botão esquerdo) para conjurar a habilidade pelo servidor. **Usar item** (botão direito) passa à próxima página quando há addons. O Atlas fecha depois da escolha, na troca de dimensão ou a mais de 24 blocos. Nenhum item é necessário para abri-lo.
+Abra o **Atlas Estelar** pelo menu de pausa ou pressione **N** durante o jogo: um astrolábio de placas aparece parado no mundo, à sua frente, e você continua andando e olhando em volta. Mire em um cartão e pressione **Atacar** para conjurar a habilidade pelo servidor; **Usar item** ou a roda passam à próxima página quando há addons. Clicar numa placa nunca ataca nem quebra o que está atrás dela. As abas Qualidade, Acessibilidade, Terreno e Diagnóstico ficam no arco de cima. O Atlas fecha depois da escolha, na troca de dimensão, na morte ou a mais de 24 blocos. Capítulo completo: [ATLAS-0.11.2.md](ATLAS-0.11.2.md).
 
-O Atlas se abre em 0,44 segundo, com um pequeno atraso nos cartões externos. Um cartão em movimento já pode ser escolhido. O destaque acompanha o foco e marca a escolha enviada.
+**Qualidade (0.11.2):** o padrão é **AUTO**, que escolhe entre LOW, BALANCED, HIGH e ULTRA pelo tempo de quadro e nunca troca durante um efeito protagonista. F8 força um perfil; F7 mostra o perfil e o motivo da última troca. Veja PRIORIDADE-0.9.md.
 
 ### Habilidades internas
 
@@ -104,7 +107,74 @@ O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256 (task `ri
 
 <a id="cap2"></a>
 
-## 2. API de efeitos e impact frames
+## 2. Atlas Estelar: o painel holográfico no mundo
+
+O Atlas Estelar é o único painel holográfico do Calamidade. Desde a 0.11.2 ele é um conjunto de placas **paradas no mundo**, à frente de onde você olhava quando o abriu. Você continua andando, pulando e olhando em volta: não há tela por cima do jogo nem controle travado. Dá para dar a volta nas placas, vê-las de lado e por trás, e virar de costas.
+
+![Atlas Estelar, aba Habilidades](gameplay/atlas-habilidades-0112.jpg)
+
+### Abrir, fechar e trazer de volta
+
+| Ação | Como |
+|---|---|
+| Abrir ou fechar | **N** (ou o botão "Atlas Estelar" no menu de pausa) |
+| Trazer para a frente da mira | **B** (Recall) |
+| Apontar com o cursor do mouse | segurar **Alt esquerdo** (a câmera para, WASD continua) |
+| Escolher, clicar, arrastar | mirar e **Atacar** (botão esquerdo) ou **Usar** (botão direito) |
+| Rolar | roda do mouse com a mira numa placa |
+
+As teclas mudam em Controles → Calamidade_Awakening. O Atlas escolhe sozinho uma posição que não entre em paredes: aproxima as placas quando há uma parede na frente e gira o arco para o lado livre; num espaço muito apertado avisa e usa a menor distância.
+
+Ele **fecha na hora** na morte, no renascimento, na troca de dimensão, no logout, no modo espectador e quando um menu da RimuLib abre; **some com a animação** com N, logo depois de conjurar e quando você se afasta mais de 24 blocos. Fica visível (sem responder) com inventário, chat e pausa abertos, e se esconde sem fechar durante uma câmera cinematográfica e com F1.
+
+### Clique sem atacar o que está atrás
+
+O clique é da placa só quando a mira acerta a face da frente dela, a até 6 blocos, e **mais perto** que o bloco ou mob que o jogo escolheria. Então:
+
+- clicar numa placa nunca ataca, minera, coloca bloco nem usa o item da mão, mesmo com um mob ou bloco logo atrás, mesmo no criativo;
+- um bloco ou mob **na frente** da placa continua sendo do mundo;
+- o dono de cada botão é decidido no aperto e vale até soltar: segurar o clique numa placa e virar para um bloco não minera; uma mineração que começou no mundo para quando a mira passa por uma placa e volta quando sai;
+- a roda só é da placa com a mira nela (fora das placas, troca o slot da barra); as teclas 1–9 nunca são capturadas.
+
+### Visual: o astrolábio
+
+![Aba Qualidade](gameplay/atlas-qualidade-0112.jpg)
+
+Um anel de latão com marcas de grau, um anel interno verde-petróleo e um pequeno anel central ficam atrás dos cartões; os cartões ficam em órbita, as abas inclinadas ao longo do arco de cima e linhas de constelação tracejadas ligam os cartões. Estrelas marcam os cantos de cada placa e poeira estelar em várias profundidades dá paralaxe de verdade, porque as placas estão no mundo. Na abertura, as estrelas se acendem, o anel cresce do centro, as linhas se desenham e os cartões se formam a partir das estrelas; no fechamento, o caminho inverso. Todo texto é medido e cortado com reticências para nunca sair do cartão.
+
+### Abas
+
+| Aba | O que tem |
+|---|---|
+| **Habilidades** | Os cinco cartões do motor e uma página por addon (namespace), até cinco cartões cada. Atacar num cartão conjura pelo servidor (que confere a recarga); usar passa à próxima página; roda nos cartões troca a página. |
+| **Qualidade** | AUTO, LOW, BALANCED, HIGH e ULTRA com o motivo da última troca do AUTO; sliders dos seis limites de cada perfil (desenhados, passes, passes HERO, HERO desenhados, feixes, luzes) com os máximos de segurança, FPS alvo do AUTO e "Restaurar padrões"; tabela dos limites de todos os perfis. |
+| **Acessibilidade** | Intensidade dos efeitos de tela, tremor, efeitos de movimento, névoa da atmosfera pela névoa do jogo e a opção do jogo "ocultar clarões". |
+| **Terreno** | Só leitura: se a destruição está ligada, nesta dimensão, volume, blocos por tick, dimensões, block entities, mobGriefing, desfazer, estrutura, evento de explosão e proteção de spawn. Vem da config do servidor, que o NeoForge sincroniza ao entrar; mudar exige o servidor. |
+| **Diagnóstico** | As linhas do F7 ao vivo, o gráfico do tempo de quadro (últimos 240 quadros, guias de 60 e 30 FPS), bench 6/24/60 e parar (com permissão 2 no servidor) e gravação de 8 s com mediana e p95 no próprio painel (o CSV vai para `calamidade_bench/`). |
+
+Os valores mudam na hora e ficam gravados em `calamidade_awakening-client.toml`. Os comandos de servidor continuam pedindo permissão no servidor.
+
+### Para addons
+
+Nada muda para quem publica cartões: `Addons.publish` e a arte em `textures/gui/sprites/skill/focus/addon/<ns>/<id>.png` (proporção 2:1) continuam valendo (capítulo de addons). O título do cartão vem do `titleKey`, a linha de baixo do `tier` e a recarga do `cooldown`.
+
+### Engenharia
+
+O código está em `client/holo` (`AtlasWorld`, `AtlasInput`, `Atlas`, `HoloPanel`, `HoloSurface`, `HoloZone`, `HoloGl`) e as partes puras em `api/holo` (`HoloGeometry`, `HoloPlacement`, `HoloInputArbiter`, testadas no `checkBudget`).
+
+- **Um só espaço:** o Atlas é uma prancha de 640 × 360 unidades que vira mundo por uma matriz (`HoloGeometry.layoutToWorld`): o olho da prancha é a posição dos olhos na abertura e a frente aponta para o yaw dela. Desenho, mira, clique, arrasto e roda usam as matrizes congeladas do mesmo quadro.
+- **Quadro:** em `RenderFrameEvent.Pre`, animação, hover e o conteúdo de cada placa desenhado num framebuffer próprio (reaproveitado, com mipmap; placas fora da vista não são redesenhadas). Em `RenderLevelStageEvent` AFTER_LEVEL, a passada 3D com a projeção da câmera real e teste de profundidade contra o cenário, sem gravar nem limpar o depth buffer (parede na frente esconde a placa). `HoloGl.end` devolve projeção, model-view, máscara e função de profundidade, cull, mistura, névoa e cor do shader.
+- **Entrada:** `InputEvent.MouseButton.Pre` (antes do vanilla: cancelado, o ataque e o uso nem descem), `MouseScrollingEvent` e `InteractionKeyMappingTriggered` (rede de segurança e ações presas ao teclado), com o dono de cada botão em `HoloInputArbiter`.
+
+**Origem:** a engenharia das placas foi adaptada do menu holográfico da tecla K do RespectCraft (mesmo autor, que autorizou copiar e adaptar; handoffs 4.8.1, 4.8.4-A e 4.8.4-B do repositório `Juann027/MineModding_01`). O código vive no Calamidade, no namespace dele, sem importar nada do RespectCraft; o Calamidade não depende do RespectCraft. O visual e as abas são originais.
+
+### Testes
+
+`xvfb-run -a ./gradlew testeAtlas` (depois de `./gradlew testeJogo`, que cria o mundo, e do build do vfx-sample): placas paradas enquanto o jogador anda, as cinco abas, clique em aba com pedra atrás no criativo (pedra intacta), clique direito com tábuas (nada colocado), roda (página muda, barra não), Recall, clique em cartão com vaca atrás (sem dano, habilidade conjurada, Atlas fecha), controle sem o Atlas (o mesmo clique quebra a pedra), fechamento por distância, dimensão e morte. Roteiro manual: TESTE-REAL.md, parte 9.
+
+<a id="cap3"></a>
+
+## 3. API de efeitos e impact frames
 
 Este documento descreve a API introduzida na 0.3, que continua válida na 0.10.0. Para o exemplo incluído no pacote atual, caminhos de instalação e publicação de cartões, abra [Addons 0.4](ADDONS-0.4.md).
 
@@ -189,9 +259,9 @@ Effects.register(ResourceLocation.fromNamespaceAndPath("meumod", "explosao"), de
 - **Preferência do jogador.** Em Opções → Acessibilidade, habilitar a opção de ocultar clarões de relâmpago desativa os acentos de tela do Calamidade, inclusive o monocromático. Partículas, brilho das malhas e iluminação de superfícies continuam visíveis. Use também forma, movimento e som para comunicar o contato.
 - **Dica de autoria.** Teste primeiro a geometria sem o acento e depois compare as duas versões no mesmo local. A definição de sete argumentos continua disponível e usa o acento suave padrão do motor. A versão com Impact substitui esse acento pela janela escolhida.
 
-<a id="cap3"></a>
+<a id="cap4"></a>
 
-## 3. Gameplay sincronizado no servidor
+## 4. Gameplay sincronizado no servidor
 
 O motor continua cosmético: ele não altera vida, blocos ou IA por conta própria. A partir da 0.5.0, um addon pode agendar **cues**: funções que rodam no servidor quando o relógio de uma instância chega a um tick. É o lugar certo para dano, empurrão, efeitos de poção, quebra de blocos ou custo de mana, porque o cue usa o mesmo relógio que o cliente usa para desenhar. O golpe acontece no quadro em que o jogador vê o contato.
 
@@ -241,9 +311,9 @@ Effects.cue(golpe, 0, ctx -> ctx.level().playSound(null, BlockPos.containing(ctx
 
 O Sinal de Maré do exemplo agenda o cue no marcador `impacto` da timeline (tick 40, o mesmo do impact frame) para causar 2 corações de dano e empurrar as criaturas a até três blocos. Com timeline, os ticks dos cues são locais: dentro de um loop de sustain, um cue roda a cada volta (veja TIMELINE-0.7.md). O código está em `examples/vfx-sample/src/main/java/example/vfxsample/Sample.java`.
 
-<a id="cap4"></a>
+<a id="cap5"></a>
 
-## 4. Criar addons e publicar cartões
+## 5. Criar addons e publicar cartões
 
 O projeto independente em [examples/vfx-sample](../examples/vfx-sample/) implementa o **Sinal de Maré**. Use-o como ponto de partida. O jogador pode descobrir o cartão no Atlas, ajustar a potência no Focus e acompanhar uma execução com câmera, malha, shader de superfície, partículas, som e HUD. O motor e o addon têm JARs e namespaces próprios.
 
@@ -325,9 +395,9 @@ Há até 1/2/4 passes de addon por quadro em LOW/BALANCED/HIGH, além do passe c
 - Geometria aparece mas o shader falha: verifique namespace, shaders/fx e mensagens do compilador GLSL no log do cliente. Um shader de core do Minecraft tem outro contrato. Teste primeiro um passe que apenas devolve a cor de entrada.
 - Ao publicar uma versão, teste o mod-base sozinho e com dois addons que escolham o mesmo nome de efeito em namespaces diferentes. Atualize cliente e servidor juntos: o pedido de conjuração da 0.4 inclui potência e usa o canal request_v2. A 0.5.0 mantém o mesmo protocolo de rede; a 0.6.0 também. A 0.7.0 acrescenta o canal release (efeitos com sustain), então servidor e clientes precisam estar na 0.7.0. Addons da 0.4 a 0.6 funcionam sem mudança no código após ampliar o intervalo de dependência para incluir 0.7. A 0.8.0 mantém o protocolo da 0.7.0 (a atmosfera não usa rede); addons da 0.7 só precisam ampliar o intervalo para incluir 0.8. A 0.9.0 também mantém o protocolo (feixes, luzes e prioridade não usam rede); addons da 0.8 só precisam ampliar o intervalo para incluir 0.9. A 0.10.0 troca o pacote de início por `event_v2` (orientação e fonte), então servidor e clientes precisam estar na 0.10.0; addons da 0.9 só precisam ampliar o intervalo para incluir 0.10. Para começar um addon novo, `python3 scripts/novo_efeito.py <namespace> <nome>` gera um efeito que compila sem edição, e `docs/ai/receitas/` traz dezessete efeitos completos.
 
-<a id="cap5"></a>
+<a id="cap6"></a>
 
-## 5. Ganchos avançados: pós-processamento, câmera e início
+## 6. Ganchos avançados: pós-processamento, câmera e início
 
 A API de cartões cobre o caso comum: um shader com `CaCenter` e `CaEffect`, uma lista linear de tomadas e o acento de impacto. Efeitos de chefe e sequências longas precisam de mais. A 0.6 abre três ganchos de cliente que entregam ao addon as ferramentas da própria RimuLib, sem perder o que o motor já oferece: sincronização, seleção por prioridade, orçamento por qualidade, Atlas, Focus e cues.
 
@@ -426,9 +496,9 @@ Roda uma vez em cada cliente que aceita a instância, inclusive quem entra atras
 
 O Sinal de Maré (1.4.0 em diante) usa os três ganchos, guiados pela Timeline; na 1.5.0 ele também tem uma atmosfera curta no impacto (ATMOSFERA-0.8.md). Em `SampleClient.java`: um passe `signal_ripple` com uniforms próprios e a trilha `intensidade` enviada por `uploadTracks` (anéis dourados que saem do impacto, pedidos a partir de dois ticks antes da fase `impacto` e omitidos em LOW porque o cartão já usa a única vaga), bloom, tremor, zoom blur e aberração no impacto; uma câmera com cortes alinhados às fases; e um som para quem assiste de fora. O shader está em `assets/vfxsample/shaders/fx/signal_ripple.fsh`.
 
-<a id="cap6"></a>
+<a id="cap7"></a>
 
-## 6. Timeline: fases, trilhas, marcadores e sustain
+## 7. Timeline: fases, trilhas, marcadores e sustain
 
 Até a 0.6, cada addon escrevia o roteiro do efeito com contas soltas sobre a idade: `exp(-|idade - 40| / 4)` no post, `cut(0, 36, ...)` na câmera, `Effects.cue(id, 40, ...)` no servidor. Os três números precisavam bater, e mudar o momento do impacto exigia caçar todos. A 0.7 junta esse roteiro num objeto só, a **Timeline**: fases com nome, trilhas de valores, marcadores e, para efeitos ambientes, um trecho em loop que só termina quando o servidor manda.
 
@@ -596,9 +666,9 @@ Efeitos sem timeline recebem um amostrador de uma timeline vazia: `localAge()` f
 - **Servidor.** Sem sustain, os cues rodam como na 0.6. Com sustain, cada tick percorre a lista de cues do efeito uma vez.
 - **Rede.** Um pacote pequeno (um `long` com a ordem da instância e a idade de liberação em varlong) por release e por entrada tardia numa instância já liberada. Nada é enviado por tick.
 
-<a id="cap7"></a>
+<a id="cap8"></a>
 
-## 7. Atmosphere: céu, névoa, exposição e tinta
+## 8. Atmosphere: céu, névoa, exposição e tinta
 
 Até a 0.7, um addon que quisesse escurecer a cena numa luta de chefe ou tingir o céu num ritual escrevia um shader de tela inteira próprio: gastava uma vaga do orçamento de passes, não conversava com a névoa do jogo e brigava com qualquer outro efeito que fizesse o mesmo. A 0.8 junta isso num objeto só, a **Atmosphere**: o clima da cena enquanto o efeito está ativo. O motor mistura as atmosferas ativas, desenha o resultado num passe único por quadro, fora do orçamento de addons, e usa a própria névoa do jogo para que terreno, entidades, partículas, água e nuvens fiquem coerentes.
 
@@ -735,9 +805,9 @@ O painel F7 ganha a linha **"Atmosfera: N ativas · passe sim/não"** (N = inst�
 - A névoa da atmosfera não age em fluidos, neve em pó, cegueira e escuridão.
 - Coberto por testes de lógica (`AtmosphereCheck`, registro e mistura) e por um roteiro automatizado em jogo com renderização por software (VALIDACAO.md). GPU física, multiplayer e os demais casos estão no roteiro de [TESTE-REAL.md](TESTE-REAL.md), casos 21 a 36.
 
-<a id="cap8"></a>
+<a id="cap9"></a>
 
-## 8. Beam: feixes de luz
+## 9. Beam: feixes de luz
 
 Até a 0.8, cada addon que queria um feixe (um laser, um pilar do céu, uma teia de energia) escrevia o próprio shader com `caSegmentGlow`, gastava uma vaga do orçamento de passes **por efeito** e repetia as mesmas contas de largura por pixel e oclusão. A 0.9 transforma o feixe num objeto do motor, o **Beam**: o addon descreve as pontas, as larguras, as cores e o movimento, e o motor desenha os feixes de todos os efeitos do quadro **num passe só**.
 
@@ -875,9 +945,9 @@ O F7 ganha a linha **"Feixes: N desenhados (máx. M) · passe HERO/comum/não"**
 
 **Desde a 0.10.0:** os pontos `Point.center` (e o novo `Point.facing(direita, cima, frente)`) e os deslocamentos de trilha giram com a orientação da instância; sem orientação, nada muda. Veja [INTEGRACAO-0.10.md](INTEGRACAO-0.10.md) e as receitas [14](ai/receitas/14-leque.md) a [17](ai/receitas/17-zumbi.md).
 
-<a id="cap9"></a>
+<a id="cap10"></a>
 
-## 9. Light: luz visual sobre o mundo
+## 10. Light: luz visual sobre o mundo
 
 Um fogo, um pilar de energia ou uma onda de choque que não ilumina nada em volta parece colado na tela. Até a 0.8, o motor não tinha como clarear o terreno em volta de um efeito; um addon precisaria de um shader próprio que reconstruísse a cena. A 0.9 traz a **Light**: luzes que clareiam os blocos, as entidades e o terreno que a câmera vê, desenhadas pelo motor num passe único por quadro.
 
@@ -1024,9 +1094,9 @@ O F7 ganha a linha **"Luzes: N desenhadas (máx. M) · passe HERO/comum/não"**.
 
 **Desde a 0.10.0:** luzes em pontos do centro e os deslocamentos `X`, `Y` e `Z` giram com a orientação da instância; discos e anéis continuam horizontais (só o centro gira). Veja [INTEGRACAO-0.10.md](INTEGRACAO-0.10.md).
 
-<a id="cap10"></a>
+<a id="cap11"></a>
 
-## 10. Prioridade protagonista e orçamento por quadro
+## 11. Prioridade protagonista e orçamento por quadro
 
 Num servidor cheio, dezenas de efeitos disputam a mesma tela. O motor sempre limitou quanto desenha por quadro, e isso protege o FPS. Mas o limite não sabia qual efeito era o principal da cena: o golpe final de um chefe podia perder o lugar para seis faíscas mais perto da câmera. A 0.9 deixa o addon dizer **"este efeito é o protagonista"**.
 
@@ -1114,9 +1184,9 @@ O F7 ganha a linha **"Protagonistas (HERO): N desenhadas · X/Y passes"**: quant
 
 Coberto por testes puros no `checkBudget` (`PriorityCheck`: HERO nunca cortado, teto de 2, orçamento separado e seleção NORMAL idêntica à da 0.8 quando não há HERO; `BeamCheck`: pagamento dos passes compartilhados).
 
-<a id="cap11"></a>
+<a id="cap12"></a>
 
-## 11. Integração com outros mods: orientação, fontes, limites e gatilhos
+## 12. Integração com outros mods: orientação, fontes, limites e gatilhos
 
 A 0.10.0 prepara o Calamidade para ser usado por outros mods: o **RespectCraft** (Finisher Engine: finalizações entre dois participantes, com rigs GeckoLib, câmera própria e eventos por tick como `EVENT_HIT` de força 1 a 3 e `EVENT_FALL`), itens, blocos e ataques de mobs. Quatro peças novas, todas na API pública `dev.calamidade_awakening.api.v1`:
 
@@ -1383,9 +1453,9 @@ Orientação não custa nada a mais por quadro: é uma rotação por ponto no cl
 - `./gradlew build`: `OrientationCheck` (eixos, igual a `Vec3.directionFromRotation`, ortonormal, ida e volta, `Placement`, `Context`), `StageEventCheck` (o pacote `event_v2` leva orientação e fonte), `SourceCheck` (fontes, admissão, simulação aleatória, recarga), `TriggerCheck` (modos de bloco e validação dos gatilhos).
 - No jogo: receitas 14 a 17, F7 ("Fontes"), `/calamidade status`. Roteiro completo em [TESTE-REAL.md](TESTE-REAL.md), parte 5.
 
-<a id="cap12"></a>
+<a id="cap13"></a>
 
-## 12. Terrain API: destruição, crateras e objetos que viram blocos reais
+## 13. Terrain API: destruição, crateras e objetos que viram blocos reais
 
 Até a 0.10, o motor era cosmético: um meteoro do Calamidade caía, explodia em luz e deixava o chão intacto. Para cavar uma cratera, um addon teria de chamar `level.setBlock` milhares de vezes num cue (caro e sem desfazer) ou acender TNT (ainda mais caro: raios, drops, física, entidades e luz bloco a bloco, e nenhuma forma controlada). A 0.11 traz a **Terrain API**: o efeito declara uma escavação, uma borda queimada e o que fica no lugar, e o motor troca os blocos em massa, direto nas seções dos chunks, **dentro do impact frame**, como um `/fill` com ar, enquanto o clarão esconde o instante em que os blocos somem e as seções são reenviadas. Depois, um calor desenhado pelo cliente cobre a área por alguns segundos e esfria.
 
@@ -1742,9 +1812,9 @@ Dentro da área escrita nada é atualizado: tudo ali foi escrito pela edição, 
 
 [18 — raio que abre uma trincheira](ai/receitas/18-raio-trincheira.md), [19 — meteoro que vira bloco real](ai/receitas/19-meteoro.md), [20 — cratera simples](ai/receitas/20-cratera-simples.md), [21 — torre que cai e fica](ai/receitas/21-torre-caindo.md). Testes: `TerrainCheck` no `checkBudget` (volumes, determinismo pela seed, vedação da casca, orientação da trincheira, ordem estável dos lotes, paleta, preenchimento, estrutura girada, registro) e os casos 63 a 74 de TESTE-REAL.md.
 
-<a id="cap13"></a>
+<a id="cap14"></a>
 
-## 13. Arquitetura do motor
+## 14. Arquitetura do motor
 
 ```mermaid
 flowchart TD
@@ -1828,7 +1898,7 @@ A versão de referência usa RimuLib 1.3.0, NeoForge 21.1.267 e JDK 21. A RimuLi
 
 ### Atlas Estelar
 
-StarAtlas registra a posição e a orientação da câmera uma vez na abertura. Cartões, órbita e textos usam coordenadas de mundo e profundidades diferentes. A seleção cruza o raio da câmera com o plano de cada cartão e testa os blocos até o ponto alcançado. O clique envia CastRequest para o mesmo caminho de validação das teclas de habilidade. O servidor mantém o controle da recarga e da execução. Cada cliente vê seu próprio atlas.
+Desde a 0.11.2, `client/holo/AtlasWorld` guarda a âncora (olhos e yaw na abertura) e desenha placas paradas no mundo: conteúdo em framebuffers por placa, passada 3D no AFTER_LEVEL com a câmera real, mira e clique pelas mesmas matrizes e dono da entrada decidido no aperto (`api/holo/HoloInputArbiter`). O clique num cartão envia CastRequest para o mesmo caminho de validação das teclas de habilidade; o servidor mantém o controle da recarga e da execução. Cada cliente vê seu próprio Atlas. Detalhes em ATLAS-0.11.2.md.
 
 ### Horizon Core na 0.2.0
 
@@ -1844,9 +1914,9 @@ O Atlas interpola coordenadas locais na abertura e usa a mesma função de posi�
 
 PerfOverlay (tecla F7) mostra o renderizador OpenGL, FPS, mediana e percentil 95 dos últimos 240 quadros, perfil de qualidade, sequências residentes, efeitos e volumes desenhados, vértices emitidos e passes de pós-processamento. Os renderizadores escrevem os contadores durante o quadro e o painel publica os valores no início do quadro seguinte, então ele sempre mostra o último quadro completo. `/calamidade_client record <segundos>` grava os mesmos dados por quadro em `calamidade_bench/frames-*.csv` na pasta do jogo. No servidor, `/calamidade bench <n> [efeito]` cria uma carga reproduzível e `/calamidade status` informa as instâncias ativas. O roteiro de uso está em [TESTE-REAL.md](TESTE-REAL.md).
 
-<a id="cap14"></a>
+<a id="cap15"></a>
 
-## 14. Criar habilidades dentro do motor
+## 15. Criar habilidades dentro do motor
 
 Para publicar uma habilidade em um JAR separado, use o [tutorial de criação de addons 0.4](ADDONS-0.4.md).
 
@@ -1925,9 +1995,9 @@ Para consumidores da 0.3.x, comece pelo [guia da API pública](API-0.3.md) e pel
 
 Ao documentar uma nova camada, inclua o registro completo, o evento que a inicia, as unidades e os limites dos parâmetros, o comportamento para observadores e um comando para reproduzir o resultado. Para eventos luminosos, descreva também o resultado com a redução de clarões ligada. Faça o exemplo compilar contra o JAR que será distribuído.
 
-<a id="cap15"></a>
+<a id="cap16"></a>
 
-## 15. Testes em GPU real e multiplayer
+## 16. Testes em GPU real e multiplayer
 
 Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por software) com servidor integrado. Este roteiro cobre o que faltava: desempenho em placa de vídeo física e sincronização entre dois clientes. Ele usa as ferramentas da 0.5.0 e leva cerca de 40 minutos.
 
@@ -2117,13 +2187,30 @@ Objetivo: medir na GPU física quanto custa **cada efeito desenhado** e **cada p
 
 Comandos avulsos, para olhar uma carga com calma: `/calamidade_client debug unlimited` (sem tetos), `/calamidade_client debug unlimited <desenhados> <passes>` (tetos escolhidos), `/calamidade_client debug off`; `/calamidade bench <n> mix` (anel, cubo, teia e céu alternados; as instâncias recomeçam sozinhas até `bench stop`).
 
+### Parte 9 — Atlas no mundo e qualidade automática (0.11.2)
+
+Antes, os testes automáticos: `./gradlew testeJogo`, depois `xvfb-run -a ./gradlew testeAtlas` e `testeMedicao` (com o vfx-sample compilado). Os casos abaixo são o que eles não cobrem: GPU física, mouse e teclado de verdade, sobrevivência, dois jogadores. Capítulos: [ATLAS-0.11.2.md](ATLAS-0.11.2.md) e [PRIORIDADE-0.9.md](PRIORIDADE-0.9.md).
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 85 | N; ande para trás, para os lados, pule, dê a volta nas placas, vire de costas. | O astrolábio fica parado no mundo: diminui ao se afastar, aparece de lado e (esmaecido) por trás, sai e volta ao campo de visão no mesmo lugar. A abertura mostra as estrelas, o anel crescendo, as linhas e os cartões se formando. |
+| 86 | N encostado numa parede, num corredor 1 × 2 e numa sala 3 × 3. | As placas ficam fora da parede (mais perto ou viradas para o lado livre); no corredor aparece "espaço apertado". |
+| 87 | Em sobrevivência e em criativo: uma pedra e uma vaca logo atrás de uma placa; clique esquerdo, direito (com blocos na mão) e meio, e segure o esquerdo na placa enquanto vira para um bloco. | Nada quebra, a vaca não leva dano, nenhum bloco é colocado, a mão não balança, o item e o slot não mudam. Soltar o botão longe da placa não minera. Fora das placas tudo volta ao normal. |
+| 88 | Abas: Habilidades (conjurar um cartão; usar e roda trocam a página com addons), Qualidade (trocar modo, mover sliders, Restaurar padrões), Acessibilidade (cada opção), Terreno, Diagnóstico (Bench 24, Parar, Gravar 8 s). | Cada mudança vale na hora e fica no `calamidade_awakening-client.toml` depois de reiniciar o jogo. O resultado da gravação (mediana, p95) aparece no painel. Sem permissão 2, os botões de bench ficam apagados. Texto nunca sai dos cartões, em GUI 2, 3 e 4. |
+| 89 | B (Recall) olhando para outro lado; segure Alt e clique com o cursor; Alt+Tab com Alt segurado. | O Atlas vem para a frente da mira. Com Alt, a câmera para, o cursor aponta e clica; soltar Alt devolve a câmera sem salto. Voltando à janela, o mouse não fica solto. |
+| 90 | Com o Atlas aberto: morra, troque de dimensão, saia do servidor, afaste-se mais de 24 blocos, abra o inventário e a pausa. | Fecha nos quatro primeiros; com inventário e pausa fica visível e não responde. Nenhum erro no log. |
+| 91 | AUTO: VSync desligado, FPS ilimitado, `/calamidade bench 48 mix` olhando a carga; depois `bench stop` e `bench 6 mix`. | Com carga pesada o F7 mostra "desceu de …" se o p95 passar de 20 ms (alvo 60 FPS); com folga e o limite cortando efeitos (bench 48 em BALANCED), "subiu de …" depois de uns 8 s. Nunca troca durante `/vfxsample receita protagonista`. Não fica trocando para cima e para baixo. |
+| 92 | AUTO numa máquina com placa integrada (se houver). | Desce até LOW ou BALANCED e fica. Anote o FPS. |
+
+Registre para cada caso o que viu; nos casos 85, 87 e 91, uma captura ou vídeo curto.
+
 ### Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
 
-<a id="cap16"></a>
+<a id="cap17"></a>
 
-## 16. Validação, medições e limites
+## 17. Validação, medições e limites
 
 ### Versão 0.11.2 — Etapa 1: custo por efeito e por passe (em andamento)
 
@@ -2891,9 +2978,9 @@ As outras quatro habilidades foram acionadas pelas teclas padrão U, I, V e Y. F
 
 O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servidor integrado. Continuam pendentes multiplayer com dois clientes e medições de desempenho em GPU física.
 
-<a id="cap17"></a>
+<a id="cap18"></a>
 
-## 17. Histórico e evolução prevista
+## 18. Histórico e evolução prevista
 
 ### Versões publicadas
 
@@ -3004,11 +3091,18 @@ O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servid
 - Compatível com ScalableLux (correção), C2ME, Sodium, Embeddium e Distant Horizons; Moonrise não abre com a RimuLib 1.3.0.
 - Testes em jogo no repositório: `./gradlew testeJogo` (servidor dedicado, 51 verificações, com reinício) e `xvfb-run ./gradlew testeCliente` (10 verificações). Consulte TERRENO-0.11.md, seção "Compatibilidade (0.11.1)".
 
+#### 0.11.2 — perfis medidos, qualidade automática e Atlas no mundo
+
+- Medição de custo por efeito e por passe no próprio jogo (`/calamidade_client debug measure`, perfil de teste UNLIMITED, `bench <n> mix`), por software e na RTX 4060 do autor; perfis novos (LOW igual, BALANCED 8, HIGH 16, ULTRA 32 desenhados) com limites no config de cliente.
+- Qualidade automática AUTO (padrão): p95 do quadro, histerese, nunca durante um efeito HERO; F8 força um perfil, F7 mostra o motivo.
+- Atlas Estelar refeito como placas paradas no mundo (engenharia adaptada do menu holográfico do RespectCraft), visual de astrolábio, abas de habilidades, qualidade, acessibilidade, terreno e diagnóstico. Consulte ATLAS-0.11.2.md.
+- Testes em jogo novos: `testeMedicao` e `testeAtlas`.
+
 ### Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
 
-- Tempo de quadro com 1, 3, 6 e 12 eventos em GPU física, em 1080p e 1440p, nos três perfis de qualidade.
+- Custo absoluto por efeito e por passe na RTX 4060 com VSync desligado (a medição da 0.11.2 estava presa a 144 Hz) e numa placa integrada (perfil LOW); AUTO subindo numa GPU física.
 - Sincronização entre dois clientes em servidor dedicado: observador, entrada tardia, saída e retorno ao alcance, troca de dimensão.
 - Pipeline em Fast, Fancy, Fabulous e com mods de renderização (Sodium/Embeddium, Iris/Oculus).
 - Aparência dos feixes e da luz numa GPU física (de dia, de noite, debaixo d'água) e custo dos passes `beams` e `lights` com o teto de HIGH (128 feixes, 64 luzes).

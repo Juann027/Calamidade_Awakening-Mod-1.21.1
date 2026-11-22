@@ -1,12 +1,12 @@
 # Calamidade_Awakening
 
-A modular visual effects engine for Minecraft 1.21.1, NeoForge 21.1.x and Java 21. Release 0.11.1 uses RimuLib 1.3.0. The five built-in abilities are cosmetic; addons add gameplay through server cues and, since 0.11.0, terrain edits (craters, trenches, falling structures) through the Terrain API.
+A modular visual effects engine for Minecraft 1.21.1, NeoForge 21.1.x and Java 21. Release 0.11.2 uses RimuLib 1.3.0. The five built-in abilities are cosmetic; addons add gameplay through server cues and, since 0.11.0, terrain edits (craters, trenches, falling structures) through the Terrain API.
 
 [Manual geral do mod e da API (Português)](docs/MANUAL-GERAL.md)
 
 ## Installation
 
-Build the JAR with `./gradlew dist` (see Development) and install `dist/calamidade_awakening-0.11.1.jar` together with RimuLib 1.3.0 for NeoForge in the mods folder. Download RimuLib from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); it is not stored in this repository nor attached to the GitHub releases, which carry only the Calamidade and sample JARs. Use the same versions on the server and all clients (0.10.0 changed the start packet to `event_v2`; 0.11.0 adds the `terrain_v1` channel; 0.11.1 keeps the 0.11.0 protocol). Replace the previous JAR; the namespace, item and key bindings are unchanged since 0.1.2. To obtain a focus, use `/give @s calamidade_awakening:focus`. Reassign custom shortcuts in Controls.
+Build the JAR with `./gradlew dist` (see Development) and install `dist/calamidade_awakening-0.11.2.jar` together with RimuLib 1.3.0 for NeoForge in the mods folder. Download RimuLib from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); it is not stored in this repository nor attached to the GitHub releases, which carry only the Calamidade and sample JARs. Use the same versions on the server and all clients (0.10.0 changed the start packet to `event_v2`; 0.11.0 adds the `terrain_v1` channel; 0.11.1 and 0.11.2 keep the 0.11.0 protocol). Replace the previous JAR; the namespace, item and key bindings are unchanged since 0.1.2. To obtain a focus, use `/give @s calamidade_awakening:focus`. Reassign custom shortcuts in Controls.
 
 English is the fallback for interface text. Brazilian Portuguese is available through Minecraft's language setting.
 
@@ -20,11 +20,11 @@ English is the fallback for interface text. Brazilian Portuguese is available th
 | Y | Horizon Core |
 | O | Cancel cinematic |
 | F7 | Diagnostics panel |
-| F8 | Cycle visual quality |
+| F8 | Quality: AUTO, LOW, BALANCED, HIGH, ULTRA |
 
 If Aurora Convergence still uses L after updating, assign V in Controls. L opens the vanilla Advancements screen.
 
-Open **Star Atlas** from the pause menu or press **N** while playing. Five cards appear four blocks ahead of the camera. Aim the crosshair at a card and press Attack to cast it through the server; Use Item cycles addon pages. The atlas closes after selection, on dimension change, or beyond 24 blocks.
+Open **Star Atlas** from the pause menu or press **N** while playing. Since 0.11.2 it is an astrolabe of panels standing in the world in front of you: keep walking and looking around, aim at a card and press Attack to cast it through the server (clicking a panel never hits what is behind it); Use Item or the wheel cycle addon pages; B brings it back to your aim; hold left Alt for a cursor. Its tabs also hold quality (AUTO by default, LOW, BALANCED, HIGH, ULTRA with per-profile caps), accessibility, the server's terrain rules (read only) and live diagnostics. It closes after a cast, on death, dimension change, or beyond 24 blocks.
 
 **Horizon Core** takes ten seconds: four curved blades gather, narrow into a slit and release a violet-white wave across visible surfaces, with four positional sound cues and a held camera (press O to leave it). **Prismatic Pulse** is the fast alternative, with a 38-tick presentation and a 48-tick cooldown. Cooldowns are tracked per player and per ability.
 

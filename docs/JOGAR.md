@@ -1,16 +1,18 @@
 # Jogar e instalar
 
-Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.11.1 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor e, desde a 0.11.0, crateras e estruturas que caem pela Terrain API (que respeita as regras de terreno da config do servidor, desde a 0.11.1 também claims de mods de proteção, a borda do mundo, a proteção de spawn e o modo aventura, e se desfaz com `/calamidade terrain undo`).
+Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.11.2 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor e, desde a 0.11.0, crateras e estruturas que caem pela Terrain API (que respeita as regras de terreno da config do servidor, desde a 0.11.1 também claims de mods de proteção, a borda do mundo, a proteção de spawn e o modo aventura, e se desfaz com `/calamidade terrain undo`).
 
 ## Instalação
 
-Coloque o JAR `dist/calamidade_awakening-0.11.1.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes (a 0.10.0 mudou o pacote de início de efeito para `event_v2` e a 0.11.0 criou o `terrain_v1`, mantido na 0.11.1; versões diferentes simplesmente não trocam efeitos ou o terreno). Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
+Coloque o JAR `dist/calamidade_awakening-0.11.2.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes (a 0.10.0 mudou o pacote de início de efeito para `event_v2` e a 0.11.0 criou o `terrain_v1`, mantido na 0.11.1 e na 0.11.2; versões diferentes simplesmente não trocam efeitos ou o terreno). Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
 
 A interface usa inglês como padrão e tem tradução para português do Brasil pela opção de idioma do Minecraft.
 
 | Tecla padrão | Ação |
 |---|---|
 | N | Abrir ou fechar o Atlas Estelar |
+| B | Trazer o Atlas aberto para a frente da mira |
+| Alt esquerdo (segurar) | Apontar no Atlas com o cursor |
 | K | Pulso Prismático |
 | U | Florescência Cristalina |
 | I | Vitrais do Horizonte |
@@ -18,15 +20,15 @@ A interface usa inglês como padrão e tem tradução para português do Brasil 
 | Y | Núcleo do Horizonte |
 | O | Interromper a câmera cinematográfica |
 | F7 | Painel de diagnóstico |
-| F8 | Alternar a qualidade visual |
+| F8 | Qualidade: AUTO, LOW, BALANCED, HIGH, ULTRA |
 
 Se a Convergência da Aurora ainda estiver em L depois de atualizar, reatribua para V em Controles. L abre a tela de Progressos do Minecraft.
 
 ## Atlas Estelar
 
-Abra o **Atlas Estelar** pelo menu de pausa ou pressione **N** durante o jogo. Cinco cartões aparecem quatro blocos à frente da câmera. É possível andar em volta deles ou olhar para outro lado. Mire em um cartão e pressione **Atacar** (botão esquerdo) para conjurar a habilidade pelo servidor. **Usar item** (botão direito) passa à próxima página quando há addons. O Atlas fecha depois da escolha, na troca de dimensão ou a mais de 24 blocos. Nenhum item é necessário para abri-lo.
+Abra o **Atlas Estelar** pelo menu de pausa ou pressione **N** durante o jogo: um astrolábio de placas aparece parado no mundo, à sua frente, e você continua andando e olhando em volta. Mire em um cartão e pressione **Atacar** para conjurar a habilidade pelo servidor; **Usar item** ou a roda passam à próxima página quando há addons. Clicar numa placa nunca ataca nem quebra o que está atrás dela. As abas Qualidade, Acessibilidade, Terreno e Diagnóstico ficam no arco de cima. O Atlas fecha depois da escolha, na troca de dimensão, na morte ou a mais de 24 blocos. Capítulo completo: [ATLAS-0.11.2.md](ATLAS-0.11.2.md).
 
-O Atlas se abre em 0,44 segundo, com um pequeno atraso nos cartões externos. Um cartão em movimento já pode ser escolhido. O destaque acompanha o foco e marca a escolha enviada.
+**Qualidade (0.11.2):** o padrão é **AUTO**, que escolhe entre LOW, BALANCED, HIGH e ULTRA pelo tempo de quadro e nunca troca durante um efeito protagonista. F8 força um perfil; F7 mostra o perfil e o motivo da última troca. Veja PRIORIDADE-0.9.md.
 
 ## Habilidades internas
 

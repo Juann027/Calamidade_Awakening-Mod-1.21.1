@@ -188,6 +188,23 @@ Objetivo: medir na GPU física quanto custa **cada efeito desenhado** e **cada p
 
 Comandos avulsos, para olhar uma carga com calma: `/calamidade_client debug unlimited` (sem tetos), `/calamidade_client debug unlimited <desenhados> <passes>` (tetos escolhidos), `/calamidade_client debug off`; `/calamidade bench <n> mix` (anel, cubo, teia e céu alternados; as instâncias recomeçam sozinhas até `bench stop`).
 
+## Parte 9 — Atlas no mundo e qualidade automática (0.11.2)
+
+Antes, os testes automáticos: `./gradlew testeJogo`, depois `xvfb-run -a ./gradlew testeAtlas` e `testeMedicao` (com o vfx-sample compilado). Os casos abaixo são o que eles não cobrem: GPU física, mouse e teclado de verdade, sobrevivência, dois jogadores. Capítulos: [ATLAS-0.11.2.md](ATLAS-0.11.2.md) e [PRIORIDADE-0.9.md](PRIORIDADE-0.9.md).
+
+| # | Ação | Resultado esperado |
+|---|---|---|
+| 85 | N; ande para trás, para os lados, pule, dê a volta nas placas, vire de costas. | O astrolábio fica parado no mundo: diminui ao se afastar, aparece de lado e (esmaecido) por trás, sai e volta ao campo de visão no mesmo lugar. A abertura mostra as estrelas, o anel crescendo, as linhas e os cartões se formando. |
+| 86 | N encostado numa parede, num corredor 1 × 2 e numa sala 3 × 3. | As placas ficam fora da parede (mais perto ou viradas para o lado livre); no corredor aparece "espaço apertado". |
+| 87 | Em sobrevivência e em criativo: uma pedra e uma vaca logo atrás de uma placa; clique esquerdo, direito (com blocos na mão) e meio, e segure o esquerdo na placa enquanto vira para um bloco. | Nada quebra, a vaca não leva dano, nenhum bloco é colocado, a mão não balança, o item e o slot não mudam. Soltar o botão longe da placa não minera. Fora das placas tudo volta ao normal. |
+| 88 | Abas: Habilidades (conjurar um cartão; usar e roda trocam a página com addons), Qualidade (trocar modo, mover sliders, Restaurar padrões), Acessibilidade (cada opção), Terreno, Diagnóstico (Bench 24, Parar, Gravar 8 s). | Cada mudança vale na hora e fica no `calamidade_awakening-client.toml` depois de reiniciar o jogo. O resultado da gravação (mediana, p95) aparece no painel. Sem permissão 2, os botões de bench ficam apagados. Texto nunca sai dos cartões, em GUI 2, 3 e 4. |
+| 89 | B (Recall) olhando para outro lado; segure Alt e clique com o cursor; Alt+Tab com Alt segurado. | O Atlas vem para a frente da mira. Com Alt, a câmera para, o cursor aponta e clica; soltar Alt devolve a câmera sem salto. Voltando à janela, o mouse não fica solto. |
+| 90 | Com o Atlas aberto: morra, troque de dimensão, saia do servidor, afaste-se mais de 24 blocos, abra o inventário e a pausa. | Fecha nos quatro primeiros; com inventário e pausa fica visível e não responde. Nenhum erro no log. |
+| 91 | AUTO: VSync desligado, FPS ilimitado, `/calamidade bench 48 mix` olhando a carga; depois `bench stop` e `bench 6 mix`. | Com carga pesada o F7 mostra "desceu de …" se o p95 passar de 20 ms (alvo 60 FPS); com folga e o limite cortando efeitos (bench 48 em BALANCED), "subiu de …" depois de uns 8 s. Nunca troca durante `/vfxsample receita protagonista`. Não fica trocando para cima e para baixo. |
+| 92 | AUTO numa máquina com placa integrada (se houver). | Desce até LOW ou BALANCED e fica. Anote o FPS. |
+
+Registre para cada caso o que viu; nos casos 85, 87 e 91, uma captura ou vídeo curto.
+
 ## Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
