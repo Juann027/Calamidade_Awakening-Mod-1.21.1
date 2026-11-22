@@ -216,5 +216,13 @@
   "atlas.calamidade_awakening.table.4": "feixes",
   "atlas.calamidade_awakening.table.5": "luzes",
   "key.calamidade_awakening.atlas_recall": "Atlas Estelar: trazer para a mira",
-  "key.calamidade_awakening.atlas_cursor": "Atlas Estelar: cursor (segurar)"
+  "key.calamidade_awakening.atlas_cursor": "Atlas Estelar: cursor (segurar)",
+  "command.calamidade_awakening.world.empty": "Nenhum evento global",
+  "command.calamidade_awakening.world.none": "Nenhum evento global %s",
+  "command.calamidade_awakening.world.stopped": "%s evento(s) global(is) encerrado(s)",
+  "command.calamidade_awakening.world.released": "%s evento(s) global(is) liberado(s) (só eventos com laço de sustain)",
+  "calamidade_awakening.configuration.worldEvents": "Eventos globais",
+  "calamidade_awakening.configuration.worldEventsMax": "Máximo de eventos globais",
+  "calamidade_awakening.configuration.worldEventsMax.tooltip": "Eventos globais ao mesmo tempo; um início acima disso troca o evento de menor prioridade quando a prioridade do novo é maior, senão é recusado.",
+  "perf.calamidade_awakening.world": "Eventos globais: %s"
 }

@@ -315,7 +315,8 @@ public final class StageScene {
                 var anchor = anchorDirection(layer, camera, origin, basis, timeOfDay);
                 if (anchor == null) continue;
                 out.add(new dev.calamidade_awakening.api.SkyMath.Candidate<>(new SkyFrame.Resolved(layer, state,
-                    state.direction(anchor), seed, age, effect.order(), kind.hero()), kind.hero(), state.weight(), effect.order()));
+                    state.direction(anchor), seed, effect.seed(), age, effect.order(), kind.hero()), kind.hero(),
+                    state.weight(), effect.order()));
             }
         }
         return out;

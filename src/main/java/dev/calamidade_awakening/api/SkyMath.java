@@ -48,20 +48,25 @@ public final class SkyMath {
     public static double lensExtent(double radius, double strength) { return radius * (2.2 + 2.0 * strength); }
 
     /**
-     * One layer competing for a frame: {@code hero} for layers of HERO effects, {@code weight} its resolved weight and
-     * {@code order} the instance order (older first on ties).
+     * One layer competing for a frame: {@code hero} for layers of HERO effects, {@code weight} its resolved weight,
+     * {@code order} the instance order (older first on ties) and {@code rank} (0.12.0) for world events: 1 + their
+     * priority, so global events come before every ordinary effect, the highest priority first.
      */
-    public record Candidate<T>(T value, boolean hero, float weight, long order) {}
+    public record Candidate<T>(T value, boolean hero, float weight, long order, int rank) {
+        /** Candidate of an ordinary effect (rank 0). */
+        public Candidate(T value, boolean hero, float weight, long order) { this(value, hero, weight, order, 0); }
+    }
 
     /**
-     * Layers painted this frame: those with weight above {@link Sky#ACTIVE_WEIGHT}, HERO first, then by weight
-     * (largest first), then the oldest instance; at most {@code max} (clamped to 0..{@link #MAX_LAYERS}).
+     * Layers painted this frame: those with weight above {@link Sky#ACTIVE_WEIGHT}, world events first (by rank), then
+     * HERO, then by weight (largest first), then the oldest instance; at most {@code max} (clamped to 0..{@link #MAX_LAYERS}).
      */
     public static <T> List<T> select(List<Candidate<T>> candidates, int max) {
         int cap = Math.clamp(max, 0, MAX_LAYERS);
         List<Candidate<T>> sorted = new ArrayList<>();
         for (Candidate<T> c : candidates) if (c.weight() > Sky.ACTIVE_WEIGHT) sorted.add(c);
-        sorted.sort(Comparator.<Candidate<T>>comparingInt(c -> c.hero() ? 0 : 1)
+        sorted.sort(Comparator.<Candidate<T>>comparingInt(c -> -c.rank())
+            .thenComparingInt(c -> c.hero() ? 0 : 1)
             .thenComparing(Comparator.<Candidate<T>>comparingDouble(Candidate::weight).reversed())
             .thenComparingLong(Candidate::order));
         List<T> out = new ArrayList<>(Math.min(cap, sorted.size()));
@@ -158,6 +163,68 @@ public final class SkyMath {
         double len = Math.sqrt(px * px + py * py);
         double angle = Math.atan2(len, dir.x() * basis[6] + dir.y() * basis[7] + dir.z() * basis[8]);
         return len > 1e-12 ? new double[] {px / len * angle, py / len * angle} : new double[] {angle, 0};
+    }
+
+    /** Most distant bolts of one layer drawn at once. */
+    public static final int MAX_BOLTS = 4;
+    /** Nearest and farthest distance of a distant bolt from the player, blocks. */
+    public static final double BOLT_NEAR = 70, BOLT_FAR = 300;
+    /** Grid (blocks) the bolt positions are anchored to, so a bolt does not slide while the player walks. */
+    public static final double BOLT_CELL = 32;
+
+    /**
+     * One distant bolt: world position of its foot ({@code x}, {@code z}, blocks), when it struck and how long it lives
+     * (seconds of the instance's real age), its own seed (0..1, the shape) and its envelope now (0..1).
+     */
+    public record Bolt(double x, double z, double start, double life, float seed, float envelope) {}
+
+    /**
+     * Distant bolts of a {@code DISTANT_BOLTS} layer at {@code seconds} of real age, pure and deterministic: the same
+     * seed and time give the same strikes on every client. Strikes come in slots of {@code 1 / (2 × activity)} seconds
+     * (about 15% of the slots stay empty, for an irregular rhythm); each lives 0.35 to 0.65 s. A bolt falls in the
+     * sector centered on {@code azimuth} (degrees) with {@code width} degrees (180 or more: all around), between
+     * {@value #BOLT_NEAR} and {@value #BOLT_FAR} blocks from the player position snapped to {@value #BOLT_CELL} blocks.
+     * {@code calm} (hide lightning flashes) gives a smooth envelope without restrikes. At most {@link #MAX_BOLTS}.
+     */
+    public static List<Bolt> bolts(long seed, double seconds, float activity, double azimuth, double width,
+                                   double playerX, double playerZ, boolean calm) {
+        List<Bolt> out = new ArrayList<>(MAX_BOLTS);
+        if (!(activity > 0) || !Double.isFinite(seconds)) return out;
+        double rate = 2.0 * Math.min(activity, 1);
+        long now = (long) Math.floor(seconds * rate);
+        double cx = Math.floor(playerX / BOLT_CELL) * BOLT_CELL, cz = Math.floor(playerZ / BOLT_CELL) * BOLT_CELL;
+        for (long slot = now; slot >= now - 3 && out.size() < MAX_BOLTS; slot--) {
+            if (hash(seed, slot, 0) < .15) continue;
+            double start = (slot + .8 * hash(seed, slot, 1)) / rate;
+            double life = .35 + .3 * hash(seed, slot, 2);
+            double age = seconds - start;
+            if (age < 0 || age >= life) continue;
+            double sector = Math.min(width, 360);
+            double az = width >= 180 ? hash(seed, slot, 3) * 360 : azimuth + (hash(seed, slot, 3) - .5) * sector;
+            double distance = BOLT_NEAR + (BOLT_FAR - BOLT_NEAR) * hash(seed, slot, 4);
+            var dir = Sky.Direction.of(az, 0);
+            out.add(new Bolt(cx + dir.x() * distance, cz + dir.z() * distance, start, life, (float) hash(seed, slot, 5),
+                boltEnvelope(age / life, calm)));
+        }
+        return out;
+    }
+
+    /**
+     * Brightness of a bolt over its life ({@code x} 0..1): a flash at the start, two restrikes and a fall; with
+     * {@code calm}, a smooth rise and fall without restrikes, at 60%.
+     */
+    public static float boltEnvelope(double x, boolean calm) {
+        double t = Math.clamp(x, 0, 1);
+        if (calm) return (float) (.6 * Math.sin(Math.PI * t));
+        double fall = (1 - t) * (1 - t);
+        double restrike = .55 + .45 * Math.max(Math.cos(t * Math.PI * 7), 0);
+        return (float) Math.clamp(fall * restrike * Math.min(1, t * 40), 0, 1);
+    }
+
+    private static double hash(long seed, long slot, int salt) {
+        long h = seed * 0x9E3779B97F4A7C15L + slot * 0xC2B2AE3D27D4EB4FL + salt * 0x165667B19E3779F9L;
+        h ^= h >>> 33; h *= 0xff51afd7ed558ccdL; h ^= h >>> 33; h *= 0xc4ceb9fe1a85ec53L; h ^= h >>> 33;
+        return (h >>> 11) * 0x1.0p-53;
     }
 
     /**

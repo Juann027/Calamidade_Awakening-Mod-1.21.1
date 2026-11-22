@@ -29,6 +29,7 @@ final class AtmosphereFrame {
     private static final float EXPOSURE_EPSILON = 1e-3f;
 
     private final StageScene scene;
+    private final WorldEventsClient world;
     private boolean computed;
     private Atmosphere.State state = Atmosphere.State.NEUTRAL;
     private int active;
@@ -36,7 +37,10 @@ final class AtmosphereFrame {
     private double previousTime = Double.NaN;
     private float fogR = 1, fogG = 1, fogB = 1;
 
-    AtmosphereFrame(StageScene scene) { this.scene = scene; }
+    AtmosphereFrame(StageScene scene, WorldEventsClient world) {
+        this.scene = scene;
+        this.world = world;
+    }
 
     /** Called at the start of every frame. */
     void invalidate() { computed = false; }
@@ -45,7 +49,9 @@ final class AtmosphereFrame {
     Atmosphere.State state(Vec3 camera, float partial) {
         if (computed) return state;
         computed = true;
-        var states = scene.atmospheres(camera, partial);
+        // 0.12.0: the atmospheres of the global events that apply here join the mix.
+        var states = new java.util.ArrayList<>(scene.atmospheres(camera, partial));
+        states.addAll(world.atmospheres(Minecraft.getInstance().level, partial));
         int count = 0;
         for (var s : states) if (s.active()) count++;
         active = count;

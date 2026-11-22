@@ -360,6 +360,9 @@ public final class StageNetwork {
         NetApi.toClient(EndEffect.PACKET);
         NetApi.toClient(ReleaseEffect.PACKET);
         NetApi.toClient(TerrainSync.PACKET);
+        // 0.12.0: global events.
+        NetApi.toClient(WorldEventSync.PACKET);
+        NetApi.toClient(WorldEventEnd.PACKET);
         NetApi.receive(CastRequest.PACKET, (request, ctx) -> ctx.server().execute(() -> {
             if (ctx.player() != null) AwakeningSkills.cast(ctx.player(), request.visual(), request.power());
         }));

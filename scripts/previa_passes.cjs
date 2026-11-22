@@ -307,8 +307,8 @@ function lookAt(dir, pitchOffset = 0, yawOffset = 0) {
   return { f, r, u: cross(r, f) };
 }
 const rgb = argb => [((argb >> 16) & 255) / 255, ((argb >> 8) & 255) / 255, (argb & 255) / 255];
-const TYPES = { BLACK_HOLE: 0, PORTAL: 1, ECLIPSE: 2, RIFT: 3, CELESTIAL_BODY: 4, AURORA: 5 };
-// Uma linha da textura do passe sky, igual ao SkyFrame.draw (6 texels).
+const TYPES = { BLACK_HOLE: 0, PORTAL: 1, ECLIPSE: 2, RIFT: 3, CELESTIAL_BODY: 4, AURORA: 5, DISTANT_BOLTS: 6 };
+// Uma linha da textura do passe sky, igual ao SkyFrame.draw (10 texels: 6 da camada e 4 raios ao longe).
 function skyRow(l) {
   const p = rgb(l.primary).map(v => v * l.intensity), q = rgb(l.secondary).map(v => v * l.intensity);
   const spin = l.spinDegrees || 0, roll = (l.rotation + (l.type === 'PORTAL' ? spin : 0)) * Math.PI / 180;
@@ -317,7 +317,8 @@ function skyRow(l) {
     ...p, l.weight,
     ...q, 0,
     l.seed, l.seconds, l.flash ?? 1, l.anchor || 0,
-    (spin % 360) * Math.PI / 180, 0, 0, 0];
+    (spin % 360) * Math.PI / 180, 0, 0, 0,
+    ...[0, 1, 2, 3].flatMap(b => l.bolts && l.bolts[b] ? l.bolts[b] : [0, 0, 0, 0])];
 }
 // Peso de uma camada no momento, como Sky.State: o mesmo que o Java faria com as trilhas da receita.
 function layer(type, o) {
@@ -362,6 +363,11 @@ const SKY_CENAS = {
     atmo: ECLIPSE_SKY(0.25, 0), darkening: true },
   eclipse_auge: { env: env(DAY, ECL_TIME), look: [ECL_DIR, -9, 10], layers: [eclipse({ progress: 1, seconds: 15 })],
     atmo: ECLIPSE_SKY(1, 0.9), darkening: true },
+  // Raios ao longe (DISTANT_BOLTS) durante a totalidade: pés relativos à câmera, envelope, semente (SkyMath.bolts).
+  raios_ao_longe: { env: env(DAY, ECL_TIME), look: [ECL_DIR, -9, 10], atmo: ECLIPSE_SKY(1, 0.9), darkening: true,
+    layers: [eclipse({ progress: 1, seconds: 15 }), { ...layer('ECLIPSE', {}), type: 'DISTANT_BOLTS', dir: ECL_DIR, size: 180,
+      progress: 0.6, intensity: 1.2, primary: 0xffeef4ff, secondary: 0xff9a7cff, rotation: 0, tilt: 0, anchor: 0,
+      bolts: [[200, 60, 1, 0.31], [230, -110, 0.55, 0.77]] }] },
   eclipse_dissipacao: { env: env(DAY, ECL_TIME), look: [ECL_DIR, -9, 10], layers: [eclipse({ progress: 0.955, seconds: 25 })],
     atmo: ECLIPSE_SKY(0.8, 0.5), darkening: true },
 };
@@ -470,7 +476,7 @@ function skyPasses(cena) {
   const passes = [
     { source: VANILLA_FSH, textures: { PreSun: 'sun' },
       f3: { PreAxisX: e.axes[0], PreAxisY: e.axes[1], PreAxisZ: e.axes[2] } },
-    { program: 'sky', data: { name: 'CaSkyData', texels: 6, rows },
+    { program: 'sky', data: { name: 'CaSkyData', texels: 10, rows },
       textures: { CaSkySunTex: 'sun', CaSkyMoonTex: 'sun' },
       f4: { CaSkyInfo: [rows.length, exposure, 2, 0], CaSkyVanilla: [hideSun, 0, 0, 1], CaSkyMisc: [e.renderDistance, 0, 0, 0],
         ...lensUniforms('CaSky') },
@@ -660,7 +666,7 @@ async function main() {
       console.log('prévia ' + path.relative(ROOT, file));
     }
     if (sheet || (!wanted.length)) {
-      const skyFiles = Object.keys(SKY_CENAS).map(n => path.join(OUT, n + '.png'));
+      const skyFiles = Object.keys(SKY_CENAS).filter(n => n !== 'raios_ao_longe').map(n => path.join(OUT, n + '.png'));
       if (skyFiles.every(f => fs.existsSync(f))) console.log('folha ' + path.relative(ROOT, await contactSheet(page, skyFiles)));
     }
   } finally {

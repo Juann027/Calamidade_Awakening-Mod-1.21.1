@@ -26,6 +26,8 @@ public final class ServerConfig {
     private static final ModConfigSpec.IntValue TERRAIN_MAX_STRUCTURE;
     private static final ModConfigSpec.BooleanValue TERRAIN_EXPLOSION_EVENT;
     private static final ModConfigSpec.BooleanValue TERRAIN_SPAWN_PROTECTION;
+    /** Most global events at once (0.12.0). */
+    private static final ModConfigSpec.IntValue WORLD_EVENTS_MAX;
 
     /** Defaults of the terrain rules (0.11.0; explosion event and spawn protection since 0.11.1). */
     public static final Terrain TERRAIN_DEFAULT = new Terrain(true, 150_000, 16_384,
@@ -115,6 +117,13 @@ public final class ServerConfig {
             .translation("calamidade_awakening.configuration.terrainSpawnProtection")
             .define("terrainSpawnProtection", TERRAIN_DEFAULT.spawnProtection());
         builder.pop();
+        builder.comment("Global events (0.12.0): effects seen by a whole dimension or by the whole server, such as an eclipse.")
+            .translation("calamidade_awakening.configuration.worldEvents").push("worldEvents");
+        WORLD_EVENTS_MAX = builder.comment("Most global events at once; a start above it replaces the event with the lowest priority when its own priority is higher, otherwise it is refused.")
+            .translation("calamidade_awakening.configuration.worldEventsMax")
+            .defineInRange("worldEventsMax", dev.calamidade_awakening.api.WorldEventRules.DEFAULT_LIMIT, 1,
+                dev.calamidade_awakening.api.WorldEventRules.MAX_LIMIT);
+        builder.pop();
         SPEC = builder.build();
     }
 
@@ -126,6 +135,15 @@ public final class ServerConfig {
             return new SourceLimits.Rules(PER_PLAYER.get(), PER_ENTITY.get(), PER_BLOCK.get(), PLAYER_RESERVE.get());
         } catch (IllegalStateException notLoaded) {
             return SourceLimits.Rules.DEFAULT;
+        }
+    }
+
+    /** Most global events at once (0.12.0); 4 until the world config loads. */
+    public static int worldEventsMax() {
+        try {
+            return WORLD_EVENTS_MAX.get();
+        } catch (IllegalStateException notLoaded) {
+            return dev.calamidade_awakening.api.WorldEventRules.DEFAULT_LIMIT;
         }
     }
 

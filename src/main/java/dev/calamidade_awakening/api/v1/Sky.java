@@ -110,7 +110,17 @@ public final class Sky {
          * elevation the bottom of the curtains; size: azimuth span of the band. Primary: lower color; secondary: upper
          * color. Progress: activity (brightness and height).
          */
-        AURORA
+        AURORA,
+        /**
+         * Distant lightning (0.12.0, "raios ao longe"): bolts and beams that fall far away, at random spots around each
+         * player (70 to 300 blocks), with a flash on the sky. Deterministic by the instance seed and its real age, so
+         * every client sees the same rhythm without any network traffic; purely visual (real lightning with damage
+         * stays a cue's job). The anchor direction is the middle of the sector where they fall; size: width of that
+         * sector in degrees (180 = all around). Primary: core color; secondary: glow and sky flash. Progress: activity
+         * (0 = none, 1 = about two strikes per second). Terrain in front hides them. With "hide lightning flashes" the
+         * bolts fade in and out without strobing, dimmer, and the sky flash is off.
+         */
+        DISTANT_BOLTS
     }
 
     /** Where a layer is placed on the sky. */
@@ -313,7 +323,8 @@ public final class Sky {
         size = b.size; rotation = b.rotation; spin = b.spin; tilt = b.tilt; intensity = b.intensity;
         progress = b.progress; lens = b.lens; darken = b.darken; primary = b.primary; secondary = b.secondary;
         hidesVanilla = b.hidesVanilla != null ? b.hidesVanilla
-            : (anchor == Anchor.SUN || anchor == Anchor.MOON) && type != Type.RIFT && type != Type.AURORA;
+            : (anchor == Anchor.SUN || anchor == Anchor.MOON) && type != Type.RIFT && type != Type.AURORA
+                && type != Type.DISTANT_BOLTS;
         tracks = Collections.unmodifiableMap(new EnumMap<>(b.tracks));
         weightPhase = b.weightPhase;
     }
@@ -337,6 +348,11 @@ public final class Sky {
     public static Builder body() { return builder(Type.CELESTIAL_BODY); }
     /** {@code builder(Type.AURORA)}: 140 degrees of azimuth, toward the north, curtains from 12 degrees up. */
     public static Builder aurora() { return builder(Type.AURORA); }
+    /**
+     * {@code builder(Type.DISTANT_BOLTS)} (0.12.0): bolts all around (size 180), activity 0.6, white core and violet
+     * glow.
+     */
+    public static Builder bolts() { return builder(Type.DISTANT_BOLTS); }
 
     /** What the layer paints. */
     public Type type() { return type; }
@@ -370,7 +386,8 @@ public final class Sky {
     public int secondary() { return secondary; }
     /**
      * True when the layer hides the vanilla sun or moon it is anchored on while it is active (by default for every
-     * type anchored on the sun or the moon except {@link Type#RIFT} and {@link Type#AURORA}).
+     * type anchored on the sun or the moon except {@link Type#RIFT}, {@link Type#AURORA} and
+     * {@link Type#DISTANT_BOLTS}).
      */
     public boolean hidesVanilla() { return hidesVanilla; }
     /** Track bound to a parameter, or null when the parameter is constant. */
@@ -441,6 +458,8 @@ public final class Sky {
                 case RIFT -> { size = 50; rotation = 20; intensity = 1.5f; primary = 0xffff3a8a; secondary = 0xff1a0036; }
                 case CELESTIAL_BODY -> { size = 28; primary = 0xffc9bba0; secondary = 0xff7ab8ff; }
                 case AURORA -> { ax = 180; ay = 12; size = 140; primary = 0xff40ff9a; secondary = 0xffb050ff; }
+                case DISTANT_BOLTS -> { ay = 0; size = 180; progress = .6f; intensity = 1.2f; primary = 0xffeef4ff;
+                    secondary = 0xff9a7cff; }
             }
         }
 

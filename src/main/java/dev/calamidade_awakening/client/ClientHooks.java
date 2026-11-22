@@ -38,7 +38,9 @@ public final class ClientHooks {
     private static final StageScene SCENE = new StageScene();
     private static final FrameCoordinator COORDINATOR = new FrameCoordinator(SCENE);
     private static final StageFilms FILMS = new StageFilms();
-    private static final AtmosphereFrame ATMOSPHERE = new AtmosphereFrame(SCENE);
+    /** Global events (0.12.0). */
+    private static final WorldEventsClient WORLD = new WorldEventsClient();
+    private static final AtmosphereFrame ATMOSPHERE = new AtmosphereFrame(SCENE, WORLD);
     private static final BeamFrame BEAMS = new BeamFrame(SCENE);
     private static final LightFrame LIGHTS = new LightFrame(SCENE);
     /** Terrain edit states from the server and the terrain pass (0.11.0). */
@@ -46,7 +48,7 @@ public final class ClientHooks {
     private static final TerrainFrame TERRAIN_FRAME = new TerrainFrame(SCENE, TERRAIN);
     private static final TerrainMeshes TERRAIN_MESHES = new TerrainMeshes(TERRAIN);
     /** Sky layers of the frame (0.12.0). */
-    private static final SkyFrame SKY = new SkyFrame(SCENE);
+    private static final SkyFrame SKY = new SkyFrame(SCENE, WORLD);
     private static final RimuStageBackend BACKEND = new RimuStageBackend(COORDINATOR, FILMS, ATMOSPHERE, BEAMS, LIGHTS,
         TERRAIN_FRAME, SKY);
     private static final MeshRenderer GEOMETRY = new MeshRenderer();
@@ -93,6 +95,10 @@ public final class ClientHooks {
                     SCENE.release(packet.order(), packet.age());
                     COORDINATOR.invalidate();
                 }));
+            NetClientApi.receive(dev.calamidade_awakening.net.WorldEventSync.PACKET, (packet, context) ->
+                Minecraft.getInstance().execute(() -> WORLD.receive(packet)));
+            NetClientApi.receive(dev.calamidade_awakening.net.WorldEventEnd.PACKET, (packet, context) ->
+                Minecraft.getInstance().execute(() -> WORLD.end(packet.key())));
             NetClientApi.receive(StageEvent.PACKET, (packet, context) ->
                 Minecraft.getInstance().execute(() -> receive(packet)));
             event.enqueueWork(() -> {
@@ -173,6 +179,8 @@ public final class ClientHooks {
             TERRAIN_MESHES.clear();
         }
         SCENE.tick(mc.level);
+        WORLD.tick(mc.level);
+        PerfOverlay.world(WORLD.visible(mc.level));
         // Terrain states of instances that expired on this client (the server only sends end_effect on stops).
         TERRAIN.orders().removeIf(order -> !SCENE.has(order));
         if (mc.level != null) TERRAIN.dust(mc.level, SCENE.events());
@@ -260,6 +268,15 @@ public final class ClientHooks {
 
     /** True while a HERO effect is resident on this client. */
     public static boolean heroActive() { return SCENE.heroActive(); }
+
+    /** 0.12.0: global events are cleared when the client leaves the server. */
+    @SubscribeEvent
+    public static void loggedOut(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) {
+        WORLD.clear();
+    }
+
+    /** Global events that apply to this client now (0.12.0: tests and F7). */
+    public static int worldEvents() { return WORLD.visible(Minecraft.getInstance().level); }
 
     /** Selection and quality mode of this client (0.11.2: tests and the Atlas). */
     public static FrameCoordinator coordinator() { return COORDINATOR; }

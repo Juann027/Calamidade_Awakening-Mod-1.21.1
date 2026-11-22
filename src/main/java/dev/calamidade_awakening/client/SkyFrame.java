@@ -35,7 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 final class SkyFrame {
     static final String PROGRAM = "calamidade_awakening:sky";
-    static final int TEXELS = 6, ROWS = SkyMath.MAX_LAYERS;
+    /** Texels per layer: 6 for the layer, then 4 for the distant bolts (0.12.0). */
+    static final int TEXELS = 10, ROWS = SkyMath.MAX_LAYERS;
     private static final ResourceLocation SUN = ResourceLocation.withDefaultNamespace("textures/environment/sun.png");
     private static final ResourceLocation MOON = ResourceLocation.withDefaultNamespace("textures/environment/moon_phases.png");
     private static final float EXPOSURE_EPSILON = 1e-3f;
@@ -46,10 +47,11 @@ final class SkyFrame {
      * One resolved layer: its state, direction (world axes), anchor, the instance's seed, real age (ticks, partial
      * included) and order, and whether it is from a HERO effect.
      */
-    record Resolved(Sky layer, Sky.State state, Sky.Direction direction, float seed, double realAge, long order,
-                    boolean hero) {}
+    record Resolved(Sky layer, Sky.State state, Sky.Direction direction, float seed, long seedBits, double realAge,
+                    long order, boolean hero) {}
 
     private final StageScene scene;
+    private final WorldEventsClient world;
     private final DataTexture texture = new DataTexture(TEXELS, ROWS);
     private final float[] data = new float[TEXELS * 4 * ROWS];
     private final float[] masks = new float[4 * 8];
@@ -61,13 +63,17 @@ final class SkyFrame {
     private double previousTime = Double.NaN;
     private static final Map<Class<?>, Boolean> OVERRIDES_SKY = new ConcurrentHashMap<>();
 
-    SkyFrame(StageScene scene) { this.scene = scene; }
+    SkyFrame(StageScene scene, WorldEventsClient world) {
+        this.scene = scene;
+        this.world = world;
+    }
 
     /** Resolves this frame's layers, the darkening and the vanilla bodies to hide. */
     void collect(Vec3 camera, float partial, FrameLimits limits) {
         Minecraft mc = Minecraft.getInstance();
         double timeOfDay = mc.level == null ? 0 : mc.level.getTimeOfDay(partial);
-        List<dev.calamidade_awakening.api.SkyMath.Candidate<Resolved>> all = scene.skies(camera, partial, timeOfDay);
+        List<SkyMath.Candidate<Resolved>> all = new java.util.ArrayList<>(scene.skies(camera, partial, timeOfDay));
+        all.addAll(world.skies(mc.level, camera, partial, timeOfDay));
         candidates = all.size();
         float dark = 0, sun = 0, moon = 0;
         for (var c : all) {
@@ -207,6 +213,18 @@ final class SkyFrame {
             k = put(k, r.seed(), (float) seconds, flash, anchor);
             // 5: accumulated spin (radians)
             k = put(k, (float) Math.toRadians(spinDegrees % 360.0), 0, 0, 0);
+            // 6..9: distant bolts (0.12.0), deterministic by the instance seed and real age; feet relative to the camera.
+            List<SkyMath.Bolt> bolts = s.type() == Sky.Type.DISTANT_BOLTS
+                ? SkyMath.bolts(r.seedBits(), r.realAge() / 20.0, s.progress(), dir.azimuth(), s.size(), camera.x, camera.z,
+                    mc.options.hideLightningFlash().get())
+                : List.of();
+            for (int b = 0; b < SkyMath.MAX_BOLTS; b++) {
+                if (b < bolts.size()) {
+                    var bolt = bolts.get(b);
+                    k = put(k, (float) (bolt.x() - camera.x), (float) (bolt.z() - camera.z),
+                        bolt.envelope() * ClientConfig.screenEffects() * .5f + bolt.envelope() * .5f, bolt.seed());
+                } else k = put(k, 0, 0, 0, 0);
+            }
         }
         int id = texture.upload(data, count);
         // Vanilla sun and moon: the frame they were drawn in, and whether they were drawn at all this frame.

@@ -1,4 +1,4 @@
-# Referência da API pública (api.v1) — Calamidade_Awakening 0.11.2
+# Referência da API pública (api.v1) — Calamidade_Awakening 0.12.0
 
 > Gerado por `scripts/ApiReferencia.java` a partir do `javap -public` do JAR compilado e do Javadoc dos fontes. Não edite à mão: rode `./gradlew apiDocs`. O build (`checkApiDocs`) falha se este arquivo estiver desatualizado ou se um membro público ficar sem Javadoc.
 
@@ -76,6 +76,10 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Timeline.Easing`](#timelineeasing)
 - [`Timeline.Keyframe`](#timelinekeyframe)
 - [`Timeline.Sampler`](#timelinesampler)
+- [`WorldEvents`](#worldevents)
+- [`WorldEvents.Handle`](#worldeventshandle)
+- [`WorldEvents.Options`](#worldeventsoptions)
+- [`WorldEvents.Scope`](#worldeventsscope)
 - [`AddonLayers`](#addonlayers)
 - [`AddonLayers.Film`](#addonlayersfilm)
 - [`AddonLayers.Hud`](#addonlayershud)
@@ -961,6 +965,7 @@ Immutable sky layer of one effect (0.12.0): a fantastic object painted on the sk
 | `static Sky.Builder rift()` | `builder(Type.RIFT)`: 50 degrees long, rotation 20, open. |
 | `static Sky.Builder body()` | `builder(Type.CELESTIAL_BODY)`: 28 degrees, full. |
 | `static Sky.Builder aurora()` | `builder(Type.AURORA)`: 140 degrees of azimuth, toward the north, curtains from 12 degrees up. |
+| `static Sky.Builder bolts()` | `builder(Type.DISTANT_BOLTS)` (0.12.0): bolts all around (size 180), activity 0.6, white core and violet glow. |
 | `Sky.Type type()` | What the layer paints. |
 | `Sky.Anchor anchor()` | Where the layer is placed. |
 | `double anchorX()` | Azimuth (degrees) for `Anchor.DIRECTION`, x (blocks) for `Anchor.WORLD` and `Anchor.CENTER`; 0 otherwise. |
@@ -976,7 +981,7 @@ Immutable sky layer of one effect (0.12.0): a fantastic object painted on the sk
 | `float darken()` | World darkening, 0..1. |
 | `int primary()` | Primary color, ARGB (alpha ignored). |
 | `int secondary()` | Secondary color, ARGB (alpha ignored). |
-| `boolean hidesVanilla()` | True when the layer hides the vanilla sun or moon it is anchored on while it is active (by default for every type anchored on the sun or the moon except `Type.RIFT` and `Type.AURORA`). |
+| `boolean hidesVanilla()` | True when the layer hides the vanilla sun or moon it is anchored on while it is active (by default for every type anchored on the sun or the moon except `Type.RIFT`, `Type.AURORA` and `Type.DISTANT_BOLTS`). |
 | `String track(Sky.Param param)` | Track bound to a parameter, or null when the parameter is constant. |
 | `Map<Sky.Param, String> tracks()` | Every track binding, in `Param` order. |
 | `String weightPhase()` | Phase whose weight multiplies the layer weight, or null. |
@@ -1111,6 +1116,7 @@ What the layer paints.
 | `RIFT` | Jagged crack across the sky with an inner glow and a darker void, small branches and flicker. |
 | `CELESTIAL_BODY` | Lit sphere: a giant moon or planet with phases, a lit limb and, with a non-zero tilt, a ring system. |
 | `AURORA` | Waving curtains of light along the horizon. |
+| `DISTANT_BOLTS` | Distant lightning (0.12.0, "raios ao longe"): bolts and beams that fall far away, at random spots around each player (70 to 300 blocks), with a flash on the sky. |
 
 ## TerrainEdit
 
@@ -1492,6 +1498,61 @@ Read-only view of a timeline at one local age (client layers receive one per ins
 | `float value(String track)` | Track value at this age (`Timeline.value`). |
 | `int tick(String marker)` | Tick of a marker. |
 | `double since(String marker)` | Ticks since a marker (negative before it). |
+
+## WorldEvents
+
+`dev.calamidade_awakening.api.v1.WorldEvents` · class
+
+Global events (0.12.0): an effect seen beyond its range, by every player of a dimension or of the whole server, in any dimension, including players who log in, change dimension or respawn while it runs (they get it in the right phase).
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_PRIORITY` | Highest priority. |
+| `static Optional<WorldEvents.Handle> start(ResourceLocation id, WorldEvents.Scope scope, ServerLevel origin, WorldEvents.Options options)` | Starts a global event of a registered effect. |
+| `static Optional<WorldEvents.Handle> get(MinecraftServer server, ResourceLocation id)` | The active global event of an effect (DIMENSION or SERVER scope), if any; also after a restart. |
+| `static List<WorldEvents.Handle> active(MinecraftServer server)` | Every active global event, oldest first. |
+
+## WorldEvents.Handle
+
+`dev.calamidade_awakening.api.v1.WorldEvents.Handle` · interface
+
+Server-side control of a global event (or of the AREA instance).
+
+| Membro | Descrição |
+|---|---|
+| `ResourceLocation id()` | Effect of the event. |
+| `WorldEvents.Scope scope()` | Scope it was started with. |
+| `boolean persistent()` | True when it survives a server restart. |
+| `int priority()` | Priority, 0..`MAX_PRIORITY`. |
+
+## WorldEvents.Options
+
+`dev.calamidade_awakening.api.v1.WorldEvents.Options` · record
+
+Options of a start: origin position (blocks; the origin level's spawn point when null), persistence and priority (0..`MAX_PRIORITY`, 50 by default).
+
+| Membro | Descrição |
+|---|---|
+| `new Options(Vec3 position, boolean persistent, int priority)` | Canonical constructor: position, persistent, priority. |
+| `static WorldEvents.Options defaults()` | Spawn point, not persistent, priority 50. |
+| `WorldEvents.Options at(Vec3 position)` | Copy with another origin position (blocks). |
+| `WorldEvents.Options persistent(boolean value)` | Copy that survives (true) or not (false) a server restart. |
+| `WorldEvents.Options priority(int value)` | Copy with another priority, 0..`MAX_PRIORITY`. |
+| `Vec3 position()` | Origin position in the origin level, blocks, or null for its spawn point. |
+| `boolean persistent()` | Survives a server restart (DIMENSION and SERVER scopes). |
+| `int priority()` | 0..`MAX_PRIORITY`: who stays when the limit is full; also drawn first. |
+
+## WorldEvents.Scope
+
+`dev.calamidade_awakening.api.v1.WorldEvents.Scope` · enum
+
+Who sees the event.
+
+| Membro | Descrição |
+|---|---|
+| `AREA` | An ordinary instance at a position: players within the effect's range (what `Effects.start` does). |
+| `DIMENSION` | Every player in the origin dimension. |
+| `SERVER` | Every player on the server, in any dimension, on their own sky. |
 
 ## AddonLayers
 

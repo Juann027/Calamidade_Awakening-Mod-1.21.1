@@ -88,6 +88,15 @@ public final class PerfOverlay {
     /** Lights drawn and the pool that paid for the lights pass (0.9.0). */
     static void lights(int drawn, dev.calamidade_awakening.api.EnginePasses.Pool pool) { lights = drawn; lightPool = pool; }
 
+    /** Global events that apply to this client (0.12.0), set every client tick. */
+    static void world(int count) { worldEvents = count; }
+    private static int worldEvents;
+    /** Global events that apply to this client, as F7 shows them (0.12.0, tests). */
+    public static int worldEvents() { return worldEvents; }
+    /** Sky layers painted in the last complete frame and whether the sky pass ran (0.12.0, tests). */
+    public static int skyLayers() { return lastSkyLayers; }
+    public static boolean skyPass() { return lastSkyPass; }
+
     /** Sky layers painted, active layers that competed and whether the sky pass was queued (0.12.0); outside the budget. */
     static void sky(int painted, int active, boolean pass) { skyLayers = painted; skyActive = active; skyPass = pass; }
     private static int skyLayers, lastSkyLayers, skyActive, lastSkyActive;
@@ -240,6 +249,7 @@ public final class PerfOverlay {
             lastSkyLayers, lastSkyActive, lastLimits.skyLayers(), lastSkyPass
                 ? Component.translatableWithFallback(PREFIX + "yes", "yes")
                 : Component.translatableWithFallback(PREFIX + "no", "no")));
+        lines.add(Component.translatableWithFallback(PREFIX + "world", "Global events: %s", worldEvents));
         if (CostProbe.running()) lines.add(Component.literal(CostProbe.status()));
         if (recording != null) lines.add(Component.translatableWithFallback(PREFIX + "recording", "Recording: %s s left",
             Math.max(0, (recordingEnds - System.currentTimeMillis() + 999) / 1000)));

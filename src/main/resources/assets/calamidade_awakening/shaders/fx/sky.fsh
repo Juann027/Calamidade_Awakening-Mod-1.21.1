@@ -10,14 +10,17 @@
 //   3. escurecimento do mundo (eclipse), já com intensidade e "ocultar clarões" aplicados no Java;
 //   4. camadas, só em pixels de céu, da menos para a mais importante.
 //
-// As camadas chegam numa textura RGBA32F (CaSkyData, 6 texels por camada, uma por linha):
+// As camadas chegam numa textura RGBA32F (CaSkyData, 10 texels por camada, uma por linha):
 //   0: direção (xyz, relativa à câmera), raio angular (radianos)
-//   1: tipo (0 buraco negro, 1 portal, 2 eclipse, 3 fenda, 4 astro, 5 aurora), rotação (rad), inclinação (rad), progresso
+//   1: tipo (0 buraco negro, 1 portal, 2 eclipse, 3 fenda, 4 astro, 5 aurora, 6 raios ao longe), rotação (rad),
+//      inclinação (rad), progresso
 //   2: cor primária × intensidade, peso
 //   3: cor secundária × intensidade, livre
 //   4: semente (0..1), segundos da instância (parados com "efeitos de movimento" desligado), ganho de clarão,
 //      âncora (0 direção, 1 sol, 2 lua)
 //   5: giro acumulado (rad: estrias do disco do buraco negro, superfície do astro; o do portal já está na rotação)
+//   6..9: raios ao longe (só no tipo 6), um por texel: pé relativo à câmera (x, z, blocos), envelope (0..1), semente.
+//      Posições e tempos saem do SkyMath.bolts (Java, determinístico pela semente do efeito); aqui só a forma.
 // A rotação (texel 1) já gira a base local da camada: em q, o eixo x é a direção da rotação.
 uniform sampler2D CaSkyData;
 uniform sampler2D CaSkySunTex;    // textura do sol do jogo (apagar o sol)
@@ -406,6 +409,49 @@ vec4 aurora(vec3 d, vec3 center, float radius, vec4 t1, vec4 t2, vec4 t3, vec4 t
     return vec4(color * light * t2.w, 0.0);
 }
 
+// Raios ao longe: até 4 raios por camada, cada um um caminho serrilhado de 12 segmentos do alto (280 blocos acima do
+// pé) até 64 blocos abaixo da câmera, com um galho; o terreno na frente esconde (profundidade). Devolve a luz e soma o
+// clarão no céu em skyFlash.
+vec3 distantBolts(int j, vec3 rd, float sceneDist, vec4 t2, vec4 t3, out float skyFlash) {
+    vec3 light = vec3(0.0);
+    skyFlash = 0.0;
+    for (int b = 0; b < 4; b++) {
+        vec4 bt = skyTexel(6 + b, j);
+        if (bt.z <= 0.001) continue;
+        vec3 foot = vec3(bt.x, -64.0, bt.y);
+        vec3 top = foot + vec3(0.0, 280.0, 0.0);
+        skyFlash += bt.z;
+        if (caRaySegment(vec3(0.0), rd, foot, top).z > 70.0) continue;
+        float seed = bt.w * 97.0;
+        float core = 0.0, halo = 0.0;
+        vec3 prev = top + vec3((caHash13(vec3(seed, 0.0, 1.0)) - 0.5) * 40.0, 0.0, (caHash13(vec3(seed, 0.0, 2.0)) - 0.5) * 40.0);
+        vec3 fork = prev;
+        vec3 drift = vec3(0.0);
+        for (int k = 1; k <= 12; k++) {
+            float fk = float(k);
+            // Passeio aleatório: cada vértice se afasta do anterior, e o último volta ao pé.
+            drift += vec3((caHash13(vec3(seed, fk, 1.0)) - 0.5) * 22.0, 0.0, (caHash13(vec3(seed, fk, 2.0)) - 0.5) * 22.0);
+            vec3 p = mix(top, foot, fk / 12.0) + (k < 12 ? drift * (1.0 - fk / 13.0) : vec3(0.0))
+                + vec3(0.0, (caHash13(vec3(seed, fk, 3.0)) - 0.5) * 10.0, 0.0);
+            vec3 h = caRaySegment(vec3(0.0), rd, prev, p);
+            float pix = max(gPix * h.x, 1e-4);
+            float vis = caDepthFade(h.x, sceneDist, 8.0);
+            core += caBeamCore(h.z, 0.6, pix) * vis;
+            halo += caBeamHalo(h.z, 5.0, pix) * vis;
+            if (k == 4) fork = p;
+            prev = p;
+        }
+        vec3 branchEnd = fork + vec3((caHash13(vec3(seed, 9.0, 1.0)) - 0.5) * 80.0, -70.0, (caHash13(vec3(seed, 9.0, 2.0)) - 0.5) * 80.0);
+        vec3 hb = caRaySegment(vec3(0.0), rd, fork, branchEnd);
+        float pixb = max(gPix * hb.x, 1e-4);
+        float visb = caDepthFade(hb.x, sceneDist, 8.0);
+        core += caBeamCore(hb.z, 0.4, pixb) * visb * 0.7;
+        halo += caBeamHalo(hb.z, 3.5, pixb) * visb * 0.5;
+        light += bt.z * (t2.rgb * min(core, 1.5) * 1.6 + t3.rgb * min(halo, 2.0) * 0.55);
+    }
+    return light;
+}
+
 // ------------------------------------------------------------------------------- composição
 
 void main() {
@@ -413,6 +459,8 @@ void main() {
     vec3 rd0 = viewDir(uv);
     int count = int(CaSkyInfo.x + 0.5);
     bool skyOrig = skyAt(uv);
+    initPixel(uv);
+    float sceneDist = length(scenePosAt(uv));
 
     // 1. Lente: o desvio de cada buraco negro, um depois do outro (o mesmo do passe de atmosfera).
     vec3 rd;
@@ -437,6 +485,13 @@ void main() {
         vec4 t4 = skyTexel(4, j);
         vec4 t5 = skyTexel(5, j);
         int type = int(t1.x + 0.5);
+        if (type == 6) {
+            // Raios ao longe: em qualquer pixel (o terreno na frente esconde pela profundidade) e clarão no céu.
+            float skyFlash;
+            color += distantBolts(j, rd0, sceneDist, t2, t3, skyFlash) * t2.w;
+            if (skyOrig) color += t3.rgb * 0.12 * min(skyFlash, 1.5) * t4.z * t2.w * (0.4 + 0.6 * max(rd0.y, 0.0));
+            continue;
+        }
         // O buraco negro é a própria lente: desenhado na direção sem desvio, só onde o pixel é céu de verdade.
         bool hole = type == 0;
         if (hole ? !skyOrig : !sky) continue;
