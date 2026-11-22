@@ -14,7 +14,8 @@
 1. **Datapack do mod:** `data/<ns>/dimension_type/<nome>.json` com `"effects": "<ns>:<nome>"` e `data/<ns>/dimension/<nome>.json` com o gerador (aqui, plano). A dimensão existe em todo mundo novo e nos antigos que carregam o mod.
 2. **Perfil:** `SkyProfiles.define(<ns>:<nome>, perfil)` no construtor comum (dois lados).
 3. **Efeitos da dimensão (cliente):** no `RegisterDimensionSpecialEffectsEvent`, `event.register(<ns>:<nome>, new ProfileSkyEffects(new DimensionSpecialEffects.OverworldEffects()))`. Assim, nos estados com `vanillaSky(false)`, o jogo não desenha o céu dele (é o único jeito que o NeoForge 21.1 oferece, conferido com javap) e o motor pinta o gradiente da atmosfera do estado. Sem isso, `vanillaSun(false)` e `vanillaMoon(false)` continuam funcionando em qualquer dimensão (o passe `sky` apaga o sol e a lua).
-4. **Trocar o estado:** `SkyProfiles.setState(server, <ns>:<nome>, "caos", 100)` no servidor.
+4. **Aviso de "ajustes experimentais":** no single player, o jogo pergunta uma vez por mundo (dimensão por datapack); "Sei o que estou fazendo!" abre o mundo e a pergunta não volta.
+5. **Trocar o estado:** `SkyProfiles.setState(server, <ns>:<nome>, "caos", 100)` no servidor.
 
 ## Estados
 

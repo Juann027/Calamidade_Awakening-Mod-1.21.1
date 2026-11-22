@@ -1,4 +1,4 @@
-# Manual geral do Calamidade_Awakening 0.11.2
+# Manual geral do Calamidade_Awakening 0.12.0
 
 Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
@@ -12,7 +12,7 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
 **Para efeitos no nível de chefe** (uniforms próprios, vários passes por fase, zoom blur, câmera com cortes e travellings), use os ganchos do capítulo 6. Para escrever o roteiro do efeito uma vez só (fases, trilhas e marcadores que servidor, shader e câmera compartilham) e para efeitos ambientes em loop, use a Timeline do capítulo 7. Para mudar o clima da cena (céu, névoa, exposição, tinta e estrelas) sem escrever shader, use a Atmosphere do capítulo 8. Para feixes (lasers, pilares, teias) e para luz que clareia o terreno em volta do efeito, também sem shader, use o Beam e a Light dos capítulos 9 e 10. Para que o efeito principal de uma cena apareça inteiro com dezenas de outros na tela, marque-o como protagonista (HERO, capítulo 11, que também explica para leigos a diferença entre quantos efeitos são desenhados e quanto cada um custa). Para virar efeitos, dispará-los de itens, blocos e mobs e usar o Calamidade a partir de outro mod, veja o capítulo 12. Para crateras, trincheiras, um meteoro que vira bloco real ou uma construção que cai e fica no mundo, use a Terrain API do capítulo 13.
 
-**Para IAs e agentes**, comece por `AGENTS.md` na raiz do repositório e pelo material de `docs/ai/`: referência da API gerada do JAR, guia de GLSL com a biblioteca `calamidade_fx.glsl`, vinte e uma receitas completas (`/vfxsample receita <nome>`, item, blocos e mob do exemplo) e o modelo para usar o Calamidade como dependência (`docs/ai/usar-como-dependencia.md`). `python3 scripts/novo_efeito.py <namespace> <nome>` gera o esqueleto de um efeito novo.
+**Para IAs e agentes**, comece por `AGENTS.md` na raiz do repositório e pelo material de `docs/ai/`: referência da API gerada do JAR, guia de GLSL com a biblioteca `calamidade_fx.glsl`, vinte e seis receitas completas (`/vfxsample receita <nome>`, item, blocos e mob do exemplo) e o modelo para usar o Calamidade como dependência (`docs/ai/usar-como-dependencia.md`). `python3 scripts/novo_efeito.py <namespace> <nome>` gera o esqueleto de um efeito novo.
 
 **Para modificar o motor**, consulte os capítulos 14 e 15. O build baixa a RimuLib do CurseForge para `libs/` e confere o SHA-256; ela não é versionada. Na raiz, use `./gradlew build` para compilar e testar, `./gradlew dist` para copiar o JAR para `dist/` e `./gradlew runClient` para abrir o cliente de desenvolvimento. No Windows, use `gradlew.bat`.
 
@@ -34,11 +34,12 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 11. [Prioridade protagonista e orçamento por quadro](#cap11)
 12. [Integração com outros mods: orientação, fontes, limites e gatilhos](#cap12)
 13. [Terrain API: destruição, crateras e objetos que viram blocos reais](#cap13)
-14. [Arquitetura do motor](#cap14)
-15. [Criar habilidades dentro do motor](#cap15)
-16. [Testes em GPU real e multiplayer](#cap16)
-17. [Validação, medições e limites](#cap17)
-18. [Histórico e evolução prevista](#cap18)
+14. [Céu fantástico, eventos globais e céu por dimensão](#cap14)
+15. [Arquitetura do motor](#cap15)
+16. [Criar habilidades dentro do motor](#cap16)
+17. [Testes em GPU real e multiplayer](#cap17)
+18. [Validação, medições e limites](#cap18)
+19. [Histórico e evolução prevista](#cap19)
 
 Leitura complementar, fora do manual: [estudo técnico da integração da SA Series](ESTUDO-SA-SERIES.md).
 
@@ -46,11 +47,11 @@ Leitura complementar, fora do manual: [estudo técnico da integração da SA Ser
 
 ## 1. Jogar e instalar
 
-Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.11.2 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor e, desde a 0.11.0, crateras e estruturas que caem pela Terrain API (que respeita as regras de terreno da config do servidor, desde a 0.11.1 também claims de mods de proteção, a borda do mundo, a proteção de spawn e o modo aventura, e se desfaz com `/calamidade terrain undo`).
+Motor modular de efeitos visuais para Minecraft Java 1.21.1, NeoForge 21.1.x e Java 21. A versão 0.12.0 usa RimuLib 1.3.0. As cinco habilidades internas são cosméticas; consequências no mundo (dano, empurrão) vêm de addons que usam os cues de servidor e, desde a 0.11.0, crateras e estruturas que caem pela Terrain API (que respeita as regras de terreno da config do servidor, desde a 0.11.1 também claims de mods de proteção, a borda do mundo, a proteção de spawn e o modo aventura, e se desfaz com `/calamidade terrain undo`).
 
 ### Instalação
 
-Coloque o JAR `dist/calamidade_awakening-0.11.2.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes (a 0.10.0 mudou o pacote de início de efeito para `event_v2` e a 0.11.0 criou o `terrain_v1`, mantido na 0.11.1 e na 0.11.2; versões diferentes simplesmente não trocam efeitos ou o terreno). Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
+Coloque o JAR `dist/calamidade_awakening-0.12.0.jar` e a RimuLib 1.3.0 para NeoForge na pasta mods. Baixe a RimuLib do [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); ela não fica no repositório nem nos releases do GitHub, que trazem só os JARs do Calamidade e do exemplo. Use as mesmas versões no servidor e em todos os clientes (a 0.10.0 mudou o pacote de início de efeito para `event_v2` a 0.11.0 criou o `terrain_v1` e a 0.12.0 o `world_event_v1`, o `world_end_v1` e o `sky_profile_v1`; versões diferentes simplesmente não trocam efeitos ou o terreno). Substitua o JAR da versão anterior; o namespace, o item e as teclas da 0.1.2 em diante continuam compatíveis. Para obter o Focus, use `/give @s calamidade_awakening:focus`. Teclas personalizadas são reatribuídas em Controles.
 
 A interface usa inglês como padrão e tem tradução para português do Brasil pela opção de idioma do Minecraft.
 
@@ -73,6 +74,8 @@ Se a Convergência da Aurora ainda estiver em L depois de atualizar, reatribua p
 ### Atlas Estelar
 
 Abra o **Atlas Estelar** pelo menu de pausa ou pressione **N** durante o jogo: um astrolábio de placas aparece parado no mundo, à sua frente, e você continua andando e olhando em volta. Mire em um cartão e pressione **Atacar** para conjurar a habilidade pelo servidor; **Usar item** ou a roda passam à próxima página quando há addons. Clicar numa placa nunca ataca nem quebra o que está atrás dela. As abas Qualidade, Acessibilidade, Terreno e Diagnóstico ficam no arco de cima. O Atlas fecha depois da escolha, na troca de dimensão, na morte ou a mais de 24 blocos. Capítulo completo: [ATLAS-0.11.2.md](ATLAS-0.11.2.md).
+
+**Céu e eventos globais (0.12.0):** addons podem pintar o céu (buracos negros, portais, eclipses, luas gigantes, auroras, raios ao longe) e iniciar eventos que todo o servidor vê, em qualquer dimensão — como o eclipse do exemplo (`/vfxsample evento eclipse start`). `/calamidade world list` mostra os eventos; F7 mostra "Céu" e "Eventos globais". Uma dimensão de mod pode ter céu próprio: o jogo pergunta uma vez sobre "ajustes experimentais" ao abrir o mundo (é a dimensão por datapack). Veja CEU-0.12.md.
 
 **Qualidade (0.11.2):** o padrão é **AUTO**, que escolhe entre LOW, BALANCED, HIGH e ULTRA pelo tempo de quadro e nunca troca durante um efeito protagonista. F8 força um perfil; F7 mostra o perfil e o motivo da última troca. Veja PRIORIDADE-0.9.md.
 
@@ -778,6 +781,8 @@ A referência completa, gerada do JAR, está em [ai/API-REFERENCIA.md](ai/API-RE
 Por que a névoa do jogo e não só a do passe: o jogo aplica a névoa em cada fragmento, na distância real de cada coisa, inclusive em geometria translúcida (água, partículas, vidro, nuvens). Um passe de tela só conhece a profundidade do que está atrás, então um vaga-lume ou um feixe a 5 blocos na frente de um morro a 60 receberia a névoa do morro. Com os eventos, a névoa fica coerente com a do jogo e as malhas emissivas do motor (que não usam a névoa do jogo) continuam legíveis.
 
 **Plano B na tela.** Alguns shader packs ignoram a névoa do jogo. Para esses casos há a opção de cliente **"Névoa da atmosfera pela névoa do jogo"** (`vanillaFog`, padrão ligado). Desligada, o motor não mexe nas distâncias do jogo e o próprio passe aplica a névoa pela profundidade (`scenePosAt`): `fogDensity × smoothstep(fogStart, fogEnd, distância)`. Nesse modo, geometria translúcida recebe a névoa do que está atrás dela.
+
+**Com camadas de céu (0.12.0).** Quando o passe `sky` roda no quadro (há camadas da Sky API), ele pinta o céu da atmosfera (a mesma conta, em `calamidade_sky.glsl`) antes de escurecer o mundo e de desenhar as camadas, e este passe deixa os pixels de céu como estão. Veja [CEU-0.12.md](CEU-0.12.md).
 
 **Exposição e tinta.** Depois do céu e da névoa, o passe multiplica a cena pela exposição e mistura a tinta normalizada pela força.
 
@@ -1814,7 +1819,155 @@ Dentro da área escrita nada é atualizado: tudo ali foi escrito pela edição, 
 
 <a id="cap14"></a>
 
-## 14. Arquitetura do motor
+## 14. Céu fantástico, eventos globais e céu por dimensão
+
+Até a 0.11, o céu de um efeito era o gradiente da Atmosphere: cor, névoa, estrelas. Um buraco negro, um portal ou um eclipse exigiam um shader próprio de tela inteira, que gastava uma vaga do orçamento de addons, só valia para quem estava no alcance da instância e não sabia esconder o sol do jogo. A 0.12 traz três peças:
+
+- **Sky API**: camadas de céu por direção (buraco negro com lente, portal para outra galáxia, eclipse, fenda, astro gigante, aurora e raios ao longe), todas procedurais, com todos os parâmetros vindos de trilhas da Timeline, pintadas num passe único do motor.
+- **Eventos globais (`WorldEvents`)**: um efeito visto por todos os jogadores de uma dimensão ou do servidor inteiro, em qualquer dimensão, inclusive por quem entra depois, opcionalmente persistente.
+- **Céu por dimensão (`SkyProfiles`)**: um céu persistente para cada dimensão, com estados nomeados e transições suaves, sincronizado e salvo no mundo.
+
+Tudo continua determinístico pelo relógio: nada é enviado por tick. **Servidor e clientes precisam estar na 0.12.0** (canais novos `world_event_v1`, `world_end_v1` e `sky_profile_v1`).
+
+### Sky API
+
+```java
+static final Sky BURACO = Sky.blackHole()
+    .centerOffset(0, 450, 800)          // 800 blocos à frente e 450 acima, no referencial da instância
+    .tilt(80)                           // disco quase de lado
+    .track(Sky.Param.SIZE, "tamanho")   // cresce e colapsa pela timeline
+    .track(Sky.Param.PROGRESS, "disco")
+    .track(Sky.Param.LENS, "lente")
+    .build();
+
+Effects.register(ID, definicao);   // ordem: register, timeline, atmosphere, sky
+Effects.timeline(ID, TIMELINE);
+Effects.sky(ID, BURACO);           // até 6 camadas por efeito
+```
+
+#### Onde fica (âncora)
+
+| Âncora | Montagem | Uso |
+|---|---|---|
+| `DIRECTION` | `direction(azimute, elevação)` | Lugar fixo no céu. Convenção do Minecraft: azimute 0 = sul, 90 = oeste, 180 = norte, -90 = leste; elevação 90 = zênite. Eixos do mundo: não gira com a instância. |
+| `WORLD` | `toward(x, y, z)` | Um ponto do mundo. Longe (milhares de blocos), quase não se move quando o jogador anda. |
+| `CENTER` | `centerOffset(x, y, z)` | Um ponto relativo ao centro da instância, no referencial dela (x esquerda, y cima, z frente): gira com `Placement`. |
+| `SUN`, `MOON` | `onSun()`, `onMoon()` | Sobre o sol ou a lua do jogo, seguindo a hora. Nas dimensões sem sol do jogo (Nether, End), num ponto fixo (azimute 0 ou 180, elevação 50). |
+
+As trilhas `AZIMUTH` e `ELEVATION` somam graus à direção da âncora (uma lua que nasce e cruza o céu, receita 24).
+
+#### Tipos
+
+| Tipo | Desenho | Tamanho | Primária / secundária | Progresso |
+|---|---|---|---|---|
+| `BLACK_HOLE` | sombra (1/5 do tamanho), anel de fótons fino e brilhante, disco largo inclinado atravessando a sombra, a metade de trás dobrada por cima, céu em volta engolido, lente | diâmetro do disco | miolo quente / borda do disco | quanto do disco acende |
+| `PORTAL` | fissura que pisca e solta arcos (abertura < 0,06), anel com arcos de energia, outro céu por dentro: nebulosa, estrelas densas, galáxia girando | diâmetro aberto | anel / nebulosa | abertura |
+| `ECLIPSE` | disco que cobre um sol (redesenhado redondo), coroa e serpentinas na totalidade, proeminências, anel de diamante; sobre a lua, a sombra vermelha da Terra | diâmetro do disco | coroa / último raio de sol (ou umbra) | cobertura |
+| `RIFT` | rachadura serrilhada com brilho interno, vazio escuro por dentro, galhos, cintilação | comprimento | brilho / vazio | abertura |
+| `CELESTIAL_BODY` | esfera iluminada com fases, borda de atmosfera e, com `tilt`, anéis | diâmetro | superfície / borda e faixas | fração iluminada |
+| `AURORA` | cortinas ondulando ao longo do horizonte | largura em azimute | cor de baixo / de cima | atividade |
+| `DISTANT_BOLTS` | raios caindo ao longe (70 a 300 blocos) em volta de cada jogador, com clarão no céu | largura do setor (180 = em volta) | núcleo / brilho | atividade (1 ≈ dois por segundo) |
+
+Parâmetros por trilha (`Sky.Param`): `AZIMUTH`, `ELEVATION`, `SIZE` (graus), `ROTATION` (graus), `SPIN` (graus por tick, aplicado à idade real: não salta no laço), `TILT`, `INTENSITY`, `PROGRESS`, `LENS`, `DARKEN`, `WEIGHT`. Peso da camada = envelope da instância × fade nos últimos 25% do alcance × fase opcional × `WEIGHT`.
+
+**Raios ao longe** são determinísticos pela semente e pela idade da instância (`SkyMath.bolts`): todo cliente vê o mesmo ritmo, cada um em volta de si, sem rede. São só visuais; raios reais com dano continuam sendo trabalho de cues.
+
+#### Como o motor desenha
+
+**Um passe, o primeiro do quadro.** O passe `sky` vem antes das luzes, dos efeitos, dos feixes e da atmosfera, fora do orçamento de addons, e só existe com camada ativa (ou enquanto o escurecimento volta a 1). Assim, feixes e efeitos ficam na frente do céu e o eclipse escurece o mundo debaixo deles. Por pixel:
+
+1. **Lente** dos buracos negros (`calamidade_sky.glsl`, a mesma conta no passe de atmosfera): `beta = theta (1 - E²/|theta|²)`, sumindo sem quina até o alcance. Pixel de céu continua céu (onde cairia num morro, entra o céu do jogo naquela direção); o terreno distante entorta um terço; o terreno a menos de ~12 blocos não entorta.
+2. **Sol e lua do jogo apagados** onde uma camada pede (`hidesVanilla`, padrão das camadas presas ao sol ou à lua, exceto fenda, aurora e raios), e **o céu da Atmosphere** ativa (gradiente, estrelas, névoa no horizonte) pintado aqui, debaixo das camadas. Com o passe `sky` no quadro, o passe de atmosfera não mexe mais nos pixels de céu (só névoa na tela, exposição e tinta).
+3. **Escurecimento do mundo** (`darken`; no eclipse, vezes a fração coberta do sol à quarta potência).
+4. **Camadas**, só em pixels de céu (os raios também sobre o terreno, escondidos pela profundidade).
+
+**Limites:** 2, 4, 6 e 8 camadas por quadro (LOW, BALANCED, HIGH, ULTRA), eventos globais primeiro (a maior prioridade antes), depois o céu da dimensão, depois HERO, depois peso; 1 lente em LOW, 2 nos outros.
+
+**Por que o céu da atmosfera mudou de passe.** O passe de atmosfera soma ao céu a diferença entre o gradiente e o céu do jogo. Depois do escurecimento do eclipse, essa diferença tirava de novo o brilho do dia; e como o framebuffer do jogo tem 8 bits por canal (corta em 1 entre os passes), a coroa virava um anel laranja e as estrelas sumiam — o teste em jogo mostrou isso, a prévia em ponto flutuante não. Pintando o céu da atmosfera antes do escurecimento e das camadas, o disco negro continua negro e a coroa continua acesa. A prévia agora também usa 8 bits entre os passes.
+
+#### O sol e a lua do jogo (conferido com javap)
+
+O NeoForge 21.1 só deixa trocar o céu **inteiro** de uma dimensão: `IDimensionSpecialEffectsExtension.renderSky` devolvendo `true` faz o `LevelRenderer` não desenhar nada do céu. `RenderLevelStageEvent.AFTER_SKY` vem depois e não cancela nada; registrar de novo o efeito do Overworld valeria para todo mundo e o último mod venceria. Por isso:
+
+- **Em qualquer dimensão**, o passe `sky` apaga o sol e a lua subtraindo os mesmos texels que o jogo somou (`SRC_ALPHA, ONE`), no mesmo quadrado (meio lado 30 a 100 blocos para o sol, 20 para a lua, pose `Ry(-90)·Rx(hora·360)`), só quando o caminho vanilla desenhou o sol naquele quadro (céu NORMAL, sem névoa de mundo, sem cegueira, efeitos de dimensão sem `renderSky` próprio). Onde a soma estourou em 1 (o miolo do sol), entra a estimativa do céu do jogo — o disco do eclipse cobre essa parte.
+- **Na sua dimensão**, `ProfileSkyEffects` usa `renderSky` para o motor ser dono do céu inteiro (veja "Céu por dimensão").
+
+#### Acessibilidade
+
+- **Intensidade dos efeitos de tela** escala o escurecimento (em 0, o mundo não escurece) e os clarões (raios, nascimento do portal, anel de diamante). As camadas em si são o aspecto do céu e ficam, como as estrelas da atmosfera.
+- **Ocultar clarões:** o escurecimento muda no máximo 0,025 por tick (a regra da atmosfera); sem anel de diamante, sem clarão do portal, a fissura não pisca, os raios entram e saem sem estrobo, a 60%.
+- **Efeitos de movimento** desligado: param o giro do disco, do portal e do astro; a lente cai para metade; a aurora anda a 20%.
+
+### Eventos globais
+
+```java
+var eclipse = WorldEvents.start(ECLIPSE, WorldEvents.Scope.SERVER, server.overworld(),
+    WorldEvents.Options.defaults().persistent(true).priority(80));
+WorldEvents.get(server, ECLIPSE).ifPresent(WorldEvents.Handle::release);   // termina o laço e toca a saída
+```
+
+| Escopo | Quem vê |
+|---|---|
+| `AREA` | Uma instância comum na posição (`Effects.start`): quem está no alcance. |
+| `DIMENSION` | Todo jogador na dimensão de origem. |
+| `SERVER` | Todo jogador do servidor, em qualquer dimensão, no próprio céu. |
+
+- **O efeito é um efeito comum:** Timeline (com sustain para durar até o `release()`), Sky e Atmosphere funcionam como sempre; os cues rodam no servidor, no nível e na posição de origem. Geometria embutida, camadas de cliente, feixes, luzes e terreno não são desenhados num evento global (pertencem a um lugar: use uma instância `AREA` junto).
+- **Relógio e entrada tardia:** o evento corre no tempo do jogo do servidor, que toda dimensão compartilha. Quem faz login, troca de dimensão ou renasce recebe o estado (início, release) e cai na fase certa. A cada tick o servidor confere quem já recebeu cada evento (os três eventos do NeoForge também reenviam na hora).
+- **Limite e prioridade:** no máximo `worldEventsMax` (config SERVER, padrão 4, até 16) e um por efeito. Cheio, um início com prioridade maior troca o de menor prioridade (o mais antigo no empate); senão é recusado (`Optional.empty()`). No cliente, camadas de eventos vêm antes das do céu da dimensão e das de efeitos comuns, a maior prioridade primeiro: um eclipse global aparece mesmo em LOW (2 camadas).
+- **Persistência:** `persistent(true)` guarda o evento com o mundo (`data/calamidade_awakening_world_events.dat` do Overworld): início, release e progresso dos cues. Ao reiniciar, ele volta na mesma fase (o tempo do jogo também foi salvo) e nenhum cue roda duas vezes. Os outros acabam com o servidor.
+- **Comando** (permissão 2): `/calamidade world list`, `/calamidade world stop <id>`, `/calamidade world release <id>` (`<id>` é o efeito `ns:caminho` ou a chave `#3` da lista).
+- **F7:** "Eventos globais: N" (os que se aplicam à dimensão do jogador).
+
+### Céu por dimensão
+
+```java
+static final SkyProfile CEU = SkyProfile.builder()
+    .state("calmo", SkyProfile.State.builder().layers(Sky.aurora().build()).build())
+    .state("caos", SkyProfile.State.builder().layers(Sky.blackHole().direction(0, 32).size(60).build())
+        .atmosphere(Atmosphere.builder().sky(0xff05020c, 0xff3a1030, 1f).stars(1).build())
+        .vanillaSky(false).build())
+    .initial("calmo")
+    .build();
+
+SkyProfiles.define(ARENA, CEU);                         // construtor comum, dois lados
+SkyProfiles.setState(server, ARENA, "caos", 100);       // servidor: 5 s de transição
+```
+
+- Cada estado: até 6 camadas constantes (sem trilhas: o perfil não tem timeline; o giro corre no tempo do mundo), atmosfera constante opcional e `vanillaSun`, `vanillaMoon`, `vanillaSky`.
+- **Transição:** smoothstep em N ticks (0 a 12000); uma troca no meio de outra parte do estado que aparece mais. Camadas e atmosferas dos dois estados misturadas pelo peso.
+- **Sincronia:** `sky_profile_v1`, uma vez por mudança e a quem entra na dimensão depois; **salvo** nos dados da própria dimensão e retomado ao reiniciar.
+- **F7:** "Céu da dimensão: <estado>".
+- **Perfis em JSON de datapack** ficam para depois (ROADMAP): exigiriam um codec para toda a Sky e a Atmosphere, recarga e o envio do perfil inteiro aos clientes.
+
+#### Como criar uma dimensão com céu próprio
+
+1. **Datapack do mod:** `data/<ns>/dimension_type/<nome>.json` com `"effects": "<ns>:<nome>"` e `data/<ns>/dimension/<nome>.json` com o gerador.
+2. **Perfil:** `SkyProfiles.define(<ns>:<nome>, perfil)` no construtor comum.
+3. **Efeitos da dimensão (cliente, barramento do mod):** `RegisterDimensionSpecialEffectsEvent` → `event.register(<ns>:<nome>, new ProfileSkyEffects(new DimensionSpecialEffects.OverworldEffects()))`. Nos estados com `vanillaSky(false)` (a partir da metade da transição), o jogo não desenha o céu dele e o motor pinta o gradiente da atmosfera do estado (ou as cores do jogo), as estrelas e as camadas. Fora disso, tudo é delegado ao efeito vanilla (névoa, nuvens, chuva, mapa de luz).
+4. **Trocar estados** no servidor com `SkyProfiles.setState`.
+
+**Aviso do jogo:** uma dimensão vinda de datapack faz o Minecraft 1.21.1 mostrar, uma vez por mundo, "Os mundos com ajustes experimentais são incompatíveis" ao abrir o mundo (também num mundo antigo que ganhou o mod). "Sei o que estou fazendo!" abre o mundo; a mensagem não volta para ele. Num servidor dedicado não há tela.
+
+Sem o passo 3, `vanillaSun(false)` e `vanillaMoon(false)` funcionam em qualquer dimensão (o passe `sky` apaga o sol e a lua); só o céu inteiro precisa dos efeitos próprios. Exemplo completo: receita 26 e a dimensão `vfxsample:dimensao_teste`.
+
+### Diagnóstico e custo
+
+- **F7:** "Céu: N camadas (M ativas, máx. K) · passe sim/não", "Eventos globais: N", "Céu da dimensão: estado". CSV de `/calamidade_client record` ganha `skyLayers` e `skyPass`.
+- **Custo:** um passe de tela cheia quando há camada; cada camada só trabalha perto da própria direção (recorte pelo ângulo antes de montar a base); ruído de 2 a 4 oitavas pelo perfil; a lente custa duas amostras da cena. Medição em VALIDACAO.md (1, 4 e 8 camadas).
+- **Rede:** um pacote pequeno por início, release e fim de evento global e por mudança de estado de céu, e um para quem chega depois. Nada por tick.
+
+### Limites e cuidados
+
+- Camadas são pintadas só em pixels de céu: nuvens e terreno na frente as escondem (exceto os raios, sobre o terreno, e a lente, que entorta o terreno distante).
+- Sobre o sol, a camada some à noite com ele. Para um eclipse visível de noite, use `direction(...)` e `hidesVanilla(false)`.
+- O passe subtrai o sol que o jogo desenhou do jeito vanilla. Shader packs que trocam o céu (Iris/Oculus) e mods que reescrevem `renderSky` fazem o motor não apagar nada (a conferência por reflexão detecta `renderSky` próprio; shader packs não).
+- No Nether, o teto esconde o céu: um eclipse global aparece acima dele e, debaixo, só o escurecimento.
+- Coberto por `SkyCheck`, `WorldEventCheck`, `WorldEventSyncCheck` e `SkyProfileCheck` no `checkBudget`, 34 casos no `testar_glsl.cjs`, a prévia (`node scripts/previa_passes.cjs ceu`) e os testes em jogo `testeJogo` (eventos e perfis no servidor dedicado, com reinício) e `testeCeu` (cliente). Roteiro manual: TESTE-REAL.md, parte 10.
+
+<a id="cap15"></a>
+
+## 15. Arquitetura do motor
 
 ```mermaid
 flowchart TD
@@ -1914,9 +2067,9 @@ O Atlas interpola coordenadas locais na abertura e usa a mesma função de posi�
 
 PerfOverlay (tecla F7) mostra o renderizador OpenGL, FPS, mediana e percentil 95 dos últimos 240 quadros, perfil de qualidade, sequências residentes, efeitos e volumes desenhados, vértices emitidos e passes de pós-processamento. Os renderizadores escrevem os contadores durante o quadro e o painel publica os valores no início do quadro seguinte, então ele sempre mostra o último quadro completo. `/calamidade_client record <segundos>` grava os mesmos dados por quadro em `calamidade_bench/frames-*.csv` na pasta do jogo. No servidor, `/calamidade bench <n> [efeito]` cria uma carga reproduzível e `/calamidade status` informa as instâncias ativas. O roteiro de uso está em [TESTE-REAL.md](TESTE-REAL.md).
 
-<a id="cap15"></a>
+<a id="cap16"></a>
 
-## 15. Criar habilidades dentro do motor
+## 16. Criar habilidades dentro do motor
 
 Para publicar uma habilidade em um JAR separado, use o [tutorial de criação de addons 0.4](ADDONS-0.4.md).
 
@@ -1995,9 +2148,9 @@ Para consumidores da 0.3.x, comece pelo [guia da API pública](API-0.3.md) e pel
 
 Ao documentar uma nova camada, inclua o registro completo, o evento que a inicia, as unidades e os limites dos parâmetros, o comportamento para observadores e um comando para reproduzir o resultado. Para eventos luminosos, descreva também o resultado com a redução de clarões ligada. Faça o exemplo compilar contra o JAR que será distribuído.
 
-<a id="cap16"></a>
+<a id="cap17"></a>
 
-## 16. Testes em GPU real e multiplayer
+## 17. Testes em GPU real e multiplayer
 
 Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por software) com servidor integrado. Este roteiro cobre o que faltava: desempenho em placa de vídeo física e sincronização entre dois clientes. Ele usa as ferramentas da 0.5.0 e leva cerca de 40 minutos.
 
@@ -2204,13 +2357,70 @@ Antes, os testes automáticos: `./gradlew testeJogo`, depois `xvfb-run -a ./grad
 
 Registre para cada caso o que viu; nos casos 85, 87 e 91, uma captura ou vídeo curto.
 
+### Parte 10 — céu, eventos globais e céu por dimensão (0.12.0)
+
+Motor 0.12.0 e vfx-sample 1.9.0 nos dois lados (servidor e clientes: canais novos). Teste de dia e de noite, com F7 aberto. Os casos 99 e 100 precisam de **dois jogadores**.
+
+| # | Passos | Esperado |
+|---|---|---|
+| 93 | `/vfxsample receita buraco_negro` olhando para montanhas, ao anoitecer. | O buraco surge à frente, cresce até ~64 graus: sombra negra, anel de fótons fino e brilhante, disco largo inclinado atravessando a sombra, metade de trás dobrada por cima; estrelas e cristas distantes entortam em arco sem recorte; o terreno perto não entorta; colapsa com clarão. F7 "Céu: 1 camadas · passe sim". Anote o FPS antes e no auge. |
+| 94 | `/vfxsample receita portal_galaxia` e `lua_gigante`. | Portal: fissura que pisca e solta arcos, anel abrindo, galáxia girando por dentro, fecha. Lua: nasce cortada pelo horizonte, cruza o céu com anéis e muda de fase. |
+| 95 | Acessibilidade: repita 93 e 94 com intensidade dos efeitos de tela 0, com "ocultar clarões" e com "efeitos de movimento" desligado. | Intensidade 0: sem clarões nem escurecimento; camadas iguais. Ocultar clarões: sem clarão do colapso, fissura sem piscar. Movimento desligado: disco e galáxia parados, lente mais fraca. |
+| 96 | De dia, olhando o sol: `/vfxsample evento eclipse start`; espere 20 s. | O sol quadrado do jogo vira um disco redondo; a lua só aparece onde cobre o sol; na totalidade, coroa, estrelas, mundo a ~15% do brilho, raios caindo ao longe (escondidos pelos morros na frente), trovão. F7 "Eventos globais: 1", "Céu: 2 camadas". Nenhum quadrado ou borda onde o sol estava. |
+| 97 | Durante a totalidade: vá ao Nether (acima do teto e embaixo), ao End e à dimensão de teste (`/vfxsample dimensao`); morra e renasça; saia e entre de novo no servidor. | O evento aparece em todas (Nether e End: num ponto fixo ao sul; embaixo do teto do Nether, só o escurecimento). Depois do respawn e do relogin, na totalidade de novo, sem recomeçar. |
+| 98 | Reinicie o servidor (dedicado) durante a totalidade; entre. `/calamidade world list`. | O eclipse continua na totalidade; a lista mostra o tempo crescendo de onde parou. `/vfxsample evento eclipse release`: o sol volta em 16 s, com o anel de diamante (sem clarão com "ocultar clarões"). |
+| 99 | **Dois jogadores**: A no Overworld, B no Nether (ou na dimensão de teste); `start` do eclipse. | Os dois veem o mesmo eclipse ao mesmo tempo, cada um no próprio céu; os raios caem em volta de cada um, no mesmo ritmo. `stop`: some para os dois. |
+| 100 | **Dois jogadores** na dimensão de teste: A roda `/vfxsample ceu ameaca`, depois `caos`; B entra na dimensão depois. | Os dois veem a mesma transição de 5 s; B chega no estado atual. Em "caos" o céu do jogo (sol, lua, estrelas) some e fica o do motor. Reinicie o servidor: o estado continua. Volte para o Overworld: céu normal. |
+| 101 | `/calamidade world list`, `stop <id>`, `release <id>` sem permissão e com permissão 2; `worldEventsMax = 1` na config do servidor e dois eventos. | Sem permissão, o comando não existe. Com o limite em 1, o segundo evento só entra se tiver prioridade maior (troca o primeiro). |
+| 102 | Opcional: com Iris/Oculus e um shader pack. | Anote o que acontece (o pack troca o céu; o sol pode não ser apagado). |
+
 ### Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
 
-<a id="cap17"></a>
+<a id="cap18"></a>
 
-## 17. Validação, medições e limites
+## 18. Validação, medições e limites
+
+### Versão 0.12.0 — Sky & World Events (estado atual)
+
+**Compilada e testada por software (Mesa llvmpipe); GPU física e dois jogadores pendentes ([TESTE-REAL.md, parte 10](TESTE-REAL.md#parte-10--céu-eventos-globais-e-céu-por-dimensão-0120)).**
+
+#### Testes automatizados (22/11/2026)
+
+| Teste | Resultado | Cobre |
+|---|---|---|
+| `./gradlew build` | verde | `checkBudget` com `SkyCheck` (direções na convenção do Minecraft e iguais a `Vec3.directionFromRotation`, ângulo, tamanho angular, trilhas, validação, registro, cobertura do eclipse, seleção por perfil, quadro do sol e da lua igual ao JOML, cantos do sol e da lua, base local, escurecimento e rampa de 34 ticks, limites 2/4/6/8, lente), `WorldEventCheck` (admissão com limite e prioridades, escopos, entrada tardia com sustain e release, fim, persistência em NBT binário, opções, raios ao longe determinísticos), `WorldEventSyncCheck`, `SkyProfileCheck` (perfis, transições, persistência, `sky_profile_v1`); `checkShaders` (13 shaders, glslangValidator 15.1), `checkApiDocs`, `checkRecipes`, `checkModVersion` |
+| `node scripts/testar_glsl.cjs` | 173/173 | 34 casos novos de céu e lente, com valores do Java |
+| `node scripts/previa_passes.cjs ceu` | folha em `docs/ceu-previas/` | passes reais `sky` e `atmosphere`; desde esta versão com framebuffers de 8 bits entre os passes, como o jogo |
+| `./gradlew testeJogo` (servidor dedicado, duas fases) | 61/61 | 10 casos novos: início SERVER persistente, duplicado recusado, limite de 4 com prioridades (menor recusada, maior troca a menor), laço até o release com o cue a cada volta, `/calamidade world list` e `stop`, céu do End de "a" para "b"; no reinício, evento persistente retomado na fase (idade 360 → 620: continuou do salvamento), não persistente acabou, céu do End em "b", release depois de retomar encerra em 100 ticks |
+| `xvfb-run ./gradlew testeCeu` (cliente, vfx-sample 1.9.0) | 20/20 | custo com 0/1/4/8 camadas (perfil de teste), eclipse global recebido e na totalidade (2 camadas, passe), F7 (linhas "Céu" e "Eventos globais"), Nether (SERVER), as três receitas novas, respawn durante o evento, relogin com o servidor integrado fechado e reaberto (evento persistente de volta na fase: idade 229 → 327), dimensão de teste com o evento e os três estados |
+
+**O que o teste em jogo achou e foi corrigido:** (1) a coroa do eclipse saía um anel laranja e as estrelas sumiam no Overworld: o passe de atmosfera, depois do passe `sky`, subtraía de novo o brilho do céu do dia, e o framebuffer de 8 bits do jogo já tinha cortado a coroa em 1. A prévia, em ponto flutuante, não mostrava. Agora o passe `sky` pinta o céu da atmosfera antes do escurecimento e das camadas, e a prévia usa 8 bits entre os passes. (2) Na dimensão de teste, com o AUTO em LOW (2 camadas), o céu da dimensão tirava a vaga do eclipse global: eventos globais agora vêm antes do perfil. (3) Abrir um mundo com a dimensão do exemplo mostra uma vez "Os mundos com ajustes experimentais são incompatíveis" (dimensão por datapack): documentado no capítulo e na receita 26; o teste confirma a tela como o jogador faria. (4) No roteiro do servidor, uma espera de teste esperava a si mesma na thread do servidor (erro do teste, não do motor).
+
+#### Custo do passe de céu (software)
+
+Cliente sob Xvfb 1280 × 720, Mesa llvmpipe (LLVM 20.1.2, 256 bits), 4 núcleos, VSync desligado, distância 8, mundo plano de manhã, olhando para o sul a 25 graus; perfil de teste UNLIMITED (8 camadas por quadro); 1 camada = buraco negro de 50 graus com lente (cobre quase a tela), 4 = portal, astro com anéis, fenda e aurora, 8 = as 4 duas vezes. Janela de 6 s depois de 3 s de aquecimento.
+
+| Camadas | Quadros | Mediana (ms) | p95 (ms) |
+|---|---|---|---|
+| 0 (sem passe) | 212 | 27,00 | 41,28 |
+| 1 | 89 | 65,99 | 83,39 |
+| 4 | 76 | 78,62 | 93,46 |
+| 8 | 64 | 93,73 | 110,67 |
+
+Por software vale a tendência: o passe custa um tanto fixo (uma passada de tela cheia; o buraco negro com lente amostra a cena duas vezes em quase todos os pixels) e cada camada a mais custa pouco, porque só trabalha perto da própria direção (recorte pelo ângulo antes de ler o resto da linha). Numa GPU dedicada, o esperado é o custo de um passe de pós comum; a medição na RTX 4060 fica para o TESTE-REAL (caso 93).
+
+#### Capturas
+
+`docs/gameplay/ceu-*-0120.jpg`: eclipse no Overworld, no Nether, depois do relogin e na dimensão de teste, F7, buraco negro, portal, lua gigante, quatro camadas e os três estados da dimensão de teste.
+
+#### Etapa 1: Sky API e o sol e a lua do jogo (conferido com javap, 22/11/2026)
+
+- **Trocar o céu no NeoForge 21.1.267.** `IDimensionSpecialEffectsExtension` tem `renderSky(ClientLevel, int, float, Matrix4f, Camera, Matrix4f, boolean, Runnable)` (padrão `false`). `LevelRenderer.renderSky` chama `level.effects().renderSky(...)` como primeira instrução e retorna se devolver `true` (`javap -c`, offsets 0 a 30): é o único jeito de substituir o céu, e substitui **tudo** (gradiente, nascer do sol, sol, lua, estrelas). Não há evento para pular só o sol: `RenderLevelStageEvent.Stage.AFTER_SKY` é disparado depois de `renderSky` (offset 453 de `renderLevel`) e não cancela nada. `RegisterDimensionSpecialEffectsEvent.register` é um `Map.put` simples, chamado em ordem de mods por `DimensionSpecialEffectsManager.init`; registrar de novo uma chave vanilla (`minecraft:overworld`) troca os efeitos de toda dimensão que a usa e o último mod vence. O motor **não** faz isso nas dimensões vanilla.
+- **Geometria do sol e da lua** (`LevelRenderer.renderSky`, `javap -c`, offsets 539 a 956): mistura `blendFuncSeparate(SRC_ALPHA, ONE, ONE, ZERO)` (soma), cor `(1, 1, 1, 1 - chuva)`, pose `Ry(-90)·Rx(getTimeOfDay·360)`; sol: quadrado de meio lado 30 em y = 100, uv (0, 0) no canto (-30, -30) e (1, 1) em (30, 30), textura `textures/environment/sun.png` (32 × 32, miolo de 8 × 8 texels: ~4,3 graus de meio lado; brilho até ~11 graus); lua: meio lado 20 em y = -100, atlas `moon_phases.png` 4 × 2 com coluna `fase % 4` e linha `fase / 4 % 2`, (u0, v1) no canto (20, 20) e (u1, v0) em (-20, -20). O sol e a lua só são desenhados com `skyType() == NORMAL`, sem névoa do mundo (`isFoggyAt` ou névoa de chefe), sem lava ou neve em pó na câmera e sem cegueira ou escuridão (offsets 38 a 134).
+- **Decisão:** o passe `sky` (primeiro do quadro) apaga o sol ou a lua onde uma camada ancorada neles pede (`Sky.hidesVanilla`, padrão do ECLIPSE): como a soma é aditiva, subtrai os mesmos texels (`texelFetch`, a textura do jogo pelo `TextureManager`) no mesmo quadrado, calculado com o referencial acima; onde a soma estourou em 1 (o miolo), entra a estimativa do céu do jogo, que o disco do eclipse cobre. Só quando o caminho vanilla desenhou o sol naquele quadro (as condições acima e efeitos de dimensão que **não** sobrescrevem `renderSky`, conferido por reflexão uma vez por classe). `SkyCheck` confere o referencial contra o JOML (`Matrix3f.rotateY(-π/2).rotateX`), o centro e os cantos do sol e da lua. Para dimensões próprias, a etapa 4 usa `renderSky` (o céu inteiro passa a ser do motor).
+- **RimuLib 1.3.0:** `Uniforms.texture(nome, local)` carrega pelo `FxTextures` da própria RimuLib (não pelo `TextureManager`); por isso o passe usa `glTexture(nome, id)` com o id da textura do jogo. `Uniforms.vec4s` leva as máscaras do céu (até 8 vec4) ao passe de atmosfera.
 
 ### Versão 0.11.2 — Etapa 1: custo por efeito e por passe (em andamento)
 
@@ -2978,9 +3188,9 @@ As outras quatro habilidades foram acionadas pelas teclas padrão U, I, V e Y. F
 
 O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servidor integrado. Continuam pendentes multiplayer com dois clientes e medições de desempenho em GPU física.
 
-<a id="cap18"></a>
+<a id="cap19"></a>
 
-## 18. Histórico e evolução prevista
+## 19. Histórico e evolução prevista
 
 ### Versões publicadas
 
@@ -3098,6 +3308,13 @@ O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servid
 - Atlas Estelar refeito como placas paradas no mundo (engenharia adaptada do menu holográfico do RespectCraft), visual de astrolábio, abas de habilidades, qualidade, acessibilidade, terreno e diagnóstico. Consulte ATLAS-0.11.2.md.
 - Testes em jogo novos: `testeMedicao` e `testeAtlas`.
 
+#### 0.12.0 — Sky & World Events
+
+- **Sky API:** camadas de céu por direção (buraco negro com lente gravitacional que entorta céu e terreno distante, portal para outra galáxia, eclipse, fenda, astro gigante com fases e anéis, aurora e raios ao longe), procedurais, com parâmetros por trilha; um passe `sky` do motor, primeiro do quadro, fora do orçamento, 2/4/6/8 camadas por perfil. O sol e a lua do jogo são apagados por subtração da mesma textura. Consulte CEU-0.12.md.
+- **Eventos globais (`WorldEvents`):** escopos AREA, DIMENSION e SERVER, entrada tardia na fase certa (login, troca de dimensão, respawn), persistência opcional, limite com prioridades, `/calamidade world`.
+- **Céu por dimensão (`SkyProfiles`):** estados nomeados com transição suave, sincronizados e salvos no mundo; `ProfileSkyEffects` para o motor ser dono do céu inteiro de uma dimensão própria.
+- Exemplo 1.9.0: receitas 22 a 26 (buraco negro, portal, lua gigante, eclipse global, dimensão de teste).
+
 ### Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -3111,16 +3328,18 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 ### Próximas versões
 
-#### 0.12 — Bosses
+#### 0.13 — Bosses
 
 Próxima versão planejada.
 
 - **Pontos presos a ossos:** `Point` resolvido pelo cliente a partir de ossos de rigs (GeckoLib ou outro) por um gancho registrado pelo mod do rig, sem o Calamidade depender do GeckoLib; feixes, luzes e dublês saindo da mão ou da boca do chefe.
 - **BossBar API:** barra do chefe sincronizada às fases da Timeline (nome do golpe, fase, vulnerabilidade), com estilo próprio e acessibilidade de tamanho e contraste.
-- **Qualidade automática:** o cliente ajusta LOW/BALANCED/HIGH pelo tempo de quadro medido (com histerese), respeitando o perfil escolhido como teto.
+- Um chefe de exemplo que dispara o eclipse global da 0.12 na fase final.
 
-#### Depois da 0.12
+#### Depois da 0.13
 
+- **Perfis de céu em JSON de datapack:** codec de `Sky`, `Atmosphere` e `SkyProfile`, recarga com `/reload` e envio do perfil inteiro aos clientes (hoje os perfis são definidos em código).
+- Sky API: camadas desenhadas também de noite sobre o sol (eclipse "fantástico" fora do horário), nuvens próprias e lentes que entortam feixes e efeitos de addons.
 - Trail API (rastros e marcas): fitas com histórico de posições para entidades, projéteis e pontas de feixe; marcas que ficam no chão por um tempo.
 - Títulos e HUD cinematográficos sincronizados à Timeline.
 - Ramificações de feixes (raios que se dividem) e feixes curvos.

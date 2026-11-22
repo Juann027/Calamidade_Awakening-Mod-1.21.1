@@ -1,12 +1,12 @@
 # Calamidade_Awakening
 
-A modular visual effects engine for Minecraft 1.21.1, NeoForge 21.1.x and Java 21. Release 0.11.2 uses RimuLib 1.3.0. The five built-in abilities are cosmetic; addons add gameplay through server cues and, since 0.11.0, terrain edits (craters, trenches, falling structures) through the Terrain API.
+A modular visual effects engine for Minecraft 1.21.1, NeoForge 21.1.x and Java 21. Release 0.12.0 uses RimuLib 1.3.0. The five built-in abilities are cosmetic; addons add gameplay through server cues and, since 0.11.0, terrain edits (craters, trenches, falling structures) through the Terrain API. Since 0.12.0 addons also paint the sky (black holes with gravitational lensing, galaxy portals, eclipses, rifts, giant moons, auroras, distant lightning), start global events seen by a whole dimension or server (persistent across restarts) and give each dimension its own sky with named states.
 
 [Manual geral do mod e da API (Português)](docs/MANUAL-GERAL.md)
 
 ## Installation
 
-Build the JAR with `./gradlew dist` (see Development) and install `dist/calamidade_awakening-0.11.2.jar` together with RimuLib 1.3.0 for NeoForge in the mods folder. Download RimuLib from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); it is not stored in this repository nor attached to the GitHub releases, which carry only the Calamidade and sample JARs. Use the same versions on the server and all clients (0.10.0 changed the start packet to `event_v2`; 0.11.0 adds the `terrain_v1` channel; 0.11.1 and 0.11.2 keep the 0.11.0 protocol). Replace the previous JAR; the namespace, item and key bindings are unchanged since 0.1.2. To obtain a focus, use `/give @s calamidade_awakening:focus`. Reassign custom shortcuts in Controls.
+Build the JAR with `./gradlew dist` (see Development) and install `dist/calamidade_awakening-0.12.0.jar` together with RimuLib 1.3.0 for NeoForge in the mods folder. Download RimuLib from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); it is not stored in this repository nor attached to the GitHub releases, which carry only the Calamidade and sample JARs. Use the same versions on the server and all clients (0.10.0 changed the start packet to `event_v2`; 0.11.0 adds the `terrain_v1` channel; 0.12.0 adds `world_event_v1`, `world_end_v1` and `sky_profile_v1`). Replace the previous JAR; the namespace, item and key bindings are unchanged since 0.1.2. To obtain a focus, use `/give @s calamidade_awakening:focus`. Reassign custom shortcuts in Controls.
 
 English is the fallback for interface text. Brazilian Portuguese is available through Minecraft's language setting.
 

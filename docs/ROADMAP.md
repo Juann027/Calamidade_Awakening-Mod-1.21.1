@@ -116,6 +116,13 @@
 - Atlas Estelar refeito como placas paradas no mundo (engenharia adaptada do menu holográfico do RespectCraft), visual de astrolábio, abas de habilidades, qualidade, acessibilidade, terreno e diagnóstico. Consulte ATLAS-0.11.2.md.
 - Testes em jogo novos: `testeMedicao` e `testeAtlas`.
 
+### 0.12.0 — Sky & World Events
+
+- **Sky API:** camadas de céu por direção (buraco negro com lente gravitacional que entorta céu e terreno distante, portal para outra galáxia, eclipse, fenda, astro gigante com fases e anéis, aurora e raios ao longe), procedurais, com parâmetros por trilha; um passe `sky` do motor, primeiro do quadro, fora do orçamento, 2/4/6/8 camadas por perfil. O sol e a lua do jogo são apagados por subtração da mesma textura. Consulte CEU-0.12.md.
+- **Eventos globais (`WorldEvents`):** escopos AREA, DIMENSION e SERVER, entrada tardia na fase certa (login, troca de dimensão, respawn), persistência opcional, limite com prioridades, `/calamidade world`.
+- **Céu por dimensão (`SkyProfiles`):** estados nomeados com transição suave, sincronizados e salvos no mundo; `ProfileSkyEffects` para o motor ser dono do céu inteiro de uma dimensão própria.
+- Exemplo 1.9.0: receitas 22 a 26 (buraco negro, portal, lua gigante, eclipse global, dimensão de teste).
+
 ## Medições pendentes
 
 As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
@@ -129,16 +136,18 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 ## Próximas versões
 
-### 0.12 — Bosses
+### 0.13 — Bosses
 
 Próxima versão planejada.
 
 - **Pontos presos a ossos:** `Point` resolvido pelo cliente a partir de ossos de rigs (GeckoLib ou outro) por um gancho registrado pelo mod do rig, sem o Calamidade depender do GeckoLib; feixes, luzes e dublês saindo da mão ou da boca do chefe.
 - **BossBar API:** barra do chefe sincronizada às fases da Timeline (nome do golpe, fase, vulnerabilidade), com estilo próprio e acessibilidade de tamanho e contraste.
-- **Qualidade automática:** o cliente ajusta LOW/BALANCED/HIGH pelo tempo de quadro medido (com histerese), respeitando o perfil escolhido como teto.
+- Um chefe de exemplo que dispara o eclipse global da 0.12 na fase final.
 
-### Depois da 0.12
+### Depois da 0.13
 
+- **Perfis de céu em JSON de datapack:** codec de `Sky`, `Atmosphere` e `SkyProfile`, recarga com `/reload` e envio do perfil inteiro aos clientes (hoje os perfis são definidos em código).
+- Sky API: camadas desenhadas também de noite sobre o sol (eclipse "fantástico" fora do horário), nuvens próprias e lentes que entortam feixes e efeitos de addons.
 - Trail API (rastros e marcas): fitas com histórico de posições para entidades, projéteis e pontas de feixe; marcas que ficam no chão por um tempo.
 - Títulos e HUD cinematográficos sincronizados à Timeline.
 - Ramificações de feixes (raios que se dividem) e feixes curvos.

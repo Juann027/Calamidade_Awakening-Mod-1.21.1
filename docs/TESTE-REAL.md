@@ -205,6 +205,23 @@ Antes, os testes automáticos: `./gradlew testeJogo`, depois `xvfb-run -a ./grad
 
 Registre para cada caso o que viu; nos casos 85, 87 e 91, uma captura ou vídeo curto.
 
+## Parte 10 — céu, eventos globais e céu por dimensão (0.12.0)
+
+Motor 0.12.0 e vfx-sample 1.9.0 nos dois lados (servidor e clientes: canais novos). Teste de dia e de noite, com F7 aberto. Os casos 99 e 100 precisam de **dois jogadores**.
+
+| # | Passos | Esperado |
+|---|---|---|
+| 93 | `/vfxsample receita buraco_negro` olhando para montanhas, ao anoitecer. | O buraco surge à frente, cresce até ~64 graus: sombra negra, anel de fótons fino e brilhante, disco largo inclinado atravessando a sombra, metade de trás dobrada por cima; estrelas e cristas distantes entortam em arco sem recorte; o terreno perto não entorta; colapsa com clarão. F7 "Céu: 1 camadas · passe sim". Anote o FPS antes e no auge. |
+| 94 | `/vfxsample receita portal_galaxia` e `lua_gigante`. | Portal: fissura que pisca e solta arcos, anel abrindo, galáxia girando por dentro, fecha. Lua: nasce cortada pelo horizonte, cruza o céu com anéis e muda de fase. |
+| 95 | Acessibilidade: repita 93 e 94 com intensidade dos efeitos de tela 0, com "ocultar clarões" e com "efeitos de movimento" desligado. | Intensidade 0: sem clarões nem escurecimento; camadas iguais. Ocultar clarões: sem clarão do colapso, fissura sem piscar. Movimento desligado: disco e galáxia parados, lente mais fraca. |
+| 96 | De dia, olhando o sol: `/vfxsample evento eclipse start`; espere 20 s. | O sol quadrado do jogo vira um disco redondo; a lua só aparece onde cobre o sol; na totalidade, coroa, estrelas, mundo a ~15% do brilho, raios caindo ao longe (escondidos pelos morros na frente), trovão. F7 "Eventos globais: 1", "Céu: 2 camadas". Nenhum quadrado ou borda onde o sol estava. |
+| 97 | Durante a totalidade: vá ao Nether (acima do teto e embaixo), ao End e à dimensão de teste (`/vfxsample dimensao`); morra e renasça; saia e entre de novo no servidor. | O evento aparece em todas (Nether e End: num ponto fixo ao sul; embaixo do teto do Nether, só o escurecimento). Depois do respawn e do relogin, na totalidade de novo, sem recomeçar. |
+| 98 | Reinicie o servidor (dedicado) durante a totalidade; entre. `/calamidade world list`. | O eclipse continua na totalidade; a lista mostra o tempo crescendo de onde parou. `/vfxsample evento eclipse release`: o sol volta em 16 s, com o anel de diamante (sem clarão com "ocultar clarões"). |
+| 99 | **Dois jogadores**: A no Overworld, B no Nether (ou na dimensão de teste); `start` do eclipse. | Os dois veem o mesmo eclipse ao mesmo tempo, cada um no próprio céu; os raios caem em volta de cada um, no mesmo ritmo. `stop`: some para os dois. |
+| 100 | **Dois jogadores** na dimensão de teste: A roda `/vfxsample ceu ameaca`, depois `caos`; B entra na dimensão depois. | Os dois veem a mesma transição de 5 s; B chega no estado atual. Em "caos" o céu do jogo (sol, lua, estrelas) some e fica o do motor. Reinicie o servidor: o estado continua. Volte para o Overworld: céu normal. |
+| 101 | `/calamidade world list`, `stop <id>`, `release <id>` sem permissão e com permissão 2; `worldEventsMax = 1` na config do servidor e dois eventos. | Sem permissão, o comando não existe. Com o limite em 1, o segundo evento só entra se tiver prioridade maior (troca o primeiro). |
+| 102 | Opcional: com Iris/Oculus e um shader pack. | Anote o que acontece (o pack troca o céu; o sol pode não ser apagado). |
+
 ## Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.

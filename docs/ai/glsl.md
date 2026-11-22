@@ -12,7 +12,7 @@ Conferido com `javap -c` em `cyou.rimuru.rimulib.mc1211.client.render.ShaderProg
 4. Não há recursão (um arquivo incluído não pode incluir outro) nem busca no namespace do motor.
 5. O vertex shader é fixo: um triângulo de tela cheia com `out vec2 texCoord`; a saída é `out vec4 fragColor`.
 
-**Consequência para addons:** para usar `calamidade_fx.glsl`, copie-o para `assets/<seu_namespace>/shaders/fx/calamidade_fx.glsl`. O `scripts/novo_efeito.py` faz isso, e o `checkShaders` do build falha se uma cópia dentro deste repositório divergir da do motor. A biblioteca tem `#define CA_FX_VERSION 2` (0.9.0) para você conferir a versão.
+**Consequência para addons:** para usar `calamidade_fx.glsl`, copie-o para `assets/<seu_namespace>/shaders/fx/calamidade_fx.glsl`. O `scripts/novo_efeito.py` faz isso, e o `checkShaders` do build falha se uma cópia dentro deste repositório divergir da do motor. A biblioteca tem `#define CA_FX_VERSION 3` (0.12.0; 2 na 0.9.0) para você conferir a versão.
 
 ## O que o common.glsl já oferece
 
@@ -62,8 +62,17 @@ Arquivo: `src/main/resources/assets/calamidade_awakening/shaders/fx/calamidade_f
 | `float caSegmentLight(p, n, a, b, alcance, queda)` | 0..1 | Igual, a partir do ponto mais próximo do segmento AB (luz de feixe). |
 | `float caGroundLight(p, n, centro, raio, largura, altura, anel)` | 0..1 | Disco (anel = 0) ou anel (1) de luz no chão; alcance vertical `altura`; faces para cima 100%, paredes 40%, tetos 0. |
 | `vec3 caLitColor(base, luz)` | cor | `base + base^0,4 × 0,8 × luz`: soma a luz sobre o albedo estimado (realça superfícies escuras de noite). |
+| `vec3 caSkyDir(azimute, elevação)` | direção | Versão 3 (0.12.0). Radianos, convenção do Minecraft (0 = sul, PI/2 = oeste); igual a `Sky.Direction.of`. |
+| `float caAngle(a, b)` | radianos | Ângulo entre direções, estável perto de 0 e de PI. |
+| `mat3 caSkyBasis(centro, giro)` | (direita, cima, centro) | Base do céu em volta de uma direção, "cima" para o zênite; `giro` em radianos. |
+| `vec2 caSkyLocal(dir, base)` | coordenadas locais | Projeção azimutal equidistante: o comprimento é o ângulo até o centro (círculos no céu continuam círculos). |
+| `vec3 caSkyFromLocal(local, base)` | direção | Inversa de `caSkyLocal`. |
+| `vec2 caLensSource(theta, einstein, alcance)` | coordenadas locais | Lente de massa pontual: de onde vem a luz vista em `theta`; some sem quina até `alcance`. |
+| `float caDisc(r, raio, borda)` | 0..1 | Disco com borda suave. |
+| `float caNoise2(p)`, `float caFbm2(p, oitavas)` | 0..1 | Ruído de valor e soma de 2 a 4 oitavas, sem depender do `common.glsl`. |
+| `vec3 caVanillaSky(dir, céu, névoa, distância)` | cor | Estimativa do céu que o jogo pinta numa direção (a do passe de atmosfera). |
 
-Testes: `node scripts/testar_glsl.cjs` compila a biblioteca em GLSL ES 3.00 e executa os casos numa GPU (WebGL2 no Chromium headless), comparando com valores esperados. O `checkShaders` do Gradle compila cada shader do motor e do exemplo em GLSL 1.50, com o `common.glsl` real e os `#include` resolvidos como a RimuLib faz. `node scripts/previa_passes.cjs` roda os passes `beams` e `lights` do motor, com o `common.glsl` real, sobre uma cena sintética com profundidade e grava PNGs em `build/previa/` (prévia da aparência e da oclusão sem o jogo).
+Testes: `node scripts/testar_glsl.cjs` compila a biblioteca em GLSL ES 3.00 e executa os casos numa GPU (WebGL2 no Chromium headless), comparando com valores esperados. O `checkShaders` do Gradle compila cada shader do motor e do exemplo em GLSL 1.50, com o `common.glsl` real e os `#include` resolvidos como a RimuLib faz. `node scripts/previa_passes.cjs` roda os passes `beams` e `lights` do motor, com o `common.glsl` real, sobre uma cena sintética com profundidade e grava PNGs em `build/previa/` (prévia da aparência e da oclusão sem o jogo); `node scripts/previa_passes.cjs ceu` (0.12.0) roda os passes `sky` e `atmosphere` sobre montanhas com o sol do jogo.
 
 ## Convenções
 

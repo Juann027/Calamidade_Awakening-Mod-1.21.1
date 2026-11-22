@@ -77,11 +77,20 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - Mundo (0.11.1): luz, mapas de altura, POI, contadores e salvamento como o `setBlock`; a casca externa recebe atualização de forma, de vizinho e tick de fluido no fim (sem cascata); dados de block entity vão ao cliente. Só chunks FULL; nada é carregado.
 - Capítulo: `docs/TERRENO-0.11.md`. Receitas: 18 (raio e trincheira), 19 (meteoro), 20 (cratera simples), 21 (torre que cai).
 
+### 3f. Céu, eventos globais e céu por dimensão (opcional, 0.12.0)
+
+- **Camadas de céu:** `Effects.sky(id, Sky.blackHole()|portal()|eclipse()|rift()|body()|aurora()|bolts()...build())` depois de `register` e `timeline` (até 6). Âncora: `direction(azimute, elevação)` (0 = sul, 90 = oeste), `toward(x, y, z)`, `centerOffset(x, y, z)` (referencial da instância: com `Placement` e o yaw do jogador, nasce à frente dele) ou `onSun()`/`onMoon()`. Trilhas: `SIZE`, `PROGRESS` (abertura, cobertura, fase, atividade), `LENS`, `DARKEN`, `AZIMUTH`/`ELEVATION` (graus somados), `ROTATION`, `SPIN`, `TILT`, `INTENSITY`, `WEIGHT`.
+- O motor pinta tudo no passe `sky` (primeiro do quadro, fora do orçamento, 2/4/6/8 camadas por perfil) e apaga o sol e a lua do jogo sob camadas presas a eles. `darken` escurece o mundo com as regras da atmosfera (intensidade, "ocultar clarões"). Sem shader próprio.
+- **Evento global:** `WorldEvents.start(id, Scope.SERVER|DIMENSION|AREA, nível, Options.defaults().persistent(true).priority(80))` → `Handle` (`release`, `stop`); `WorldEvents.get(server, id)`. O efeito usa Timeline com sustain, Sky e Atmosphere; cues rodam na origem; quem entra depois cai na fase certa; até `worldEventsMax` (4) eventos, um por efeito. `/calamidade world list|stop|release`.
+- **Céu da dimensão:** `SkyProfiles.define(dim, SkyProfile.builder().state("calmo", State...).initial("calmo").build())` no construtor; `SkyProfiles.setState(server, dim, "caos", 100)` no servidor. Camadas e atmosfera de perfil são constantes (sem trilhas). Para trocar o céu inteiro da sua dimensão: `ProfileSkyEffects` no `RegisterDimensionSpecialEffectsEvent` e `vanillaSky(false)` no estado.
+- Raios reais com dano continuam nos cues; `Sky.bolts()` é só visual.
+- Capítulo: `docs/CEU-0.12.md`. Receitas: 22 (buraco negro), 23 (portal), 24 (lua gigante), 25 (eclipse global), 26 (dimensão de teste). Prévia sem o jogo: `node scripts/previa_passes.cjs ceu`.
+
 ### 4. Pós-processamento e shader
 
 - Cliente (`FMLClientSetupEvent`): `AddonLayers.post(id, post -> { var t = post.timeline(); post.pass("ns:programa", u -> {...}); post.bloom(...); })`.
 - Shader em `assets/<ns>/shaders/fx/<programa>.fsh`. A RimuLib antepõe `#version 150` e `common.glsl`. Leia `DiffuseSampler`, some o efeito, escreva `fragColor`. Centro e posições são relativos à câmera (`post.center()`, `scenePosAt`).
-- Biblioteca: `#include "calamidade_fx.glsl"` (copie o arquivo para o seu namespace): `caRayBox`, `caRaySphere`, `caSegmentGlow`, `caWorldGrid`, `caRainbow`, `caEnvelope`, `caDistanceWave`, `caStars`. Documentação: `docs/ai/glsl.md`.
+- Biblioteca: `#include "calamidade_fx.glsl"` (copie o arquivo para o seu namespace; versão 3 desde a 0.12.0): `caRayBox`, `caRaySphere`, `caSegmentGlow`, `caWorldGrid`, `caRainbow`, `caEnvelope`, `caDistanceWave`, `caStars`, e as de céu `caSkyDir`, `caSkyBasis`, `caSkyLocal`, `caLensSource`, `caNoise2`, `caFbm2`, `caVanillaSky`. Documentação: `docs/ai/glsl.md`.
 - Trilhas como uniforms: `post.uploadTracks(u, "Track_")`.
 - Capítulo: `docs/AVANCADO-0.6.md`. Receitas: 1 (profundidade), 2 (raio-caixa), 3 (raio-esfera), 4 (tela inteira), 5 (segmento).
 - Malha de mundo em vez de shader: `AddonLayers.world` (`triangle`, `ribbon`; confira `remainingVertices()`). Receita: 6.
@@ -100,12 +109,15 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 ### 7. Teste
 
 1. `./gradlew build` (inclui `checkShaders`, `checkApiDocs`, `checkRecipes`), `./gradlew dist`, build do addon. Feixes e luzes: `node scripts/previa_passes.cjs` mostra os passes reais numa cena sintética antes do jogo.
-2. No jogo: comando do efeito; **F7** (passes de pós, vértices, "Fontes", "Protagonistas (HERO)", "Feixes", "Luzes", "Terreno: zonas quentes · dublês · passe", "Malhas de dublê", "Atmosfera: N ativas · passe sim/não"); **F8** em LOW, BALANCED, HIGH e ULTRA (desde a 0.11.2 o padrão é AUTO; força um perfil para comparar; os limites de cada perfil estão em PRIORIDADE-0.9.md e na aba Qualidade do Atlas, tecla N); intensidade dos efeitos de tela em 0; "ocultar clarões" ligado; "Efeitos de movimento" desligado. Efeitos orientados: teste virado para vários lados; gatilhos: `/calamidade status` (ativas por fonte e recusas).
+2. No jogo: comando do efeito; **F7** (passes de pós, vértices, "Fontes", "Protagonistas (HERO)", "Feixes", "Luzes", "Terreno: zonas quentes · dublês · passe", "Malhas de dublê", "Atmosfera: N ativas · passe sim/não", desde a 0.12.0 "Céu: N camadas · passe sim/não", "Eventos globais: N" e "Céu da dimensão: estado"); **F8** em LOW, BALANCED, HIGH e ULTRA (desde a 0.11.2 o padrão é AUTO; força um perfil para comparar; os limites de cada perfil estão em PRIORIDADE-0.9.md e na aba Qualidade do Atlas, tecla N); intensidade dos efeitos de tela em 0; "ocultar clarões" ligado; "Efeitos de movimento" desligado. Efeitos orientados: teste virado para vários lados; gatilhos: `/calamidade status` (ativas por fonte e recusas).
 3. Carga: `/calamidade bench <n> <efeito>` e `/calamidade_client record 30` (CSV em `calamidade_bench/`).
 4. Mexeu na Terrain API do motor (`terrain/`)? Rode os testes em jogo: `./gradlew testeJogo` (servidor dedicado sem tela, mundo plano, 51 verificações com reinício) e `xvfb-run -a ./gradlew testeCliente` (cliente, luz e imagem). Cenário novo: `src/testeJogo/java/.../teste/Roteiro.java` (mundo só dentro de `no(...)`, na thread do servidor) e `RoteiroCliente.java`. `-PtesteMods=<pasta>` instala outros mods (Sodium, ScalableLux, C2ME...).
 5. Roteiro manual: `docs/TESTE-REAL.md`. Registre o que mediu em `docs/VALIDACAO.md`.
 
 ## Orçamento e limites
+
+Desde a 0.12.0: camadas de céu 2/4/6/8 por quadro (LOW/BALANCED/HIGH/ULTRA) num passe próprio fora do orçamento; eventos globais até 4 (config SERVER). Os números abaixo são os da 0.11.1 (os perfis medidos da 0.11.2 estão em `docs/PRIORIDADE-0.9.md`).
+
 
 | Recurso | LOW | BALANCED | HIGH |
 |---|---|---|---|

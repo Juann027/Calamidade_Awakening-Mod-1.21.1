@@ -109,6 +109,8 @@ Por que a névoa do jogo e não só a do passe: o jogo aplica a névoa em cada f
 
 **Plano B na tela.** Alguns shader packs ignoram a névoa do jogo. Para esses casos há a opção de cliente **"Névoa da atmosfera pela névoa do jogo"** (`vanillaFog`, padrão ligado). Desligada, o motor não mexe nas distâncias do jogo e o próprio passe aplica a névoa pela profundidade (`scenePosAt`): `fogDensity × smoothstep(fogStart, fogEnd, distância)`. Nesse modo, geometria translúcida recebe a névoa do que está atrás dela.
 
+**Com camadas de céu (0.12.0).** Quando o passe `sky` roda no quadro (há camadas da Sky API), ele pinta o céu da atmosfera (a mesma conta, em `calamidade_sky.glsl`) antes de escurecer o mundo e de desenhar as camadas, e este passe deixa os pixels de céu como estão. Veja [CEU-0.12.md](CEU-0.12.md).
+
 **Exposição e tinta.** Depois do céu e da névoa, o passe multiplica a cena pela exposição e mistura a tinta normalizada pela força.
 
 ## Acessibilidade
