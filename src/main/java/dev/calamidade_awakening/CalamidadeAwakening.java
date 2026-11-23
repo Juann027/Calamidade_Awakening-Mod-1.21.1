@@ -16,11 +16,10 @@ public final class CalamidadeAwakening {
     public static final RimuMod RIMU = RimulibApi.connect(ID, CalamidadeAwakening.class);
 
     /**
-     * Build kind (0.14 in development): "release" only on a published release. A development build of the custom sky
-     * branch keeps the version number of the last release (0.12.0) but is not that JAR; it says so in the log, in the
-     * mod list description and in F7, so nobody mistakes it for the published file.
+     * Build kind: "release" on a release candidate or a published release. A development build says what it is in the
+     * log, in the mod list description and in F7, so nobody mistakes it for a published file.
      */
-    public static final String BUILD = "desenvolvimento 0.14 (céu personalizado, fase 4, integrado à 0.13) — não é o release v0.13.0";
+    public static final String BUILD = "release";
 
     public CalamidadeAwakening(IEventBus bus, ModContainer container) {
         if (!"release".equals(BUILD))

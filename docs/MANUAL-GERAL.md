@@ -3084,7 +3084,7 @@ A versão do build continua 0.12.0. O JAR deste branch é de desenvolvimento (SH
 | `node scripts/referencia_ceu.cjs` | 47/47 | as 38 cenas anteriores com diferença **zero** (média 0, pior 0) depois da refatoração de `sky_objects.glsl` e do `sky.fsh`; 9 cenas novas de imagens gravadas numa rodada e reproduzidas iguais na seguinte |
 | `node scripts/fundo_composicao.cjs` | 9/9 | igual à fase 2 |
 | `node scripts/objetos_composicao.cjs` | 43/43 | os 24 da fase 3 e 19 novos (I1 a I8), cada um com controle negativo que falha como esperado |
-| `xvfb-run ./gradlew testeImagens` (novo) | 27/27 | numa só inicialização; ver abaixo |
+| `xvfb-run ./gradlew testeImagens` (novo) | 27/27 registrado; correto: 25/25 | numa só inicialização; ver abaixo e a nota de correção |
 | `xvfb-run ./gradlew testeEstrelas` | 20/20 | regressão: `SkyObjectsFrame` mudou |
 | `xvfb-run ./gradlew testeBackdrop` | 34/34 | regressão: o cache de texturas do fundo mudou |
 | `xvfb-run ./gradlew testeCeu` | 20/20 | regressão: `FRONT` entra no passe `sky` |
@@ -3098,8 +3098,8 @@ A versão do build continua 0.12.0. O JAR deste branch é de desenvolvimento (SH
    - Prova: caso I6; o controle negativo com mipmaps do driver vaza 49/255.
 2. A primeira rodada do `testeImagens` mostrou a imagem com a textura do cubemap. `ShaderInstance.setDefaultUniforms` grava `Sampler0..11` com `RenderSystem.getShaderTexture(i)` (javap `-c`), e o motor definia o amostrador antes dela.
    - Correção: amostradores definidos depois de `setDefaultUniforms`.
-   - Prova: a rodada seguinte, completa, deu 27/27.
-3. Uma primeira tentativa de interromper essa rodada não parou o processo. A rodada antiga e a nova dividiram `run/teste-imagens`, e o relatório misturado foi descartado. A rodada válida é a de 27/27, sozinha. Isso é infraestrutura, não um defeito do motor.
+   - Prova: a rodada seguinte, completa, passou sem falhas (25 verificações; veja a nota de correção do "27/27").
+3. Uma primeira tentativa de interromper essa rodada não parou o processo. A rodada antiga e a nova dividiram `run/teste-imagens`, e o relatório misturado foi descartado. A rodada válida é a completa, sozinha (o relatório desta rodada não foi guardado; o roteiro `RoteiroImagens` tem 25 verificações, idêntico na integração, que deu 25/25: o "27" é erro de transcrição, não duas verificações a mais). Isso é infraestrutura, não um defeito do motor.
 
 **`testeImagens` (llvmpipe, 1280 × 720):**
 - Sem addon: nada; nenhuma textura de sprite e nenhuma camada de frente alocada.
