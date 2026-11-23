@@ -284,6 +284,8 @@ public final class PerfOverlay {
                     : objCoverage ? Component.translatableWithFallback(PREFIX + "yes", "yes")
                     : Component.translatableWithFallback(PREFIX + "no", "no")));
         lines.add(Component.translatableWithFallback(PREFIX + "world", "Global events: %s", worldEvents));
+        if (!"release".equals(dev.calamidade_awakening.CalamidadeAwakening.BUILD))
+            lines.add(Component.literal("Build: " + dev.calamidade_awakening.CalamidadeAwakening.BUILD));
         if (skyState != null)
             lines.add(Component.translatableWithFallback(PREFIX + "skystate", "Dimension sky: %s", skyState));
         if (CostProbe.running()) lines.add(Component.literal(CostProbe.status()));

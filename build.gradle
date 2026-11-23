@@ -88,6 +88,16 @@ neoForge {
             programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
         }
+        // 0.14 (fase 3): estrelas, constelações e nebulosas em jogo, com o vfx-sample em mods/.
+        testeEstrelas {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = layout.projectDirectory.dir('run/teste-estrelas').asFile
+            systemProperty 'calamidade.teste', 'estrelas'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
         // 0.11.2: medição de custo por efeito e por passe (CostProbe), cliente com o vfx-sample em mods/.
         testeMedicao {
             client()
@@ -690,5 +700,47 @@ tasks.register('testeBackdrop') {
         lines.findAll { it.startsWith('INFO') }.each { logger.lifecycle(it) }
         logger.lifecycle("testeBackdrop: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeBackdrop:\n' + failed.join('\n'))
+    }
+}
+
+// 0.14 (fase 3): teste das estrelas e nebulosas (xvfb-run ./gradlew testeEstrelas), no mundo do testeJogo e com o
+// vfx-sample: nada sem addon, cor exata (NORMAL), fundo preservado (LUMINOUS), nebulosa semitransparente e COVER,
+// Atmosphere com a camada de cobertura, estrelas no eclipse, bloqueios, customSkies, perfis de qualidade (teto de
+// estrelas, uma chamada por campo), recarga, custo e regressão do Overworld. Relatório em
+// run/teste-estrelas/calamidade-estrelas.txt (PASS/FAIL afirmam; INFO mede).
+def testeEstrelasDir = layout.projectDirectory.dir('run/teste-estrelas').asFile
+def prepararTesteEstrelas = tasks.register('prepararTesteEstrelas') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo e o JAR do vfx-sample para run/teste-estrelas.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteEstrelas: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        def sample = fileTree('examples/vfx-sample/build/libs') { include 'vfx-sample-*.jar'; exclude '*-sources.jar' }
+        if (sample.isEmpty()) throw new GradleException('prepararTesteEstrelas: rode ./gradlew -p examples/vfx-sample build antes')
+        ['saves', 'mods', 'screenshots', 'logs', 'config'].each { project.delete(new File(testeEstrelasDir, it)) }
+        project.delete(new File(testeEstrelasDir, 'calamidade-estrelas.txt'))
+        project.copy { from world; into new File(testeEstrelasDir, 'saves/teste'); exclude 'session.lock'; exclude 'data/calamidade_awakening_*' }
+        project.copy { from sample; into new File(testeEstrelasDir, 'mods') }
+        new File(testeEstrelasDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'lang:pt_br',
+            'maxFps:260', 'enableVsync:false'].join('\n') + '\n'
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteEstrelas') task.dependsOn prepararTesteEstrelas }
+tasks.register('testeEstrelas') {
+    group = 'verification'
+    description = 'Roda o teste em jogo das estrelas e nebulosas (precisa de tela: xvfb-run) e falha se alguma afirmação falhar.'
+    dependsOn 'runTesteEstrelas'
+    doLast {
+        def report = new File(testeEstrelasDir, 'calamidade-estrelas.txt')
+        if (!report.exists()) throw new GradleException('testeEstrelas: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM estrelas')) failed << "FAIL roteiro incompleto (falta 'FIM estrelas')"
+        lines.findAll { it.startsWith('INFO') }.each { logger.lifecycle(it) }
+        logger.lifecycle("testeEstrelas: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeEstrelas:\n' + failed.join('\n'))
     }
 }

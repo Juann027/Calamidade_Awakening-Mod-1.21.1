@@ -5,7 +5,9 @@ license="MIT"
 modId="calamidade_awakening"
 version="0.12.0"
 displayName="Calamidade_Awakening"
-description="Modular procedural visual effects for Minecraft, powered by the RimuLib API."
+# 0.14 em desenvolvimento (branch claude/ceu-personalizado): o JAR deste branch NÃO é o release v0.12.0 publicado
+# (outro SHA-256, API e shaders novos). Não distribua; o release 0.14 tira este aviso (BUILD = "release" em CalamidadeAwakening).
+description="Modular procedural visual effects for Minecraft, powered by the RimuLib API. [DEVELOPMENT BUILD of 0.14 (custom sky) — not the published v0.12.0 release; do not distribute]"
 # Must match version in build.gradle (checkModVersion fails the build otherwise).
 # Network protocol of 0.12.0 (event_v2 carries orientation and source; terrain_v1 terrain edits; world_event_v1 and world_end_v1 global events, new in 0.12.0): run the same engine version on the server and on every client.
 [[dependencies.calamidade_awakening]]

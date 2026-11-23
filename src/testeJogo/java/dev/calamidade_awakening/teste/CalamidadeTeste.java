@@ -55,6 +55,7 @@ public final class CalamidadeTeste {
         registrar(ENTIDADES, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto").replacingBlockEntities().noHeat().build());
         registrarCeu();
         registrarFundos();
+        registrarEstrelas();
         NeoForge.EVENT_BUS.register(Protecao.class);
         NeoForge.EVENT_BUS.addListener((ChunkDataEvent.Save event) -> SALVOS.add(event.getChunk().getPos().toLong()));
         NeoForge.EVENT_BUS.addListener(CalamidadeTeste::started);
@@ -64,6 +65,8 @@ public final class CalamidadeTeste {
         if (FMLEnvironment.dist == Dist.CLIENT && "ceu".equals(System.getProperty("calamidade.teste"))) RoteiroCeu.registrar();
         // 0.14: teste do Backdrop (fase 2: os fundos reais do motor, registrados em registrarFundos).
         if (FMLEnvironment.dist == Dist.CLIENT && "backdrop".equals(System.getProperty("calamidade.teste"))) RoteiroBackdrop.registrar();
+        // 0.14 (fase 3): estrelas, constelações e nebulosas (registradas em registrarEstrelas).
+        if (FMLEnvironment.dist == Dist.CLIENT && "estrelas".equals(System.getProperty("calamidade.teste"))) RoteiroEstrelas.registrar();
     }
 
     private static ResourceLocation id(String path) { return ResourceLocation.fromNamespaceAndPath(ID, path); }
@@ -144,6 +147,46 @@ public final class CalamidadeTeste {
         Effects.backdrop(FUNDO_ATMO, Backdrop.cubemap(CUBO).build());
     }
 
+    // 0.14 (fase 3): objetos do céu para o testeEstrelas. Celestial desligado nos de sonda (direção fixa na tela).
+    static final ResourceLocation EST_CAMPO = id("est_campo"), EST_DENSO = id("est_denso"), EST_CATALOGO = id("est_catalogo"),
+        EST_NEBULOSA = id("est_nebulosa"), EST_COBRE = id("est_cobre"), EST_ATMO = id("est_atmo"), EST_VITRINE = id("est_vitrine"),
+        EST_FAIXA = id("est_faixa");
+    /** Estrela vermelha NORMAL do catálogo, no sul a 30 graus de altura. */
+    static final int EST_VERMELHA = 0xff2010;
+    /** Cor única das nebulosas de sonda. */
+    static final int EST_NEB = 0xff40a0;
+
+    private static void registrarEstrelas() {
+        var def = new Effects.Definition(12000, 8, 0xffffffff, Effects.Shape.NONE, Effects.Material.NONE, null, null).withRange(1024);
+        Effects.register(EST_CAMPO, def);
+        Effects.stars(EST_CAMPO, dev.calamidade_awakening.api.v1.StarField.random(42, 6000).magnitudes(-1, 6).band(90, 30, 14, .5f).build());
+        Effects.register(EST_DENSO, def);
+        Effects.stars(EST_DENSO, dev.calamidade_awakening.api.v1.StarField.random(7, 60000).build());
+        Effects.register(EST_CATALOGO, def);
+        Effects.stars(EST_CATALOGO, dev.calamidade_awakening.api.v1.StarField.catalog()
+            .star("a", 0, 30, -1.5f, 0xff000000 | EST_VERMELHA).star("b", 12, 38, 1, 0xffffffff).star("c", -12, 40, 1.2f, 0xffffffff)
+            .constellation(0xc0a0b8ff, "c", "a", "b").size(8).blend(dev.calamidade_awakening.api.v1.SkyBlend.NORMAL)
+            .daylight(0).celestial(false).horizon(0).twinkle(0, 0).build());
+        Effects.register(EST_NEBULOSA, def);
+        Effects.nebulae(EST_NEBULOSA, dev.calamidade_awakening.api.v1.Nebula.cloud(0, 30, 16).colors(0xff000000 | EST_NEB, 0xff000000 | EST_NEB)
+            .density(.5f).daylight(0).celestial(false).horizon(0).build());
+        Effects.register(EST_COBRE, def);
+        Effects.nebulae(EST_COBRE, dev.calamidade_awakening.api.v1.Nebula.cloud(0, 30, 16).colors(0xff000000 | EST_NEB, 0xff000000 | EST_NEB)
+            .density(1).blend(dev.calamidade_awakening.api.v1.SkyBlend.COVER).daylight(0).celestial(false).horizon(0).build());
+        Effects.register(EST_ATMO, def);
+        Effects.atmosphere(EST_ATMO, dev.calamidade_awakening.api.v1.Atmosphere.builder().sky(ATMO_TOPO, ATMO_HORIZONTE, ATMO_MISTURA).build());
+        Effects.register(EST_FAIXA, def);
+        Effects.nebulae(EST_FAIXA, dev.calamidade_awakening.api.v1.Nebula.band(90, 30, 9).colors(0xb0fff0d8, 0x50607090).density(.55f).build());
+        Effects.register(EST_VITRINE, def);
+        Effects.stars(EST_VITRINE, dev.calamidade_awakening.api.v1.StarField.random(42, 8000).magnitudes(-1, 6).band(90, 30, 14, .5f).build(),
+            dev.calamidade_awakening.api.v1.StarField.catalog()
+                .star("a", -20, 40, .5f, 0xffcfe0ff).star("b", -8, 46, 1, 0xffffffff).star("c", 4, 43, .8f, 0xffffe0b0)
+                .star("d", 14, 36, 1.2f, 0xffffc080).star("e", -12, 30, 1.5f, 0xffa0c0ff)
+                .constellation(0x90a0b8ff, "a", "b", "c", "d").constellation(0x90a0b8ff, "b", "e").celestial(false).build());
+        Effects.nebulae(EST_VITRINE, dev.calamidade_awakening.api.v1.Nebula.band(70, 40, 8).colors(0xb0fff0d8, 0x50607090).density(.55f).detail(4).celestial(false).build(),
+            dev.calamidade_awakening.api.v1.Nebula.cloud(24, 28, 12).colors(0xffff70c0, 0x903060ff).seed(321).celestial(false).build());
+    }
+
     /** Voltas do laço do evento global em que o cue rodou (no servidor). */
     static final java.util.concurrent.atomic.AtomicInteger CUES_GLOBAIS = new java.util.concurrent.atomic.AtomicInteger();
 
@@ -156,7 +199,7 @@ public final class CalamidadeTeste {
     private static void started(ServerStartedEvent event) {
         String fase = System.getProperty("calamidade.teste");
         if (fase == null || fase.isBlank() || fase.equals("cliente") || fase.equals("medicao") || fase.equals("atlas")
-            || fase.equals("ceu") || fase.equals("backdrop")) return;
+            || fase.equals("ceu") || fase.equals("backdrop") || fase.equals("estrelas")) return;
         Thread thread = new Thread(new Roteiro(event.getServer(), fase), "Calamidade teste em jogo");
         thread.setDaemon(true);
         thread.start();
