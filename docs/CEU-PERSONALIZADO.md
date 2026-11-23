@@ -1,6 +1,6 @@
 # Custom Sky Engine: arquitetura (0.14 e 0.15)
 
-Documento de trabalho do branch `claude/ceu-personalizado`. Fases 0, 1 e 2 (Backdrop) concluídas e aprovadas; fase 3 (estrelas, constelações e nebulosas) concluída, com a validação registrada em VALIDACAO.md; a fase 4 (imagens, spritesheets e impostors) tem [plano](#fase-4-plano-técnico-aguardando-aprovação) à espera de aprovação e **não começou**. Ainda não é capítulo do manual: entra em `gerar_manual.py` quando a 0.14 for lançada (a versão do build continua 0.12.0 até lá).
+> **Estado:** a 0.14 (fases 0 a 4: Backdrop; estrelas, constelações e nebulosas; imagens, flipbooks e impostors) foi **publicada** no release v0.14.0 (tag no commit `4c9fd40`), integrada sobre a 0.13.0. Testada só por software (servidor dedicado e cliente Mesa llvmpipe); GPU física, shaderpacks e dois jogadores reais continuam pendentes. A 0.15 (Sky Objects & Cinematics) não começou. As seções abaixo são o documento de trabalho do branch `claude/ceu-personalizado`, mantidas como histórico de cada fase (inclusive os planos aprovados antes da implementação). Ainda não é capítulo do `MANUAL-GERAL.md` (`gerar_manual.py`); leia-o aqui.
 
 Marcadores: **[V]** verificado (código, `javap`/fontes do NeoForge 21.1.267, bytecode da RimuLib 1.3.0 ou experimento em jogo, com a fonte indicada); **[H]** hipótese; **[D]** decisão de arquitetura.
 
@@ -385,5 +385,5 @@ Regras que valem para todas: nada novo sem um addon pedir; separação entre def
 - Da 0.15: validar os formatos reais de exportação do Blockbench (Bedrock `.geo.json`, Java, OBJ) e o subconjunto de animação antes de qualquer leitor.
 - GPU física, Iris/Oculus e Sodium/Embeddium com os renderizadores novos (o Backdrop foi medido só por software; nenhuma compatibilidade com shaderpacks ou outros mods é afirmada).
 - Uma receita do vfx-sample com um fundo de céu, estrelas e nebulosas, quando a 0.14 tiver capítulo próprio (nas fases 2 e 3, os exemplos estão no Javadoc, nesta página e no mod de teste).
-- Integrada sobre a 0.13.0 (Boss Engine) na candidata ao release 0.14.0 (branch `claude/integracao-0.13-0.14-u8nraa`): o JAR tem o número 0.14.0 e o aviso de build de desenvolvimento saiu (`CalamidadeAwakening.BUILD = "release"`); não publicada até o workflow de release rodar com a tag `v0.14.0`.
+- Integrada sobre a 0.13.0 (Boss Engine) no release 0.14.0 (branch `claude/integracao-0.13-0.14-u8nraa`): o JAR tem o número 0.14.0 e o aviso de build de desenvolvimento saiu (`CalamidadeAwakening.BUILD = "release"`); **publicada** pelo workflow de release com a tag `v0.14.0` (commit `4c9fd40`, SHA-256 do motor `02851af9…cb0cb7`).
 - Da 0.12.0, continuam: a falha intermitente do limite de 50 ms da cratera grande do `testeJogo` (causa não isolada; nesta rodada passou com 33,6 ms, o que não a resolve) e a pulsação no Overworld (o teste de regressão de céu entre dimensões da fase 2 deu diferença zero com a hora parada, mas a pulsação relatada não foi reproduzida nem explicada).

@@ -244,6 +244,8 @@ void aoEvento(FinisherEvent e) {
 
 Sem Maven: uma task do Gradle baixa `calamidade_awakening-0.10.0.jar` do release do GitHub e a RimuLib do CurseForge, confere os dois por SHA-256 e os põe em `libs/`; o projeto compila com `compileOnly` e roda com `runtimeOnly`. O modelo completo, igual ao projeto real `examples/consumidor` (conferido pelo build), está em [docs/ai/usar-como-dependencia.md](ai/usar-como-dependencia.md), com integração opcional e problemas comuns.
 
+**Versão atual (release v0.14.0):** o modelo e o `examples/consumidor` baixam `calamidade_awakening-0.14.0.jar` (SHA-256 `02851af9f70ae404783bc8eaec985b065221828f0ecad8f35bd22d287bcb0cb7`, também em `SHA256SUMS.txt` do release) e declaram `calamidade_awakening` em `[0.14.0,0.15.0)`. Código escrito para a 0.10 até a 0.13 compila sem mudança (a `api.v1` só cresce; `checkApiCompat` confere as bases 0.12.0, 0.13.0 e 0.14.0, geradas dos JARs publicados). Para subir de versão, troque `calamidadeVersao`, `calamidadeSha256` e a faixa do manifesto juntos; servidor e clientes usam a mesma versão do motor.
+
 O Calamidade 0.10.0 declara `neoforge [21.1,21.2)`: os releases saem da 21.1.267 e a 0.10.0 foi conferida com a 21.1.265 (compilação, testes e o roteiro em jogo; veja [VALIDACAO.md](VALIDACAO.md)). `./gradlew build -Pneoforge.version=21.1.265` repete a conferência.
 
 ## 7. Limites e custo

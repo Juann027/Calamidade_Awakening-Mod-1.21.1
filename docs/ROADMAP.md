@@ -145,13 +145,13 @@ Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **p
 - **BossBar:** barra vanilla mais estilos de cliente (`BossBars`), barra segmentada com nome da fase, fantasma de dano e clarão; acessibilidade de tamanho, contraste, rótulos e "forçar vanilla"; canal `boss_v1`.
 - Chefe de exemplo: o Sentinela do Eclipse (receita 27), que dispara o eclipse da 0.12 em área na fase final.
 
-### 0.14 — Custom Sky (candidata ao release v0.14.0, integrada sobre a 0.13.0; não publicada)
+### 0.14 — Custom Sky (publicada: release v0.14.0, integrada sobre a 0.13.0)
 
-Fases 0 a 4 implementadas no branch `claude/ceu-personalizado` e integradas à Boss Engine da 0.13 em `claude/integracao-0.13-0.14-u8nraa`. **Entrou:** Backdrop (cubemap, panorama, gradiente), estrelas, constelações e nebulosas procedurais, imagens, flipbooks e impostors, `customSkies`. **Adiado** (sem versão definida, ou 0.15 quando indicado): domo procedural, nebulosas e fundos por PNG animado, perfis de céu em JSON de datapack, camadas de noite sobre o sol, nuvens próprias, receita de céu no vfx-sample. **Não testado:** GPU física, dois jogadores reais, shaderpacks e renderizadores alternativos.
+Fases 0 a 4 implementadas no branch `claude/ceu-personalizado` e integradas à Boss Engine da 0.13 em `claude/integracao-0.13-0.14-u8nraa`; **publicada** (release v0.14.0, tag no commit `4c9fd40`). Testada só por software (servidor dedicado e cliente Mesa llvmpipe): GPU física, shaderpacks e dois jogadores reais pendentes. **Entrou:** Backdrop (cubemap, panorama, gradiente), estrelas, constelações e nebulosas procedurais, imagens, flipbooks e impostors, `customSkies`. **Adiado** (sem versão definida, ou 0.15 quando indicado): domo procedural, nebulosas e fundos por PNG animado, perfis de céu em JSON de datapack, camadas de noite sobre o sol, nuvens próprias, receita de céu no vfx-sample. **Não testado:** GPU física, dois jogadores reais, shaderpacks e renderizadores alternativos.
 
 Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 continuam como estão, e nada novo aparece sem um addon pedir. Arquitetura e verificações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
 
-**Entregue na 0.14.0** (candidata):
+**Entregue na 0.14.0:**
 
 - **Backdrop:** cubemap 3 × 2, panorama equirretangular e gradiente, substituição parcial ou completa, sol e lua do jogo redesenhados a pedido (fase 2).
 - **Estrelas, constelações e nebulosas procedurais:** campo por semente, catálogo manual com constelações, composição `SkyBlend` NORMAL, LUMINOUS e COVER, `SkyDarkening` (fase 3).

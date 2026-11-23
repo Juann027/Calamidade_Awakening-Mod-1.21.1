@@ -1,4 +1,4 @@
-# Manual geral do Calamidade_Awakening 0.13.0
+# Manual geral do Calamidade_Awakening 0.14.0
 
 Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
@@ -1437,6 +1437,8 @@ void aoEvento(FinisherEvent e) {
 ### 6. Consumo como dependência
 
 Sem Maven: uma task do Gradle baixa `calamidade_awakening-0.10.0.jar` do release do GitHub e a RimuLib do CurseForge, confere os dois por SHA-256 e os põe em `libs/`; o projeto compila com `compileOnly` e roda com `runtimeOnly`. O modelo completo, igual ao projeto real `examples/consumidor` (conferido pelo build), está em [docs/ai/usar-como-dependencia.md](ai/usar-como-dependencia.md), com integração opcional e problemas comuns.
+
+**Versão atual (release v0.14.0):** o modelo e o `examples/consumidor` baixam `calamidade_awakening-0.14.0.jar` (SHA-256 `02851af9f70ae404783bc8eaec985b065221828f0ecad8f35bd22d287bcb0cb7`, também em `SHA256SUMS.txt` do release) e declaram `calamidade_awakening` em `[0.14.0,0.15.0)`. Código escrito para a 0.10 até a 0.13 compila sem mudança (a `api.v1` só cresce; `checkApiCompat` confere as bases 0.12.0, 0.13.0 e 0.14.0, geradas dos JARs publicados). Para subir de versão, troque `calamidadeVersao`, `calamidadeSha256` e a faixa do manifesto juntos; servidor e clientes usam a mesma versão do motor.
 
 O Calamidade 0.10.0 declara `neoforge [21.1,21.2)`: os releases saem da 21.1.267 e a 0.10.0 foi conferida com a 21.1.265 (compilação, testes e o roteiro em jogo; veja [VALIDACAO.md](VALIDACAO.md)). `./gradlew build -Pneoforge.version=21.1.265` repete a conferência.
 
@@ -3064,6 +3066,55 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 ## 19. Validação, medições e limites
 
+### Versão 0.14.0 — Custom Sky (publicada: release v0.14.0)
+
+**Publicada** (tag `v0.14.0` no commit `4c9fd40`, o mesmo da `main`). Compilada e testada só por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb); GPU física, shaderpacks e dois jogadores reais pendentes (lista completa abaixo, em "Não testado").
+
+#### Depois do release v0.14.0 (23/11/2026)
+
+Anexos baixados do release: `calamidade_awakening-0.14.0.jar` (SHA-256 `02851af9f70ae404783bc8eaec985b065221828f0ecad8f35bd22d287bcb0cb7`), `vfx-sample-1.11.0.jar` (`3de8796ed796a03490fab74758318fae135c2d944b8c79b0d67c9c2ef932a54f`) e `SHA256SUMS.txt`; `sha256sum -c` OK. Nenhum teste em jogo nem benchmark repetido nesta etapa (só documentação, base da API e consumidor).
+
+- Nova base `scripts/api-base/api-v1-0.14.0.txt` (147 classes, 1731 membros), gerada com `java scripts/ApiCompat.java --write` **do JAR publicado**, conferido por SHA-256 antes da geração. O mesmo JAR passa contra as bases 0.12.0 e 0.13.0.
+- `examples/consumidor` passou para a 0.14.0 (faixa `[0.14.0,0.15.0)`, SHA-256 publicado); `docs/ai/usar-como-dependencia.md` sincronizado por `syncRecipes`.
+
+#### Candidata ao release 0.14.0 (23/11/2026, antes da publicação)
+
+Metadados de release: `CalamidadeAwakening.BUILD = "release"` e descrição do `neoforge.mods.toml` sem o aviso de desenvolvimento (o workflow recusa "DEVELOPMENT BUILD"); notas em `.github/release-notes/v0.14.0.md`. Só o texto do log, da lista de mods e do F7 muda: refeitos `./gradlew build dist` e o build do vfx-sample; os testes em jogo da integração abaixo valem sem repetição.
+
+**Correção documental:** a fase 4 registrou `testeImagens` 27/27; o roteiro (`RoteiroImagens.java`, igual nas duas branches) tem 25 verificações, e a integração deu 25/25. O "27/27" foi erro de transcrição (o relatório original não foi guardado); as linhas históricas abaixo e no MANUAL-GERAL foram anotadas.
+
+**Não testado** (nenhuma compatibilidade afirmada): GPU física, dois jogadores reais num servidor dedicado, shaderpacks (Iris/Oculus), renderizadores alternativos (Sodium/Embeddium), mod real com GeckoLib.
+
+### Integração 0.13 + 0.14, branch `claude/integracao-0.13-0.14-u8nraa` (23/11/2026)
+
+Merge comum de `origin/main` (`0fa6bc0`, 0.13.0 publicada) sobre `claude/ceu-personalizado` (`ab2a97d`, 0.14 fases 0–4). Motor **0.14.0** no build (não publicada; JAR de desenvolvimento), vfx-sample **1.11.0** (`[0.14.0,0.15.0)`). Nenhum canal de rede novo: os da 0.13.0, com `boss_v1`. Nova base de compatibilidade `scripts/api-base/api-v1-0.13.0.txt`, gerada do JAR do release v0.13.0 (SHA-256 conferido com o `SHA256SUMS.txt` do release).
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew build dist` | verde: `checkApiCompat` contra 0.12.0 e 0.13.0, `checkApiDocs`, `checkBudget`, `checkFrustum`, `checkModVersion`, `checkRecipes`; `checkShaders` só avisou (sem glslang nesta máquina) |
+| `./gradlew -p examples/vfx-sample build` | verde (`vfx-sample-1.11.0.jar`) |
+| `./gradlew compileTesteJogoJava` | verde |
+
+#### Validação funcional da integração (executada nesta etapa, 23/11/2026, sobre `14e418f`)
+
+Cliente sob Xvfb (Mesa llvmpipe, por software), vfx-sample 1.11.0; um teste por vez, nenhum em paralelo.
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew testeJogo` (servidor dedicado, duas fases) | 82/82 |
+| `xvfb-run -a ./gradlew testeChefe` | 15/15 |
+| `xvfb-run -a ./gradlew testeBackdrop` | 34/34 |
+| `xvfb-run -a ./gradlew testeEstrelas` | 20/20 |
+| `xvfb-run -a ./gradlew testeImagens` | 25/25 |
+| `xvfb-run -a ./gradlew testeCeu` | 20/20 |
+| `./gradlew checkShaders` (glslangValidator 11:15.1.0, instalado nesta etapa) | 21 shaders compilados, sem erro |
+
+Nenhuma falha; nenhuma correção foi necessária.
+
+**Reaproveitados das branches de origem (não executados nesta etapa; o merge não mexeu em shaders, passes, escritor de terreno, perfis de qualidade nem Atlas):** `checkCeuReferencia`, `node scripts/testar_glsl.cjs`, `node scripts/previa_passes.cjs`, `testeCliente`, `testeMedicao`, `testeAtlas`.
+
+**Pendentes:** GPU física, Iris/Oculus e Sodium/Embeddium, dois jogadores reais num servidor dedicado (herdados da 0.12, 0.13 e 0.14).
+
 ### 0.14 (Custom Sky) — fase 4: imagens, flipbooks e impostors, branch `claude/ceu-personalizado` (23/11/2026)
 
 **O motor mudou (só aditivo):**
@@ -4382,15 +4433,28 @@ Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **p
 - **BossBar:** barra vanilla mais estilos de cliente (`BossBars`), barra segmentada com nome da fase, fantasma de dano e clarão; acessibilidade de tamanho, contraste, rótulos e "forçar vanilla"; canal `boss_v1`.
 - Chefe de exemplo: o Sentinela do Eclipse (receita 27), que dispara o eclipse da 0.12 em área na fase final.
 
-#### 0.14 — Custom Sky (proposta aprovada; em desenvolvimento no branch `claude/ceu-personalizado`)
+#### 0.14 — Custom Sky (publicada: release v0.14.0, integrada sobre a 0.13.0)
+
+Fases 0 a 4 implementadas no branch `claude/ceu-personalizado` e integradas à Boss Engine da 0.13 em `claude/integracao-0.13-0.14-u8nraa`; **publicada** (release v0.14.0, tag no commit `4c9fd40`). Testada só por software (servidor dedicado e cliente Mesa llvmpipe): GPU física, shaderpacks e dois jogadores reais pendentes. **Entrou:** Backdrop (cubemap, panorama, gradiente), estrelas, constelações e nebulosas procedurais, imagens, flipbooks e impostors, `customSkies`. **Adiado** (sem versão definida, ou 0.15 quando indicado): domo procedural, nebulosas e fundos por PNG animado, perfis de céu em JSON de datapack, camadas de noite sobre o sol, nuvens próprias, receita de céu no vfx-sample. **Não testado:** GPU física, dois jogadores reais, shaderpacks e renderizadores alternativos.
 
 Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 continuam como estão, e nada novo aparece sem um addon pedir. Arquitetura e verificações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
+
+**Entregue na 0.14.0:**
+
+- **Backdrop:** cubemap 3 × 2, panorama equirretangular e gradiente, substituição parcial ou completa, sol e lua do jogo redesenhados a pedido (fase 2).
+- **Estrelas, constelações e nebulosas procedurais:** campo por semente, catálogo manual com constelações, composição `SkyBlend` NORMAL, LUMINOUS e COVER, `SkyDarkening` (fase 3).
+- **Imagens no céu, flipbooks e impostors:** `SkyImage`, `SkyImpostor`, `layer(FRONT)`, cache `SkyTextures` com orçamento por perfil, ferramenta `gerar_impostor.cjs` (fase 4).
+- Config de cliente `customSkies`; integração com a Boss Engine da 0.13 sem mudança de rede.
+
+**Adiado (não está na 0.14.0; sem versão definida, em "Depois da 0.14"):** domo procedural de Backdrop; nebulosas, galáxias e fundos por PNG animado (além dos flipbooks de `SkyImage`); perfis de céu em JSON de datapack; camadas desenhadas de noite sobre o sol; nuvens próprias; receita de céu no vfx-sample; limites definidos por medição em GPU física.
+
+**Proposta aprovada (histórico, antes da implementação):**
 
 - **Backdrop:** fundo de céu por cubemap de 6 faces, panorama equirretangular, gradiente ou domo procedural; substituição parcial (com transparência) ou completa (cobrindo o céu do jogo e redesenhando só o que o addon pedir: gradiente, sol, lua, estrelas); em dimensões próprias, `ProfileSkyEffects` continua dono do céu inteiro.
 - **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho. **Feito na fase 3** (com nebulosas procedurais e a composição híbrida por objeto: `SkyBlend` NORMAL, LUMINOUS e COVER).
 - **Nebulosas e galáxias:** procedurais e por PNG; fundos animados.
 - **Imagens no céu e impostors:** PNG com transparência, tamanho angular, rotação, cor, brilho, por trilha da Timeline; folhas de sprites, flipbooks, vários ângulos. **Feito na fase 4** (`SkyImage`, `SkyImpostor`, `layer(FRONT)`, cache `SkyTextures` com orçamento por perfil, ferramenta `gerar_impostor.cjs`; modelos 3D reais continuam na 0.15).
-- Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias**.
+- Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias** — os três adiados, não entregues na 0.14.0.
 - Limites e custos definidos por medição (nenhum limite da proposta é definitivo sem benchmark).
 
 #### 0.15 — Sky Objects & Cinematics (proposta aprovada)
@@ -4401,10 +4465,19 @@ Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 con
 - **Integração opcional com entidades** (o addon cuida de IA, vida, dano e spawn), sem duplicar a Boss API da 0.13.
 - Itens desta lista que vieram de "Depois da 0.13" e de "Evolução da API": **lentes que entortam feixes e efeitos de addons** e **cache de malhas estáticas e LOD adaptativo**.
 
+#### Depois da 0.14
+
+Adiados da 0.14 (planejados para ela, não entregues na 0.14.0; versão a definir):
+
+- Perfis de céu em JSON de datapack (codec, `/reload`, envio do perfil inteiro).
+- Camadas desenhadas também de noite sobre o sol; nuvens próprias.
+- Domo procedural de Backdrop; nebulosas, galáxias e fundos por PNG animado.
+- Receita de céu personalizado no vfx-sample; limites de memória e envio medidos em GPU física.
+
 #### Depois da 0.13
 
-- ~~Perfis de céu em JSON de datapack~~ → 0.14.
-- Sky API: ~~camadas desenhadas também de noite sobre o sol~~ e ~~nuvens próprias~~ → 0.14; ~~lentes que entortam feixes e efeitos de addons~~ → 0.15.
+- Perfis de céu em JSON de datapack → planejado para a 0.14, adiado (veja "Depois da 0.14").
+- Sky API: camadas desenhadas também de noite sobre o sol e nuvens próprias → planejadas para a 0.14, adiadas; ~~lentes que entortam feixes e efeitos de addons~~ → 0.15.
 - Trail API (rastros e marcas): fitas com histórico de posições para entidades, projéteis e pontas de feixe; marcas que ficam no chão por um tempo.
 - Títulos e HUD cinematográficos sincronizados à Timeline.
 - Ramificações de feixes (raios que se dividem) e feixes curvos.
