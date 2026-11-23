@@ -1,9 +1,10 @@
 # Bosses (0.13) — Boss API, BossBar API e Rig Anchors
 
-> **Estado:** em desenvolvimento no branch `claude/bosses-0.13`, criado em `8cfd93a` (o `origin/main` do release
-> v0.12.0 mais dois commits só de `VALIDACAO.md`). A 0.13 **não** contém nada da 0.14 (Custom Sky Engine,
-> branch `claude/ceu-personalizado`, intocado). Este capítulo começou como o plano aprovado (Etapa 0) e é atualizado
-> a cada etapa com o que foi realmente feito.
+> **Estado:** implementada no branch `claude/bosses-0.13` (criado em `8cfd93a`, o `origin/main` do release v0.12.0
+> mais dois commits só de `VALIDACAO.md`); **não publicada**. O JAR do branch é `0.13.0` marcado como build de
+> desenvolvimento no `neoforge.mods.toml`. A 0.13 **não** contém nada da 0.14 (Custom Sky Engine, branch
+> `claude/ceu-personalizado`, intocado). As seções 1 a 6 são o plano aprovado (Etapa 0); a seção 7 diz o que foi feito,
+> o que mudou em relação ao plano e o que foi validado.
 
 A 0.13 transforma o Calamidade numa biblioteca para **chefes cinematográficos de addons**. O motor não cria
 criaturas, barras ou eventos sozinho: tudo começa porque um addon pediu.
@@ -54,7 +55,7 @@ static final Boss SENTINELA = Boss.builder(id("sentinela"))
         .segments(true).style(id("calamidade_awakening:segmented")).range(64))
     .phase("despertar", p -> p.enter(DESPERTAR).invulnerable().label("boss.vfxsample.despertar"))
     .phase("combate",   p -> p.sustain(AURA).every(120, ctx -> ctx.start(OLHAR)))
-    .phase("furia",     p -> p.enter(FURIA).worldEvent(ECLIPSE, WorldEvents.Scope.AREA, 96))
+    .phase("furia",     p -> p.enter(FURIA).worldEvent(ECLIPSE, WorldEvents.Scope.AREA))
     .phase("derrota",   p -> p.enter(QUEDA))
     .transition("despertar", "combate", Boss.Trigger.afterTicks(80))
     .transition("combate", "furia", Boss.Trigger.healthBelow(.4f))
@@ -186,3 +187,85 @@ Critérios: chefe com 3 fases, barra e anchors sem GeckoLib; nada aparece sem o 
 com a 0.12.0; `event_v2` igual; só o canal novo `boss_v1`; nenhum pacote por tick; servidor dedicado sem classes de
 cliente; reinício na fase certa; entrada tardia com barra e fase certas; acessibilidade da barra; build, vfx-sample e
 consumidor verdes; resultados em `VALIDACAO.md`; nada da 0.14 no branch.
+
+## 7. O que foi implementado (Etapas 1 a 6)
+
+### Guia rápido para addons
+
+```java
+// 1. Construtor comum do mod: anchors estáticos, efeitos e o chefe.
+RigAnchors.define(EntityType.IRON_GOLEM, "olhos", RigAnchors.Spec.head(0, .05, .35));
+Effects.register(OLHAR, def);                       // feixe saindo dos olhos
+Effects.beams(OLHAR, Beam.builder(Point.socket("olhos", 0, 0, .15), Point.socketAim("olhos", 32)).build());
+Effects.register(AURA, defAura);
+Effects.anchorSocket(AURA, "olhos");                // a instância inteira segue o anchor
+Bosses.define(Boss.builder(ID).bar(Boss.Bar.of(nome).segments(true))
+    .phase("despertar", p -> p.invulnerable().label("boss.meumod.despertar"))
+    .phase("combate", p -> p.sustain(AURA).every(100, ctx -> ctx.start(OLHAR)))
+    .phase("derrota")
+    .transition("despertar", "combate", Boss.Trigger.afterTicks(60))
+    .transition(Boss.ANY, "derrota", Boss.Trigger.death())
+    .build());
+
+// 2. Servidor, quando o addon decidir (comando, altar, spawn próprio):
+Bosses.attach(mob, ID).ifPresent(h -> h.signal("acordar"));
+
+// 3. Cliente (opcional): a pose real do osso, numa RenderLayer ou no renderizador do addon.
+AnchorCapture.capture(mob, "olhos", poseStack.last().pose());
+```
+
+Exemplo completo: receita 27 (`docs/ai/receitas/27-chefe-sentinela.md`, `SentinelaEclipse.java`).
+
+### API pública nova (só adições; `checkApiDocs` com Javadoc em todos os membros)
+
+| Tipo | Membros |
+|---|---|
+| `Boss` | `builder(id)`; `Builder.bar`, `phase(nome, setup)`, `phase(nome)`, `transition(de, para, gatilho)`, `transition(de, para, gatilho, sequência)`, `minDwell`; `Bar` (`of`, `color`, `overlay`, `segments`, `style`, `range`, `vanillaFlags`, `SEGMENTED`); `BarColor`, `BarOverlay`; `Trigger` (`afterTicks`, `healthBelow`, `healthAbove`, `signal`, `hurt`, `death`, `when`); `PhaseBuilder` (`enter`, `exit`, `sustain`, `every`, `worldEvent`, `invulnerable`, `label`, `color`, `onEnter`, `onExit`, `onHurt`); `Phase`, `Periodic`, `Transition`; `Action`, `HurtAction`, `Context` (`entity`, `level`, `handle`, `phase`, `phaseTicks`, `start(efeito)`, `start(efeito, placement)`) |
+| `Bosses` | `define`, `definition`, `attach`, `get`, `isBoss`, `active`; `Handle` (`id`, `entity`, `phase`, `phaseTicks`, `locked`, `alive`, `signal`, `phase(nome)`, `detach`) |
+| `RigAnchors` | `define`, `spec`, `approximate(entidade, nome[, partial])`; `Spec.body/head`, `Frame`, `Pose` (`at`, `left`) |
+| `Point` | `socket(nome, direita, cima, frente)`, `socketAim(nome, alcance)`, `socket()`; `Source.ANCHOR_SOCKET`, `ANCHOR_SOCKET_AIM`, `Source.socket()` |
+| `Effects` | `anchorSocket(id, nome)` |
+| `EffectSource` | `boss(entidade)`, `boss(uuid)`, `bossController()` |
+| `client.AnchorCapture` | `capture(entidade, nome, matriz[, frente, cima])`, `capturePart(entidade, nome, poseStack, partes...)`, `wanted`, `provider`, `resolve`; `VANILLA_FORWARD`, `VANILLA_UP`; `Provider` |
+| `client.BossBars` | `style(id, renderer)`, `style(id)`; `View`, `Renderer` |
+
+### Diferenças em relação ao plano
+
+- **Sinais esperam o `minDwell`.** No plano, um sinal valia só no tick seguinte. O `testeJogo` mostrou que um sinal enviado
+  logo depois de uma troca de fase era perdido durante a permanência mínima. Agora o sinal espera até as regras serem
+  avaliadas de fato (`BossMachine.Step.evaluated`) e é descartado depois disso, quando a fase muda ou durante uma
+  sequência; continua sem disparar transições muito tempo depois.
+- **Evento de fase em `AREA`** é uma instância comum na posição do chefe com a fonte do controlador (conta em
+  `maxPerBoss`); `DIMENSION` e `SERVER` usam `WorldEvents.start` como antes.
+- **Sequência recusada** (limite cheio): a fase muda no tick seguinte, sem travar.
+- **Retomada** (entidade carregada de novo): reinicia o `sustain` e o evento de fase da fase atual; efeitos de entrada e
+  `onEnter` não tocam de novo.
+- **Removida por `DISCARDED` ou `KILLED`** encerra o controlador e apaga o estado; **descarregada ou trocando de
+  dimensão** encerra só o visual e mantém o estado salvo na entidade.
+- **F7:** linha "Chefes: N barras (N personalizadas) · Anchors: capturados, carregados, provider, estáticos".
+
+### Configuração
+
+| Lado | Chave | Padrão | Faixa |
+|---|---|---|---|
+| Servidor | `limits.maxPerBoss` | 8 | 1..32 |
+| Servidor | `bosses.bossMaxActive` | 16 | 1..64 |
+| Cliente | `bossBar.scale` | 1 | 0,5..2 |
+| Cliente | `bossBar.highContrast` | false | |
+| Cliente | `bossBar.phaseLabels` | true | |
+| Cliente | `bossBar.forceVanilla` | false | |
+
+### Rede
+
+Canal novo `boss_v1` (`BossSync`): id da barra vanilla, estilo, cor e divisões da fase, chave do rótulo, até 16 marcas,
+fase, tick de início da fase, vulnerabilidade; ou só a remoção (17 bytes). Enviado no attach, em cada troca de fase e a
+cada jogador que passa a ver a barra (revisão a cada 10 ticks: alcance, dimensão, entrada tardia); nunca por tick. O
+progresso vai pela barra vanilla, só quando muda 0,5% (ou depois de 5 ticks). `event_v2` não mudou.
+
+### Desempenho
+
+- Servidor: um passo da máquina por chefe por tick (O(transições)); predicados só no intervalo; gravação do estado na
+  entidade (um record) por tick; revisão de quem vê a barra a cada 10 ticks.
+- Cliente: anchors só para os `Point` usados por instâncias ativas, um mapa por quadro; captura = cópia de uma matriz, só
+  para anchors pedidos nos últimos 120 quadros; a barra personalizada são retângulos e texto, sem textura nem passe.
+- Nenhum orçamento novo de passes: feixes e luzes continuam nos tetos atuais. Custo em GPU física não foi medido.

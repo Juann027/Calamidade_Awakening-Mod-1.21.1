@@ -86,6 +86,14 @@ Comece do esqueleto: `python3 scripts/novo_efeito.py <namespace> <nome> --projet
 - Raios reais com dano continuam nos cues; `Sky.bolts()` é só visual.
 - Capítulo: `docs/CEU-0.12.md`. Receitas: 22 (buraco negro), 23 (portal), 24 (lua gigante), 25 (eclipse global), 26 (dimensão de teste). Prévia sem o jogo: `node scripts/previa_passes.cjs ceu`.
 
+
+### 3g. Chefes (opcional, 0.13.0)
+
+- **Controlador, não entidade:** `Bosses.define(Boss.builder(id).bar(Boss.Bar.of(nome).segments(true)).phase(...).transition(...).build())` no construtor comum; `Bosses.attach(mob, id)` no servidor quando o addon decidir. O motor nunca cria chefes, barras ou eventos sozinho.
+- **Fases:** `enter`, `exit`, `sustain` (solto ao sair), `every(n, ctx -> ctx.start(EFEITO))`, `worldEvent(efeito, Scope.AREA)`, `invulnerable()` (opt-in), `label`, `color`, `onEnter`/`onExit`/`onHurt`. **Transições:** `afterTicks`, `healthBelow`, `healthAbove`, `signal` (`handle.signal("x")`), `hurt(n)`, `death()`, `when(n, predicado)`; `transition(de, para, gatilho, SEQUENCIA)` trava até a Timeline da sequência acabar. Uma transição por tick; `minDwell` 20 por padrão.
+- **Anchors:** `RigAnchors.define(tipo, "boca", Spec.head(...))`; feixes e luzes com `Point.socket("boca", ...)` e `Point.socketAim("boca", alcance)`; a instância inteira com `Effects.anchorSocket(id, "boca")`. Pose real do osso no cliente com `AnchorCapture.capture(entidade, "boca", poseStack.last().pose())` no renderizador do addon (GeckoLib opcional, no addon). **Dano no servidor só com `RigAnchors.approximate`.**
+- **Limites:** efeitos das fases usam `EffectSource.boss` e `maxPerBoss` (8), na mesma contagem da entidade; `bossMaxActive` 16. Ataques não precisam mexer no terreno; se mexerem, `carve` pequeno e raro.
+- Capítulo: `docs/BOSSES-0.13.md`. Receita: 27 (Sentinela do Eclipse). Teste: `xvfb-run ./gradlew testeChefe`.
 ### 4. Pós-processamento e shader
 
 - Cliente (`FMLClientSetupEvent`): `AddonLayers.post(id, post -> { var t = post.timeline(); post.pass("ns:programa", u -> {...}); post.bloom(...); })`.

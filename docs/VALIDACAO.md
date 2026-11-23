@@ -1,6 +1,39 @@
 # Validação, medições e limites
 
-## Versão 0.12.0 — Sky & World Events (estado atual)
+## Versão 0.13.0 — Bosses (em desenvolvimento, branch `claude/bosses-0.13`)
+
+**Não publicada.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
+(0.12.0); nada da 0.14. GPU física, shaderpacks e dois jogadores reais pendentes.
+
+### Executado (23/11/2026)
+
+| Teste | Resultado | Cobre |
+|---|---|---|
+| `./gradlew build` | verde | `checkBudget` com `BossCheck` (máquina: ordem, uma transição por tick, `minDwell` sem avaliar, sequência com trava, morte quebra a trava, nada depois da morte, `force`, restauração com fase desconhecida e sequência pendente, `when` só no intervalo, histerese por permanência; anchors: corpo e cabeça na convenção do Minecraft, matriz com os eixos invertidos do modelo vanilla, matriz degenerada, Gram-Schmidt, extrapolação igual à pose estática girada, janela de 10 ticks; barra: progresso, envio de 0,5% e de 5 ticks, marcas, fantasma, clarão com acessibilidade, escala; `maxPerBoss`: 8 com controlador, 4 sem, total e reserva, jogador fora da regra, marca sem identidade nova; `Boss.builder`; `Point.socket`; ida e volta do `boss_v1`, remoção em 17 bytes), `checkApiDocs` (Javadoc em todos os membros novos), `checkRecipes`, `checkModVersion` (motor 0.13.0, vfx-sample 1.10.0 exige `[0.13.0,0.14.0)`); `checkShaders` só avisou (glslangValidator ausente; nenhum shader mudou) |
+| `./gradlew dist` e `./gradlew -p examples/vfx-sample build` | verdes | o exemplo compila contra `dist/calamidade_awakening-0.13.0.jar` |
+| `./gradlew testeJogo` | 79/79 | as 63 verificações anteriores (Terrain API, eventos globais, perfis, reinício) mais 16 de chefes: attach e attach repetido, fase invulnerável cancela dano, `afterTicks`, aura `sustain` com o chefe como fonte, sinal que espera o `minDwell` e sequência que trava até acabar, vida abaixo de 50%, ordem a-b-c-d sem duas transições no mesmo tick, `maxPerBoss` (8 com controlador; 4 com a marca sem controlador; comuns e marcadas na mesma contagem 4 + 4), 3 falhas de callback desligam o controlador, estado de chefe indefinido descartado, `detach` e `phase()`, `/calamidade boss list`; **reinício**: chefe descarregado na fase b com 11 ticks, mundo andou 273 ticks, voltou com 17 (tempo decorrido da fase, não do mundo); morte leva à fase de morte e o controlador some com a entidade |
+| `xvfb-run -a ./gradlew testeChefe` | 15/15 | numa só inicialização, com o vfx-sample 1.10.0: a `RenderLayer` do golem captura os olhos no quadro (3 anchors resolvidos por captura); pose capturada a 0,123 bloco do anchor estático e frentes alinhadas (produto escalar 1,000: eixos do modelo vanilla corretos); fora da tela, 3 anchors carregados e, depois de 10 ticks, 3 estáticos (o feixe não some); `boss_v1` chega e o estilo segmentado substitui a barra vanilla; troca de fase chega ao cliente; "forçar barras vanilla"; escala 2 e alto contraste; linha do F7; fora do alcance (200 blocos) a barra some e volta na fase atual (entrada tardia); `detach` remove a barra; **Sentinela do Eclipse**: `/vfxsample chefe`, despertar → combate em 60 ticks, vida a 30% → rugido trava → fúria, eclipse em área (2 camadas de céu), morte → derrota, barra e controlador somem. Capturas em `run/teste-chefe/screenshots/` (anchor e feixe, barra segmentada, fase c, vanilla, escala 2 com contraste, combate e fúria do Sentinela) |
+| Compatibilidade da API | sem remoções | `docs/ai/API-REFERENCIA.md` (gerada com javap do JAR) comparada com a do `8cfd93a`: 422 linhas novas; as 5 "removidas" são o cabeçalho de versão e o texto do Javadoc de `equals`/`hashCode`/`toString` de `EffectSource` e `Point`, com as mesmas assinaturas |
+
+### Correções achadas pelos testes
+
+- `testeJogo` (1ª rodada): um sinal enviado logo depois de uma troca de fase era descartado durante o `minDwell` (a máquina não avaliava as regras e o tick limpava os sinais). Corrigido: `BossMachine.Step.evaluated`; o sinal espera a avaliação. O cenário de reinício também foi refeito: o chefe continuava processado (chunk forçado) até o servidor parar, então o teste não separava tempo da fase de tempo do mundo; agora o chefe é descarregado antes.
+- `testeJogo` (2ª rodada): a verificação da trava olhava 3 ticks depois do sinal, antes do fim do `minDwell` (o motor estava certo: b@807, c@857 = 20 de permanência + 30 de sequência). O teste passou a esperar a trava.
+- `testeChefe` (1ª rodada): o cliente parou na tela de "ajustes experimentais" (dimensão do vfx-sample); o roteiro passou a respondê-la como o `RoteiroCeu`.
+
+### Pendente
+
+- GPU física (custo da barra personalizada, da captura de anchors e do Sentinela; tudo foi visto só por software).
+- Iris/Oculus, Sodium/Embeddium e outros mods de renderização com a captura de anchors (nenhuma compatibilidade afirmada).
+- Dois jogadores reais num servidor dedicado vendo a mesma barra (entrada tardia, alcance, troca de dimensão); os testes cobrem um jogador e a lógica de alcance.
+- GeckoLib real: a receita mostra a captura num renderizador do addon, mas nenhum mod com GeckoLib foi testado nesta etapa.
+- Continuam as pendências da 0.12.0 abaixo (pulsação no Overworld, variação de tempo da cratera grande, custos de receitas de Terrain).
+
+### Reaproveitado ou dispensado (sem mudança no que validam)
+
+`testeCeu`, `testeCliente`, `testeMedicao`, `testeAtlas`, `node scripts/testar_glsl.cjs` e `node scripts/previa_passes.cjs`: nenhum shader, passe de céu, escritor de terreno, perfil de qualidade ou Atlas mudou. Valem os resultados da 0.12.0 abaixo.
+
+## Versão 0.12.0 — Sky & World Events (último release publicado)
 
 **Compilada e testada por software (Mesa llvmpipe); GPU física e dois jogadores pendentes ([TESTE-REAL.md, parte 10](TESTE-REAL.md#parte-10--céu-eventos-globais-e-céu-por-dimensão-0120)).**
 

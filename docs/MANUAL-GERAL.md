@@ -1,4 +1,4 @@
-# Manual geral do Calamidade_Awakening 0.12.0
+# Manual geral do Calamidade_Awakening 0.13.0
 
 Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
@@ -35,11 +35,12 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 12. [Integração com outros mods: orientação, fontes, limites e gatilhos](#cap12)
 13. [Terrain API: destruição, crateras e objetos que viram blocos reais](#cap13)
 14. [Céu fantástico, eventos globais e céu por dimensão](#cap14)
-15. [Arquitetura do motor](#cap15)
-16. [Criar habilidades dentro do motor](#cap16)
-17. [Testes em GPU real e multiplayer](#cap17)
-18. [Validação, medições e limites](#cap18)
-19. [Histórico e evolução prevista](#cap19)
+15. [Chefes: Boss API, BossBar e Rig Anchors](#cap15)
+16. [Arquitetura do motor](#cap16)
+17. [Criar habilidades dentro do motor](#cap17)
+18. [Testes em GPU real e multiplayer](#cap18)
+19. [Validação, medições e limites](#cap19)
+20. [Histórico e evolução prevista](#cap20)
 
 Leitura complementar, fora do manual: [estudo técnico da integração da SA Series](ESTUDO-SA-SERIES.md).
 
@@ -1967,7 +1968,281 @@ Sem o passo 3, `vanillaSun(false)` e `vanillaMoon(false)` funcionam em qualquer 
 
 <a id="cap15"></a>
 
-## 15. Arquitetura do motor
+## 15. Chefes: Boss API, BossBar e Rig Anchors
+
+> **Estado:** implementada no branch `claude/bosses-0.13` (criado em `8cfd93a`, o `origin/main` do release v0.12.0
+> mais dois commits só de `VALIDACAO.md`); **não publicada**. O JAR do branch é `0.13.0` marcado como build de
+> desenvolvimento no `neoforge.mods.toml`. A 0.13 **não** contém nada da 0.14 (Custom Sky Engine, branch
+> `claude/ceu-personalizado`, intocado). As seções 1 a 6 são o plano aprovado (Etapa 0); a seção 7 diz o que foi feito,
+> o que mudou em relação ao plano e o que foi validado.
+
+A 0.13 transforma o Calamidade numa biblioteca para **chefes cinematográficos de addons**. O motor não cria
+criaturas, barras ou eventos sozinho: tudo começa porque um addon pediu.
+
+### 1. Arquitetura aprovada
+
+Um **boss é um controlador** preso a uma `LivingEntity` do addon. A entidade continua dona da IA, dos atributos, do
+movimento, do modelo, do spawn, do loot e dos comportamentos próprios. O Calamidade dá fases e transições, gatilhos,
+Timeline, BossBar, Rig Anchors, integração com os efeitos existentes, sincronização e ferramentas.
+
+| Camada | Onde (arquivos novos) | Papel |
+|---|---|---|
+| Núcleo puro | `api/BossMachine`, `api/AnchorMath`, `api/BossBarMath`; `api/SourceLimits` (regra `perBoss`) | Máquina de fases determinística, matemática dos anchors e da barra; sem Minecraft, no `checkBudget` |
+| API comum | `api/v1/Boss`, `api/v1/Bosses`, `api/v1/RigAnchors`; adições em `Point`, `EffectSource`, `Effects` | Definição e controle do chefe, anchors estáticos (servidor e cliente) |
+| API de cliente | `api/v1/client/AnchorCapture`, `api/v1/client/BossBars` | Captura de pose e providers; estilos de barra |
+| Servidor | `boss/BossServer`, `boss/BossData`, `boss/BossCommand` | Estado autoritativo, gatilhos, barra vanilla, persistência, comandos |
+| Cliente | `client/boss/AnchorCache`, `client/boss/BossBarClient` | Anchors por quadro, desenho da barra |
+| Rede | `net/BossSync`, canal **`boss_v1`** | Um pacote por mudança de estado, e a quem chega depois |
+
+Para facilitar a integração futura com a 0.14, o código novo fica em arquivos novos; nos arquivos que a 0.14 também
+altera (`Effects`, `VisualKind`, `StageScene`, `ClientHooks`, `ClientConfig`, `CalamidadeAwakening`, `build.gradle`,
+`neoforge.mods.toml`) as mudanças são curtas e localizadas.
+
+### 2. APIs do jogo conferidas com javap (Etapa 0)
+
+NeoForge 21.1.267 (`build/moddev/artifacts/neoforge-21.1.267-merged.jar`) e RimuLib 1.3.0:
+
+| Uso | Tipo e membros conferidos | Conclusão |
+|---|---|---|
+| Barra vanilla | `ServerBossEvent(Component, BossBarColor, BossBarOverlay)`, `setProgress`, `setName`, `setColor`, `setOverlay`, `setDarkenScreen`, `setPlayBossMusic`, `setCreateWorldFog`, `addPlayer`, `removePlayer`, `removeAllPlayers`, `setVisible`, `getPlayers`; `BossEvent.getId()` (UUID) | Base da BossBar: o jogo envia pacotes só quando um valor muda |
+| Cores e divisões | `BossBarColor` PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE; `BossBarOverlay` PROGRESS, NOTCHED_6/10/12/20 | Espelhados em enums próprios da API (sem expor tipos vanilla na assinatura) |
+| Barra no cliente | `CustomizeGuiOverlayEvent.BossEventProgress` (cancelável; `getBossEvent()` → `LerpingBossEvent`, `getX`, `getY`, `getIncrement`, `setIncrement`); `BossHealthOverlay.render` chama `ClientHooks.onCustomizeBossEventProgress` e, se cancelado, **pula barra e nome** mas soma o incremento | Estilo próprio = cancelar e desenhar; sem estilo (ou "forçar vanilla"), nada muda |
+| Dano | `LivingIncomingDamageEvent` (cancelável; `getSource`, `getAmount`); `LivingDamageEvent.Post` (`getNewDamage`, `getSource`); `LivingDeathEvent` (cancelável, `getSource`) | Invulnerabilidade opt-in por fase; contagem de golpes e `onHurt` no `Post`; morte no `LivingDeathEvent` |
+| Persistência | `AttachmentType.builder(Supplier).serialize(Codec)`, `IAttachmentHolder.setData/getExistingData/removeData`; `NeoForgeRegistries.Keys.ATTACHMENT_TYPES` | Estado do chefe salvo na própria entidade |
+| Ciclo de vida | `EntityJoinLevelEvent(loadedFromDisk)`, `EntityLeaveLevelEvent`, `Entity.getRemovalReason()` (KILLED, DISCARDED, UNLOADED_TO_CHUNK, UNLOADED_WITH_PLAYER, CHANGED_DIMENSION), `PlayerEvent.PlayerLoggedOutEvent` | Retomar ao carregar, limpar ao sair, morte só com KILLED |
+| Corpo e cabeça | `LivingEntity.yBodyRot/yBodyRotO/yHeadRot/yHeadRotO`, `getHealth`, `getMaxHealth`; `Entity.getEyeHeight`, `getViewXRot` | Anchors estáticos e aproximação no servidor |
+| Captura | `PoseStack.Pose.pose()` (`Matrix4f`), `ModelPart.translateAndRotate(PoseStack)`, `getChild`; `RenderLivingEvent.Post` (`getEntity`, `getPoseStack`, `getPartialTick`) | Captura de pose no render do addon; helper para `ModelPart` |
+| Comandos | `RegisterCommandsEvent.getDispatcher()` | `/calamidade boss` registrado à parte (o Brigadier junta literais iguais) |
+| **Ordem do quadro** | RimuLib `LevelRendererMixin.rimulib$render`: `@Inject(method = "renderLevel", at = @At("RETURN"))` chama `PostFx.render(Camera, float)`; os passes do Calamidade (e a coleta de feixes e luzes, que resolve os `Point`) rodam nessa camada `FxApi` | **Os efeitos são montados depois de todas as entidades do quadro**: a pose capturada no render da entidade vale **no mesmo quadro**, sem atraso |
+
+### 3. Contrato público planejado
+
+#### 3.1 Boss API (servidor autoritativo)
+
+```java
+static final Boss SENTINELA = Boss.builder(id("sentinela"))
+    .bar(Boss.Bar.of(Component.translatable("boss.vfxsample.sentinela")).color(Boss.BarColor.PURPLE)
+        .segments(true).style(id("calamidade_awakening:segmented")).range(64))
+    .phase("despertar", p -> p.enter(DESPERTAR).invulnerable().label("boss.vfxsample.despertar"))
+    .phase("combate",   p -> p.sustain(AURA).every(120, ctx -> ctx.start(OLHAR)))
+    .phase("furia",     p -> p.enter(FURIA).worldEvent(ECLIPSE, WorldEvents.Scope.AREA))
+    .phase("derrota",   p -> p.enter(QUEDA))
+    .transition("despertar", "combate", Boss.Trigger.afterTicks(80))
+    .transition("combate", "furia", Boss.Trigger.healthBelow(.4f))
+    .transition(Boss.ANY, "derrota", Boss.Trigger.death())
+    .build();
+
+Bosses.define(SENTINELA);                                  // construtor comum do mod
+Optional<Bosses.Handle> h = Bosses.attach(mob, SENTINELA.id());   // servidor, quando o addon quiser
+h.get().signal("carga_completa");  h.get().phase();  h.get().detach();
+```
+
+- **Gatilhos (`Boss.Trigger`)**: `afterTicks(n)`, `healthBelow(f)`, `healthAbove(f)`, `signal(nome)`, `hurt(n)`,
+  `death()`, `when(intervalo, predicado)`. Avaliados só no servidor, uma vez por tick, na ordem declarada; **no
+  máximo uma transição por tick**; permanência mínima por fase (`minDwell`, padrão 20 ticks) contra oscilação; após a
+  morte, só regras de morte.
+- **Fases (`Boss.Phase`)**: efeitos de entrada e de saída, um `sustain` (solto com `release()` quando a fase acaba),
+  ações periódicas `every(n, ...)`, evento global opcional (iniciado na entrada, solto na saída e na morte),
+  `onEnter`/`onExit`/`onHurt`, rótulo da barra (chave de tradução), cor própria e `invulnerable()` (opt-in, nunca
+  padrão).
+- **Sequências**: `transition(de, para, gatilho).through(efeito)` toca a Timeline do efeito e trava a máquina até ele
+  acabar (ou até o marcador `fim`, se existir); só a morte quebra a trava.
+- **Tempo e persistência**: o estado salvo na entidade é fase, **tempo decorrido na fase** (ticks em que o chefe foi de
+  fato processado), golpes e alvo de sequência pendente. Tempo de mundo com o chunk descarregado ou o servidor
+  desligado não conta; uma sequência pendente termina ao recarregar. Chefe salvo com id desconhecido (addon removido)
+  é ignorado e limpo, com aviso no log.
+- **Efeitos do chefe** começam com `EffectSource.boss(entidade)` e seguem a entidade (`Effects.follow`).
+
+#### 3.2 `maxPerBoss` e a origem dos efeitos
+
+- `EffectSource.boss(entity)` é uma fonte `ENTITY` com a mesma identidade (UUID) da entidade e uma **marca de
+  controlador**. `equals`/`hashCode` ignoram a marca: recarga e contagem por fonte são as da entidade, então alternar
+  entre "boss" e "entidade" não dá vagas novas nem pula recargas.
+- Na admissão, o servidor conta **todas** as instâncias vivas com aquele UUID (marcadas ou não) e escolhe o limite:
+  - início marcado **e** `Bosses` confirma um controlador válido anexado àquela entidade → `maxPerBoss` (padrão 8,
+    configurável 1..32);
+  - qualquer outro caso (mob comum, marca sem controlador, controlador já removido) → `maxPerEntity` (padrão 4).
+- Consequência: efeitos comuns do mob continuam no teto de 4 mesmo num chefe; os do controlador podem chegar a 8 no
+  total da entidade. O teto global de 64, a reserva de jogadores (só `TOTAL − playerReserve` para não jogadores), as
+  recargas, a prioridade de desenho, os orçamentos por quadro e os limites de eventos globais e de terreno valem como
+  antes. Acima do limite: `Optional.empty()`, contado em `/calamidade status` como `SOURCE_LIMIT`, sem erro nem
+  trava.
+
+#### 3.3 BossBar API
+
+- Base: `ServerBossEvent` vanilla (nome, progresso, 7 cores, divisões, escurecer, música, névoa). O Calamidade decide
+  quem vê (mesma dimensão, dentro de `range`, 16..256, padrão 64), revisando a lista a cada 10 ticks (entrada tardia,
+  troca de dimensão, respawn) e removendo no logout, na morte, no descarregamento e no `detach`.
+- Progresso enviado só com variação ≥ 0,5% ou a cada 5 ticks se mudou (`BossBarMath.shouldSend`).
+- Extensão pelo `boss_v1` (uma vez por mudança): estilo, rótulo da fase, cor de destaque, marcas dos segmentos (os
+  limiares de `healthBelow`), vulnerabilidade e o tick de início da fase.
+- Cliente: estilos `calamidade_awakening:segmented` (embutido) e os registrados por `BossBars.style(id, renderer)`.
+  Barra "fantasma" de dano, clarão na troca de fase (respeita `flashAllowed`) e troca de rótulo, calculados pelo
+  carimbo de tempo, sem pacotes extras.
+- Acessibilidade (config de cliente, seção `bossBar`): escala 0,5..2, alto contraste, rótulo da fase em texto, **forçar
+  barras vanilla**. Sem estilo conhecido o vanilla aparece igual (fallback).
+
+#### 3.4 Rig Anchors
+
+Uma `AnchorPose` tem posição, frente e cima (ortonormais). Resolução por quadro, com cache por (entidade, nome):
+
+1. **Captura no render** — `AnchorCapture.capture(entity, "boca", poseStack.last().pose())` no renderizador do addon
+   (vanilla, `RenderLayer`, GeckoLib ou outro). Uma cópia de matriz, só para anchors que algum efeito ativo pediu
+   (`AnchorCapture.wanted`).
+2. **Provider** — `AnchorCapture.provider(type, provider)` para quem calcula a pose sem passar pelo render.
+3. **Estático** — `RigAnchors.define(type, "boca", RigAnchors.Spec.head(0, .2, .9))`, preso ao corpo ou à cabeça.
+4. Plano B: olhos da entidade.
+
+Fora da tela, a última captura acompanha o deslocamento e o giro do corpo por até 10 ticks; depois vale o estático.
+
+- `Point.socket(nome, direita, cima, frente)` e `Point.socketAim(nome, alcance)` (raio na frente do anchor) — feixes e
+  luzes passam a sair da boca ou dos olhos sem mudar o pacote `event_v2`.
+- `Effects.anchorSocket(id, nome)` (na definição, registrada nos dois lados): o centro inteiro da instância segue o
+  anchor (partículas nos olhos, explosão no corpo).
+
+**Anchors visuais × autoritativos.** A pose capturada no cliente só orienta o visual (feixes, luzes, partículas).
+Ela **nunca** volta ao servidor. Para dano, colisão ou qualquer consequência, o servidor usa `RigAnchors.serverPose`
+(definição estática + posição, corpo e cabeça da entidade no servidor), uma aproximação documentada; o centro de
+servidor de uma instância com `anchorSocket` é essa aproximação.
+
+**GeckoLib** não é dependência. A receita mostra como capturar a matriz de um osso num `GeoRenderLayer` do addon (com
+os eixos do modelo informados), com nomes a conferir com javap na versão do GeckoLib do addon. Para modelos vanilla,
+`AnchorCapture.capturePart` aplica uma cadeia de `ModelPart`.
+
+### 4. Riscos técnicos
+
+| Risco | Tratamento |
+|---|---|
+| Entidade fora da tela (sem render no quadro) | Extrapolação da última captura por 10 ticks, depois o estático; documentado |
+| Shaderpacks (Iris/Oculus), Sodium/Embeddium alterando o render das entidades | A captura acontece no render da entidade, como os próprios modelos; não afirmamos compatibilidade sem teste (pendência) |
+| Eixos de modelo diferentes (vanilla invertido, GeckoLib não) | `capture` com eixos explícitos; padrão vanilla (frente −Z, cima −Y no espaço do modelo) |
+| Callback de addon com erro | Capturado e registrado com id do chefe e fase; 3 falhas seguidas pausam o controlador (barra some, efeitos soltos) com `ERROR` no log, nunca em silêncio |
+| Cancelar dano conflitar com outros mods | Só com `invulnerable()` na fase; prioridade normal do evento |
+| Barra vanilla tem 7 cores | Visual rico só no cliente com o mod (obrigatório por causa da rede); o vanilla é o fallback |
+| Persistência com addon atualizado (fase renomeada) | Fase desconhecida volta à primeira; alvo pendente desconhecido descartado |
+| Merge futuro com a 0.14 | Código em arquivos novos; mudanças curtas nos arquivos comuns (lista na seção 1) |
+| Multiplayer real | Testes automatizados com um jogador; dois jogadores reais continuam pendência manual |
+
+### 5. Estratégia de branches
+
+```
+v0.12.0 ── origin/main (8cfd93a) ──┬── claude/ceu-personalizado (ab2a97d)   0.14, intocado
+                                   └── claude/bosses-0.13                   0.13 (este trabalho)
+```
+
+- Nada de merge, rebase ou cherry-pick com a 0.14 durante a 0.13; `main`, tags e releases não são alterados.
+- Integração futura (cada passo com autorização): PR da 0.13 para `main` e tag `v0.13.0`; branch
+  `claude/integracao-0.13-0.14` a partir de `ceu-personalizado` com `git merge origin/main` (merge comum, sem
+  reescrever histórico); resolver conflitos, regenerar `API-REFERENCIA.md` e `MANUAL-GERAL.md`, levar a base de
+  compatibilidade binária da 0.14 ao JAR 0.13.0, versão `0.14.0` e faixa do vfx-sample `[0.14.0,0.15.0)`, juntar os
+  canais de rede; uma rodada consolidada; só então avançar `ceu-personalizado`.
+
+### 6. Testes de aceitação
+
+Política proporcional ao risco (AGENTS.md):
+
+- **Durante:** `./gradlew build` com verificações puras novas no `checkBudget`: `BossCheck` (máquina: ordem, uma
+  transição por tick, permanência, sequência, morte, restauração), anchors (eixos, ortonormalização, extrapolação,
+  estático no corpo e na cabeça), barra (envio, segmentos, fantasma, clarão), `SourceCheck` (`maxPerBoss`: marca sem
+  controlador, contagem compartilhada, reserva) e o codec do `boss_v1`.
+- **Ao fechar o servidor:** cenários de chefe no `testeJogo` numa rodada (attach, fase por tempo, por dano, sinal,
+  invulnerável, limite de efeitos, persistência com reinício, limpeza na morte e no `detach`, barra com jogador
+  simulado ausente).
+- **Ao fechar o cliente:** `xvfb-run ./gradlew testeChefe`, numa só inicialização: anchor capturado × estático,
+  feixe saindo do anchor, barra segmentada, forçar vanilla, escala, capturas.
+- **Não rodar** sem mudança no que validam: `testeCeu`, referências de céu, `testeCliente` (escritor de terreno
+  intocado), `testeMedicao`, `testeAtlas`.
+
+Critérios: chefe com 3 fases, barra e anchors sem GeckoLib; nada aparece sem o addon pedir; compatibilidade binária
+com a 0.12.0; `event_v2` igual; só o canal novo `boss_v1`; nenhum pacote por tick; servidor dedicado sem classes de
+cliente; reinício na fase certa; entrada tardia com barra e fase certas; acessibilidade da barra; build, vfx-sample e
+consumidor verdes; resultados em `VALIDACAO.md`; nada da 0.14 no branch.
+
+### 7. O que foi implementado (Etapas 1 a 6)
+
+#### Guia rápido para addons
+
+```java
+// 1. Construtor comum do mod: anchors estáticos, efeitos e o chefe.
+RigAnchors.define(EntityType.IRON_GOLEM, "olhos", RigAnchors.Spec.head(0, .05, .35));
+Effects.register(OLHAR, def);                       // feixe saindo dos olhos
+Effects.beams(OLHAR, Beam.builder(Point.socket("olhos", 0, 0, .15), Point.socketAim("olhos", 32)).build());
+Effects.register(AURA, defAura);
+Effects.anchorSocket(AURA, "olhos");                // a instância inteira segue o anchor
+Bosses.define(Boss.builder(ID).bar(Boss.Bar.of(nome).segments(true))
+    .phase("despertar", p -> p.invulnerable().label("boss.meumod.despertar"))
+    .phase("combate", p -> p.sustain(AURA).every(100, ctx -> ctx.start(OLHAR)))
+    .phase("derrota")
+    .transition("despertar", "combate", Boss.Trigger.afterTicks(60))
+    .transition(Boss.ANY, "derrota", Boss.Trigger.death())
+    .build());
+
+// 2. Servidor, quando o addon decidir (comando, altar, spawn próprio):
+Bosses.attach(mob, ID).ifPresent(h -> h.signal("acordar"));
+
+// 3. Cliente (opcional): a pose real do osso, numa RenderLayer ou no renderizador do addon.
+AnchorCapture.capture(mob, "olhos", poseStack.last().pose());
+```
+
+Exemplo completo: receita 27 (`docs/ai/receitas/27-chefe-sentinela.md`, `SentinelaEclipse.java`).
+
+#### API pública nova (só adições; `checkApiDocs` com Javadoc em todos os membros)
+
+| Tipo | Membros |
+|---|---|
+| `Boss` | `builder(id)`; `Builder.bar`, `phase(nome, setup)`, `phase(nome)`, `transition(de, para, gatilho)`, `transition(de, para, gatilho, sequência)`, `minDwell`; `Bar` (`of`, `color`, `overlay`, `segments`, `style`, `range`, `vanillaFlags`, `SEGMENTED`); `BarColor`, `BarOverlay`; `Trigger` (`afterTicks`, `healthBelow`, `healthAbove`, `signal`, `hurt`, `death`, `when`); `PhaseBuilder` (`enter`, `exit`, `sustain`, `every`, `worldEvent`, `invulnerable`, `label`, `color`, `onEnter`, `onExit`, `onHurt`); `Phase`, `Periodic`, `Transition`; `Action`, `HurtAction`, `Context` (`entity`, `level`, `handle`, `phase`, `phaseTicks`, `start(efeito)`, `start(efeito, placement)`) |
+| `Bosses` | `define`, `definition`, `attach`, `get`, `isBoss`, `active`; `Handle` (`id`, `entity`, `phase`, `phaseTicks`, `locked`, `alive`, `signal`, `phase(nome)`, `detach`) |
+| `RigAnchors` | `define`, `spec`, `approximate(entidade, nome[, partial])`; `Spec.body/head`, `Frame`, `Pose` (`at`, `left`) |
+| `Point` | `socket(nome, direita, cima, frente)`, `socketAim(nome, alcance)`, `socket()`; `Source.ANCHOR_SOCKET`, `ANCHOR_SOCKET_AIM`, `Source.socket()` |
+| `Effects` | `anchorSocket(id, nome)` |
+| `EffectSource` | `boss(entidade)`, `boss(uuid)`, `bossController()` |
+| `client.AnchorCapture` | `capture(entidade, nome, matriz[, frente, cima])`, `capturePart(entidade, nome, poseStack, partes...)`, `wanted`, `provider`, `resolve`; `VANILLA_FORWARD`, `VANILLA_UP`; `Provider` |
+| `client.BossBars` | `style(id, renderer)`, `style(id)`; `View`, `Renderer` |
+
+#### Diferenças em relação ao plano
+
+- **Sinais esperam o `minDwell`.** No plano, um sinal valia só no tick seguinte. O `testeJogo` mostrou que um sinal enviado
+  logo depois de uma troca de fase era perdido durante a permanência mínima. Agora o sinal espera até as regras serem
+  avaliadas de fato (`BossMachine.Step.evaluated`) e é descartado depois disso, quando a fase muda ou durante uma
+  sequência; continua sem disparar transições muito tempo depois.
+- **Evento de fase em `AREA`** é uma instância comum na posição do chefe com a fonte do controlador (conta em
+  `maxPerBoss`); `DIMENSION` e `SERVER` usam `WorldEvents.start` como antes.
+- **Sequência recusada** (limite cheio): a fase muda no tick seguinte, sem travar.
+- **Retomada** (entidade carregada de novo): reinicia o `sustain` e o evento de fase da fase atual; efeitos de entrada e
+  `onEnter` não tocam de novo.
+- **Removida por `DISCARDED` ou `KILLED`** encerra o controlador e apaga o estado; **descarregada ou trocando de
+  dimensão** encerra só o visual e mantém o estado salvo na entidade.
+- **F7:** linha "Chefes: N barras (N personalizadas) · Anchors: capturados, carregados, provider, estáticos".
+
+#### Configuração
+
+| Lado | Chave | Padrão | Faixa |
+|---|---|---|---|
+| Servidor | `limits.maxPerBoss` | 8 | 1..32 |
+| Servidor | `bosses.bossMaxActive` | 16 | 1..64 |
+| Cliente | `bossBar.scale` | 1 | 0,5..2 |
+| Cliente | `bossBar.highContrast` | false | |
+| Cliente | `bossBar.phaseLabels` | true | |
+| Cliente | `bossBar.forceVanilla` | false | |
+
+#### Rede
+
+Canal novo `boss_v1` (`BossSync`): id da barra vanilla, estilo, cor e divisões da fase, chave do rótulo, até 16 marcas,
+fase, tick de início da fase, vulnerabilidade; ou só a remoção (17 bytes). Enviado no attach, em cada troca de fase e a
+cada jogador que passa a ver a barra (revisão a cada 10 ticks: alcance, dimensão, entrada tardia); nunca por tick. O
+progresso vai pela barra vanilla, só quando muda 0,5% (ou depois de 5 ticks). `event_v2` não mudou.
+
+#### Desempenho
+
+- Servidor: um passo da máquina por chefe por tick (O(transições)); predicados só no intervalo; gravação do estado na
+  entidade (um record) por tick; revisão de quem vê a barra a cada 10 ticks.
+- Cliente: anchors só para os `Point` usados por instâncias ativas, um mapa por quadro; captura = cópia de uma matriz, só
+  para anchors pedidos nos últimos 120 quadros; a barra personalizada são retângulos e texto, sem textura nem passe.
+- Nenhum orçamento novo de passes: feixes e luzes continuam nos tetos atuais. Custo em GPU física não foi medido.
+
+<a id="cap16"></a>
+
+## 16. Arquitetura do motor
 
 ```mermaid
 flowchart TD
@@ -2067,9 +2342,9 @@ O Atlas interpola coordenadas locais na abertura e usa a mesma função de posi�
 
 PerfOverlay (tecla F7) mostra o renderizador OpenGL, FPS, mediana e percentil 95 dos últimos 240 quadros, perfil de qualidade, sequências residentes, efeitos e volumes desenhados, vértices emitidos e passes de pós-processamento. Os renderizadores escrevem os contadores durante o quadro e o painel publica os valores no início do quadro seguinte, então ele sempre mostra o último quadro completo. `/calamidade_client record <segundos>` grava os mesmos dados por quadro em `calamidade_bench/frames-*.csv` na pasta do jogo. No servidor, `/calamidade bench <n> [efeito]` cria uma carga reproduzível e `/calamidade status` informa as instâncias ativas. O roteiro de uso está em [TESTE-REAL.md](TESTE-REAL.md).
 
-<a id="cap16"></a>
+<a id="cap17"></a>
 
-## 16. Criar habilidades dentro do motor
+## 17. Criar habilidades dentro do motor
 
 Para publicar uma habilidade em um JAR separado, use o [tutorial de criação de addons 0.4](ADDONS-0.4.md).
 
@@ -2148,9 +2423,9 @@ Para consumidores da 0.3.x, comece pelo [guia da API pública](API-0.3.md) e pel
 
 Ao documentar uma nova camada, inclua o registro completo, o evento que a inicia, as unidades e os limites dos parâmetros, o comportamento para observadores e um comando para reproduzir o resultado. Para eventos luminosos, descreva também o resultado com a redução de clarões ligada. Faça o exemplo compilar contra o JAR que será distribuído.
 
-<a id="cap17"></a>
+<a id="cap18"></a>
 
-## 17. Testes em GPU real e multiplayer
+## 18. Testes em GPU real e multiplayer
 
 Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por software) com servidor integrado. Este roteiro cobre o que faltava: desempenho em placa de vídeo física e sincronização entre dois clientes. Ele usa as ferramentas da 0.5.0 e leva cerca de 40 minutos.
 
@@ -2378,11 +2653,44 @@ Motor 0.12.0 e vfx-sample 1.9.0 nos dois lados (servidor e clientes: canais novo
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
 
-<a id="cap18"></a>
+<a id="cap19"></a>
 
-## 18. Validação, medições e limites
+## 19. Validação, medições e limites
 
-### Versão 0.12.0 — Sky & World Events (estado atual)
+### Versão 0.13.0 — Bosses (em desenvolvimento, branch `claude/bosses-0.13`)
+
+**Não publicada.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
+(0.12.0); nada da 0.14. GPU física, shaderpacks e dois jogadores reais pendentes.
+
+#### Executado (23/11/2026)
+
+| Teste | Resultado | Cobre |
+|---|---|---|
+| `./gradlew build` | verde | `checkBudget` com `BossCheck` (máquina: ordem, uma transição por tick, `minDwell` sem avaliar, sequência com trava, morte quebra a trava, nada depois da morte, `force`, restauração com fase desconhecida e sequência pendente, `when` só no intervalo, histerese por permanência; anchors: corpo e cabeça na convenção do Minecraft, matriz com os eixos invertidos do modelo vanilla, matriz degenerada, Gram-Schmidt, extrapolação igual à pose estática girada, janela de 10 ticks; barra: progresso, envio de 0,5% e de 5 ticks, marcas, fantasma, clarão com acessibilidade, escala; `maxPerBoss`: 8 com controlador, 4 sem, total e reserva, jogador fora da regra, marca sem identidade nova; `Boss.builder`; `Point.socket`; ida e volta do `boss_v1`, remoção em 17 bytes), `checkApiDocs` (Javadoc em todos os membros novos), `checkRecipes`, `checkModVersion` (motor 0.13.0, vfx-sample 1.10.0 exige `[0.13.0,0.14.0)`); `checkShaders` só avisou (glslangValidator ausente; nenhum shader mudou) |
+| `./gradlew dist` e `./gradlew -p examples/vfx-sample build` | verdes | o exemplo compila contra `dist/calamidade_awakening-0.13.0.jar` |
+| `./gradlew testeJogo` | 79/79 | as 63 verificações anteriores (Terrain API, eventos globais, perfis, reinício) mais 16 de chefes: attach e attach repetido, fase invulnerável cancela dano, `afterTicks`, aura `sustain` com o chefe como fonte, sinal que espera o `minDwell` e sequência que trava até acabar, vida abaixo de 50%, ordem a-b-c-d sem duas transições no mesmo tick, `maxPerBoss` (8 com controlador; 4 com a marca sem controlador; comuns e marcadas na mesma contagem 4 + 4), 3 falhas de callback desligam o controlador, estado de chefe indefinido descartado, `detach` e `phase()`, `/calamidade boss list`; **reinício**: chefe descarregado na fase b com 11 ticks, mundo andou 273 ticks, voltou com 17 (tempo decorrido da fase, não do mundo); morte leva à fase de morte e o controlador some com a entidade |
+| `xvfb-run -a ./gradlew testeChefe` | 15/15 | numa só inicialização, com o vfx-sample 1.10.0: a `RenderLayer` do golem captura os olhos no quadro (3 anchors resolvidos por captura); pose capturada a 0,123 bloco do anchor estático e frentes alinhadas (produto escalar 1,000: eixos do modelo vanilla corretos); fora da tela, 3 anchors carregados e, depois de 10 ticks, 3 estáticos (o feixe não some); `boss_v1` chega e o estilo segmentado substitui a barra vanilla; troca de fase chega ao cliente; "forçar barras vanilla"; escala 2 e alto contraste; linha do F7; fora do alcance (200 blocos) a barra some e volta na fase atual (entrada tardia); `detach` remove a barra; **Sentinela do Eclipse**: `/vfxsample chefe`, despertar → combate em 60 ticks, vida a 30% → rugido trava → fúria, eclipse em área (2 camadas de céu), morte → derrota, barra e controlador somem. Capturas em `run/teste-chefe/screenshots/` (anchor e feixe, barra segmentada, fase c, vanilla, escala 2 com contraste, combate e fúria do Sentinela) |
+| Compatibilidade da API | sem remoções | `docs/ai/API-REFERENCIA.md` (gerada com javap do JAR) comparada com a do `8cfd93a`: 422 linhas novas; as 5 "removidas" são o cabeçalho de versão e o texto do Javadoc de `equals`/`hashCode`/`toString` de `EffectSource` e `Point`, com as mesmas assinaturas |
+
+#### Correções achadas pelos testes
+
+- `testeJogo` (1ª rodada): um sinal enviado logo depois de uma troca de fase era descartado durante o `minDwell` (a máquina não avaliava as regras e o tick limpava os sinais). Corrigido: `BossMachine.Step.evaluated`; o sinal espera a avaliação. O cenário de reinício também foi refeito: o chefe continuava processado (chunk forçado) até o servidor parar, então o teste não separava tempo da fase de tempo do mundo; agora o chefe é descarregado antes.
+- `testeJogo` (2ª rodada): a verificação da trava olhava 3 ticks depois do sinal, antes do fim do `minDwell` (o motor estava certo: b@807, c@857 = 20 de permanência + 30 de sequência). O teste passou a esperar a trava.
+- `testeChefe` (1ª rodada): o cliente parou na tela de "ajustes experimentais" (dimensão do vfx-sample); o roteiro passou a respondê-la como o `RoteiroCeu`.
+
+#### Pendente
+
+- GPU física (custo da barra personalizada, da captura de anchors e do Sentinela; tudo foi visto só por software).
+- Iris/Oculus, Sodium/Embeddium e outros mods de renderização com a captura de anchors (nenhuma compatibilidade afirmada).
+- Dois jogadores reais num servidor dedicado vendo a mesma barra (entrada tardia, alcance, troca de dimensão); os testes cobrem um jogador e a lógica de alcance.
+- GeckoLib real: a receita mostra a captura num renderizador do addon, mas nenhum mod com GeckoLib foi testado nesta etapa.
+- Continuam as pendências da 0.12.0 abaixo (pulsação no Overworld, variação de tempo da cratera grande, custos de receitas de Terrain).
+
+#### Reaproveitado ou dispensado (sem mudança no que validam)
+
+`testeCeu`, `testeCliente`, `testeMedicao`, `testeAtlas`, `node scripts/testar_glsl.cjs` e `node scripts/previa_passes.cjs`: nenhum shader, passe de céu, escritor de terreno, perfil de qualidade ou Atlas mudou. Valem os resultados da 0.12.0 abaixo.
+
+### Versão 0.12.0 — Sky & World Events (último release publicado)
 
 **Compilada e testada por software (Mesa llvmpipe); GPU física e dois jogadores pendentes ([TESTE-REAL.md, parte 10](TESTE-REAL.md#parte-10--céu-eventos-globais-e-céu-por-dimensão-0120)).**
 
@@ -2397,6 +2705,11 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 | `xvfb-run ./gradlew testeCeu` (cliente, vfx-sample 1.9.0) | 20/20 | custo com 0/1/4/8 camadas (perfil de teste), eclipse global recebido e na totalidade (2 camadas, passe), F7 (linhas "Céu" e "Eventos globais"), Nether (SERVER), as três receitas novas, respawn durante o evento, relogin com o servidor integrado fechado e reaberto (evento persistente de volta na fase: idade 229 → 327), dimensão de teste com o evento e os três estados |
 
 **O que o teste em jogo achou e foi corrigido:** (1) a coroa do eclipse saía um anel laranja e as estrelas sumiam no Overworld: o passe de atmosfera, depois do passe `sky`, subtraía de novo o brilho do céu do dia, e o framebuffer de 8 bits do jogo já tinha cortado a coroa em 1. A prévia, em ponto flutuante, não mostrava. Agora o passe `sky` pinta o céu da atmosfera antes do escurecimento e das camadas, e a prévia usa 8 bits entre os passes. (2) Na dimensão de teste, com o AUTO em LOW (2 camadas), o céu da dimensão tirava a vaga do eclipse global: eventos globais agora vêm antes do perfil. (3) Abrir um mundo com a dimensão do exemplo mostra uma vez "Os mundos com ajustes experimentais são incompatíveis" (dimensão por datapack): documentado no capítulo e na receita 26; o teste confirma a tela como o jogador faria. (4) No roteiro do servidor, uma espera de teste esperava a si mesma na thread do servidor (erro do teste, não do motor).
+
+- **Depois do release v0.12.0** (workflow Release, tag no commit `26a9080`): anexos só `calamidade_awakening-0.12.0.jar`, `vfx-sample-1.9.0.jar` e `SHA256SUMS.txt`, com os mesmos SHA-256 do build local (`a934968a…` e `fc8809d4…`); `./gradlew -p examples/consumidor clean build`, sem endereço alternativo e com o JAR apagado de `libs/`, baixou `calamidade_awakening-0.12.0.jar` do release no GitHub, conferiu o SHA-256 e compilou.
+- **Conferido de novo numa sessão separada (22/11/2026):** os três anexos baixados do release passam no `sha256sum -c SHA256SUMS.txt`; build limpo do commit da tag (`git worktree` nova, sem `build/` nem `libs/`, RimuLib baixada e conferida pela task, `--no-build-cache`): `./gradlew dist` e `./gradlew -p examples/vfx-sample build` deram os mesmos SHA-256 dos anexos (build reproduzível). Nessa mesma worktree, o consumidor compilou baixando o motor de `github.com/…/releases/download/v0.12.0/` e a RimuLib do CurseForge, sem `-Pcalamidade.url`.
+
+SHA-256 de `dist/calamidade_awakening-0.12.0.jar`: `a934968a3d135fe0795abc806c548b556bb3dd9899b74a675e978a21e7c9e460`; de `vfx-sample-1.9.0.jar`: `fc8809d414a6eceb7543ff022e680cb189c19a98ea873475c64cef88e49771f9`
 
 #### Custo do passe de céu (software)
 
@@ -3188,9 +3501,9 @@ As outras quatro habilidades foram acionadas pelas teclas padrão U, I, V e Y. F
 
 O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servidor integrado. Continuam pendentes multiplayer com dois clientes e medições de desempenho em GPU física.
 
-<a id="cap19"></a>
+<a id="cap20"></a>
 
-## 19. Histórico e evolução prevista
+## 20. Histórico e evolução prevista
 
 ### Versões publicadas
 
@@ -3330,11 +3643,12 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 #### 0.13 — Bosses
 
-Próxima versão planejada.
+Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **não publicada** até o release ser autorizado. Capítulo: [BOSSES-0.13.md](BOSSES-0.13.md).
 
-- **Pontos presos a ossos:** `Point` resolvido pelo cliente a partir de ossos de rigs (GeckoLib ou outro) por um gancho registrado pelo mod do rig, sem o Calamidade depender do GeckoLib; feixes, luzes e dublês saindo da mão ou da boca do chefe.
-- **BossBar API:** barra do chefe sincronizada às fases da Timeline (nome do golpe, fase, vulnerabilidade), com estilo próprio e acessibilidade de tamanho e contraste.
-- Um chefe de exemplo que dispara o eclipse global da 0.12 na fase final.
+- **Boss API** (`Boss`, `Bosses`): controlador preso a uma entidade do addon; fases, transições por tempo, vida, sinal, dano, morte e predicado, sequências pela Timeline, efeitos de entrada, saída e sustain, ações periódicas, evento global por fase, invulnerabilidade opcional, persistência na entidade, `maxPerBoss` e `bossMaxActive`, `/calamidade boss`.
+- **Pontos presos a ossos** (`RigAnchors`, `Point.socket`, `Point.socketAim`, `Effects.anchorSocket`, `AnchorCapture`): pose capturada no render do addon (vanilla, GeckoLib ou outro), providers, anchors estáticos e plano B, sem o Calamidade depender do GeckoLib; visual no cliente, aproximação estática no servidor.
+- **BossBar:** barra vanilla mais estilos de cliente (`BossBars`), barra segmentada com nome da fase, fantasma de dano e clarão; acessibilidade de tamanho, contraste, rótulos e "forçar vanilla"; canal `boss_v1`.
+- Chefe de exemplo: o Sentinela do Eclipse (receita 27), que dispara o eclipse da 0.12 em área na fase final.
 
 #### Depois da 0.13
 
