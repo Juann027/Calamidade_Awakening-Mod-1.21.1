@@ -359,7 +359,7 @@ public final class StageScene {
         double now = level.getGameTime() + partial;
         for (StageEvent effect : active.values()) {
             VisualKind kind = VisualKind.byId(effect.visual());
-            if (kind.stars().isEmpty() && kind.nebulae().isEmpty()) continue;
+            if (!kind.hasSkyObjects()) continue;
             double age = now - effect.tick();
             Vec3 origin = age < 0 ? null : center(effect, partial);
             if (origin == null) continue;
@@ -380,6 +380,10 @@ public final class StageScene {
                     state.brightness(), state.rotation(), state.spin(), age / 20.0), kind.hero(), weight, state.opacity(),
                     effect.order(), dev.calamidade_awakening.api.SkyObjectsMath.RANK_EFFECT, nebula.order()));
             }
+            // 0.14.0 (phase 4): images and impostors, on the instance clock.
+            if (!kind.images().isEmpty() || !kind.impostors().isEmpty())
+                SkyObjectsFrame.sprites(out, kind.images(), kind.impostors(), sampler, kind.clock().at(local + 1), kind.hero(), weight,
+                    effect.order(), dev.calamidade_awakening.api.SkyObjectsMath.RANK_EFFECT, age / 20.0);
         }
         return out;
     }

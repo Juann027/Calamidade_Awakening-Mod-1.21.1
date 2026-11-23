@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "textures": [
+    "calamidade_teste:textures/sky/impostors/nao_existe.png"
+  ],
+  "frame": [
+    32,
+    32
+  ],
+  "grid": [
+    8,
+    1
+  ],
+  "views": {
+    "yaw": 8
+  }
+}

@@ -65,6 +65,7 @@ public final class ClientHooks {
         SKY.backdrop(BACKDROP);
         ATMOSPHERE.backdrop(BACKDROP);
         SKY_OBJECTS.bind(SKY, ATMOSPHERE);
+        SKY_OBJECTS.textures(BACKDROP.textures());
         SKY.objects(SKY_OBJECTS);
         ATMOSPHERE.objects(SKY_OBJECTS);
     }
@@ -173,6 +174,11 @@ public final class ClientHooks {
             event.registerShader(new ShaderInstance(event.getResourceProvider(),
                 ResourceLocation.fromNamespaceAndPath(CalamidadeAwakening.ID, "sky_nebula"), DefaultVertexFormat.POSITION_TEX),
                 SKY_OBJECTS::nebulaShader);
+            // 0.14.0 (phase 4): images, flipbooks and impostors drawn in AFTER_SKY.
+            SKY_OBJECTS.spriteShader(null);
+            event.registerShader(new ShaderInstance(event.getResourceProvider(),
+                ResourceLocation.fromNamespaceAndPath(CalamidadeAwakening.ID, "sky_sprite"), SkySprites.FORMAT),
+                SKY_OBJECTS::spriteShader);
         }
     }
 
@@ -330,7 +336,35 @@ public final class ClientHooks {
         SKY_OBJECTS.draw(event);
         PerfOverlay.skyObjects(SKY_OBJECTS.fields(), SKY_OBJECTS.stars(), SKY_OBJECTS.nebulae(), SKY_OBJECTS.candidates(),
             SKY_OBJECTS.coverageDrawn(), SKY_OBJECTS.blocked());
+        SkyTextures cache = BACKDROP.textures();
+        int[] sprites = SKY_OBJECTS.spritesDrawn();
+        PerfOverlay.skySprites(sprites[0], sprites[1], SKY_OBJECTS.frontDrawn(), cache.spriteTextures(), cache.resident(),
+            dev.calamidade_awakening.api.SkySpriteMath.caps(COORDINATOR.limits()).vramBytes(), (int) cache.uploads()[0],
+            cache.pending(), cache.failures(), cache.refusals(), SKY_OBJECTS.spritesFrozen(), cache.lastProblem());
     }
+
+    /**
+     * Sprites of the frame (0.14.0, phase 4: tests): images and impostors drawn, sprite textures resident, textures or
+     * descriptors pending, failures, refusals, uploads this frame, uploads since start, flipbooks frozen, highest impostor
+     * level of detail in use (−1 none), sprites waiting for a texture.
+     */
+    public static int[] skySprites() {
+        SkyTextures cache = BACKDROP.textures();
+        int[] drawn = SKY_OBJECTS.spritesDrawn();
+        long[] uploads = cache.uploads();
+        return new int[] {drawn[0], drawn[1], cache.spriteTextures(), cache.pending(), cache.failures(), cache.refusals(),
+            (int) uploads[0], (int) uploads[1], SKY_OBJECTS.spritesFrozen(), SKY_OBJECTS.spriteLod(), SKY_OBJECTS.spritesPending()};
+    }
+    /** Estimated texture memory of the sky cache, bytes, and the profile's budget (0.14.0, phase 4: tests). */
+    public static long[] skyTextureMemory() {
+        return new long[] {BACKDROP.textures().resident(), dev.calamidade_awakening.api.SkySpriteMath.caps(COORDINATOR.limits()).vramBytes()};
+    }
+    /** Last problem of the sky texture cache, empty when none (0.14.0, phase 4: tests). */
+    public static String skyTextureProblem() { return BACKDROP.textures().lastProblem(); }
+    /** Front layer (0.14.0, phase 4: tests): drawn this frame, allocated at all, texture. */
+    public static boolean skyFrontDrawn() { return SKY_OBJECTS.frontDrawn(); }
+    public static boolean skyFrontAllocated() { return SKY_OBJECTS.frontAllocated(); }
+    public static int skyFrontTexture() { return SKY_OBJECTS.frontTexture(); }
 
     /** Sky objects of the frame (0.14.0, phase 3: tests): star fields, stars and nebulae drawn, candidates. */
     public static int[] skyObjects() {

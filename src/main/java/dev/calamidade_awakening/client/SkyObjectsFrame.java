@@ -13,9 +13,12 @@ import com.mojang.blaze3d.vertex.VertexFormatElement;
 import cyou.rimuru.rimulib.mc1211.client.render.Uniforms;
 import dev.calamidade_awakening.api.BackdropMath;
 import dev.calamidade_awakening.api.SkyObjectsMath;
+import dev.calamidade_awakening.api.SkySpriteMath;
 import dev.calamidade_awakening.api.v1.Nebula;
 import dev.calamidade_awakening.api.v1.SkyBlend;
 import dev.calamidade_awakening.api.v1.SkyDarkening;
+import dev.calamidade_awakening.api.v1.SkyImage;
+import dev.calamidade_awakening.api.v1.SkyImpostor;
 import dev.calamidade_awakening.api.v1.StarField;
 import dev.calamidade_awakening.config.ClientConfig;
 import net.minecraft.client.Camera;
@@ -66,8 +69,35 @@ final class SkyObjectsFrame {
     /** Frames a star field mesh stays on the GPU after it was last drawn. */
     private static final int KEEP_FRAMES = 1200;
 
-    /** One candidate from a source: the object (StarField or Nebula), its state without the weight and its clock. */
-    record Source(Object object, float brightness, float rotation, float spin, double seconds) {}
+    /**
+     * One candidate from a source: the object (StarField, Nebula, SkyImage or SkyImpostor), its state without the weight
+     * and its clock (seconds of the instance, or of the world for profiles). Sprites (0.14.0, phase 4) also carry their
+     * sampled state, the state one tick later (direction of motion) and the key of their instance (level of detail).
+     */
+    record Source(Object object, float brightness, float rotation, float spin, double seconds, Object state, Object ahead, long key) {
+        Source(Object object, float brightness, float rotation, float spin, double seconds) {
+            this(object, brightness, rotation, spin, seconds, null, null, 0);
+        }
+    }
+
+    /**
+     * Adds the images and impostors of one instance or profile state as candidates (0.14.0, phase 4): sampled at
+     * {@code now} and one tick later ({@code ahead}, for {@code PATH}), with the instance weight and ranking.
+     */
+    static void sprites(List<SkyObjectsMath.Candidate<Source>> out, List<SkyImage> images, List<SkyImpostor> impostors,
+                        dev.calamidade_awakening.api.v1.Timeline.Sampler now, dev.calamidade_awakening.api.v1.Timeline.Sampler ahead,
+                        boolean hero, float weight, long order, int rank, double seconds) {
+        for (SkyImage image : images) {
+            var state = image.sample(now, 1f);
+            out.add(new SkyObjectsMath.Candidate<>(new Source(image, state.brightness(), 0, 0, seconds, state,
+                image.sample(ahead, 1f), order), hero, weight, state.opacity(), order, rank, image.order()));
+        }
+        for (SkyImpostor impostor : impostors) {
+            var state = impostor.sample(now, 1f);
+            out.add(new SkyObjectsMath.Candidate<>(new Source(impostor, state.brightness(), 0, 0, seconds, state,
+                impostor.sample(ahead, 1f), order), hero, weight, state.opacity(), order, rank, impostor.order()));
+        }
+    }
 
     /** One object drawn this frame: the source, its opacity, how many stars (fields) and its turn in degrees. */
     record Drawn(Source source, float opacity, int stars, double rotation) {}
@@ -88,8 +118,11 @@ final class SkyObjectsFrame {
     private ShaderInstance starShader, nebulaShader;
     private final Map<StarField, Mesh> meshes = new IdentityHashMap<>();
     private VertexBuffer cloud, sphere;
-    private RenderTarget coverage;
-    private long frame, coverageFrame = -1;
+    private RenderTarget coverage, frontLayer;
+    private SkyTextures textures;
+    private SkySprites sprites;
+    private long frame, coverageFrame = -1, frontFrame = -1;
+    private int drawnImages, drawnImpostors;
     private boolean computed, blocked;
     private List<Drawn> drawn = List.of();
     private int candidates, drawnFields, drawnStars, drawnNebulae, draws;
@@ -107,6 +140,13 @@ final class SkyObjectsFrame {
         this.atmosphere = atmosphere;
     }
 
+    /** The shared texture cache (owned by the {@link BackdropFrame}; 0.14.0, phase 4). */
+    void textures(SkyTextures value) {
+        textures = value;
+        sprites = new SkySprites(value);
+    }
+
+    void spriteShader(ShaderInstance shader) { if (sprites != null) sprites.shader(shader); }
     void starShader(ShaderInstance shader) { starShader = shader; }
     void nebulaShader(ShaderInstance shader) { nebulaShader = shader; }
 
@@ -138,10 +178,17 @@ final class SkyObjectsFrame {
             return drawn;
         }
         var caps = SkyObjectsMath.caps(ClientHooks.coordinator().limits());
-        List<SkyObjectsMath.Candidate<Source>> fields = new ArrayList<>(), nebulae = new ArrayList<>();
-        for (var c : all) (c.value().object() instanceof StarField ? fields : nebulae).add(c);
+        var spriteCaps = SkySpriteMath.caps(ClientHooks.coordinator().limits());
+        List<SkyObjectsMath.Candidate<Source>> fields = new ArrayList<>(), nebulae = new ArrayList<>(), images = new ArrayList<>(),
+            impostors = new ArrayList<>();
+        for (var c : all) {
+            Object o = c.value().object();
+            (o instanceof StarField ? fields : o instanceof Nebula ? nebulae : o instanceof SkyImage ? images : impostors).add(c);
+        }
         fields = SkyObjectsMath.select(fields, caps.fields());
         nebulae = SkyObjectsMath.select(nebulae, caps.nebulae());
+        images = SkyObjectsMath.select(images, spriteCaps.images());
+        impostors = SkyObjectsMath.select(impostors, spriteCaps.impostors());
         int[] counts = new int[fields.size()];
         for (int i = 0; i < counts.length; i++) counts[i] = ((StarField) fields.get(i).value().object()).count();
         int[] share = SkyObjectsMath.share(counts, caps.stars());
@@ -149,6 +196,8 @@ final class SkyObjectsFrame {
         for (int i = 0; i < counts.length; i++) stars.put(fields.get(i), share[i]);
         List<SkyObjectsMath.Candidate<Source>> chosen = new ArrayList<>(fields);
         chosen.addAll(nebulae);
+        chosen.addAll(images);
+        chosen.addAll(impostors);
         boolean motion = ClientConfig.motionEffects();
         List<Drawn> out = new ArrayList<>(chosen.size());
         for (var c : SkyObjectsMath.drawingOrder(chosen)) {
@@ -159,7 +208,7 @@ final class SkyObjectsFrame {
             if (s.object() instanceof StarField) {
                 drawnFields++;
                 drawnStars += n;
-            } else drawnNebulae++;
+            } else if (s.object() instanceof Nebula) drawnNebulae++;
         }
         drawn = out;
         return drawn;
@@ -172,6 +221,7 @@ final class SkyObjectsFrame {
 
     /** {@code AFTER_SKY}, after the backgrounds: draws the frame's objects and, when the passes need it, the coverage layer. */
     void draw(RenderLevelStageEvent event) {
+        drawnImages = drawnImpostors = 0;
         List<Drawn> list = drawn();
         if (list.isEmpty() || starShader == null || nebulaShader == null) return;
         Minecraft mc = Minecraft.getInstance();
@@ -181,21 +231,40 @@ final class SkyObjectsFrame {
         prepare();
         Matrix4f modelView = event.getModelViewMatrix(), projection = event.getProjectionMatrix();
         FrameValues values = values(mc, camera, partial);
+        // 0.14.0 (phase 4): images and impostors of the frame, built once for the three targets below.
+        RenderTarget main = mc.getMainRenderTarget();
+        boolean anySprites = sprites != null && sprites.prepare(list, new SkySprites.Context(values.timeOfDay(),
+            (mc.level.getGameTime() + partial) / 20.0, mc.options.hideLightningFlash().get(), ClientConfig.screenEffects(),
+            SkySpriteMath.caps(ClientHooks.coordinator().limits()), modelView, projection, main.width, main.height));
+        if (anySprites) {
+            drawnImages = sprites.images();
+            drawnImpostors = sprites.impostors();
+        }
+        // FRONT goes to its own layer only when the sky pass runs and will compose it over the procedural layers.
+        boolean front = anySprites && sprites.anyFront() && sky != null && sky.needsPass();
         RenderSystem.depthMask(false);
         RenderSystem.disableDepthTest();
         RenderSystem.disableCull();
         RenderSystem.enableBlend();
         try {
-            for (Drawn d : list) drawOne(d, modelView, projection, values, false);
+            drawAll(list, modelView, projection, values, false, front);
             if (passesNeedCoverage(camera, partial)) {
-                RenderTarget main = mc.getMainRenderTarget();
                 RenderTarget target = coverageTarget(main.width, main.height);
                 target.setClearColor(0, 0, 0, 0);
                 target.clear(Minecraft.ON_OSX);
                 target.bindWrite(true);
-                for (Drawn d : list) drawOne(d, modelView, projection, values, true);
+                drawAll(list, modelView, projection, values, true, front);
                 main.bindWrite(true);
                 coverageFrame = frame;
+            }
+            if (front) {
+                RenderTarget target = frontTarget(main.width, main.height);
+                target.setClearColor(0, 0, 0, 0);
+                target.clear(Minecraft.ON_OSX);
+                target.bindWrite(true);
+                draws += sprites.draw(list, false, true, modelView, projection, sh -> frameUniforms(sh, values), true);
+                main.bindWrite(true);
+                frontFrame = frame;
             }
         } finally {
             VertexBuffer.unbind();
@@ -206,6 +275,41 @@ final class SkyObjectsFrame {
             RenderSystem.enableDepthTest();
             RenderSystem.depthMask(true);
         }
+    }
+
+    /**
+     * Draws the frame's objects in order to the bound target: stars and nebulae one by one, consecutive sprites as runs
+     * (FRONT sprites left out when they go to the front layer).
+     */
+    private void drawAll(List<Drawn> list, Matrix4f modelView, Matrix4f projection, FrameValues values, boolean toCoverage,
+                         boolean skipFront) {
+        List<Drawn> run = new ArrayList<>();
+        for (Drawn d : list) {
+            Object o = d.source().object();
+            if (o instanceof SkyImage || o instanceof SkyImpostor) {
+                run.add(d);
+                continue;
+            }
+            flushSprites(run, modelView, projection, values, toCoverage, skipFront);
+            drawOne(d, modelView, projection, values, toCoverage);
+        }
+        flushSprites(run, modelView, projection, values, toCoverage, skipFront);
+    }
+
+    private void flushSprites(List<Drawn> run, Matrix4f modelView, Matrix4f projection, FrameValues values, boolean toCoverage,
+                              boolean skipFront) {
+        if (run.isEmpty()) return;
+        if (sprites != null) draws += sprites.draw(run, skipFront, false, modelView, projection, sh -> frameUniforms(sh, values), toCoverage);
+        run.clear();
+    }
+
+    /** Uniforms of sky_objects.glsl shared by every object of the frame (the sprite shader reads the rest per object). */
+    private static void frameUniforms(ShaderInstance shader, FrameValues v) {
+        shader.safeGetUniform("CaFrame").set(v.exposure(), v.night(), 0, 0);
+        shader.safeGetUniform("CaVeilTop").set(v.top()[0], v.top()[1], v.top()[2]);
+        shader.safeGetUniform("CaVeilHorizon").set(v.horizon()[0], v.horizon()[1], v.horizon()[2]);
+        shader.safeGetUniform("CaVeilFog").set(v.fog()[0], v.fog()[1], v.fog()[2]);
+        shader.safeGetUniform("CaVeil").set(v.blend(), v.fogDensity(), 0, 0);
     }
 
     /** Values shared by every object of the frame (sky_objects.glsl): exposure, night, veil and twinkle scale. */
@@ -317,6 +421,13 @@ final class SkyObjectsFrame {
         return coverage;
     }
 
+    /** The front layer (0.14.0, phase 4), allocated on the first frame that needs it. */
+    private RenderTarget frontTarget(int width, int height) {
+        if (frontLayer == null) frontLayer = new TextureTarget(width, height, false, Minecraft.ON_OSX);
+        else if (frontLayer.width != width || frontLayer.height != height) frontLayer.resize(width, height, Minecraft.ON_OSX);
+        return frontLayer;
+    }
+
     /**
      * Uniforms of the coverage layer for the sky and atmosphere passes ({@code calamidade_sky.glsl}): {@code CaEl.x} = 1
      * and {@code CaElTex} when the layer was drawn this frame, else 0 (the passes then run the path without objects).
@@ -325,9 +436,13 @@ final class SkyObjectsFrame {
     Consumer<Uniforms> uniforms() {
         boolean on = coverageFrame == frame && coverage != null;
         int id = on ? coverage.getColorTextureId() : 0;
+        // 0.14.0 (phase 4): the front layer for the sky pass (CaEl.y = 1 and CaElFront when drawn this frame).
+        boolean frontOn = frontFrame == frame && frontLayer != null;
+        int frontId = frontOn ? frontLayer.getColorTextureId() : 0;
         return u -> {
             if (on) u.glTexture("CaElTex", id);
-            u.f4("CaEl", on ? 1 : 0, 0, 0, 0);
+            if (frontOn) u.glTexture("CaElFront", frontId);
+            u.f4("CaEl", on ? 1 : 0, frontOn ? 1 : 0, 0, 0);
         };
     }
 
@@ -407,8 +522,16 @@ final class SkyObjectsFrame {
             .setNormal((float) tangent[0], (float) tangent[1], (float) tangent[2]);
     }
 
-    /** Frees star field meshes not drawn for {@value #KEEP_FRAMES} frames (called once per frame, cheap). */
+    /**
+     * Once per frame: lets the texture cache upload what finished decoding (within the profile's limits) and frees what
+     * went unused; then frees star field meshes not drawn for {@value #KEEP_FRAMES} frames (cheap).
+     */
     void sweep() {
+        if (textures != null) {
+            textures.pump(SkySpriteMath.caps(ClientHooks.coordinator().limits()));
+            textures.sweep();
+        }
+        if (sprites != null) sprites.sweep();
         if (frame % 300 != 0 || meshes.isEmpty()) return;
         meshes.entrySet().removeIf(e -> {
             if (frame - e.getValue().lastUsed < KEEP_FRAMES) return false;
@@ -427,9 +550,30 @@ final class SkyObjectsFrame {
         if (coverage != null) coverage.destroyBuffers();
         coverage = null;
         coverageFrame = -1;
+        if (frontLayer != null) frontLayer.destroyBuffers();
+        frontLayer = null;
+        frontFrame = -1;
+        if (sprites != null) sprites.clear();
         computed = false;
         drawn = List.of();
     }
+
+    /** Images and impostors drawn in the last frame (0.14.0, phase 4). */
+    int[] spritesDrawn() { return new int[] {drawnImages, drawnImpostors}; }
+    /** Sprites still waiting for a texture or descriptor in the last frame. */
+    int spritesPending() { return sprites == null ? 0 : sprites.pending(); }
+    /** Flipbooks frozen for flashes in the last frame. */
+    int spritesFrozen() { return sprites == null ? 0 : sprites.frozen(); }
+    /** Highest level of detail of the impostors drawn in the last frame, or −1. */
+    int spriteLod() { return sprites == null ? -1 : sprites.lodLevel(); }
+    /** True when the front layer was drawn this frame. */
+    boolean frontDrawn() { return frontFrame == frame && frontLayer != null; }
+    /** True when the front layer exists at all (tests: nothing allocated without FRONT objects). */
+    boolean frontAllocated() { return frontLayer != null; }
+    /** Color texture of the front layer, or 0 (tests). */
+    int frontTexture() { return frontLayer == null ? 0 : frontLayer.getColorTextureId(); }
+    /** The shared texture cache, or null. */
+    SkyTextures textureCache() { return textures; }
 
     /** Star fields drawn in the last resolved frame. */
     int fields() { return drawnFields; }

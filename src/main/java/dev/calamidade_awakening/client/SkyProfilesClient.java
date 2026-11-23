@@ -131,6 +131,9 @@ final class SkyProfilesClient {
                     state.brightness(), state.rotation(), state.spin(), now / 20.0), false, weight, state.opacity(),
                     Long.MIN_VALUE + index, dev.calamidade_awakening.api.SkyObjectsMath.RANK_PROFILE, nebula.order()));
             }
+            // 0.14.0 (phase 4): images and impostors are constant in a profile; flipbooks run on the world clock.
+            SkyObjectsFrame.sprites(out, entry.getKey().images(), entry.getKey().impostors(), sampler, sampler, false, weight,
+                Long.MIN_VALUE + index, dev.calamidade_awakening.api.SkyObjectsMath.RANK_PROFILE, now / 20.0);
         }
         return out;
     }

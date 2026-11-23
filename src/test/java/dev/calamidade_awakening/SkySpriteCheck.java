@@ -135,6 +135,11 @@ final class SkySpriteCheck {
         require(SkySpriteMath.halvings(4096, 2048, 4096) == 0 && SkySpriteMath.halvings(4096, 2048, 2048) == 1
             && SkySpriteMath.halvings(5000, 10, 1024) == 3, "halvings to fit the GPU limit");
         require(SkySpriteMath.mipLevels(256, 64) == 8, "mip levels");
+        require(SkySpriteMath.gridLevels(256, 64, 1, 1) == 8, "single image: full chain");
+        require(SkySpriteMath.gridLevels(128, 64, 2, 1) == 6, "64-pixel frames: 6 levels (cells stay whole)");
+        require(SkySpriteMath.gridLevels(72, 36, 2, 1) == 2, "36-pixel frames: 2 levels");
+        require(SkySpriteMath.gridLevels(100, 30, 3, 1) == 0, "grid that does not divide the image: no mipmaps");
+        require(SkySpriteMath.textureBytes(4, 4, 1) == 64 + 16 && SkySpriteMath.textureBytes(4, 4, 0) == 64, "bytes with a level cap");
         var test = SkySpriteMath.caps(FrameLimits.unlimited());
         require(test.images() == 96, "test profile lifts the counts");
     }

@@ -572,5 +572,10 @@ void main() {
         }
         color = color * (1.0 - clamp(layer.a, 0.0, 1.0)) + layer.rgb;
     }
+    // 5. 0.14.0 (fase 4): objetos FRONT por cima de tudo, nos pixels de céu, sem lente.
+    if (caFrontOn() && skyOrig) {
+        vec4 front = caFrontAt(uv);
+        color = color * (1.0 - front.a) + front.rgb;
+    }
     fragColor = vec4(color, 1.0);
 }

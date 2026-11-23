@@ -113,7 +113,7 @@ function main() {
     if (!r.ok) failed++;
   }
   console.log(`referência visual: ${names.length - failed}/${names.length} cenas iguais à referência (15 da 0.12.0, `
-    + `${Object.keys(FUNDO_CENAS).length} com fundos de céu e ${objetos.length} com objetos do céu da 0.14)`);
+    + `${Object.keys(FUNDO_CENAS).length} com fundos de céu e ${objetos.length} com objetos do céu da 0.14, entre eles as imagens da fase 4)`);
   if (failed) process.exit(1);
 }
 

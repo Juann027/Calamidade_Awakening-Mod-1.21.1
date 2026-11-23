@@ -31,8 +31,9 @@ import java.util.regex.Pattern;
  * <p><b>Flipbooks.</b> {@link #sheet} cuts the PNG into a grid of equal frames (row by row, left to right); the frame
  * comes from a clock ({@link Clock#INSTANCE}: the instance's age, the same on every client; {@link Clock#WORLD}: the game
  * time) at {@link Builder#fps fps} with {@link Play#LOOP}, {@link Play#ONCE} or {@link Play#PING_PONG}, or from a
- * timeline track ({@link Play#TRACK} with {@link Param#FRAME}). With {@link Builder#filter SMOOTH}, leave a transparent
- * margin of 2 pixels around every frame (mipmaps then never bleed between frames). Accessibility: a sheet that flashes
+ * timeline track ({@link Play#TRACK} with {@link Param#FRAME}). No margin is needed between frames: with
+ * {@link Builder#filter SMOOTH} the mipmaps are made per frame and sampling stays inside the frame at any size; frames
+ * whose sides are powers of two (32, 64, 128) get the most mipmap levels. Accessibility: a sheet that flashes
  * must be marked {@link Builder#flashing flashing(true)} by the addon — it then freezes on a safe frame while the player
  * hides lightning flashes or turns screen effects to 0. The engine also checks every sheet's frame brightness once when
  * loading it and treats a sheet that alternates strongly more than 3 times per second as flashing; this is a simple

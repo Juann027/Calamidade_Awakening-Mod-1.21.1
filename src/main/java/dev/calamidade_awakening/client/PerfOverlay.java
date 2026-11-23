@@ -106,6 +106,19 @@ public final class PerfOverlay {
         objFields = fields; objStars = stars; objNebulae = nebulae; objActive = active; objCoverage = coverage; objBlocked = blocked;
     }
     private static int objFields, objStars, objNebulae, objActive;
+    /**
+     * Sprites of the frame (0.14.0, phase 4): images and impostors drawn, front layer, sprite textures, estimated memory
+     * and budget, uploads this frame, pending loads, failures, refusals, frozen flipbooks and the last problem.
+     */
+    static void skySprites(int images, int impostors, boolean front, int textures, long memory, long budget, int uploads,
+                           int pending, int failures, int refusals, int frozen, String problem) {
+        spImages = images; spImpostors = impostors; spFront = front; spTextures = textures; spMemory = memory; spBudget = budget;
+        spUploads = uploads; spPending = pending; spFailures = failures; spRefusals = refusals; spFrozen = frozen; spProblem = problem;
+    }
+    private static int spImages, spImpostors, spTextures, spUploads, spPending, spFailures, spRefusals, spFrozen;
+    private static long spMemory, spBudget;
+    private static boolean spFront;
+    private static String spProblem = "";
     private static boolean objCoverage, objBlocked;
     private static boolean backdropOpaque, backdropBlocked;
 
@@ -283,6 +296,15 @@ public final class PerfOverlay {
                     ? Component.translatableWithFallback(PREFIX + "backdrop.blocked", "blocked (game sky hidden)")
                     : objCoverage ? Component.translatableWithFallback(PREFIX + "yes", "yes")
                     : Component.translatableWithFallback(PREFIX + "no", "no")));
+        if (spImages + spImpostors + spTextures + spPending + spFailures + spRefusals > 0) {
+            lines.add(Component.translatableWithFallback(PREFIX + "skysprites", "Sky images: %s · impostors: %s · front layer %s · frozen %s",
+                spImages, spImpostors, spFront ? Component.translatableWithFallback(PREFIX + "yes", "yes")
+                    : Component.translatableWithFallback(PREFIX + "no", "no"), spFrozen));
+            lines.add(Component.translatableWithFallback(PREFIX + "skytextures",
+                "Sky textures: %s · %s/%s MiB · uploads %s · pending %s · invalid %s · refused %s",
+                spTextures, spMemory >> 20, spBudget >> 20, spUploads, spPending, spFailures, spRefusals));
+            if (!spProblem.isEmpty()) lines.add(Component.literal(spProblem.length() > 110 ? spProblem.substring(0, 110) + "…" : spProblem));
+        }
         lines.add(Component.translatableWithFallback(PREFIX + "world", "Global events: %s", worldEvents));
         if (!"release".equals(dev.calamidade_awakening.CalamidadeAwakening.BUILD))
             lines.add(Component.literal("Build: " + dev.calamidade_awakening.CalamidadeAwakening.BUILD));

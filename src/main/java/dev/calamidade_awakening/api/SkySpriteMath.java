@@ -71,6 +71,33 @@ public final class SkySpriteMath {
     }
 
     /**
+     * Mipmap levels below level 0 that keep every cell of a {@code columns} × {@code rows} grid whole: each level halves
+     * the cells, so a sheet gets as many levels as its cell size can be halved exactly (a 64 × 64 frame: 6; 36 × 36: 2).
+     * The levels are then made per cell (a 2 × 2 box never crosses a cell border) and the shader keeps its samples half
+     * a texel of the sampled level inside the frame, so frames never bleed into each other at any size — no margin
+     * needed. A single image ({@code 1 × 1}) gets the full chain; a grid that does not divide the image, none.
+     */
+    public static int gridLevels(int width, int height, int columns, int rows) {
+        if (columns <= 1 && rows <= 1) return mipLevels(width, height);
+        if (width % columns != 0 || height % rows != 0) return 0;
+        int cw = width / columns, ch = height / rows, n = 0;
+        while (cw % 2 == 0 && ch % 2 == 0 && cw > 1 && ch > 1) { cw /= 2; ch /= 2; n++; }
+        return n;
+    }
+
+    /** Bytes of an RGBA8 texture with exactly {@code levels} mipmap levels below level 0 (sizes halved, at least 1). */
+    public static long textureBytes(int width, int height, int levels) {
+        long total = 0;
+        int w = Math.max(1, width), h = Math.max(1, height);
+        for (int i = 0; i <= levels; i++) {
+            total += (long) w * h * 4;
+            w = Math.max(1, w / 2);
+            h = Math.max(1, h / 2);
+        }
+        return total;
+    }
+
+    /**
      * Whether one more upload of {@code bytes} fits this frame, after {@code done} uploads totalling {@code sent} bytes:
      * never more than {@link Caps#uploads}; the first upload of a frame always goes (otherwise a texture larger than the
      * byte limit would never load); the others only while the bytes stay within {@link Caps#uploadBytes}.

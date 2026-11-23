@@ -1,5 +1,6 @@
 // sky_objects.glsl — interno do motor (0.14.0, fase 3): composição dos objetos do céu (estrelas, constelações,
-// nebulosas e, depois, imagens), igual nos shaders de núcleo sky_stars e sky_nebula. Repete o SkyObjectsMath (Java).
+// nebulosas e, na fase 4, imagens e impostors), igual nos shaders de núcleo sky_stars, sky_nebula e sky_sprite. Repete o
+// SkyObjectsMath (Java).
 //
 // Todo objeto sai em alfa pré-multiplicado: rgb é a luz que ele traz, a é a cobertura. Com a mistura
 // (ONE, ONE_MINUS_SRC_ALPHA) o céu de trás vira trás × (1 − a) + rgb. Os modos (SkyBlend) só mudam o que o objeto traz:
@@ -18,32 +19,42 @@ uniform vec3 CaVeilHorizon;
 uniform vec3 CaVeilFog;
 uniform vec4 CaVeil;        // x: mistura do céu da atmosfera (0 sem atmosfera), y: densidade da névoa
 
-// SkyObjectsMath.dayVisibility, darkening e o degradê do horizonte: (visibilidade, ganho de luz).
-vec2 caObjReaction(vec3 world) {
-    float day = 1.0 - CaObjB.z * (1.0 - CaFrame.y);
+// SkyObjectsMath.dayVisibility, darkening e o degradê do horizonte: (visibilidade, ganho de luz). objB tem o formato de
+// CaObjB; a fase 4 passa os parâmetros de cada imagem por aqui (vindos da textura de dados), as estrelas e nebulosas
+// passam os uniforms (caObjReaction), com o mesmo resultado.
+vec2 caObjReactionWith(vec4 objB, vec3 world) {
+    float day = 1.0 - objB.z * (1.0 - CaFrame.y);
     float dark = clamp((1.0 - CaFrame.x) / 0.85, 0.0, 1.0);
-    float s = CaObjB.y;
-    int mode = int(CaObjB.x + 0.5);
+    float s = objB.y;
+    int mode = int(objB.x + 0.5);
     float vis = mode == 1 ? 1.0 - (1.0 - day) * (1.0 - s * dark) : day;
     float light = mode == 0 ? 1.0 + (CaFrame.x - 1.0) * s : 1.0;
-    if (CaObjB.w > 0.0) vis *= smoothstep(-0.02, CaObjB.w, world.y);
+    if (objB.w > 0.0) vis *= smoothstep(-0.02, objB.w, world.y);
     return vec2(vis, light);
+}
+
+vec2 caObjReaction(vec3 world) {
+    return caObjReactionWith(CaObjB, world);
 }
 
 // Pixel pré-multiplicado de um objeto: cor, alfa da forma (0..1), ganho de luz próprio (brilho da estrela, maior que
 // 1 brilha mais do que cobre) e direção no mundo. O véu da atmosfera é o do caAtmoSkyDelta: gradiente por mistura e
 // névoa no horizonte, na proporção CaObjA.w.
-vec4 caObjPixel(vec3 color, float alpha, float gain, vec3 world) {
-    vec2 r = caObjReaction(world);
-    float veil = CaVeil.x * CaObjA.w;
-    float fogv = CaVeil.y * (1.0 - smoothstep(0.0, 0.45, world.y)) * CaObjA.w;
-    float op = CaObjA.y * r.x;
-    float light = gain * r.y * CaObjA.z;
-    int blend = int(CaObjA.x + 0.5);
+vec4 caObjPixelWith(vec4 objA, vec4 objB, vec3 color, float alpha, float gain, vec3 world) {
+    vec2 r = caObjReactionWith(objB, world);
+    float veil = CaVeil.x * objA.w;
+    float fogv = CaVeil.y * (1.0 - smoothstep(0.0, 0.45, world.y)) * objA.w;
+    float op = objA.y * r.x;
+    float light = gain * r.y * objA.z;
+    int blend = int(objA.x + 0.5);
     if (blend == 1)
         return vec4(color * (alpha * op * light * (1.0 - veil) * (1.0 - fogv)), 0.0);
     float a = (blend == 2 ? step(0.5, alpha) : alpha) * op;
     vec3 grad = mix(CaVeilHorizon, CaVeilTop, smoothstep(0.0, 0.6, world.y));
     vec3 c = mix(mix(color * light, grad, veil), CaVeilFog, fogv);
     return vec4(c * a, a);
+}
+
+vec4 caObjPixel(vec3 color, float alpha, float gain, vec3 world) {
+    return caObjPixelWith(CaObjA, CaObjB, color, alpha, gain, world);
 }

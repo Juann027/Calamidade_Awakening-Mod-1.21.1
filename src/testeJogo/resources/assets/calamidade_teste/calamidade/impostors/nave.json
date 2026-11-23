@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "textures": [
+    "calamidade_teste:textures/sky/impostors/nave_p0.png"
+  ],
+  "frame": [
+    32,
+    32
+  ],
+  "grid": [
+    8,
+    1
+  ],
+  "gutter": 0,
+  "views": {
+    "yaw": 8,
+    "pitch": [
+      0
+    ],
+    "mirror": false
+  },
+  "frames": 1,
+  "fps": 8,
+  "play": "loop",
+  "pivot": [
+    0.5,
+    0.5
+  ],
+  "lod": [
+    {
+      "textures": [
+        "calamidade_teste:textures/sky/impostors/nave_16_p0.png"
+      ],
+      "frame": [
+        16,
+        16
+      ],
+      "gutter": 0,
+      "below": 12
+    }
+  ]
+}

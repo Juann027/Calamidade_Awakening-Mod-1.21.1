@@ -52,7 +52,7 @@ final class BackdropFrame {
     record Source(Backdrop backdrop, Backdrop.State state, double seconds) {}
 
     /** One background drawn this frame (bottom first): texture, opacity, turn (degrees) and tint. */
-    record Layer(Backdrop backdrop, BackdropTextures.Entry entry, float alpha, float rotation) {
+    record Layer(Backdrop backdrop, SkyTextures.Entry entry, float alpha, float rotation) {
         float red() { return ((backdrop.tint() >> 16) & 0xFF) / 255f; }
         float green() { return ((backdrop.tint() >> 8) & 0xFF) / 255f; }
         float blue() { return (backdrop.tint() & 0xFF) / 255f; }
@@ -61,7 +61,7 @@ final class BackdropFrame {
     private final StageScene scene;
     private final WorldEventsClient world;
     private final SkyProfilesClient profiles;
-    private final BackdropTextures textures = new BackdropTextures();
+    private final SkyTextures textures = new SkyTextures();
     private boolean computed;
     private List<Layer> layers = List.of();
     private int candidates;
@@ -104,7 +104,7 @@ final class BackdropFrame {
         List<Layer> out = new ArrayList<>(BackdropMath.MAX_DRAWN);
         for (var drawn : BackdropMath.select(all)) {
             Source s = drawn.value();
-            BackdropTextures.Entry entry = textures.get(s.backdrop());
+            SkyTextures.Entry entry = textures.get(s.backdrop());
             if (entry == null) continue;
             out.add(new Layer(s.backdrop(), entry, drawn.alpha(), (float) (s.state().rotationAt(s.seconds(), motion) % 360.0)));
         }
@@ -375,7 +375,7 @@ final class BackdropFrame {
     /** Geometry draws since start (tests). */
     int draws() { return draws; }
     /** Texture cache (tests). */
-    BackdropTextures textures() { return textures; }
+    SkyTextures textures() { return textures; }
     /** True when the dimension draws the vanilla sky type at all (diagnostics). */
     static boolean normalSky(Minecraft mc) {
         return mc.level != null && mc.level.effects().skyType() == DimensionSpecialEffects.SkyType.NORMAL;

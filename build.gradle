@@ -98,6 +98,16 @@ neoForge {
             programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
         }
+        // 0.14 (fase 4): imagens, flipbooks e impostors em jogo (recursos do mod de teste; sem o vfx-sample).
+        testeImagens {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = layout.projectDirectory.dir('run/teste-imagens').asFile
+            systemProperty 'calamidade.teste', 'imagens'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
         // 0.11.2: medição de custo por efeito e por passe (CostProbe), cliente com o vfx-sample em mods/.
         testeMedicao {
             client()
@@ -742,5 +752,43 @@ tasks.register('testeEstrelas') {
         lines.findAll { it.startsWith('INFO') }.each { logger.lifecycle(it) }
         logger.lifecycle("testeEstrelas: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeEstrelas:\n' + failed.join('\n'))
+    }
+}
+
+// 0.14 (fase 4): teste das imagens, flipbooks e impostors (xvfb-run ./gradlew testeImagens), no mundo do testeJogo, numa só
+// inicialização do cliente: nada sem addon, cor exata e transparência, silhueta, flipbooks LOOP/ONCE/PING_PONG/TRACK,
+// proteção de flashes, vistas e LOD do impostor, FRONT e BEHIND com um portal, recursos inválidos, lote, cegueira,
+// customSkies, recarga, custo e regressão do Overworld. Relatório em run/teste-imagens/calamidade-imagens.txt.
+def testeImagensDir = layout.projectDirectory.dir('run/teste-imagens').asFile
+def prepararTesteImagens = tasks.register('prepararTesteImagens') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo para run/teste-imagens.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteImagens: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        ['saves', 'mods', 'screenshots', 'logs', 'config'].each { project.delete(new File(testeImagensDir, it)) }
+        project.delete(new File(testeImagensDir, 'calamidade-imagens.txt'))
+        project.copy { from world; into new File(testeImagensDir, 'saves/teste'); exclude 'session.lock'; exclude 'data/calamidade_awakening_*' }
+        new File(testeImagensDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'lang:pt_br',
+            'maxFps:260', 'enableVsync:false'].join('\n') + '\n'
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteImagens') task.dependsOn prepararTesteImagens }
+tasks.register('testeImagens') {
+    group = 'verification'
+    description = 'Roda o teste em jogo das imagens, flipbooks e impostors (precisa de tela: xvfb-run) e falha se alguma afirmação falhar.'
+    dependsOn 'runTesteImagens'
+    doLast {
+        def report = new File(testeImagensDir, 'calamidade-imagens.txt')
+        if (!report.exists()) throw new GradleException('testeImagens: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM imagens')) failed << "FAIL roteiro incompleto (falta 'FIM imagens')"
+        lines.findAll { it.startsWith('INFO') }.each { logger.lifecycle(it) }
+        logger.lifecycle("testeImagens: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeImagens:\n' + failed.join('\n'))
     }
 }

@@ -529,11 +529,110 @@ function objectFrame(cena, exposure) {
     f3: { CaVeilTop: a ? a.skyTop : [0, 0, 0], CaVeilHorizon: a ? a.skyHorizon : [0, 0, 0], CaVeilFog: a ? a.fogColor : [0, 0, 0] } };
 }
 const argb4 = c => [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255, ((c >>> 24) & 255) / 255];
+
+// 0.14 (fase 4): imagens, flipbooks e impostors com o shader de núcleo real (sky_sprite). Texturas de teste geradas aqui,
+// já em alfa pré-multiplicado (como o SkyTextures carrega); geometria como o SkySpriteMath (plano "de pé" com giro,
+// projeção gnomônica, pivô); retângulos e pesos dados pela cena, no formato da textura de dados do SkySprites.
+function spriteTexture(name) {
+  const make = (w, h, fn) => {
+    const u8 = new Array(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const [r, g, b, a] = fn(x, y);
+      u8.splice((y * w + x) * 4, 4, Math.round(r * a / 255), Math.round(g * a / 255), Math.round(b * a / 255), a);
+    }
+    return { w, h, u8 };
+  };
+  const disc = (x, y, cx, cy, r) => Math.min(Math.max(r - Math.hypot(x + 0.5 - cx, y + 0.5 - cy) + 0.5, 0), 1);
+  switch (name) {
+    // Disco opaco de cor exata (255, 32, 16) com borda de um pixel, transparente fora.
+    case 'disco': return { ...make(64, 64, (x, y) => [255, 32, 16, Math.round(255 * disc(x, y, 32, 32, 28))]), smooth: true };
+    // Disco de alfa suave (1 no centro, 0 no raio): transparência real em NORMAL, silhueta no limiar 0,5 em COVER.
+    case 'suave': return { ...make(64, 64, (x, y) => [40, 200, 255, Math.round(255 * Math.max(0, 1 - Math.hypot(x + 0.5 - 32, y + 0.5 - 32) / 30))]), smooth: true };
+    // Folha 2 × 1 de quadros 32 × 32 opacos, sem margem: quadro 0 verde, quadro 1 vermelho.
+    case 'quadros': return { ...make(64, 32, x => x < 32 ? [20, 220, 40, 255] : [230, 20, 20, 255]), smooth: true, grid: [2, 1] };
+    // Duas vistas de impostor em células 32 × 32 com margem de 2: vermelha e azul, opacas.
+    case 'vistas': return { ...make(72, 36, (x, y) => {
+      const cx = x % 36, inside = cx >= 2 && cx < 34 && y >= 2 && y < 34;
+      return x < 36 ? [220, 30, 30, inside ? 255 : 0] : [30, 30, 220, inside ? 255 : 0]; }), smooth: true, grid: [2, 1] };
+    // Metade esquerda vermelha, direita azul (espelhamento por retângulo com u0 > u1), sem filtro.
+    case 'metades': return { ...make(32, 16, x => x < 16 ? [220, 30, 30, 255] : [30, 30, 220, 255]), smooth: false };
+  }
+  throw new Error('textura de sprite desconhecida: ' + name);
+}
+// SkySpriteMath.gridLevels e a caixa 2 × 2 do SkyTextures: níveis feitos por quadro (nenhum quadro se mistura).
+function gridLevels(w, h, cols, rows) {
+  if (cols <= 1 && rows <= 1) { let n = 0, m = Math.max(w, h); while (m > 1) { m = Math.floor(m / 2); n++; } return n; }
+  if (w % cols || h % rows) return 0;
+  let cw = w / cols, ch = h / rows, n = 0;
+  while (cw % 2 === 0 && ch % 2 === 0 && cw > 1 && ch > 1) { cw /= 2; ch /= 2; n++; }
+  return n;
+}
+function spriteLevels(t) {
+  const out = [{ w: t.w, h: t.h, u8: t.u8 }];
+  const n = t.smooth ? gridLevels(t.w, t.h, ...(t.grid || [1, 1])) : 0;
+  for (let i = 0; i < n; i++) {
+    const s = out[out.length - 1], w = Math.max(1, Math.floor(s.w / 2)), h = Math.max(1, Math.floor(s.h / 2)), u8 = new Array(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let c = 0; c < 4; c++) {
+      let sum = 0;
+      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++)
+        sum += s.u8[(Math.min(y * 2 + dy, s.h - 1) * s.w + Math.min(x * 2 + dx, s.w - 1)) * 4 + c];
+      u8[(y * w + x) * 4 + c] = Math.floor((sum + 2) / 4);
+    }
+    out.push({ w, h, u8 });
+  }
+  return out;
+}
+function spriteCorners(o, aspect) {
+  const c = skyDir(o.az, o.el);
+  const reject = (v, a) => { const d = dot(v, a); return [v[0] - a[0] * d, v[1] - a[1] * d, v[2] - a[2] * d]; };
+  let up = reject([0, 1, 0], c);
+  if (Math.hypot(...up) < 1e-6) up = reject([0, 0, c[1] > 0 ? -1 : 1], c);
+  up = norm(up);
+  let right = cross(c, up);
+  const r = (o.roll || 0) * Math.PI / 180, cr = Math.cos(r), sr = Math.sin(r);
+  [right, up] = [[0, 1, 2].map(k => right[k] * cr + up[k] * sr), [0, 1, 2].map(k => up[k] * cr - right[k] * sr)];
+  const w = o.width, h = o.height ?? o.width / aspect;
+  const tw = 2 * Math.tan(Math.min(w, 179) * Math.PI / 360), th = 2 * Math.tan(Math.min(h, 179) * Math.PI / 360);
+  const [px, py] = o.pivot || [0.5, 0.5];
+  return [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, v]) => norm([0, 1, 2].map(k => c[k] + right[k] * (u - px) * tw + up[k] * (py - v) * th)));
+}
+// SkySpriteMath.cell: retângulo de uma célula de uma grade, recuado por uma margem (impostor) em pixels da célula.
+function spriteCell(index, cols, rows, inset = 0, cellW = 1, cellH = 1) {
+  const c = index % cols, r = Math.floor(index / cols);
+  return [(c + inset / cellW) / cols, (r + inset / cellH) / rows, (c + 1 - inset / cellW) / cols, (r + 1 - inset / cellH) / rows];
+}
+function spriteDraw(o, frame) {
+  const tex = spriteTexture(o.texture), cols = o.grid ? o.grid[0] : 1, rows = o.grid ? o.grid[1] : 1;
+  const aspect = (tex.w / cols) / (tex.h / rows);
+  const pos = [], uv = [], ids = [];
+  spriteCorners(o, aspect).forEach((p, k) => { pos.push(...p.map(v => v * 50)); uv.push(...[[0, 0], [1, 0], [1, 1], [0, 1]][k]); ids.push(0, 0); });
+  const rects = o.rects || [spriteCell(o.frame ?? 0, cols, rows)], weights = o.weights || [1];
+  const horizon = o.horizon ?? 0, tint = argb4(o.tint ?? 0xffffffff);
+  // naiveMips: controle negativo (mipmaps do driver em toda a cadeia, recuo de meio texel só no nível 0).
+  const levels = o.naiveMips ? 0 : spriteLevels(tex).length - 1;
+  const row = [BLENDS[o.blend || 'NORMAL'], (o.opacity ?? 1) * tint[3], o.brightness ?? 1, o.atmosphere ?? 1,
+    DARKENINGS[o.darkening || 'IGNORE'], o.strength ?? 1, o.daylight ?? 0, horizon > 0 ? Math.sin(horizon * Math.PI / 180) : 0,
+    tint[0], tint[1], tint[2], levels, ...[0, 1, 2, 3].map(i => weights[i] ?? 0), ...[0, 1, 2, 3].flatMap(i => rects[i] || rects[0])];
+  return { vs: coreSource('sky_sprite', 'vsh'), fs: coreSource('sky_sprite', 'fsh'),
+    attribs: { Position: { data: pos, size: 3, type: 'float' }, UV0: { data: uv, size: 2, type: 'float' }, UV2: { data: ids, size: 2, type: 'short' } },
+    quads: 1, f4: frame.f4, f3: frame.f3, f2: {}, samplers: { Sampler0: { image: o.texture + (o.naiveMips ? '_naive' : '') },
+      CaSpriteData: { data: row, texels: 8 } } };
+}
+function spriteImages(cena) {
+  const out = {};
+  for (const o of cena.objetos || []) if (o.type === 'sprite') {
+    const t = spriteTexture(o.texture);
+    out['sprite_' + o.texture + (o.naiveMips ? '_naive' : '')] = o.naiveMips ? { ...t, naive: true } : { ...t, levels: spriteLevels(t) };
+  }
+  return out;
+}
 function objectDraws(cena, exposure) {
   const frame = objectFrame(cena, exposure);
-  const ordered = [...cena.objetos].map((o, i) => ({ o, i })).sort((x, y) => (x.o.order ?? (x.o.type === 'nebula' ? 100 : 200))
-    - (y.o.order ?? (y.o.type === 'nebula' ? 100 : 200)) || x.i - y.i).map(x => x.o);
+  const defOrder = o => o.order ?? (o.type === 'nebula' ? 100 : o.type === 'sprite' ? 300 : 200);
+  const ordered = [...cena.objetos].map((o, i) => ({ o, i })).sort((x, y) => defOrder(x.o) - defOrder(y.o) || x.i - y.i).map(x => x.o);
   return ordered.map(o => {
+    // FRONT vai para a camada de frente só quando o passe sky roda (como no SkyObjectsFrame); sem ele, é como atrás.
+    if (o.type === 'sprite') return { ...spriteDraw(o, frame), front: !!o.front && !cena.noSkyPass };
     const common = { CaObjA: [BLENDS[o.blend || (o.type === 'nebula' ? 'NORMAL' : 'LUMINOUS')], o.opacity ?? 1, o.brightness ?? 1, o.atmosphere ?? 1],
       CaObjB: [DARKENINGS[o.darkening || 'REVEAL'], o.strength ?? 1, o.daylight ?? 1, (o.horizon ?? 4) > 0 ? Math.sin((o.horizon ?? 4) * Math.PI / 180) : 0] };
     if (o.type === 'stars') {
@@ -612,6 +711,28 @@ const OBJ_CENAS = {
   // H: lente: buraco negro sobre um campo de estrelas.
   obj_lente: { env: env(DUSK, 0.5), look: [BH_DIR, -8, 4], layers: [bh({ size: 12, progress: 1, seconds: 14, spinDegrees: 260 })],
     objetos: [{ type: 'stars', stars: campo(-55, -4, 16, 4, 2, 0xffffffff), horizon: 0 }] },
+  // 0.14 (fase 4): imagens (sky_sprite). I1 cor exata (NORMAL) e transparente fora do disco; I2 alfa suave em NORMAL e
+  // em COVER (silhueta); I3 LUMINOUS; I4 Atmosphere; I5 FRONT na frente do portal (e BEHIND atrás); I6 folha com margem
+  // desenhada pequena (mipmaps) e o controle sem margem; I7 duas vistas pesadas 0,5/0,5; I8 espelho (u0 > u1).
+  img_normal: { env: env(DUSK, 0.5), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'sprite', texture: 'disco', az: 0, el: 30, width: 16 }] },
+  img_suave: { env: env(DUSK, 0.5), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'sprite', texture: 'suave', az: 0, el: 30, width: 16 }] },
+  img_cover: { env: env(DUSK, 0.5), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'sprite', texture: 'suave', az: 0, el: 30, width: 16, blend: 'COVER' }] },
+  img_luminosa: { env: env(DAY, 0.25), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'sprite', texture: 'disco', az: 0, el: 30, width: 16, blend: 'LUMINOUS' }] },
+  img_atmosfera: { env: env(DUSK, 0.5), look: OBJ_LOOK, layers: [], atmo: TINGE, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'sprite', texture: 'suave', az: 6, el: 32, width: 18 }, { type: 'sprite', texture: 'disco', az: -12, el: 26, width: 10 }] },
+  img_frente: { env: env(DUSK, 0.23), look: [PORTAL_DIR, -12, 0], layers: [portal({ size: 34, progress: 1, seconds: 9, spinDegrees: 90 })],
+    objetos: [{ type: 'sprite', texture: 'disco', az: 15, el: 28, width: 10, blend: 'COVER', front: true }] },
+  img_quadros: { env: env(DUSK, 0.5), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true,
+    objetos: [0.35, 0.7, 1.4, 2.8, 5.6].map((width, i) => ({ type: 'sprite', texture: 'quadros', grid: [2, 1], frame: 0, az: -9 + i * 4.5, el: 30, width })) },
+  img_vistas: { env: env(DUSK, 0.5), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'sprite', texture: 'vistas', az: 0, el: 30, width: 12, height: 12, rects: [spriteCell(0, 2, 1, 2, 36, 36), spriteCell(1, 2, 1, 2, 36, 36)],
+      weights: [0.5, 0.5] }] },
+  img_espelho: { env: env(DUSK, 0.5), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true,
+    objetos: [{ type: 'sprite', texture: 'metades', az: 0, el: 30, width: 16, rects: [[1, 0, 0, 1]] }] },
   // Vitrine (folha da fase 3): fundo, faixa da galáxia, nebulosa, campo e constelação, com a atmosfera do anoitecer.
   obj_vitrine: { env: env(DUSK, 0.5), look: OBJ_LOOK, layers: [], atmo: { ...NIGHTFALL(0.5, 0, 0.35), fogDensity: 0 },
     objetos: [{ type: 'nebula', shape: 'BAND', az: 70, el: 40, extent: 8, density: 0.55, inner: 0xb0fff0d8, outer: 0x50607090, detail: 4 },
@@ -723,6 +844,11 @@ function skyPasses(cena) {
   const bd = backdropUniforms(cena), bdPass = cena.backdropOff ? backdropUniforms({}) : bd;
   // 0.14 (fase 3): camada de cobertura dos objetos para os passes (coverageOff: controle negativo, passes sem ela).
   const el = cena.objetos && !cena.coverageOff ? { textures: { CaElTex: 'elements' }, f4: { CaEl: [1, 0, 0, 0] } } : { textures: {}, f4: { CaEl: [0, 0, 0, 0] } };
+  // 0.14 (fase 4): camada de frente (imagens FRONT) para o passe sky; frontOff: controle negativo, o passe não a compõe.
+  if (cena.objetos && cena.objetos.some(o => o.front) && !cena.noSkyPass && !cena.frontOff) {
+    el.textures = { ...el.textures, CaElFront: 'front' };
+    el.f4 = { CaEl: [el.f4.CaEl[0], 1, 0, 0] };
+  }
   const lens = skyLenses(layers);
   const a = cena.atmo;
   const lensUniforms = prefix => ({ [prefix + 'Lens0']: lens.slice(0, 4), [prefix + 'Lens1']: lens.slice(4, 8),
@@ -836,6 +962,20 @@ async function render(page, name, cena) {
         // 0.14: texturas de 8 bits como as do jogo (fundos de céu), linha 0 = topo da imagem (v = 0), como no jogo.
         const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); params();
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, img0.w, img0.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(img0.u8));
+        if (img0.smooth) {
+          // 0.14 (fase 4): sprites SMOOTH, linear com os níveis feitos por quadro na CPU (SkyTextures); naive: os
+          // mipmaps do driver em toda a cadeia (o controle negativo).
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          if (img0.naive) gl.generateMipmap(gl.TEXTURE_2D);
+          else {
+            for (let i = 1; i < img0.levels.length; i++) {
+              const l = img0.levels[i];
+              gl.texImage2D(gl.TEXTURE_2D, i, gl.RGBA8, l.w, l.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(l.u8));
+            }
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, img0.levels.length - 1);
+          }
+        }
         named[key] = t;
       } else named[key] = tex(img0.w, img0.h, gl.RGBA32F, gl.RGBA, new Float32Array(img0.data));
     }
@@ -848,7 +988,22 @@ async function render(page, name, cena) {
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, el, 0);
       gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      // 0.14 (fase 4): camada de frente, criada quando um sprite FRONT a usa (mesma mistura, limpa em zero).
+      let frontFb = null;
+      const target = front => {
+        if (!front) { gl.bindFramebuffer(gl.FRAMEBUFFER, fb); return; }
+        if (!frontFb) {
+          const ft = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, ft); params();
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+          frontFb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, frontFb);
+          gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ft, 0);
+          gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+          named.front = ft;
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, frontFb);
+      };
       for (const d of objects.draws) {
+        target(d.front);
         const prog = gl.createProgram();
         gl.attachShader(prog, compile(gl.VERTEX_SHADER, d.vs)); gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, d.fs));
         gl.linkProgram(prog);
@@ -874,6 +1029,20 @@ async function render(page, name, cena) {
         for (const [n, v] of Object.entries(d.f2 || {})) gl.uniform2f(gl.getUniformLocation(prog, n), ...v);
         for (const [n, v] of Object.entries(d.f3 || {})) gl.uniform3f(gl.getUniformLocation(prog, n), ...v);
         for (const [n, v] of Object.entries(d.f4 || {})) gl.uniform4f(gl.getUniformLocation(prog, n), ...v);
+        // Texturas de dados criadas antes de ligar as unidades (criar liga a textura nova na unidade ativa).
+        const samplerTex = Object.entries(d.samplers || {}).map(([n, smp]) => {
+          if (smp.image) return [n, named['sprite_' + smp.image]];
+          gl.activeTexture(gl.TEXTURE0);
+          const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); params();
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, smp.texels, 1, 0, gl.RGBA, gl.FLOAT, new Float32Array(smp.data));
+          return [n, t];
+        });
+        let unit = 0;
+        for (const [n, t] of samplerTex) {
+          gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
+          gl.uniform1i(gl.getUniformLocation(prog, n), unit); unit++;
+        }
+        gl.activeTexture(gl.TEXTURE0);
         gl.drawElements(gl.TRIANGLES, d.quads * 6, gl.UNSIGNED_INT, 0);
         gl.bindVertexArray(null);
       }
@@ -928,7 +1097,7 @@ async function render(page, name, cena) {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     return canvas.toDataURL('image/png');
   }, { W, H, depth: Array.from(depth), color: Array.from(color), invProj: invert(proj), invView: invert(view),
-       viewProj, passes, shaders, images: sky ? { sun: sunTexture(), ...backdropImages(cena) } : {}, objects });
+       viewProj, passes, shaders, images: sky ? { sun: sunTexture(), ...backdropImages(cena), ...spriteImages(cena) } : {}, objects });
   const file = path.join(OUT, name + '.png');
   fs.writeFileSync(file, Buffer.from(png.split(',')[1], 'base64'));
   return file;
@@ -959,7 +1128,7 @@ async function contactSheet(page, files) {
 }
 
 const ALL = { ...CENAS, ...SKY_CENAS, ...REF_CENAS, ...FUNDO_CENAS, ...OBJ_CENAS };
-module.exports = { SKY_CENAS, REF_CENAS, FUNDO_CENAS, OBJ_CENAS, ALL, starIntensity, render, lookAt, skyDir, vanillaAxes, skyScene, perspective, viewMatrix,
+module.exports = { SKY_CENAS, REF_CENAS, FUNDO_CENAS, OBJ_CENAS, ALL, starIntensity, spriteCell, render, lookAt, skyDir, vanillaAxes, skyScene, perspective, viewMatrix,
   W, H, FOV, OUT, backdropTexture };
 
 async function main() {

@@ -54,6 +54,8 @@
   "perf.calamidade_awakening.sky": "Sky: %s layers (%s active, max %s) · pass %s",
   "perf.calamidade_awakening.backdrop": "Sky background: %s drawn (%s active) · %s",
   "perf.calamidade_awakening.skyobjects": "Sky objects: %s fields (%s stars) · %s nebulae (%s active) · coverage %s",
+  "perf.calamidade_awakening.skysprites": "Sky images: %s · impostors: %s · front layer %s · frozen %s",
+  "perf.calamidade_awakening.skytextures": "Sky textures: %s · %s/%s MiB · uploads %s · pending %s · invalid %s · refused %s",
   "perf.calamidade_awakening.backdrop.blocked": "blocked (game sky hidden)",
   "perf.calamidade_awakening.backdrop.opaque": "opaque",
   "perf.calamidade_awakening.backdrop.partial": "partial",

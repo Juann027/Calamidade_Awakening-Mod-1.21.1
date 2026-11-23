@@ -14,6 +14,9 @@
 //   F. Sol do jogo apagado sob uma nuvem COVER: sem marca.
 //   G. Ordem: a nuvem COVER na frente esconde a estrela; atrás, não.
 //   H. Lente: as estrelas perto do buraco negro saem do lugar; longe, ficam.
+// 0.14 (fase 4): imagens com o shader sky_sprite: I1 cor exata e transparência do PNG, I2 alfa suave (NORMAL e COVER),
+//   I3 LUMINOUS, I4 Atmosphere, I5 FRONT na frente do portal (e só no céu), I6 quadros sem vazamento em qualquer
+//   tamanho, I7 mistura de vistas, I8 espelho.
 // Os casos têm controles negativos (passes sem a camada de cobertura, modo trocado) que precisam FALHAR.
 //
 //   node scripts/objetos_composicao.cjs     (sai com 1 se algum caso falhar)
@@ -270,6 +273,161 @@ async function main() {
       });
       check('H lente: estrelas perto do buraco negro saem do lugar', nearTotal > 5 && nearMoved / nearTotal > 0.5, `${nearMoved}/${nearTotal} pixels de estrela mudaram`);
       check('H lente: estrelas longe dele ficam iguais', farTotal > 5 && farSame / farTotal > 0.95, `${farSame}/${farTotal} iguais`);
+    }
+
+    // ----------------------------------------------------------------------------------------- 0.14 (fase 4): imagens
+    // I1. Imagem NORMAL: cor exata no miolo; fora do disco (PNG transparente) a tela é a do fundo sozinho.
+    {
+      const cena = C.img_normal, g = geometry(cena), o = cena.objetos[0], c = P.skyDir(o.az, o.el);
+      const sem = await shot(page, 'img_normal__sem', { ...cena, objetos: undefined });
+      const img = await shot(page, 'img_normal', cena);
+      const cx = P.W / 2, cy = P.H / 2, centro = px(img, cx, cy), want = [255, 32, 16];
+      check('I1 imagem NORMAL: cor exata no miolo', maxDiff(centro, want) <= 3, `miolo (${centro}) contra (${want})`);
+      // O disco tem raio 28/32 da meia largura (8°): fora de ~7,3° só sobra a parte transparente do PNG.
+      const outside = (sh) => {
+        let worst = 0, n = 0;
+        each(1, (x, row) => {
+          if (!g.sky(x, row)) return;
+          const a = angle(g.dir(x, row), c);
+          if (a < 7.6 || a > 11.5) return;
+          worst = Math.max(worst, maxDiff(px(sh, x, row), px(sem, x, row))); n++;
+        });
+        return { worst, n };
+      };
+      const r = outside(img);
+      check('I1 imagem NORMAL: a parte transparente do PNG não toca o céu', r.worst <= 1 && r.n > 2000, `pior ${r.worst}/255 em ${r.n} pixels`);
+      const neg = outside(await shot(page, 'img_normal__controle', { ...cena, objetos: [{ ...o, texture: 'metades', rects: undefined }] }));
+      check('I1 controle negativo: um PNG opaco no mesmo lugar cobre os cantos (a sonda detecta)', neg.worst > 40, `pior ${neg.worst}/255`);
+    }
+
+    // I2. Alfa suave: NORMAL mistura coerente nos três canais; COVER só a silhueta (alfa ≥ 0,5).
+    {
+      const cena = C.img_suave, g = geometry(cena), o = cena.objetos[0], c = P.skyDir(o.az, o.el), N = [40, 200, 255];
+      const sem = await shot(page, 'img_suave__sem', { ...cena, objetos: undefined });
+      const img = await shot(page, 'img_suave', cena);
+      let mixWorst = 0, partial = 0;
+      each(1, (x, row) => {
+        if (!g.sky(x, row) || angle(g.dir(x, row), c) > 9) return;
+        const a = px(img, x, row), b = px(sem, x, row);
+        const k = [0, 1, 2].reduce((m, i) => Math.abs(N[i] - b[i]) > Math.abs(N[m] - b[m]) ? i : m, 0);
+        if (Math.abs(N[k] - b[k]) < 40) return;
+        const al = (a[k] - b[k]) / (N[k] - b[k]);
+        if (al < 0.05) return;
+        if (al > 0.2 && al < 0.8) partial++;
+        mixWorst = Math.max(mixWorst, maxDiff(a, b.map((v, i) => v + al * (N[i] - v))));
+      });
+      check('I2 imagem NORMAL de alfa suave: mistura por alfa coerente nos três canais', mixWorst <= 4 && partial > 200,
+        `pior ${mixWorst.toFixed(1)}/255; ${partial} pixels semitransparentes`);
+      const cov = await shot(page, 'img_cover', C.img_cover);
+      let full = 0, none = 0, between = 0;
+      each(1, (x, row) => {
+        if (!g.sky(x, row) || angle(g.dir(x, row), c) > 9) return;
+        const a = px(cov, x, row), b = px(sem, x, row);
+        if (maxDiff(a, N) <= 2) full++; else if (maxDiff(a, b) <= 2) none++; else between++;
+      });
+      check('I2 imagem COVER: só a silhueta esconde o fundo', full > 300 && none > 300 && between < (full + none) * 0.1,
+        `${full} pixels com a cor da imagem, ${none} com o fundo, ${between} na borda`);
+    }
+
+    // I3. LUMINOUS: o fundo nunca fica mais escuro; a luz soma.
+    {
+      const cena = C.img_luminosa, g = geometry(cena), c = P.skyDir(0, 30);
+      const sem = await shot(page, 'img_luminosa__sem', { ...cena, objetos: undefined });
+      const img = await shot(page, 'img_luminosa', cena);
+      let darker = 0, lit = 0;
+      each(1, (x, row) => {
+        if (!g.sky(x, row) || angle(g.dir(x, row), c) > 9) return;
+        const a = px(img, x, row), b = px(sem, x, row);
+        darker = Math.max(darker, ...b.map((v, k) => v - a[k]));
+        if (a[0] - b[0] > 20 && b[0] < 230) lit++;
+      });
+      check('I3 imagem LUMINOUS: nunca mais escura que o fundo e a luz soma', darker <= 1 && lit > 300, `pior escurecimento ${darker}/255; ${lit} pixels acesos`);
+    }
+
+    // I4. Atmosphere sobre imagens (pelos dois caminhos), com o controle sem a camada de cobertura.
+    {
+      const base = C.img_atmosfera, a = base.atmo;
+      for (const [label, cena] of [['passe sky', base], ['só o passe de atmosfera', { ...base, noSkyPass: true }]]) {
+        const g = geometry(cena);
+        const semAtmo = await shot(page, 'img_atmosfera__sem_atmosfera', { ...cena, atmo: null, noSkyPass: true });
+        const run = async (name, c2) => {
+          const img = await shot(page, name, c2);
+          let worst = 0, n = 0;
+          each(3, (x, row) => {
+            if (!g.sky(x, row)) return;
+            const d = g.dir(x, row), s0 = px(semAtmo, x, row), k = smooth(0, 0.6, d[1]);
+            const e = s0.map((v, ch) => { const grad = (a.skyHorizon[ch] + (a.skyTop[ch] - a.skyHorizon[ch]) * k) * 255; return v + (grad - v) * a.blend; });
+            worst = Math.max(worst, maxDiff(px(img, x, row), e)); n++;
+          });
+          return { worst, n };
+        };
+        const ok = await run('img_atmosfera__' + (cena.noSkyPass ? 'atmo' : 'sky'), cena);
+        check(`I4 atmosfera sobre imagens (${label}): tinge o céu como ele aparece`, ok.worst <= TOL + 1 && ok.n > 5000, `pior ${ok.worst.toFixed(1)}/255 em ${ok.n} pixels`);
+        const neg = await run('img_atmosfera__controle', { ...cena, coverageOff: true });
+        check(`I4 controle negativo (${label}): passes sem a camada de cobertura erram`, neg.worst > 20, `pior ${neg.worst.toFixed(1)}/255`);
+      }
+    }
+
+    // I5. FRONT: a imagem COVER fica na frente do portal (cor exata) só nos pixels de céu; BEHIND fica atrás dele.
+    {
+      const cena = C.img_frente, g = geometry(cena), o = cena.objetos[0];
+      const sem = await shot(page, 'img_frente__sem', { ...cena, objetos: undefined });
+      const front = await shot(page, 'img_frente', cena);
+      const behind = await shot(page, 'img_frente__atras', { ...cena, objetos: [{ ...o, front: false }] });
+      const off = await shot(page, 'img_frente__controle', { ...cena, frontOff: true });
+      const target = P.skyDir(o.az, o.el), want = [255, 32, 16];
+      let fWorst = 0, bWorst = 0, oWorst = 0, n = 0;
+      each(1, (x, row) => {
+        if (!g.sky(x, row) || angle(g.dir(x, row), target) > 3) return;
+        n++;
+        fWorst = Math.max(fWorst, maxDiff(px(front, x, row), want));
+        bWorst = Math.max(bWorst, maxDiff(px(behind, x, row), want));
+        oWorst = Math.max(oWorst, maxDiff(px(off, x, row), want));
+      });
+      check('I5 FRONT: a imagem fica na frente do portal com a cor exata', fWorst <= 3 && n > 100, `pior ${fWorst}/255 em ${n} pixels`);
+      check('I5 BEHIND: a mesma imagem fica atrás do portal (as camadas pintam por cima)', bWorst > 40, `pior ${bWorst}/255 contra a cor da imagem`);
+      check('I5 controle negativo: sem compor a camada de frente, a imagem some', oWorst > 40, `pior ${oWorst}/255`);
+      let ground = 0, gn = 0;
+      each(2, (x, row) => { if (g.sky(x, row)) return; gn++; ground = Math.max(ground, maxDiff(px(front, x, row), px(sem, x, row))); });
+      check('I5 FRONT não pinta sobre o terreno (é composição do céu, não profundidade)', ground <= 1 && gn > 1000, `pior ${ground}/255 em ${gn} pixels de terreno`);
+    }
+
+    // I6. Folha de quadros sem margem desenhada pequena: nenhum vermelho do quadro 1 no quadro 0 (mipmaps por quadro).
+    {
+      const cena = C.img_quadros, g = geometry(cena);
+      const sem = await shot(page, 'img_quadros__sem', { ...cena, objetos: undefined });
+      const probe = async (name, c2) => {
+        const img = await shot(page, name, c2);
+        let red = 0, green = 0;
+        each(1, (x, row) => {
+          if (!g.sky(x, row)) return;
+          const a = px(img, x, row), b = px(sem, x, row);
+          if (maxDiff(a, b) <= 2) return;
+          green++;
+          red = Math.max(red, a[0] - Math.max(b[0], 20) * 1.0);
+        });
+        return { red, green };
+      };
+      const ok = await probe('img_quadros', cena);
+      check('I6 folha sem margem, cinco tamanhos: o quadro vizinho nunca vaza', ok.red <= 3 && ok.green > 30, `vermelho a mais ${ok.red.toFixed(0)}/255 em ${ok.green} pixels da imagem`);
+      const neg = await probe('img_quadros__controle', { ...cena, objetos: cena.objetos.map(o => ({ ...o, naiveMips: true })) });
+      check('I6 controle negativo: mipmaps do driver e recuo só no nível 0 vazam', neg.red > 15, `vermelho a mais ${neg.red.toFixed(0)}/255`);
+    }
+
+    // I7. Duas vistas (vermelha e azul) com pesos 0,5 e 0,5: a mistura em alfa pré-multiplicado dá a média exata.
+    {
+      const cena = C.img_vistas;
+      const mid = px(await shot(page, 'img_vistas', cena), P.W / 2, P.H / 2), want = [125, 30, 125];
+      check('I7 vistas pesadas 0,5/0,5: média exata das duas', maxDiff(mid, want) <= 2, `miolo (${mid}) contra (${want})`);
+      const one = px(await shot(page, 'img_vistas__uma', { ...cena, objetos: [{ ...cena.objetos[0], weights: [1, 0] }] }), P.W / 2, P.H / 2);
+      check('I7 peso 1 na vista vermelha: só ela', maxDiff(one, [220, 30, 30]) <= 2, `miolo (${one})`);
+    }
+
+    // I8. Espelho: retângulo com u0 > u1 inverte a imagem (vista espelhada do impostor).
+    {
+      const img = await shot(page, 'img_espelho', C.img_espelho);
+      const left = px(img, P.W / 2 - 12, P.H / 2), right = px(img, P.W / 2 + 12, P.H / 2);
+      check('I8 espelho: o lado azul aparece à esquerda', left[2] > 180 && left[0] < 60 && right[0] > 180 && right[2] < 60, `esquerda (${left}), direita (${right})`);
     }
   } finally {
     await browser.close();

@@ -164,3 +164,19 @@ vec4 caElementsAt(vec2 uv) {
     ivec2 size = textureSize(CaElTex, 0);
     return texelFetch(CaElTex, clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1), 0);
 }
+
+// 0.14.0 (fase 4): camada de frente. Imagens e impostors com layer(FRONT) não entram na tela nem na camada de cobertura
+// quando o passe sky roda: vão para esta camada (CaElFront, RGBA8, limpa em zero, mesma mistura pré-multiplicada), que o
+// passe sky compõe no fim, depois das camadas procedurais, só nos pixels de céu e sem lente (na frente de um portal
+// ou de um buraco negro). O passe de atmosfera não a vê: com o passe sky no quadro, o céu da
+// atmosfera é pintado dentro dele, antes desta composição. É composição visual do céu, não profundidade física. CaEl.y = 1 quando ela foi desenhada no quadro.
+uniform sampler2D CaElFront;
+
+bool caFrontOn() {
+    return CaEl.y > 0.5;
+}
+
+vec4 caFrontAt(vec2 uv) {
+    ivec2 size = textureSize(CaElFront, 0);
+    return texelFetch(CaElFront, clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1), 0);
+}

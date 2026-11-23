@@ -54,6 +54,8 @@
   "perf.calamidade_awakening.sky": "Céu: %s camadas (%s ativas, máx. %s) · passe %s",
   "perf.calamidade_awakening.backdrop": "Fundo do céu: %s desenhados (%s ativos) · %s",
   "perf.calamidade_awakening.skyobjects": "Objetos do céu: %s campos (%s estrelas) · %s nebulosas (%s ativos) · cobertura %s",
+  "perf.calamidade_awakening.skysprites": "Imagens do céu: %s · impostors: %s · camada de frente %s · congeladas %s",
+  "perf.calamidade_awakening.skytextures": "Texturas do céu: %s · %s/%s MiB · envios %s · carregando %s · inválidas %s · recusadas %s",
   "perf.calamidade_awakening.backdrop.blocked": "bloqueado (céu do jogo oculto)",
   "perf.calamidade_awakening.backdrop.opaque": "opaco",
   "perf.calamidade_awakening.backdrop.partial": "parcial",

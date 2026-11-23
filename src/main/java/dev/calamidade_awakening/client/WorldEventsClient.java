@@ -126,7 +126,7 @@ final class WorldEventsClient {
         double now = level.getGameTime() + partial;
         for (Event e : events.values()) {
             var kind = e.kind();
-            if ((kind.stars().isEmpty() && kind.nebulae().isEmpty()) || !applies(e, level)) continue;
+            if (!kind.hasSkyObjects() || !applies(e, level)) continue;
             double age = now - e.sync().tick();
             if (age < 0) continue;
             double local = localAge(e, age);
@@ -146,6 +146,9 @@ final class WorldEventsClient {
                     state.brightness(), state.rotation(), state.spin(), age / 20.0), kind.hero(), weight, state.opacity(),
                     -e.sync().key(), rank, nebula.order()));
             }
+            if (!kind.images().isEmpty() || !kind.impostors().isEmpty())
+                SkyObjectsFrame.sprites(out, kind.images(), kind.impostors(), sampler, kind.clock().at(local + 1), kind.hero(), weight,
+                    -e.sync().key(), rank, age / 20.0);
         }
         return out;
     }
