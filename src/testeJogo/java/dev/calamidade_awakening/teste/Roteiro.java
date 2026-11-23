@@ -660,6 +660,32 @@ final class Roteiro implements Runnable {
         });
         check("chefe: /calamidade boss list", listados >= 3 && saida.stream().anyMatch(t -> t.contains("phase=d")), saida.toString());
 
+        // Revisão pré-release da 0.13: chefe num chunk carregado mas sem processar entidades (vizinho de um chunk
+        // forçado: entidades no mundo, congeladas) e com /tick freeze: o tempo da fase não anda enquanto o jogo não
+        // processa a entidade.
+        int qx = CHEFE_X + 400, qz = CHEFE_Z;
+        carregar(qx, qz, 0);
+        boolean vizinho = aguardar(() -> server.overworld().hasChunk((qx + 16) >> 4, qz >> 4), 400);
+        var q = golem(qx + 16, qz);
+        var hq = no(() -> dev.calamidade_awakening.api.v1.Bosses.attach(q, ChefesTeste.CHEFE));
+        boolean congelado = no(() -> !server.overworld().isPositionEntityTicking(q.blockPosition()));
+        ticks(60);
+        boolean parado = hq.isPresent() && no(() -> hq.get().phase().equals("a") && hq.get().phaseTicks() == 0);
+        check("chefe: em chunk carregado sem processar entidades, o tempo da fase não anda",
+            vizinho && congelado && parado, hq.map(x -> x.phase() + " " + x.phaseTicks()).orElse("sem chefe") + " congelado=" + congelado);
+        no(() -> { server.overworld().setChunkForced((qx + 16) >> 4, qz >> 4, true); });
+        boolean andou = hq.isPresent() && aguardar(() -> hq.get().phase().equals("b"), 120);
+        check("chefe: o mesmo chefe volta a andar quando o chunk passa a processar entidades", andou,
+            hq.map(x -> x.phase() + " " + x.phaseTicks()).orElse("sem chefe"));
+        long antesFreeze = hq.isPresent() ? no(() -> hq.get().phaseTicks()) : -1;
+        no(() -> { server.tickRateManager().setFrozen(true); });
+        ticks(30);
+        long duranteFreeze = hq.isPresent() ? no(() -> hq.get().phaseTicks()) : -2;
+        no(() -> { server.tickRateManager().setFrozen(false); });
+        check("chefe: com /tick freeze o tempo da fase não anda", hq.isPresent() && duranteFreeze == antesFreeze,
+            antesFreeze + " -> " + duranteFreeze);
+        no(() -> { hq.ifPresent(x -> x.detach()); q.discard(); });
+
         // Para a fase 2: um chefe na fase b, descarregado com o chunk (o tempo da fase para enquanto ele não está carregado).
         int px = CHEFE_X + 200, pz = CHEFE_Z;
         carregar(px, pz, 8);

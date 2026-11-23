@@ -603,7 +603,7 @@ A phase.
 |---|---|
 | `new Phase(String name, String label, Boss.BarColor color, List<ResourceLocation> enter, List<ResourceLocation> exit, ResourceLocation sustain, List<Boss.Periodic> periodic, ResourceLocation worldEvent, WorldEvents.Scope worldScope, boolean invulnerable, Boss.Action onEnter, Boss.Action onExit, Boss.HurtAction onHurt)` | Canonical constructor: name, label, color, enter, exit, sustain, periodic, worldEvent, worldScope, invulnerable, onEnter, onExit, onHurt. |
 | `String name()` | `[a-z0-9_]`, up to 64 characters. |
-| `String label()` | Translation key of the phase label on the bar, or null. |
+| `String label()` | Translation key of the phase label on the bar (up to 256 characters), or null. |
 | `Boss.BarColor color()` | Bar color in this phase, or null for the bar's. |
 | `List<ResourceLocation> enter()` | Effects started when the phase begins. |
 | `List<ResourceLocation> exit()` | Effects started when the phase ends. |

@@ -243,6 +243,15 @@ public final class BossServer {
             if (!failedThisTick) failures = 0;
         }
 
+        /**
+         * A tick in which the game does not tick the entity: the machine, the periodic actions and the saved state stay
+         * as they are (signals keep waiting); the bar still follows health and who is in range.
+         */
+        void idle() {
+            updateBar();
+            if (level.getGameTime() % VIEWER_PERIOD == 0) viewers(false);
+        }
+
         void apply(BossMachine.Step step) {
             switch (step.outcome()) {
                 case NONE -> { }
@@ -423,8 +432,19 @@ public final class BossServer {
                 removed(runtime);
                 continue;
             }
-            runtime.tick();
+            if (processed(runtime)) runtime.tick();
+            else runtime.idle();
         }
+    }
+
+    /**
+     * True when the game ticks the boss entity this tick: its chunk is entity-ticking (not just loaded at the edge of
+     * the view, where entities stay in the level but frozen) and {@code /tick freeze} is off. Phase time, rules,
+     * periodic actions and the saved state only advance then, so a frozen boss never changes phase by itself.
+     */
+    static boolean processed(Runtime runtime) {
+        return runtime.level.isPositionEntityTicking(runtime.entity.blockPosition())
+            && !runtime.level.tickRateManager().isEntityFrozen(runtime.entity);
     }
 
     /** Killed or discarded: the controller ends for good. Unloaded or moved to another dimension: it resumes later. */

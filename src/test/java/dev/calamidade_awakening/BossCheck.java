@@ -263,6 +263,11 @@ final class BossCheck {
         require(bar.style() == null && bar.segments(true).style().equals(dev.calamidade_awakening.api.v1.Boss.Bar.SEGMENTED),
             "segments pick the engine style");
         expect(() -> bar.range(8), "range below 16");
+        expect(() -> bar.style(rl("s".repeat(260))), "style id longer than boss_v1 accepts");
+        expect(() -> dev.calamidade_awakening.api.v1.Boss.builder(rl("x")).phase("a", p -> p.label("k".repeat(257))),
+            "label key longer than boss_v1 accepts");
+        require(dev.calamidade_awakening.api.v1.Boss.builder(rl("x")).phase("a", p -> p.label("k".repeat(256))).build()
+            .phase("a").orElseThrow().label().length() == 256, "label key of 256 characters");
         var boss = dev.calamidade_awakening.api.v1.Boss.builder(rl("chefe")).bar(bar.segments(true))
             .phase("a", p -> p.enter(rl("fx")).invulnerable())
             .phase("b")

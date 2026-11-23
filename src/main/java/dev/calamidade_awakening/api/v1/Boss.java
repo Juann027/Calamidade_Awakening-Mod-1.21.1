@@ -112,6 +112,8 @@ public final class Boss {
             Objects.requireNonNull(color, "color");
             Objects.requireNonNull(overlay, "overlay");
             if (range < 16 || range > 256) throw new IllegalArgumentException("Expected a bar range in 16..256: " + range);
+            // boss_v1 carries the style id in at most 256 characters: refuse it here, not when the packet is encoded.
+            if (style != null && style.toString().length() > 256) throw new IllegalArgumentException("Bar style id longer than 256 characters");
         }
 
         /** White bar, no divisions, vanilla look, 64 blocks. */
@@ -264,7 +266,7 @@ public final class Boss {
      * A phase. Immutable; built inside {@link Builder#phase(String, Consumer)}.
      *
      * @param name         {@code [a-z0-9_]}, up to 64 characters
-     * @param label        translation key of the phase label on the bar, or null
+     * @param label        translation key of the phase label on the bar (up to 256 characters), or null
      * @param color        bar color in this phase, or null for the bar's
      * @param enter        effects started when the phase begins
      * @param exit         effects started when the phase ends
@@ -284,6 +286,8 @@ public final class Boss {
                         WorldEvents.Scope worldScope, boolean invulnerable, Action onEnter, Action onExit, HurtAction onHurt) {
         public Phase {
             if (!BossMachine.Names.valid(name)) throw new IllegalArgumentException("Bad phase name: " + name);
+            // boss_v1 carries the label key in at most 256 characters: refuse it here, not when the packet is encoded.
+            if (label != null && label.length() > 256) throw new IllegalArgumentException("Phase label key longer than 256 characters: " + name);
             enter = List.copyOf(enter);
             exit = List.copyOf(exit);
             periodic = List.copyOf(periodic);
