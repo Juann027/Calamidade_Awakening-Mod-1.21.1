@@ -195,9 +195,21 @@ final class RoteiroChefe implements Runnable {
         noServidor(() -> jogador().teleportTo(overworld(), X + .5, 2, Z + .5, 0, 10));
         boolean voltou = aguardar(() -> noClienteSemErro(() -> BossBarClient.known() == 1 && BossBarClient.firstPhase() == 2), 80);
         check("barra: fora do alcance some; de volta, reaparece na fase atual", sumiu && voltou, sumiu + " / " + voltou);
-        noServidor(() -> { h.detach(); g.discard(); });
+        // A 200 blocos o chunk do golem pode ser descarregado (depende do tempo): o controlador volta numa entidade
+        // nova e o handle antigo deixa de valer. O detach vale para o controlador atual, achado pela UUID.
+        String antes = noServidor(() -> "handle antigo vivo=" + h.alive() + ", golem antigo removido=" + g.isRemoved() + " ("
+            + g.getRemovalReason() + "), chefes ativos=" + Bosses.active(server()).size());
+        noServidor(() -> {
+            var atual = overworld().getEntity(g.getUUID());
+            if (atual != null) Bosses.get(atual).ifPresent(Bosses.Handle::detach);
+            h.detach();
+            if (atual != null) atual.discard();
+            g.discard();
+        });
         boolean limpa = aguardar(() -> noClienteSemErro(() -> BossBarClient.known() == 0), 40);
-        check("barra: detach remove a barra no cliente", limpa, "");
+        String depois = noServidor(() -> ", depois: chefes ativos=" + Bosses.active(server()) + ", barras no cliente=")
+            + noCliente(BossBarClient::known);
+        check("barra: detach remove a barra no cliente", limpa, antes + depois);
     }
 
     // ------------------------------------------------------------------------------------------------ Sentinela

@@ -42,7 +42,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class Bosses {
     private static final Map<ResourceLocation, Boss> DEFINITIONS = new ConcurrentHashMap<>();
 
-    /** Control of one attached controller, server side. Methods return false once it is detached. */
+    /**
+     * Control of one attached controller, server side. Methods return false once it is detached. A handle belongs to
+     * one loaded entity object: when the chunk unloads or the entity changes dimension it stops being {@link #alive()},
+     * and the controller resumed when the entity loads again has a new handle; get it with {@link Bosses#get(Entity)}
+     * instead of keeping handles across unloads.
+     */
     public interface Handle {
         /** Boss definition id. */
         ResourceLocation id();
@@ -54,7 +59,7 @@ public final class Bosses {
         long phaseTicks();
         /** True while a transition sequence is playing. */
         boolean locked();
-        /** True while attached. */
+        /** True while attached to this entity object (false after detach, death, removal or unload). */
         boolean alive();
 
         /**

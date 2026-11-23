@@ -699,7 +699,7 @@ Control of one attached controller, server side.
 | `String phase()` | Current phase name. |
 | `long phaseTicks()` | Ticks in the current phase. |
 | `boolean locked()` | True while a transition sequence is playing. |
-| `boolean alive()` | True while attached. |
+| `boolean alive()` | True while attached to this entity object (false after detach, death, removal or unload). |
 | `boolean signal(String name)` | Sends a signal for `Boss.Trigger#signal` transitions. |
 | `boolean phase(String name)` | Forces a phase (debug, scripted fights): runs exit and entry as a normal change; false when dead or unknown. |
 | `boolean detach()` | Detaches the controller: releases the phase effects and the global event, removes the bar and the saved data. |
