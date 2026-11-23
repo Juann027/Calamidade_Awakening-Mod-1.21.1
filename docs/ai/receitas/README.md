@@ -23,7 +23,7 @@ Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `
 | 17 | [Zumbi com feixe](17-zumbi.md) | `/summon zombie` | gatilho de entidade num mob vanilla (`LivingDamageEvent.Post`), limite por mob |
 | 18 | [Raio que abre uma trincheira](18-raio-trincheira.md) | `raio_trincheira` | Terrain API: `trench` virada pelo yaw, commit sob o impact frame, borda queimada, faixa incandescente (0.11.0) |
 | 19 | [Meteoro que vira bloco real](19-meteoro.md) | `meteoro` | dublê → real: esfera em chamas que cai, cratera, esfera de blocos reais, revelação, calor |
-| 20 | [Cratera simples](20-cratera-simples.md) | `cratera_simples` | só escavação e borda queimada, para estudo; desfazer e listar |
+| 20 | [Cratera simples](20-cratera-simples.md) | `cratera_simples` | escavação e borda queimada, para estudo (a mínima, sem `burn`, está no capítulo); desfazer e listar |
 | 21 | [Torre que cai e fica](21-torre-caindo.md) | `torre_caindo` | estrutura `.nbt` girada em 90°, malha do dublê em cache, cratera sob ela, poeira |
 | 22 | [Buraco negro no céu](22-buraco-negro.md) | `buraco_negro` | Sky API: `BLACK_HOLE` com lente, trilhas de tamanho, disco e lente, colapso com Impact, HERO (0.12.0) |
 | 23 | [Portal para outra galáxia](23-portal-galaxia.md) | `portal_galaxia` | `PORTAL`: semente que pisca, abertura por trilha, galáxia girando |
@@ -31,5 +31,7 @@ Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `
 | 25 | [Eclipse global](25-eclipse-global.md) | `/vfxsample evento eclipse start\|release\|stop` | `WorldEvents` no escopo SERVER, persistente; `ECLIPSE` com escurecimento, raios ao longe, atmosfera |
 | 26 | [Dimensão de teste](26-dimensao-teste.md) | `/vfxsample dimensao`, `/vfxsample ceu <estado>` | `SkyProfile` com três estados, `ProfileSkyEffects`, dimensão por datapack |
 | 27 | [Chefe Sentinela do Eclipse](27-chefe-sentinela.md) | `/vfxsample chefe`, `/vfxsample chefe cratera on\|off` | Boss API (0.13.0): fases, barra segmentada, `Point.socket`, `Effects.anchorSocket`, `AnchorCapture` numa `RenderLayer`, eclipse em área |
+
+As receitas 18 a 21 são **casos de uso** da Terrain API e todas usam `burn` por intenção do efeito; não são a configuração padrão de uma destruição. Antes de copiar uma delas, veja [Escolher a operação](../../TERRENO-0.11.md#escolher-a-operação) (tabela de decisão, exemplos comparáveis e custos).
 
 Para começar um efeito novo do zero: `python3 scripts/novo_efeito.py <namespace> <nome>` (veja [AGENTS.md](../../../AGENTS.md)). Funções GLSL usadas aqui: `calamidade_fx.glsl`, documentadas em [glsl.md](../glsl.md). Assinaturas da API: [API-REFERENCIA.md](../API-REFERENCIA.md).

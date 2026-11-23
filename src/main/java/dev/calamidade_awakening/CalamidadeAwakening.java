@@ -15,7 +15,15 @@ public final class CalamidadeAwakening {
     public static final String ID = "calamidade_awakening";
     public static final RimuMod RIMU = RimulibApi.connect(ID, CalamidadeAwakening.class);
 
+    /**
+     * Build kind: "release" on a release candidate or a published release. A development build says what it is in the
+     * log, in the mod list description and in F7, so nobody mistakes it for a published file.
+     */
+    public static final String BUILD = "release";
+
     public CalamidadeAwakening(IEventBus bus, ModContainer container) {
+        if (!"release".equals(BUILD))
+            com.mojang.logging.LogUtils.getLogger().warn("Calamidade_Awakening: build de {}. Não distribua este JAR.", BUILD);
         container.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
         // 0.10.0: limits by source (per player, per mob, per block, slots reserved for players), per world.
         container.registerConfig(ModConfig.Type.SERVER, dev.calamidade_awakening.config.ServerConfig.SPEC);

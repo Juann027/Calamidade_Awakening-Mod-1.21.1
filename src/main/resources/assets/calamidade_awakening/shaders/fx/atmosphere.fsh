@@ -32,9 +32,17 @@ void main() {
     vec2 suv = caSkyLensUv(texCoord, CaAtmoLens0, CaAtmoLens1, CaAtmoLensExt, dir, sky);
     if (sky) {
         // 0.12.0: com camadas de céu, o passe "sky" já pintou este céu por baixo delas.
-        if (CaAtmoC.y < 0.5)
-            color = max(color + caAtmoSkyDelta(dir, CaAtmoVanillaSky, CaAtmoVanillaFog, CaAtmoC.x, CaAtmoC.z > 0.5,
-                CaAtmoSkyTop, CaAtmoSkyHorizon, CaAtmoFogColor, CaAtmoA.x, CaAtmoA.y, CaAtmoB.z, GTime), vec3(0.0));
+        // 0.14.0: com fundos de céu, a atmosfera tinge o fundo que aparece (caAtmoSkyDeltaOver).
+        // 0.14.0 (fase 3): com objetos do céu, a diferença vale só para o céu que eles deixam ver (× (1 − cobertura)).
+        if (CaAtmoC.y < 0.5) {
+            vec3 delta = caBackdropOn()
+                ? caAtmoSkyDeltaOver(dir, CaAtmoVanillaSky, CaAtmoVanillaFog, CaAtmoC.x, CaAtmoC.z > 0.5,
+                    CaAtmoSkyTop, CaAtmoSkyHorizon, CaAtmoFogColor, CaAtmoA.x, CaAtmoA.y, CaAtmoB.z, GTime)
+                : caAtmoSkyDelta(dir, CaAtmoVanillaSky, CaAtmoVanillaFog, CaAtmoC.x, CaAtmoC.z > 0.5,
+                    CaAtmoSkyTop, CaAtmoSkyHorizon, CaAtmoFogColor, CaAtmoA.x, CaAtmoA.y, CaAtmoB.z, GTime);
+            if (caElementsOn()) delta *= 1.0 - caElementsAt(suv).a;
+            color = max(color + delta, vec3(0.0));
+        }
     } else if (CaAtmoB.w > 0.5) {
         float distance = length(scenePosAt(suv));
         color = mix(color, CaAtmoFogColor, CaAtmoA.y * smoothstep(CaAtmoA.z, CaAtmoA.w, distance));

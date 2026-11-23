@@ -1472,13 +1472,15 @@ Quatro usos, todos com a mesma API:
 3. **Construções que caem:** uma estrutura `.nbt` cai como malha de blocos e fica posicionada no mundo, girada com o yaw do efeito.
 4. **Segurança e desfazer:** regras do servidor, um evento cancelável para mods de proteção e `/calamidade terrain undo`.
 
+> **Destruição não significa automaticamente escavar + transformar + preencher.** Escavação (`carve`), casca transformada (`burn`), preenchimento (`fill`), estrutura (`structure`) e dublê (`standIn`) são peças **independentes**; só `carve(forma)` e `commitAt(marcador)` são obrigatórios. Escolha o conjunto mínimo que produz o resultado pedido, e lembre que parte da devastação pode ser só visual, sem trocar bloco nenhum. Os exemplos deste capítulo e as receitas 18 a 21 são casos de uso, não a configuração padrão: veja [Escolher a operação](#escolher-a-operação) e [Custo de uma destruição](#custo-de-uma-destruição) antes de copiar um deles.
+
 > **Mexe no mundo de verdade.** Diferente da Light e da Atmosphere, a Terrain API muda blocos no servidor: é salvo, vale para todos os jogadores e só volta com o desfazer (por 10 minutos, padrão). Use mundos de teste ao experimentar e confira as regras do servidor (seção [Segurança](#segurança)).
 
 O protocolo de rede ganhou um canal (`terrain_v1`): **servidor e clientes precisam da mesma versão do motor.** Addons da 0.10 continuam funcionando sem mudança no código: quem não chama `Effects.terrain` não muda nada.
 
 ### Exemplo completo
 
-O meteoro da receita 19: uma esfera em chamas cai do céu, abre uma cratera com borda queimada e vira uma esfera de ouro bruto.
+O meteoro da receita 19: uma esfera em chamas cai do céu, abre uma cratera com borda queimada e vira uma esfera de ouro bruto. É o caso **mais completo** (escavação, casca, preenchimento e dublê juntos), escolhido para mostrar todas as peças; não é a versão mínima de uma cratera. A versão mínima e as comparações estão em [Escolher a operação](#escolher-a-operação).
 
 ```java
 static final Timeline TIMELINE = Timeline.builder(320)
@@ -1509,6 +1511,225 @@ Effects.start(ID, player.serverLevel(), Placement.at(posicao, player.getYRot(), 
 ```
 
 Nenhum shader, nenhuma camada de cliente: o motor desenha o dublê, o rastro, o calor, as luzes e a poeira.
+
+### Escolher a operação
+
+**Princípio:** use a operação mais adequada ao resultado pedido, não a mais completa por padrão. Um pedido de "destruição" autoriza escavar; sozinho, ele não autoriza transformar a casca, preencher nem construir. Cada peça a mais troca blocos **reais** no servidor (salvos com o mundo, vistos por todos os jogadores, desfeitos só com `/calamidade terrain undo` dentro do prazo) e soma trabalho ao commit. Isto é um guia de escolha, não uma proibição: crateras enormes, cascas transformadas, preenchimentos e estruturas continuam à disposição de quem quer esse resultado.
+
+Regra prática para agentes: leia o pedido, liste o que precisa **ficar** no mundo depois do efeito e use só as peças que produzem isso. O que só precisa **aparecer** durante a cena é trabalho do cliente (calor, dublê, feixes, luz, atmosfera, impact frame).
+
+#### Os cinco modos
+
+| Modo | Peças | O servidor muda | Só no cliente |
+|---|---|---|---|
+| **A. Escavação** | `carve(forma)` | o que está dentro da forma vira ar; a vedação mínima em volta (abaixo) | calor sobre as faces (brasa, fissuras, fumaça, luz laranja) por `cooling` ticks, salvo `noHeat()` |
+| **B. Escavação + casca transformada** | `carve` + `burn(paleta, espessura)` | o mesmo de A, mais os sólidos da casca trocados por blocos da paleta, de forma permanente | o mesmo calor |
+| **C. Escavação + preenchimento** | `carve` + `fill(Fill.solid/shell)` | o mesmo de A, mais uma esfera de blocos reais escrita por cima de tudo | calor; dublê opcional (`standIn`) |
+| **D. Estrutura** | `carve` (forma mínima, se não quer buraco) + `structure(id)` | a forma, mais os blocos do template, inclusive o ar dele | malha do dublê de estrutura (`StandIn.structure()`), poeira, calor |
+| **E. Só visual** | nenhum `Effects.terrain` | nada | impact frame, feixes, luz, atmosfera, céu, passes e malhas do addon, câmera |
+
+**A. Escavação (`carve` sozinho).** Para abrir crateras, buracos, trincheiras (`TerrainShape.trench`), túneis e cavidades (`sphere`, `trench` com pitch, `offset` para baixo) ou tirar um pedaço de um morro. É a escolha inicial de quase todo pedido de destruição. "Só escavar" **não** é remoção absolutamente pura: o motor mantém regras de integridade que não dependem de `burn`:
+
+- fluidos que tocam o espaço cavado por uma face são **vedados** (pedra no lugar da água, obsidiana no da lava), para a água não escorrer para dentro;
+- blocos não sólidos que tocam a cratera (plantas, neve, tochas) e folhas viram ar; troncos e sólidos encostados ficam como estão;
+- bedrock, blocos com dureza < 0, block entities (salvo permissão explícita), a tag `calamidade_awakening:terrain_protected` e as posições tiradas pela proteção (borda do mundo, spawn, listeners de explosão) ficam intactos mesmo dentro da forma;
+- no fim, os blocos logo **fora** da área escrita recebem uma atualização de forma, de vizinho e de fluido (sem cascata): a areia de fora que perdeu o apoio cai, como no jogo.
+
+Não existe hoje um modo sem vedação; ela faz parte da segurança do mundo. O calor do cliente aparece também sem `burn` (o passe usa no mínimo 1 bloco de espessura para a brasa): a cratera parece recém-queimada e esfria, sem trocar bloco nenhum. Para nem isso, `noHeat()`.
+
+**B. Escavação + casca transformada (`burn`).** Para quando a superfície deve **continuar** transformada depois que o calor esfria: terreno carbonizado (`TerrainPalette.burnt()`), rocha vitrificada, solo congelado, cristais (paleta própria com `TerrainPalette.builder()` e as faixas `FLOOR`, `WALL`, `RIM`). `burn` troca **blocos reais**: todo sólido até `espessura` blocos da forma recebe um bloco da paleta, o que é salvo, conta no volume planejado, gasta orçamento por tick e entra no snapshot de desfazer. Não é uma pintura. Se o pedido é "parece queimado logo depois do impacto", o calor do modo A já resolve, de graça para o servidor. A espessura engrossa a casca inteira: comece com 1. A paleta padrão tem blocos de magma, que emitem luz (cada um pede recálculo de luz). `burn` age em volta do espaço cavado; para "transformar a superfície sem abrir buraco", use uma escavação rasa (por exemplo `TerrainShape.crater(10, 1)`) com `burn(paleta, 1)`: não há operação de transformar sem escavar.
+
+**C. Escavação + preenchimento (`fill`).** Para material físico que deve existir depois do impacto: o núcleo de um meteoro, um cristal nascendo na cratera, uma rocha, um depósito. `Fill.solid(bloco, raio)` é uma esfera maciça; `Fill.shell(bloco, raio)` é uma esfera oca com 1 bloco de parede (as posições a mais de `raio − 1` do centro); raio até 16, posição com `at(direita, cima, frente)`. O preenchimento é escrito **por cima de tudo**, inclusive do ar: toda posição da esfera vira o bloco (menos as protegidas), dentro ou fora da cratera, e substitui a escavação e a casca nessas posições. Uma esfera pequena é barata (raio 2: 33 blocos); uma maciça de raio 16 escreve cerca de 17 000, mais que muitas crateras. Um efeito pode impressionar muito sem preenchimento: não use `fill` como enfeite automático de destruição.
+
+**D. Estrutura (`structure`).** Para uma construção do Minecraft que precisa surgir ou **ficar** no mundo: uma torre que cai e permanece, ruínas predefinidas, um abrigo materializado. O template (`.nbt`, até 32 por eixo) é escrito inteiro, inclusive o ar salvo nele, que limpa o interior. `carve` continua obrigatório: para pousar sem cratera, use uma forma mínima (`TerrainShape.sphere(1)`). Não use estrutura para poeira, destroços temporários, fogo ou fumaça: o dublê e a poeira do motor, feixes, luz e as camadas do addon fazem isso sem tocar no mundo.
+
+**E. Destruição só visual.** Uma cena de devastação nem sempre precisa trocar blocos. Já existem, sem Terrain API: `Effects.Impact` (impact frame), feixes (`Effects.beams`), luz visual (`Effects.lights`), atmosfera (`Effects.atmosphere`), camadas de céu (`Effects.sky`, 0.12), passes de pós com shader próprio (`AddonLayers.post`), malhas de mundo (`AddonLayers.world`), câmera (`AddonLayers.film`), tremor e efeitos de tela pelos métodos de `AddonLayers.Post` (que respeitam a acessibilidade) e partículas e sons nos cues. **Nada disso muda o mundo:** o terreno continua intacto para todos os jogadores, para colisão, mobs e outros mods, e não sobra marca quando o efeito acaba. É espetáculo, não destruição física; deixe essa diferença clara para quem pediu. O dublê (`standIn`) também é só desenho, mas faz parte de uma edição de terreno e precisa de um `carve` com marcador.
+
+#### Tabela de decisão
+
+Estratégia **inicial**; acrescente peças quando o pedido pedir o resultado que elas produzem.
+
+| Pedido | Estratégia inicial | Observação |
+|---|---|---|
+| Abrir uma cratera | `carve` (`crater` ou `sphere`) | o calor do cliente já dá o aspecto de recém-queimado |
+| Abrir uma trincheira ou um rasgo | `carve` + `TerrainShape.trench`, virado por `Placement` (yaw) | a borda queimada da receita 18 é opcional |
+| Túnel ou cavidade | `carve` com `trench` e pitch, ou `sphere` com `offset` para baixo | |
+| Cratera com chão queimado que fica | `carve` + `burn(TerrainPalette.burnt(), 1)` | |
+| Superfície vitrificada, congelada ou cristalizada | escavação rasa + `burn` com paleta própria | se é só durante a cena: calor (`glow`, `cooling`) |
+| Cratera contendo uma rocha real | `carve` + `fill` | raio do preenchimento proporcional ao objeto |
+| Meteoro que deixa núcleo sólido | `carve` + `fill` + `standIn` opcional | receita 19 |
+| Estrutura que cai e permanece | `structure` (+ `StandIn.structure()`), cratera só se fizer sentido | receita 21; forma mínima `sphere(1)` |
+| Explosão cinematográfica | só visual; terreno opcional | [exemplo 4](#4-explosão-só-visual) |
+| Dragão destruindo o solo | escavação proporcional ao impacto, só nos golpes que importam | [exemplo 5](#5-ataque-repetido-de-dragão-ou-chefe) |
+| Dragão vitrificando a superfície | `burn` com paleta própria se deve ficar; calor se é só da cena | |
+| Chefe atacando repetidamente | controlar volume, frequência e concorrência | [Dragões, chefes e ataques repetidos](#dragões-chefes-e-ataques-repetidos) |
+| Destruição gigantesca | comparar troca real com simulação visual; medir | [Custo de uma destruição](#custo-de-uma-destruição) |
+
+#### Cinco exemplos comparáveis
+
+Os três primeiros são a **mesma cratera**, mudando uma linha. Registro comum:
+
+```java
+static final Timeline TIMELINE = Timeline.builder(200).marker("impacto", 10).build();
+static final TerrainShape FORMA = TerrainShape.crater(6, 3.5f).rough(1, 3);
+
+public static void register() {
+    // Impact no tick do marcador: o clarão esconde a troca dos blocos.
+    Effects.register(ID, new Effects.Definition(200, 12, 0xffff5a14, Effects.Shape.NONE, Effects.Material.NONE,
+        null, null, new Effects.Impact(10, 5, .7f, Effects.ImpactStyle.MONOCHROME)));
+    Effects.timeline(ID, TIMELINE);
+    Effects.terrain(ID, SO_CAVAR);   // ou CARBONIZADA, ou COM_CRISTAL
+}
+```
+
+##### 1. Só escavar
+
+```java
+static final TerrainEdit SO_CAVAR = TerrainEdit.carve(FORMA).commitAt("impacto").build();
+```
+
+- **Servidor:** a tigela vira ar; vedação de fluidos e queima de plantas na borda; atualização da casca externa.
+- **Só no cliente:** clarão, brasa e fumaça que esfriam em 200 ticks (padrão), luz laranja.
+- **Opcional:** nada além de `commitAt`; o calor sai com `noHeat()`.
+- **Custo:** o menor dos três (tabela abaixo).
+- **Escolha quando:** o pedido é abrir, cavar, destruir ou rasgar o terreno.
+
+##### 2. Escavar e carbonizar a superfície
+
+```java
+static final TerrainEdit CARBONIZADA = TerrainEdit.carve(FORMA).commitAt("impacto")
+    .burn(TerrainPalette.burnt(), 1)
+    .build();
+```
+
+- **Servidor:** o mesmo de 1, mais cada sólido da casca de 1 bloco trocado por blackstone, basalto, magma, terra grossa e afins, para sempre (até o desfazer).
+- **Só no cliente:** o mesmo calor de 1.
+- **Opcional:** `burn` inteiro; espessura acima de 1 só se a casca precisar ser grossa.
+- **Custo:** escreve cerca do dobro de blocos de 1 neste exemplo; os blocos de magma pedem recálculo de luz.
+- **Escolha quando:** o chão deve continuar queimado, vitrificado ou congelado depois da cena.
+
+##### 3. Escavar e deixar um cristal real
+
+```java
+static final TerrainEdit COM_CRISTAL = TerrainEdit.carve(FORMA).commitAt("impacto")
+    .fill(TerrainEdit.Fill.solid("minecraft:amethyst_block", 2).at(0, -2.5f, 0))
+    .build();
+```
+
+- **Servidor:** o mesmo de 1, mais uma esfera de ametista de raio 2 no fundo (33 blocos), escrita mesmo onde já era ar.
+- **Só no cliente:** o calor; com `standIn(...)`, um objeto caindo que vira o cristal.
+- **Opcional:** `fill`; `Fill.shell` deixa a esfera oca.
+- **Custo:** quase igual ao de 1 com raio 2; cresce com o cubo do raio.
+- **Escolha quando:** um objeto físico precisa existir depois do impacto.
+
+Medido com o planejador puro (`TerrainPlanner.plan`, o mesmo do servidor), origem na superfície de um mundo plano hipotético (sólido abaixo da origem, ar acima). "Escritos" são as posições cujo estado mudaria nesse mundo; num mundo real (grama, plantas, água, cavernas), o número muda.
+
+| Exemplo | Volume planejado | Escritos (mundo plano) |
+|---|---|---|
+| 1. `carve` | 982 | ≈ 197 |
+| 2. `carve` + `burn(…, 1)` | 1 102 | ≈ 385 |
+| 2b. `carve` + `burn(…, 2)` | 1 702 | ≈ 647 |
+| 3. `carve` + `fill` sólido de raio 2 | 982 | ≈ 205 |
+| `fill` sólido de raio 16 (sozinho) | 17 080 | ≈ 17 080 |
+
+Leitura: o volume planejado conta também o ar (a parte da tigela acima do chão e a vedação que cai no ar), por isso fica bem acima do que é escrito; `burn` é a peça que mais cresce com a espessura; um preenchimento pequeno quase não pesa, um grande pesa mais que a cratera. Para conferir a contagem: a esfera de raio 24 com casca de 2 do teste em jogo dá, pela mesma conta, 73 508 planejados e 36 754 escritos, exatamente o que o teste registrou.
+
+##### 4. Explosão só visual
+
+Uma explosão enorme na tela, com o chão intacto: coluna de luz, onda de luz no chão, clarão, céu e névoa tingidos.
+
+```java
+static final Timeline EXPLOSAO_TL = Timeline.builder(120)
+    .phase("clarao", 10, 24, 1, 10)
+    .phase("brasa", 10, 120, 2, 60)
+    .track("onda", keyframe(10, 0f), keyframe(50, 24f, Easing.EASE_OUT))
+    .marker("impacto", 10)
+    .build();
+
+static final Beam COLUNA = Beam.builder(Point.center(0, 0, 0), Point.center(0, 40, 0))
+    .width(1.5f, 9f).color(0xffffffff, 0xffff7a24).noise(1.2f).weightPhase("clarao").build();
+static final Light ONDA = Light.ring(Point.center(0, .2, 0), 0, 3).color(0xffff9040).height(3)
+    .track(Light.Param.RADIUS, "onda").weightPhase("brasa").build();
+static final Light NUCLEO = Light.point(Point.center(0, 2, 0)).color(0xffffe0a0).intensity(3f).radius(14)
+    .weightPhase("clarao").build();
+static final Atmosphere CEU = Atmosphere.builder().sky(0xff3a1408, 0xffff6a20, .5f)
+    .fog(0xff4a2a1a, .35f, 8, 96).exposure(1.3f).weightPhase("brasa").build();
+
+public static void register() {
+    Effects.register(EXPLOSAO, new Effects.Definition(120, 30, 0xffff7a24, Effects.Shape.NONE, Effects.Material.NONE,
+        null, null, new Effects.Impact(10, 6, .8f, Effects.ImpactStyle.TINTED_FLASH)).withRange(256));
+    Effects.timeline(EXPLOSAO, EXPLOSAO_TL);
+    Effects.atmosphere(EXPLOSAO, CEU);
+    Effects.beams(EXPLOSAO, COLUNA);
+    Effects.lights(EXPLOSAO, ONDA, NUCLEO);
+    // Nenhum Effects.terrain: nenhum bloco muda.
+}
+```
+
+- **Servidor:** nada no mundo; só a instância (e os cues, se houver dano ou som).
+- **Só no cliente:** tudo o que se vê: um passe de feixes, um de luzes, o de atmosfera e o impact frame, dentro do orçamento por quadro.
+- **Opcional:** cada camada; uma cratera pequena (modo A) se o impacto deve deixar marca.
+- **Custo:** zero de terreno; o custo é de GPU, limitado pelos perfis de qualidade.
+- **Escolha quando:** o pedido é a cena (explosão, onda de choque, golpe de chefe) e nada precisa ficar no mundo.
+
+##### 5. Ataque repetido de dragão ou chefe
+
+Todo sopro é visual; só alguns deixam marca. Dois efeitos com o mesmo visual: `SOPRO` (sem terreno) e `SOPRO_MARCA` (com uma cratera pequena, só escavação). A recarga por fonte decide qual toca.
+
+```java
+static final Timeline SOPRO_TL = Timeline.builder(60)
+    .phase("fogo", 0, 40, 4, 16)
+    .track("alcance", keyframe(0, 0f), keyframe(14, 1f, Easing.EASE_OUT))
+    .marker("impacto", 14)
+    .build();
+static final Beam CHAMA = Beam.builder(Point.facing(0, 6, -10), Point.facing(0, 0, 0))
+    .width(1f, 5f).color(0xffffe0a0, 0xffff5a14).noise(1.4f)
+    .track(Beam.Param.REVEAL, "alcance").weightPhase("fogo").build();
+static final Light BRASA = Light.along(CHAMA).intensity(2.5f).radius(8).flicker(.4f, 8).build();
+/** Pequena e sem burn: a brasa do cliente já mostra o chão queimado. */
+static final TerrainEdit MARCA = TerrainEdit.carve(TerrainShape.crater(3.5f, 2).rough(.6f, 2))
+    .commitAt("impacto").cooling(160).build();
+
+public static void register() {
+    Effects.register(SOPRO, new Effects.Definition(60, 16, 0xffff5a14, Effects.Shape.NONE, Effects.Material.NONE,
+        null, null));                                                  // sem impact frame: nada a esconder
+    Effects.register(SOPRO_MARCA, new Effects.Definition(60, 16, 0xffff5a14, Effects.Shape.NONE, Effects.Material.NONE,
+        null, null, new Effects.Impact(14, 4, .5f, Effects.ImpactStyle.TINTED_FLASH)));
+    for (ResourceLocation id : List.of(SOPRO, SOPRO_MARCA)) {
+        Effects.timeline(id, SOPRO_TL);
+        Effects.beams(id, CHAMA);
+        Effects.lights(id, BRASA);
+    }
+    Effects.terrain(SOPRO_MARCA, MARCA);
+}
+
+// Servidor, a cada sopro: no máximo uma cratera a cada 8 s por dragão; com a recarga correndo, só o visual.
+static void soprar(Mob dragao, Vec3 alvo) {
+    ServerLevel level = (ServerLevel) dragao.level();
+    Placement onde = Placement.at(alvo, dragao.getYRot(), 0).withSource(EffectSource.entity(dragao));
+    if (Effects.start(SOPRO_MARCA, level, onde.withCooldown(160)).isEmpty())
+        Effects.start(SOPRO, level, onde);
+}
+```
+
+- **Servidor:** no máximo uma cratera de 249 posições planejadas a cada 160 ticks por dragão; os outros sopros não tocam no mundo.
+- **Só no cliente:** feixe, luz e calor em todo sopro; clarão só quando há troca de blocos.
+- **Opcional:** a marca inteira; `burn` só se o pedido for chão transformado.
+- **Custo:** limitado pela recarga e pelo tamanho; a instância fica numa posição fixa (`Placement.at`), então o plano roda numa thread de trabalho (instâncias presas a entidades planejam na thread do servidor; veja abaixo).
+- **Escolha quando:** um chefe ou mob ataca muitas vezes e só alguns golpes precisam marcar o terreno.
+
+Com fonte mob, valem também o limite de 4 instâncias por mob e a regra `mobGriefing` (`terrainMobGriefing`): com ela desligada no mundo, a edição é recusada e o sopro toca sem cratera.
+
+#### O papel das receitas 18 a 21
+
+Cada uma mostra um **caso de uso**; nenhuma é a configuração obrigatória da sua categoria. As receitas ficam como estão.
+
+| Receita | Demonstra | Não significa |
+|---|---|---|
+| [18 — raio que abre uma trincheira](ai/receitas/18-raio-trincheira.md) | rasgo direcional (`trench` virada pelo yaw) com borda transformada | que toda trincheira precisa de `burn`: sem ela, o rasgo e a vedação continuam |
+| [19 — meteoro](ai/receitas/19-meteoro.md) | dublê visual que vira blocos reais (`standIn` + `fill`) | que toda cratera precisa de preenchimento: o `fill` é a intenção desse efeito |
+| [20 — cratera simples](ai/receitas/20-cratera-simples.md) | escavação com casca queimada, sem dublê nem feixe | que é a versão mínima: a mínima é o [exemplo 1](#1-só-escavar), sem `burn` |
+| [21 — torre que cai e fica](ai/receitas/21-torre-caindo.md) | estrutura que vira real e permanece | que destroços temporários devem ser estruturas: esses são visuais |
 
 ### Formas (`TerrainShape`)
 
@@ -1561,6 +1782,8 @@ TerrainEdit.carve(forma)
 Effects.terrain(ID, edicao1, edicao2);    // até 4 por efeito, depois de register e timeline
 ```
 
+O bloco acima lista **todas** as peças para referência; um efeito real quase nunca usa todas. As opcionais são independentes entre si: `TerrainEdit.carve(forma).commitAt("impacto").build()` já é uma edição completa. Qual escolher: [Escolher a operação](#escolher-a-operação).
+
 | Peça | Detalhe |
 |---|---|
 | `Fill.solid(bloco, raio)` / `Fill.shell(bloco, raio)` | Esfera sólida ou casca de 1 bloco, raio até 16, em `at(direita, cima, frente)`. Escrita depois da escavação (sobrescreve o ar). |
@@ -1579,7 +1802,7 @@ início ──► regras + plano numa thread de trabalho ──► plano pronto:
 
 1. **Início da instância (servidor):** regras da config (ligado, dimensão, `mobGriefing` para fontes mob) e o plano numa thread de trabalho. O plano é **puro**: forma, origem, orientação, seed e estrutura viram uma lista ordenada de posições e ações, em lotes por seção de chunk (a seção da origem primeiro, depois pela distância). Nenhum acesso ao mundo fora da thread do servidor; não há cópia de seções porque o plano não precisa do mundo.
 2. **Plano pronto:** volume máximo (`terrainMaxVolume`) e **um** `TerrainEditEvent` com a área exata (`BoundingBox` de todas as posições) e o volume. Instâncias presas a uma entidade só sabem a origem no marcador: planejam e disparam o evento ali.
-3. **Marcador:** o commit começa no mesmo tick e escreve até `terrainBlocksPerTick` blocos por tick (padrão 16 384, **dividido** entre todas as edições em andamento; uma edição pode pedir menos com `blocksPerTick`). As decisões que dependem do mundo (sólido, fluido, protegido, block entity) acontecem aqui, na thread do servidor.
+3. **Marcador:** o commit começa no mesmo tick e percorre até `terrainBlocksPerTick` entradas do plano por tick (padrão 16 384; contam as que mudam e as que não mudam). O orçamento é do servidor inteiro e **compartilhado** pelas edições, desfazeres e cascas externas em andamento, atendidos em ordem de chegada; uma edição pode pedir menos com `blocksPerTick` (veja [Custo de uma destruição](#custo-de-uma-destruição)). Se o plano ainda não ficou pronto quando o marcador chega, o servidor espera por ele nesse tick. As decisões que dependem do mundo (sólido, fluido, protegido, block entity) acontecem aqui, na thread do servidor.
 4. **Escrita direta:** `LevelChunkSection.setBlockState(x, y, z, estado, false)`, mais o essencial do `LevelChunk.setBlockState` (heightmaps, fontes de luz do céu, estado da seção no motor de luz, `checkBlock` só quando a luz muda, pontos de interesse, chunk marcado para salvar). Dentro da área escrita, **sem** drops, `onRemove`/`onPlace`, atualização de vizinhos e de forma, nem física (desde a 0.11.1, a casca externa recebe essas atualizações no fim; veja [Integridade do mundo](#integridade-do-mundo)). Uma edição de raio 12 (7 200 blocos) cabe num tick; a de raio 24 (73 000) em cinco.
 5. **Fim de cada lote:** cada seção alterada vai **uma vez** aos jogadores que veem o chunk (`ClientboundSectionBlocksUpdatePacket`, só as posições alteradas), seguida, desde a 0.11.1, dos dados de cada block entity nova; o cliente recalcula a luz local e remonta só as seções tocadas.
 6. **Fim do commit:** blocos de gravidade escritos sobre o ar são assentados; desde a 0.11.1, a casca externa recebe atualização de forma, de vizinho e ticks de fluido (em lotes, no mesmo orçamento); o snapshot de desfazer fica guardado e `/calamidade terrain list` mostra o relatório (blocos, ticks, tempo na thread do servidor, pacotes).
@@ -1614,8 +1837,8 @@ Config do servidor, seção `terrain` de `serverconfig/calamidade_awakening-serv
 | Opção | Padrão | Efeito |
 |---|---|---|
 | `terrainEnabled` | `true` | Desligada, nenhuma edição roda (os efeitos tocam sem cratera). |
-| `terrainMaxVolume` | 150 000 | Blocos planejados por edição (escavação, casca, preenchimento, estrutura). Acima: recusada inteira. |
-| `terrainBlocksPerTick` | 16 384 | Blocos escritos por tick, divididos entre as edições em andamento. |
+| `terrainMaxVolume` | 150 000 | Posições planejadas por edição (escavação, casca ou vedação, preenchimento, estrutura), inclusive as que já são ar. Acima: recusada inteira. |
+| `terrainBlocksPerTick` | 16 384 | Entradas do plano percorridas por tick no servidor inteiro, compartilhadas em ordem de chegada pelos commits, desfazeres e cascas externas em andamento ([detalhes](#orçamento-por-tick-na-prática)). |
 | `terrainDimensions` | overworld, nether, end | Dimensões permitidas (`"*"` para todas). |
 | `terrainBlockEntities` | `false` | Só com isto **e** `replacingBlockEntities()` na edição um bloco com block entity é trocado (os dados vão para o snapshot). |
 | `terrainMobGriefing` | `true` | Edições cuja fonte é um mob seguem a regra `mobGriefing`. |
@@ -1723,6 +1946,64 @@ Teste automatizado em jogo (Etapa 7 da 0.11.0; detalhes e método em [VALIDACAO.
 
 O commit é mais barato que o `/fill` porque escreve na seção sem trava, sem `updateFromNeighbourShapes`, sem `blockUpdated` em cada posição e sem pacote por bloco (um por seção); e muito mais barato que a TNT, que gasta em explosões, entidades, drops e física durante segundos. No cliente, o custo é o da remontagem das seções tocadas, como qualquer troca de blocos; a cratera grande pesa alguns quadros enquanto 56 seções são remontadas (meça na sua GPU: TESTE-REAL.md, caso 72). Por instância, o plano roda fora da thread do servidor (a esfera r24 com casca leva ~12 ms numa thread de trabalho) e o snapshot de desfazer guarda ~10 bytes por bloco escrito.
 
+### Custo de uma destruição
+
+Trocar blocos reais não é só "escrever estados". Uma edição envolve: o plano da geometria (numa thread de trabalho, com 1 ou 2 threads para o servidor inteiro); as verificações de proteção (uma vez, na thread do servidor, quando o plano fica pronto); a escrita dos estados; recálculo de luz quando a luz muda (blocos que emitem luz, como o magma da paleta padrão, ou que mudam a opacidade); mapas de altura e pontos de interesse; a casca externa; um pacote por seção alterada para cada jogador que vê o chunk; a remontagem dessas seções em cada cliente; o salvamento do chunk; o snapshot de desfazer (~10 bytes por bloco escrito); e, ao mesmo tempo, o trabalho das outras edições e desfazeres em andamento.
+
+#### As grandezas
+
+| Grandeza | O que é | Onde ver |
+|---|---|---|
+| **Volume planejado** | Todas as posições do plano: escavação, casca ou vedação, preenchimento, estrutura, **inclusive as que já são ar**. É o que `terrainMaxVolume` limita e o que o `TerrainEditEvent` informa. | `/calamidade terrain list`: `N planned` |
+| **Blocos efetivamente modificados** | Posições cujo estado mudou. Ar cavado, sólido vedado (fica como está) e blocos protegidos não contam. | `N written` |
+| **Blocos por tick** | Entradas do plano **percorridas** por tick, mudem ou não; depois das escritas, a casca externa gasta do mesmo orçamento. | `terrainBlocksPerTick`, `blocksPerTick` |
+| **Seções afetadas** | Seções de 16³ com alguma mudança: cada uma vai num pacote por lote e é remontada pelos clientes que a veem. | `N section packets`; F7 no cliente |
+| **Custo total** | Tempo somado na thread do servidor, mais as verificações de proteção antes do marcador. | `N ticks, X ms … (+ Y ms of protection checks …)` |
+| **Pior tick** | O maior tick do servidor durante a edição: o que o jogador sente como travada. | MSPT do servidor durante a edição (um perfilador; no repositório, o `Medidor` do `testeJogo`) |
+
+**Escavação nem sempre é mais barata que preenchimento.** O custo depende da geometria, de quantas posições mudam de fato, dos materiais (luz, gravidade, fluidos), de quantas seções e chunks a área atravessa e do mundo em volta. Uma cratera na encosta de um morro escreve muito mais que a mesma forma num vale; um preenchimento pequeno escreve dezenas de blocos e um grande, milhares (tabela em [Cinco exemplos comparáveis](#cinco-exemplos-comparáveis)). Meça no mundo e na máquina de destino.
+
+#### Orçamento por tick na prática
+
+Comportamento do código da 0.12.0 (`TerrainWorks.tick`):
+
+- `terrainBlocksPerTick` (padrão 16 384, faixa 64..1 000 000, config do servidor) é **um orçamento por tick para o servidor inteiro**, todas as dimensões, compartilhado por commits, desfazeres e cascas externas em andamento.
+- **Não é dividido em partes iguais.** As tarefas são atendidas em ordem de chegada: a mais antiga recebe o orçamento inteiro (ou o seu `blocksPerTick`, se menor), a seguinte recebe o que sobrou, e assim por diante; quando o orçamento acaba, as outras esperam o próximo tick. A cota é descontada mesmo que a tarefa use menos (no último lote, por exemplo).
+- `blocksPerTick(n)` numa edição **só limita aquela edição** e nunca passa do orçamento do servidor. Ele **distribui** o trabalho no tempo; não reduz o total de blocos alterados. Um valor menor baixa o pico por tick, mas alonga o commit, e a troca passa a aparecer em etapas (as seções mais perto da origem primeiro): o impact frame só esconde os primeiros ticks. Não é solução universal para travadas.
+- A casca externa começa no tick seguinte à última escrita e custa 1 unidade por vizinho examinado e 4 por atualização aplicada, do mesmo orçamento.
+- `terrainMaxVolume` vale **por edição**. Não há teto de volume somado entre edições simultâneas: a soma é contida pelo orçamento por tick (que alonga a fila), pelos limites de instâncias (64 no servidor; 16 por jogador, 4 por mob, 2 por bloco) e pelo máximo de 4 edições por efeito.
+- **Fora do orçamento por tick:** as verificações de proteção rodam inteiras num tick, proporcionais ao volume planejado (19 a 22 ms para 73 508 posições na medição da 0.11.1, mais o custo dos listeners de explosão instalados). Se o plano ainda não estiver pronto no marcador, o servidor espera por ele nesse tick, e então verificação e primeiro lote somam no mesmo tick. **Instâncias presas a uma entidade** (`Effects.follow`, `Placement.on`) planejam no marcador, na thread do servidor (a esfera de raio 24 com casca leva ~12 ms para planejar). Para edições grandes: posição fixa (`Placement.at`) e tempo entre o início e o marcador (uma fase de carga ou de queda).
+
+Aumentar `terrainBlocksPerTick` ou `terrainMaxVolume` **não** é a primeira medida contra lentidão: primeiro reduza o que o efeito pede.
+
+#### Dragões, chefes e ataques repetidos
+
+O motivo mais comum de travada com terreno não é uma cratera isolada: é a soma. Antes de escrever um ataque destrutivo repetido, estime:
+
+- **frequência** dos ataques e **quantos** deixam marca real;
+- **tamanho** das formas e o **volume somado** por minuto;
+- **chunks e seções** atingidos (impactos espalhados tocam mais seções que impactos agrupados) e a **distância** entre impactos;
+- **simultaneidade**: vários dragões, várias edições por efeito, desfazeres;
+- custo no **cliente**: remontagem das seções, zonas quentes e dublês do passe `terrain` (2/4/8 zonas e 4/8/8 dublês por quadro), feixes e luzes.
+
+Padrões que funcionam:
+
+- **Dragão cuspindo fogo:** feixe e luz em todo sopro, impact frame curto, fumaça e calor do cliente; uma região pequena ou média de escavação real; casca carbonizada só se o pedido for chão transformado. Não é preciso preencher a área com magma, basalto ou pedra; se o pedido for rocha vulcânica que fica, aí uma paleta própria em `burn` faz sentido.
+- **Dragão abrindo uma trincheira:** `TerrainShape.trench(comprimento, raio)` virada pelo yaw da instância (`Placement.at(pos, yaw, pitch)`), dentro dos limites (comprimento até 128, raio até 64, alcance total até 128). Sem preenchimento nem estrutura quando o objetivo é o rasgo.
+- **Chefe destruindo uma montanha:** duas estratégias legítimas, nenhuma imposta. *Destruição física*: modifica de verdade os blocos; meça o volume planejado contra `terrainMaxVolume`, divida em até 4 edições por efeito com marcadores diferentes, posição fixa e tempo para planejar, e espere vários ticks de escrita e muitas seções remontadas. *Destruição cinematográfica*: céu, atmosfera, feixes, luz, impact frame e câmera vendem a devastação, e só as partes necessárias do terreno mudam (o cume que cai, o rasgo onde o golpe acerta).
+- **Vários dragões ao mesmo tempo:** as edições disputam o mesmo orçamento (em ordem de chegada), alteram muitos chunks e multiplicam o trabalho dos clientes. Espace as marcas com recarga por fonte (`Placement.withCooldown`, `Effects.cooldownReady`), mantenha as crateras pequenas e agrupe os impactos.
+- **Destruição visual contínua:** dezenas de rajadas na tela e só algumas trocando blocos ([exemplo 5](#5-ataque-repetido-de-dragão-ou-chefe)). Nunca troque blocos a cada quadro ou a cada pulso visual.
+
+#### Configuração, custo legítimo ou problema do motor?
+
+Diante de uma travada, classifique antes de concluir:
+
+1. **Configuração do efeito:** forma grande demais, peças desnecessárias (`burn` grosso, `fill` grande, estrutura usada como enfeite), muitos impactos simultâneos, instância presa a entidade com edição grande, marcador logo depois do início. Corrige-se no efeito.
+2. **Custo legítimo da operação:** o volume pedido é grande de verdade e exige trabalho mesmo com a API usada corretamente. Decide-se entre medir, espalhar no tempo (com as consequências acima) e trocar parte por visual.
+3. **Problema potencial do motor:** custo inesperado para o volume escrito, comportamento incorreto ou regressão **demonstrável** (mesmo efeito, mesmo mundo, mesma máquina, números piores entre versões). Registre com o relatório de `/calamidade terrain list` e o MSPT, sem afirmar a causa antes de isolá-la.
+
+Não classifique toda queda de desempenho como bug do motor, nem descarte um problema interno só porque a API tem otimizações. Exemplo de por que medir importa: na validação das fases 0 e 1 da 0.14, o `testeJogo` falhou no limite de 50 ms da verificação "cratera grande com a casca externa" (esfera de raio 24 com `burn` de 2, sem preenchimento), com pior tick de 88,2 ms e depois 51,0 ms, usando o mesmo JAR do release 0.12.0, que tinha passado em outra máquina. A causa **não foi isolada** e o caso continua não aprovado ([VALIDACAO.md](VALIDACAO.md)).
+
 ### Limites e cuidados
 
 - **Chunks não carregados são pulados:** o commit nunca carrega chunks. Se ninguém estiver perto quando o marcador chega, as seções daquele chunk ficam como estão (o relatório conta "sections unloaded"). Para edições longe de jogadores, mantenha os chunks carregados (`/forceload`).
@@ -1816,7 +2097,7 @@ Dentro da área escrita nada é atualizado: tudo ali foi escrito pela edição, 
 
 ### Receitas
 
-[18 — raio que abre uma trincheira](ai/receitas/18-raio-trincheira.md), [19 — meteoro que vira bloco real](ai/receitas/19-meteoro.md), [20 — cratera simples](ai/receitas/20-cratera-simples.md), [21 — torre que cai e fica](ai/receitas/21-torre-caindo.md). Testes: `TerrainCheck` no `checkBudget` (volumes, determinismo pela seed, vedação da casca, orientação da trincheira, ordem estável dos lotes, paleta, preenchimento, estrutura girada, registro) e os casos 63 a 74 de TESTE-REAL.md.
+Casos de uso, não configurações obrigatórias ([o papel de cada uma](#o-papel-das-receitas-18-a-21)): [18 — raio que abre uma trincheira](ai/receitas/18-raio-trincheira.md), [19 — meteoro que vira bloco real](ai/receitas/19-meteoro.md), [20 — cratera simples](ai/receitas/20-cratera-simples.md), [21 — torre que cai e fica](ai/receitas/21-torre-caindo.md). Testes: `TerrainCheck` no `checkBudget` (volumes, determinismo pela seed, vedação da casca, orientação da trincheira, ordem estável dos lotes, paleta, preenchimento, estrutura girada, registro) e os casos 63 a 74 de TESTE-REAL.md.
 
 <a id="cap14"></a>
 
@@ -2783,6 +3064,157 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 ## 19. Validação, medições e limites
 
+### 0.14 (Custom Sky) — fase 4: imagens, flipbooks e impostors, branch `claude/ceu-personalizado` (23/11/2026)
+
+**O motor mudou (só aditivo):**
+- API `SkyImage`, `SkyImpostor`, `Effects.images`, `Effects.impostors` e `SkyProfile.StateBuilder.images/impostors`.
+- Puro: `SkySpriteMath`.
+- Cliente: `SkyTextures` (substitui o `BackdropTextures`), `SkySprites` e `SkyObjectsFrame`.
+- Shaders: o de núcleo `sky_sprite`; `sky_objects.glsl` recebe parâmetros; `sky.fsh` compõe a camada de frente (`CaElFront`, só com `FRONT`).
+- Ferramenta: `scripts/gerar_impostor.cjs`.
+
+A versão do build continua 0.12.0. O JAR deste branch é de desenvolvimento (SHA-256 `4039d674…`, contra `a934968a…` do release, intocado junto com a tag `v0.12.0` e a `main`). Arquitetura, ajustes em relação ao plano e guia para addons: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-4-imagens-flipbooks-e-impostors-implementada).
+
+**Executado nesta sessão** (pela regra de [AGENTS.md](../AGENTS.md#quando-rodar-cada-teste-regra-permanente-desde-a-fase-3-da-014)):
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `SkySpriteCheck` novo no `checkBudget`, com casos negativos; `checkShaders` com glslangValidator: 21 shaders; `checkApiDocs` |
+| `./gradlew checkApiCompat` | verde | base 0.12.0 inteira presente e compatível (só adições) |
+| `node scripts/referencia_ceu.cjs` | 47/47 | as 38 cenas anteriores com diferença **zero** (média 0, pior 0) depois da refatoração de `sky_objects.glsl` e do `sky.fsh`; 9 cenas novas de imagens gravadas numa rodada e reproduzidas iguais na seguinte |
+| `node scripts/fundo_composicao.cjs` | 9/9 | igual à fase 2 |
+| `node scripts/objetos_composicao.cjs` | 43/43 | os 24 da fase 3 e 19 novos (I1 a I8), cada um com controle negativo que falha como esperado |
+| `xvfb-run ./gradlew testeImagens` (novo) | 27/27 registrado; correto: 25/25 | numa só inicialização; ver abaixo e a nota de correção |
+| `xvfb-run ./gradlew testeEstrelas` | 20/20 | regressão: `SkyObjectsFrame` mudou |
+| `xvfb-run ./gradlew testeBackdrop` | 34/34 | regressão: o cache de texturas do fundo mudou |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão: `FRONT` entra no passe `sky` |
+| `./gradlew dist` e `./gradlew -p examples/vfx-sample build` | verde | |
+| `gerar_impostor.cjs` e `gerar_sprites_teste.py` | ok | montar, validar e exemplo; mensagens para vista faltando, yaw fora do passo, LOD errado, id inválido e PNG corrompido; recursos de teste byte a byte iguais em duas execuções |
+
+**Falhas encontradas e corrigidas na fase** (nenhum teste foi alterado para passar):
+
+1. Na prévia, uma folha de quadros desenhada pequena misturava o quadro vizinho mesmo com 2 px de margem: a margem só protege os primeiros níveis de mipmap.
+   - Correção: mipmaps por quadro feitos na CPU e amostragem presa ao nível lido.
+   - Prova: caso I6; o controle negativo com mipmaps do driver vaza 49/255.
+2. A primeira rodada do `testeImagens` mostrou a imagem com a textura do cubemap. `ShaderInstance.setDefaultUniforms` grava `Sampler0..11` com `RenderSystem.getShaderTexture(i)` (javap `-c`), e o motor definia o amostrador antes dela.
+   - Correção: amostradores definidos depois de `setDefaultUniforms`.
+   - Prova: a rodada seguinte, completa, passou sem falhas (25 verificações; veja a nota de correção do "27/27").
+3. Uma primeira tentativa de interromper essa rodada não parou o processo. A rodada antiga e a nova dividiram `run/teste-imagens`, e o relatório misturado foi descartado. A rodada válida é a completa, sozinha (o relatório desta rodada não foi guardado; o roteiro `RoteiroImagens` tem 25 verificações, idêntico na integração, que deu 25/25: o "27" é erro de transcrição, não duas verificações a mais). Isso é infraestrutura, não um defeito do motor.
+
+**`testeImagens` (llvmpipe, 1280 × 720):**
+- Sem addon: nada; nenhuma textura de sprite e nenhuma camada de frente alocada.
+- Disco NORMAL com a cor exata (240,48,160) sobre o cubemap; a parte transparente do PNG não toca o fundo (pior 0).
+- Silhueta COVER: 502 pixels com a cor, 9 498 com o fundo, 0 na borda.
+- Flipbooks por cor sentinela: LOOP `[2, 3, 0, 1, 2, 3]`, ONCE `[3, 3, 3]`, PING_PONG `[2, 1, 0, 1, 2, 3, 2, 1]`, TRACK `[2, 2]`.
+- `flashing(true)` congela no quadro seguro com "ocultar clarões" (variação 255 → 0). A folha que pisca sem marca é pega pela rede de segurança. Um flipbook normal continua animando.
+- Impostor: a vista certa com a cor exata para as orientações 0, 90 e 180°. LOD: nível 0 grande, nível 1 pequeno.
+- `FRONT`: a imagem fica na frente de um portal do motor com a cor exata. `BEHIND`: fica atrás dele.
+- Recursos inválidos: PNG ausente, PNG corrompido, grade que não divide a imagem, descritor inválido, página ausente e descritor ausente. São 7 problemas contados uma vez cada, estáveis, e a imagem válida continua.
+- Lote: **1,00 chamada de desenho por quadro** para duas imagens da mesma textura.
+- Cegueira e `customSkies` desligam as imagens.
+- Recarga: as texturas são liberadas e enviadas de novo.
+- Memória contada (63 KiB de 256 MiB em HIGH).
+- Céu do Overworld igual antes e depois (diferença 0). Capturas: [jogo](ceu-previas/imagens-fase4-jogo.jpg) e [prévia](ceu-previas/imagens-fase4-previa.jpg).
+
+**Custo (software, llvmpipe, só tendência; GPU física pendente).** Mediana / p95 do tempo de quadro no `testeImagens`, com a câmera a 30° acima do horizonte à noite:
+
+| Cenário | Mediana / p95 |
+|---|---:|
+| Sem objetos | 17,8 / 23,9 ms |
+| 1 imagem | 17,1 / 22,4 ms |
+| 8 imagens de 3 texturas | 19,2 / 24,6 ms |
+| Flipbook | 16,7 / 21,1 ms |
+| Impostor | 20,2 / 26,4 ms |
+| Portal com imagem `BEHIND` | 51,1 / 58,2 ms |
+| Portal com imagem `FRONT` | 54,2 / 60,3 ms |
+
+Leitura:
+- As imagens custam perto do ruído entre rodadas (1 a 4 ms).
+- O portal domina por software.
+- A camada de frente custa perto de 3 ms sobre o passe que já existia.
+
+Os números do `testeEstrelas` desta rodada (por exemplo, atmosfera 44,9 ms) foram medidos com a prévia WebGL rodando ao mesmo tempo na mesma CPU e não são comparáveis com os da fase 3. Nenhum ganho ou limite é afirmado para GPU física. Os limites de envio (1 / 1 / 2 / 2 por quadro, 4 / 8 / 16 / 32 MiB) e de memória (64 / 128 / 256 / 512 MiB) continuam como pontos de partida conservadores. As texturas de teste são pequenas, então o custo de enviar texturas grandes não foi medido: fica pendente.
+
+**Reaproveitado, não executado de novo:**
+- `checkObjetosComposicao` 43/43 rodou uma vez nesta fase, no estado atual dos shaders e dos scripts da prévia; nada que ele exercita mudou depois.
+- A fase 3 inteira continua registrada abaixo.
+
+**Não rodado, com justificativa:** `testeJogo`. A fase não mexe em servidor, rede, terreno nem estado de servidor. A única execução nesta sessão foi no começo, com o código da fase 3 (`90d4097`), só para criar o mundo que os testes de cliente copiam (o container era novo). Deu 60/61; a falha foi o limite de 50 ms do desfazer da cratera grande (52,4 ms), a falha intermitente já registrada desde a 0.12.0.
+
+**Não testado:** GPU física, Iris/Oculus e shaderpacks, Sodium/Embeddium, outros mods que desenham em `AFTER_SKY`, multiplayer com dois jogadores, texturas de 4 096 px reais (só o cálculo da redução está nos testes puros) e envio de texturas grandes. Nenhuma compatibilidade é afirmada.
+
+### 0.14 (Custom Sky) — fase 3: estrelas, constelações e nebulosas, branch `claude/ceu-personalizado` (23/11/2026)
+
+**O motor mudou (só aditivo):** API `StarField`, `Nebula`, `SkyBlend`, `SkyDarkening`, `Effects.stars`, `Effects.nebulae`, `SkyProfile.StateBuilder.stars/nebulae`; puro `SkyObjectsMath`; cliente `SkyObjectsFrame`; shaders de núcleo `sky_stars`, `sky_nebula` e `include/sky_objects.glsl`; passes `sky` e `atmosphere` com a camada de cobertura (`CaElTex`, só com objetos). A versão do build continua 0.12.0 até o release da 0.14; o JAR deste branch **não** é o do release (SHA-256 `42e73c98…` contra `a934968a…` do release, intocado com a tag `v0.12.0` e a `main`) e agora se identifica como build de desenvolvimento no log, na descrição da lista de mods e no F7. Arquitetura, decisão de composição e limitações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-3-estrelas-constelações-e-nebulosas).
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `SkyObjectsCheck` novo no `checkBudget`; `checkShaders` com glslangValidator: 19 shaders, agora incluindo os de núcleo (`#moj_import` resolvido como o NeoForge) |
+| `./gradlew checkApiCompat` | verde | 89 classes e 1038 membros da base 0.12.0 presentes e compatíveis |
+| `./gradlew checkCeuReferencia` | 38/38 | as 26 cenas anteriores (15 da 0.12.0, 11 com fundos) com diferença **zero**; 12 cenas novas de objetos do céu |
+| `./gradlew checkFundoComposicao` | 9/9 | igual à fase 2 |
+| `./gradlew checkObjetosComposicao` (novo) | 24/24 | shaders de núcleo reais em WebGL2 + passes reais; números e controles negativos em CEU-PERSONALIZADO.md |
+| `xvfb-run ./gradlew testeEstrelas` (novo) | 20/20 | duas rodadas completas; a primeira deu 19/20 por uma sonda errada do teste (olhava só a face sul do cubemap), corrigida sem mudança no motor |
+| `xvfb-run ./gradlew testeBackdrop` | 34/34 | regressão da fase 2 |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão do céu procedural da 0.12.0 |
+| `./gradlew testeJogo` | 61/61 | |
+| `./gradlew -p examples/vfx-sample build` | verde | |
+
+**`testeEstrelas` (llvmpipe, 1280 × 720):** sem addon nenhum objeto, nenhuma malha, nenhum desenho e nenhuma camada de cobertura alocada; estrela `NORMAL` vermelha com cor exata (255,32,16) sobre o cubemap e o fundo intacto ao lado; catálogo com constelação numa malha; campo `LUMINOUS` à noite sem nenhum pixel mais escuro que o fundo (738 pixels acesos) e sumindo de dia (0 pixels); nebulosa `NORMAL` a 0,5 com mistura por alfa coerente (pior 1,0/255 em 7 563 pixels, alfa máximo 0,38) e sem tocar a skybox fora dela; nebulosa `COVER` só na silhueta; Atmosphere sobre a nebulosa medida (55,30,86) = esperada; camada de cobertura desenhada só nos quadros com passe; estrelas `REVEAL` no eclipse global do exemplo, de dia (0 pontos antes, 732 na totalidade); nada com cegueira; `customSkies`; tetos por perfil 4 000 / 16 000 / 40 000 / 60 000 (o campo tem 60 000; ULTRA aceita 131 072); **1,00 chamada de desenho por quadro** para um campo de 40 000 estrelas; recarga de recursos libera e remonta as malhas; céu do Overworld igual antes e depois (diferença zero). Capturas: [jogo](ceu-previas/estrelas-fase3-jogo.jpg) e [prévia](ceu-previas/estrelas-fase3-previa.jpg).
+
+**Custo (software, llvmpipe, só tendência; GPU física pendente):** mediana / p95 do tempo de quadro, segunda rodada (a primeira entre parênteses): sem objetos 7,4 / 9,6 ms (8,6); 6 000 estrelas 8,7 / 10,7 (10,3); 40 000 estrelas (HIGH) 11,8 / 14,4 (15,7); nuvem 12,3 / 15,3 (12,4); faixa (esfera inteira, ruído de 5 oitavas) 18,0 / 22,4 (17,4); atmosfera sozinha 30,0 / 36,3; 6 000 estrelas + atmosfera, com a camada de cobertura, 30,8 / 35,9. Leitura: a camada de cobertura com 6 000 estrelas custa perto de 1 ms sobre o passe de atmosfera que já existia; a faixa é o objeto mais caro por software (cobre a tela inteira com ruído por pixel), seguida da nuvem; o custo das estrelas cresce com o número desenhado, que os perfis limitam. Os números variam ~1 a 4 ms entre rodadas; nenhum ganho ou limite é afirmado para GPU física.
+
+**Não testado:** GPU física, Iris/Oculus e shaderpacks, Sodium/Embeddium, outros mods que desenham em `AFTER_SKY`, multiplayer com dois jogadores. Nenhuma compatibilidade é afirmada.
+
+### 0.14 (Custom Sky) — fase 2: Backdrop, branch `claude/ceu-personalizado` (22/11/2026)
+
+**O motor mudou (só aditivo):** API `Backdrop`, `Effects.backdrop`, `SkyProfile.StateBuilder.backdrop`; cliente `BackdropFrame` e `BackdropTextures`; passes `sky` e `atmosphere` com os fundos; opção de cliente `customSkies`. A versão do build continua 0.12.0 até o release da 0.14, então `build/libs/calamidade_awakening-0.12.0.jar` deste branch **não** é mais igual ao anexo do release (SHA-256 `c1d90a41…` contra `a934968a…` do release, que não foi tocado, nem a tag `v0.12.0`, nem a `main`). Arquitetura e resultados: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-2-backdrop-implementado).
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `BackdropCheck` novo no `checkBudget`; `checkShaders` não verificou nada nesta máquina (glslangValidator ausente; os shaders compilam no WebGL da prévia) |
+| `./gradlew checkApiCompat` | verde | 89 classes e 1038 membros da base 0.12.0 presentes e compatíveis (94 classes no JAR) |
+| `./gradlew checkCeuReferencia` | 26/26 | as 15 cenas da 0.12.0 com diferença **zero** (sem fundo, o caminho dos passes é o da 0.12.0); 11 cenas novas com fundos |
+| `./gradlew checkFundoComposicao` (novo) | 9/9 | Atmosphere sobre fundo opaco, parcial e com buraco de alfa, com e sem passe `sky`: erro máximo 0,5 a 1,0/255 contra mix(tela, gradiente, blend); sol apagado sob fundo opaco 0,0/255 e sob fundo parcial 8/255 (o apagamento da 0.12.0 sem fundo, medido no mesmo teste, erra 16/255); eclipse 0,5/255. Controles negativos (o comportamento do protótipo da fase 1): 77,5/255 e 217/255, como deviam |
+| `xvfb-run ./gradlew testeBackdrop` | 34/34 | terceira rodada; as duas primeiras falharam por erros do teste (fotos antes da entrada de 168 ticks do envelope dos efeitos longos, sondas na face de cima, a névoa da barra do dragão no End, métrica do horizonte), sem mudança no motor para isso. Lista abaixo |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão do céu procedural em jogo (eclipse em três dimensões, respawn, relogin, dimensão de teste) |
+| `./gradlew testeJogo` | 61/61 | nesta rodada, a cratera grande deu pior tick de 33,6 ms (limite 50). **Isso não resolve a falha anterior** (88,2 e 51,0 ms, abaixo): a causa continua não isolada e o caso continua pendente |
+| `./gradlew -p examples/vfx-sample build` | verde | |
+
+**`testeBackdrop` (llvmpipe, 1280 × 720):** nada desenhado nem carregado sem addon; ordem `AFTER_SKY` → RimuLib → `AFTER_LEVEL`, framebuffer principal, profundidade 1 depois do fundo; as cinco faces visíveis do cubemap na direção documentada (cor exata); fundo estático sem passe `sky` nem `atmosphere`; giro de 90°; panorama com alfa 0,5; gradiente; sol e lua cobertos pelo fundo opaco e redesenhados com `vanillaSunMoon` (alfa 1,00); Atmosphere sobre o fundo (medido (37,32,92) = esperado); lente (81% dos pixels da grade deslocados); eclipse escurece o fundo e o sol redesenhado vai de 1,00 a 0,00 na totalidade; sem fundo com cegueira, escuridão, câmera em lava e em neve em pó, e na ilha central do End com a névoa da barra do dragão; horizonte: faixa 0/255 mais clara que o fundo com a névoa casada, 90/255 sem ela; terreno idêntico com e sem fundo (estado de renderização devolvido); `customSkies` desligado e ligado; textura reaproveitada entre fundos e instâncias; recarga de recursos libera as 4 texturas e recarrega só a que está em uso; transição de perfil no End com dois fundos desenhados e a tela na mistura de A e B (t = 0,55), sem o céu do jogo; céu do Overworld igual (diferença zero) antes e depois de tudo, com a hora parada. Capturas: [jogo](ceu-previas/backdrop-fase2-jogo.jpg) e [prévia](ceu-previas/backdrop-fase2-previa.jpg).
+
+**Custo (software, llvmpipe, só tendência; GPU física pendente):** mediana do tempo de quadro em três rodadas — sem fundo 20,4 / 17,8 / 19,2 ms; cubemap 20,7 / 19,2 / 22,1 ms; panorama (esfera 64 × 32) 22,0 / 20,9 / 20,9 ms. A diferença fica dentro do ruído entre rodadas (até ~3 ms); o rasterizador por software paga cada pixel do fundo. Nenhum passe de pós é ligado por um fundo estático; com camadas ou atmosfera, os passes que já rodam fazem duas consultas de textura a mais por pixel de céu.
+
+**Não testado:** GPU física, Iris/Oculus e shaderpacks, Sodium/Embeddium, outros mods que desenham em `AFTER_SKY`, multiplayer com dois jogadores. Nenhuma compatibilidade é afirmada.
+
+**Pendências mantidas:** a cratera grande do `testeJogo` (abaixo; não aprovada até isolar a causa), a pulsação no Overworld e o multiplayer manual da 0.12.0, e os números de custo das receitas 18 a 21, que divergem do volume planejado e precisam de medição em jogo (revisão documental, abaixo).
+
+### Revisão documental da Terrain API — escolha da operação e custo (22/11/2026)
+
+**Só documentação; nenhum código mudou.** `build/libs/calamidade_awakening-0.12.0.jar` continua com o SHA-256 do release v0.12.0 (`a934968a…`). Novas seções em [TERRENO-0.11.md](TERRENO-0.11.md): "Escolher a operação" (modos, tabela de decisão, cinco exemplos comparáveis, papel das receitas 18 a 21) e "Custo de uma destruição"; regra 11 no `AGENTS.md`; skill `calamidade-efeitos`; notas nas receitas 18 a 21 (só texto, código intacto).
+
+- **Conferido no código:** sem `burn`, o planejador marca como `SEAL` só os blocos que tocam o espaço cavado por uma face (com `burn`, toda a casca até a espessura); o commit veda fluidos e queima não sólidos em `SEAL`, sem trocar sólidos; `fill` é escrito por cima de tudo, inclusive do ar; o calor do cliente usa espessura mínima 1 (`terrain.fsh`), então aparece sem `burn`; o orçamento `terrainBlocksPerTick` conta entradas percorridas (mudem ou não), é global e atende as tarefas **em ordem de chegada**, descontando a cota inteira de cada uma (o texto antigo dizia "dividido entre as edições" e foi corrigido no capítulo, no `AGENTS.md` e na receita 20); as verificações de proteção rodam num tick só, fora do orçamento; no marcador, um plano ainda não pronto é esperado (`join`) na thread do servidor.
+- **Contagens com o planejador puro** (`TerrainPlanner.plan` nas classes do build, mundo plano hipotético: sólido abaixo da origem): os números da tabela do capítulo. A mesma conta dá 73 508 planejados e 36 754 escritos para a esfera r24 com casca de 2, iguais aos registrados em jogo na 0.11.1. Os exemplos novos do capítulo foram construídos e validados (`validate`) contra essas classes.
+- **Divergência anotada, não corrigida:** as linhas "Custo" das receitas 18 a 21 ("~1 700", "~1 900", "~1 300", "~700 blocos planejados") ficam abaixo do volume planejado que o planejador dá para as mesmas formas (2 112..2 216, 3 493..3 616, 2 359..2 481 e 2 705..2 776 sem a estrutura, em 40 origens, yaws e seeds). Podem ter sido medidas como blocos escritos num mundo específico; precisam de uma medição em jogo antes de mudar o texto.
+- **Cratera grande do `testeJogo` (não resolvido, continua não aprovado; registro da rodada abaixo mantido):** a edição do teste é `sphere(24)` com `burn(…, 2)` e `noHeat()`, **sem preenchimento**; o marcador é o tick 5. Hipóteses, nenhuma comprovada: (a) o pior tick é o das verificações de proteção (fora do orçamento; 19 a 22 ms na 0.11.1 para essas 73 508 posições) somado a algo da máquina; (b) com a máquina carregada, o plano não ficou pronto até o tick 5 e espera do plano, verificações e primeiro lote de 16 384 entradas caíram no mesmo tick; (c) variação de JIT, coletor de lixo ou CPU compartilhada. O relatório atual não diz qual tick foi o pior; um próximo passo seria registrar o tempo por tick e por fase no `Medidor`. O limite de 50 ms não foi mudado.
+- **Verificações desta revisão:** `./gradlew build` verde (`checkBudget` com `TerrainCheck`, `checkRecipes`, `checkApiDocs`, `checkApiCompat`, `checkModVersion`; `checkShaders` sem glslangValidator nesta máquina, só aviso); `python3 scripts/gerar_manual.py`; links e âncoras dos arquivos alterados conferidos por script; `git diff` só com arquivos de documentação. Não rodados, porque nenhum código executável mudou: `testeJogo`, `testeCliente`, `testeCeu`, `testeBackdrop`, `checkCeuReferencia` e o build do vfx-sample.
+
+### 0.14 (Custom Sky) — fases 0 e 1, branch `claude/ceu-personalizado` (22/11/2026)
+
+**Nenhum código do motor mudou:** `build/libs/calamidade_awakening-0.12.0.jar` continua byte a byte igual ao anexo do release v0.12.0 (`a934968a…`). Esta rodada criou guardas de regressão e um experimento só no mod de teste. Arquitetura e resultados: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `checkShaders` não verificou nada nesta máquina (glslangValidator ausente; só aviso, como previsto fora do CI) |
+| `./gradlew checkApiCompat` (novo, no `check`) | verde | autoteste 7/7; 89 classes e 1038 membros da base 0.12.0 |
+| `./gradlew checkCeuReferencia` (novo) | 15/15 | duas gerações seguidas com diferença zero; escurecer a fenda em 20% é acusado nas duas cenas que a mostram |
+| `xvfb-run ./gradlew testeBackdrop` (novo) | 13/13 | três rodadas; a primeira deu 12/13 por uma hipótese minha de ordem dos passes, corrigida pelo `javap -c` |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão do céu em jogo |
+| `./gradlew testeJogo` | **60/61, duas rodadas** | falhou só o limite de tempo "cratera grande com a casca externa": pior tick 88,2 ms e depois 51,0 ms, contra o teto de 50 ms (o release teve 61/61 em outra máquina). O motor é o mesmo JAR; o mais provável é a máquina (4 núcleos compartilhados), mas a causa não foi isolada e o caso **não está aprovado** nesta rodada |
+| `./gradlew -p examples/vfx-sample build` | verde | |
+
+Pendências da 0.12.0 (multiplayer com dois jogadores, pulsação no Overworld) continuam abertas, como na seção abaixo.
+
 ### Versão 0.13.0 — Bosses (publicada: release v0.13.0)
 
 **Publicada** (workflow Release `45229440917`, tag `v0.13.0` no commit `2c90f60`). Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
@@ -2996,6 +3428,20 @@ JAR oficial sai do commit de release (passo 3).
 - **Conferido de novo numa sessão separada (22/11/2026):** os três anexos baixados do release passam no `sha256sum -c SHA256SUMS.txt`; build limpo do commit da tag (`git worktree` nova, sem `build/` nem `libs/`, RimuLib baixada e conferida pela task, `--no-build-cache`): `./gradlew dist` e `./gradlew -p examples/vfx-sample build` deram os mesmos SHA-256 dos anexos (build reproduzível). Nessa mesma worktree, o consumidor compilou baixando o motor de `github.com/…/releases/download/v0.12.0/` e a RimuLib do CurseForge, sem `-Pcalamidade.url`.
 
 SHA-256 de `dist/calamidade_awakening-0.12.0.jar`: `a934968a3d135fe0795abc806c548b556bb3dd9899b74a675e978a21e7c9e460`; de `vfx-sample-1.9.0.jar`: `fc8809d414a6eceb7543ff022e680cb189c19a98ea873475c64cef88e49771f9`
+
+#### Testes manuais do autor (relatados em 22/11/2026)
+
+**Origem:** relato do autor na conversa de planejamento da Custom Sky Engine, depois do release. Os dados abaixo foram copiados do relato; o CSV, a GPU, a resolução, o perfil de qualidade, a cena e a carga **não foram registrados** aqui.
+
+- Nos testes manuais feitos pelo autor, as funcionalidades avaliadas da 0.12.0 tiveram bom comportamento geral (a lista exata dos casos de TESTE-REAL.md, parte 10, executados não foi registrada).
+- Uma gravação de tempos de quadro (`/calamidade_client record`): cerca de **2 553 quadros, mediana 11,41 ms, p95 18,96 ms**.
+- **Limites desses números:** são o tempo de quadro inteiro durante a gravação, não o custo da Sky API. Sem as condições exatas e sem uma medição de referência (o mesmo cenário sem o efeito), não servem para comparação com outras medições nem para afirmar custo ou ganho.
+
+#### Pendentes (adiados por decisão do autor; não aprovados)
+
+- **Multiplayer manual com dois jogadores** (TESTE-REAL.md, casos 99 e 100): não executado.
+- **Leve pulsação visual no Overworld**, observada pelo autor depois de usar `/vfxsample ceu ameaca` e `/vfxsample ceu calmo` (os comandos mudam o estado da dimensão de teste, não do Overworld). O código do cliente filtra o perfil pela dimensão do nível (`SkyProfilesClient`), mas a causa da observação **não foi identificada** e **não é um bug confirmado**. Hipóteses ainda não testadas, sem conclusão: troca de perfil pelo AUTO mudando o número de camadas pintadas; rampa de exposição do `SkyFrame` (estado único entre dimensões); comportamento do próprio jogo. Mudanças futuras em SkyProfiles, Atmosphere ou estado de renderização entre dimensões devem trazer testes de regressão específicos (ver o plano da 0.14 no ROADMAP).
+- GPU física (custo dos casos 93 a 98) e Iris/Oculus (caso 102), como antes.
 
 #### Custo do passe de céu (software)
 
@@ -3936,10 +4382,29 @@ Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **p
 - **BossBar:** barra vanilla mais estilos de cliente (`BossBars`), barra segmentada com nome da fase, fantasma de dano e clarão; acessibilidade de tamanho, contraste, rótulos e "forçar vanilla"; canal `boss_v1`.
 - Chefe de exemplo: o Sentinela do Eclipse (receita 27), que dispara o eclipse da 0.12 em área na fase final.
 
+#### 0.14 — Custom Sky (proposta aprovada; em desenvolvimento no branch `claude/ceu-personalizado`)
+
+Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 continuam como estão, e nada novo aparece sem um addon pedir. Arquitetura e verificações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
+
+- **Backdrop:** fundo de céu por cubemap de 6 faces, panorama equirretangular, gradiente ou domo procedural; substituição parcial (com transparência) ou completa (cobrindo o céu do jogo e redesenhando só o que o addon pedir: gradiente, sol, lua, estrelas); em dimensões próprias, `ProfileSkyEffects` continua dono do céu inteiro.
+- **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho. **Feito na fase 3** (com nebulosas procedurais e a composição híbrida por objeto: `SkyBlend` NORMAL, LUMINOUS e COVER).
+- **Nebulosas e galáxias:** procedurais e por PNG; fundos animados.
+- **Imagens no céu e impostors:** PNG com transparência, tamanho angular, rotação, cor, brilho, por trilha da Timeline; folhas de sprites, flipbooks, vários ângulos. **Feito na fase 4** (`SkyImage`, `SkyImpostor`, `layer(FRONT)`, cache `SkyTextures` com orçamento por perfil, ferramenta `gerar_impostor.cjs`; modelos 3D reais continuam na 0.15).
+- Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias**.
+- Limites e custos definidos por medição (nenhum limite da proposta é definitivo sem benchmark).
+
+#### 0.15 — Sky Objects & Cinematics (proposta aprovada)
+
+- **Modelos 3D reais do Blockbench:** formato principal Bedrock `.geo.json` com um subconjunto documentado de animação, validado contra exportações reais; alternativas Java (`ModelPart`), OBJ/JSON de bloco e renderizadores externos (sem dependência do GeckoLib).
+- **Sky Space, World Space e Entity Space** escolhidos pelo addon; LOD opcional (billboard → impostor → modelo), cache de malhas.
+- **Transições céu ↔ mundo e portais cinematográficos** coordenados pela Timeline existente; recorte por CPU ou GPU escolhido por medição; continuidade garantida só perto do ponto de referência.
+- **Integração opcional com entidades** (o addon cuida de IA, vida, dano e spawn), sem duplicar a Boss API da 0.13.
+- Itens desta lista que vieram de "Depois da 0.13" e de "Evolução da API": **lentes que entortam feixes e efeitos de addons** e **cache de malhas estáticas e LOD adaptativo**.
+
 #### Depois da 0.13
 
-- **Perfis de céu em JSON de datapack:** codec de `Sky`, `Atmosphere` e `SkyProfile`, recarga com `/reload` e envio do perfil inteiro aos clientes (hoje os perfis são definidos em código).
-- Sky API: camadas desenhadas também de noite sobre o sol (eclipse "fantástico" fora do horário), nuvens próprias e lentes que entortam feixes e efeitos de addons.
+- ~~Perfis de céu em JSON de datapack~~ → 0.14.
+- Sky API: ~~camadas desenhadas também de noite sobre o sol~~ e ~~nuvens próprias~~ → 0.14; ~~lentes que entortam feixes e efeitos de addons~~ → 0.15.
 - Trail API (rastros e marcas): fitas com histórico de posições para entidades, projéteis e pontas de feixe; marcas que ficam no chão por um tempo.
 - Títulos e HUD cinematográficos sincronizados à Timeline.
 - Ramificações de feixes (raios que se dividem) e feixes curvos.
@@ -3954,4 +4419,4 @@ Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **p
 - Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos, força de um golpe) para os ganchos de cliente.
 - Orientação seguindo o olhar (yaw e pitch da cabeça) além do corpo.
 - Transição suave (crossfade) opcional no release, para loops cujas bordas não coincidem.
-- Cache de malhas estáticas e LOD adaptativo ao frametime.
+- ~~Cache de malhas estáticas e LOD adaptativo ao frametime~~ → 0.15 (Sky Objects).

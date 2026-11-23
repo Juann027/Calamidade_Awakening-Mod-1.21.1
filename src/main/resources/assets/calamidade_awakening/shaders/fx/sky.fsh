@@ -65,15 +65,36 @@ vec3 vanillaFill(vec3 d) {
     return caVanillaSky(d, CaSkyVanillaSky, CaSkyVanillaFog, CaSkyMisc.x);
 }
 
+// 0.14.0: fração do sol e da lua do jogo ainda visível no pixel (1 - cobertura dos fundos; 1 sem fundo) e o céu de
+// preenchimento com os fundos por cima (a tela, na direção d, sem o sol e a lua).
+float gVanillaVisible = 1.0;
+// 0.14.0 (fase 3): luz e cobertura dos objetos do céu no ponto da tela que este pixel mostra (zero sem objetos).
+vec4 gElements = vec4(0.0);
+vec3 skyFill(vec3 d) {
+    vec3 base = vanillaFill(d);
+    if (caBackdropOn()) {
+        float coverage;
+        base = caBackdropOver(base, d, coverage);
+    }
+    if (caElementsOn()) base = base * (1.0 - gElements.a) + gElements.rgb;
+    return base;
+}
+
 // O jogo soma o sol (SRC_ALPHA, ONE) com alfa 1 - chuva: tirar exatamente a mesma textura devolve o céu de baixo. Onde
 // a soma estourou em 1 (o miolo do sol), o céu de baixo se perdeu: entra a estimativa do céu do jogo.
 vec3 removeQuad(vec3 color, vec3 d, sampler2D tex, vec2 st, float amount) {
     ivec2 size = textureSize(tex, 0);
     vec4 t = texelFetch(tex, clamp(ivec2(st * vec2(size)), ivec2(0), size - 1), 0);
-    vec3 added = t.rgb * t.a * CaSkyVanilla.w;
+    vec3 added = t.rgb * t.a * CaSkyVanilla.w * gVanillaVisible;
     vec3 removed = max(color - added, vec3(0.0));
     float saturated = step(0.996, max(color.r, max(color.g, color.b))) * step(0.3, max(added.r, max(added.g, added.b)));
-    removed = mix(removed, vanillaFill(d), saturated);
+    if (gVanillaVisible < 1.0) {
+        // 0.14.0: sob um fundo, a soma que estourou em 1 ficou por baixo dele e a tela não mostra mais o estouro:
+        // prevê pelo céu do jogo estimado mais o sol inteiro.
+        vec3 full = t.rgb * t.a * CaSkyVanilla.w, under = vanillaFill(d) + full;
+        saturated = step(0.996, max(under.r, max(under.g, under.b))) * step(0.3, max(full.r, max(full.g, full.b)));
+    }
+    removed = mix(removed, skyFill(d), saturated);
     return mix(color, removed, amount);
 }
 
@@ -476,19 +497,40 @@ void main() {
     vec3 rd;
     bool sky;
     vec2 suv = caSkyLensUv(uv, CaSkyLens0, CaSkyLens1, CaSkyLensExt, rd, sky);
+    bool elements = caElementsOn();
+    if (elements) gElements = caElementsAt(suv);
     // Céu desviado continua céu: onde o desvio cairia num morro, entra o céu do jogo naquela direção.
-    vec3 color = skyOrig && !skyAt(suv) ? vanillaFill(rd) : texture(DiffuseSampler, suv).rgb;
+    // 0.14.0: com fundos, o céu de preenchimento é o fundo sobre o céu do jogo (skyFill).
+    vec3 color = skyOrig && !skyAt(suv) ? skyFill(rd) : texture(DiffuseSampler, suv).rgb;
 
     // 2. Sol e lua do jogo, onde uma camada pede.
     if (sky) {
+        bool backdrop = caBackdropOn();
+        if (backdrop) {
+            // Só a parte do sol e da lua que os fundos não cobrem ainda está na tela.
+            float coverage;
+            caBackdropOver(vec3(0.0), rd, coverage);
+            gVanillaVisible = 1.0 - coverage;
+        }
+        // 0.14.0 (fase 3): o que os objetos do céu cobrem também esconde o sol e a lua do jogo.
+        if (elements) gVanillaVisible *= 1.0 - gElements.a;
         color = removeVanilla(color, rd);
-        if (CaSkyAtmoA.w > 0.5)
-            color = max(color + caAtmoSkyDelta(rd, CaSkyVanillaSky, CaSkyVanillaFog, CaSkyMisc.x, CaSkyAtmoB.x > 0.5,
-                CaSkyAtmoTop, CaSkyAtmoHorizon, CaSkyAtmoFog, CaSkyAtmoA.x, CaSkyAtmoA.y, CaSkyAtmoA.z, GTime), vec3(0.0));
+        if (CaSkyAtmoA.w > 0.5) {
+            vec3 delta = backdrop
+                ? caAtmoSkyDeltaOver(rd, CaSkyVanillaSky, CaSkyVanillaFog, CaSkyMisc.x, CaSkyAtmoB.x > 0.5,
+                    CaSkyAtmoTop, CaSkyAtmoHorizon, CaSkyAtmoFog, CaSkyAtmoA.x, CaSkyAtmoA.y, CaSkyAtmoA.z, GTime)
+                : caAtmoSkyDelta(rd, CaSkyVanillaSky, CaSkyVanillaFog, CaSkyMisc.x, CaSkyAtmoB.x > 0.5,
+                    CaSkyAtmoTop, CaSkyAtmoHorizon, CaSkyAtmoFog, CaSkyAtmoA.x, CaSkyAtmoA.y, CaSkyAtmoA.z, GTime);
+            // 0.14.0 (fase 3): os objetos já se cobriram com o véu; a diferença vale para o céu que eles deixam ver.
+            if (elements) delta *= 1.0 - gElements.a;
+            color = max(color + delta, vec3(0.0));
+        }
     }
 
     // 3. Escurecimento do mundo (e do céu do jogo); as camadas, depois, continuam acesas.
-    color *= CaSkyInfo.y;
+    // 0.14.0 (fase 3): os objetos do céu aplicaram a própria reação ao escurecimento (SkyDarkening) e ficam como estão.
+    if (elements && sky) color = color * CaSkyInfo.y + gElements.rgb * (1.0 - CaSkyInfo.y);
+    else color *= CaSkyInfo.y;
 
     // 4. Camadas, da menos importante (última linha) para a mais importante (primeira).
     for (int j = 7; j >= 0; j--) {
@@ -529,6 +571,11 @@ void main() {
             else layer = celestial(q, t1, t2, t3, t4, t5);
         }
         color = color * (1.0 - clamp(layer.a, 0.0, 1.0)) + layer.rgb;
+    }
+    // 5. 0.14.0 (fase 4): objetos FRONT por cima de tudo, nos pixels de céu, sem lente.
+    if (caFrontOn() && skyOrig) {
+        vec4 front = caFrontAt(uv);
+        color = color * (1.0 - front.a) + front.rgb;
     }
     fragColor = vec4(color, 1.0);
 }

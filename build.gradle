@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'dev.calamidade_awakening'
-version = '0.13.0'
+version = '0.14.0'
 base { archivesName = 'calamidade_awakening' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
@@ -74,6 +74,36 @@ neoForge {
             sourceSet = sourceSets.testeJogo
             gameDirectory = layout.projectDirectory.dir('run/teste-ceu').asFile
             systemProperty 'calamidade.teste', 'ceu'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
+        // 0.14: teste do Backdrop em jogo (fase 2: fundos reais do motor), com o vfx-sample em mods/.
+        testeBackdrop {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = layout.projectDirectory.dir('run/teste-backdrop').asFile
+            systemProperty 'calamidade.teste', 'backdrop'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
+        // 0.14 (fase 3): estrelas, constelações e nebulosas em jogo, com o vfx-sample em mods/.
+        testeEstrelas {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = layout.projectDirectory.dir('run/teste-estrelas').asFile
+            systemProperty 'calamidade.teste', 'estrelas'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
+        // 0.14 (fase 4): imagens, flipbooks e impostors em jogo (recursos do mod de teste; sem o vfx-sample).
+        testeImagens {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = layout.projectDirectory.dir('run/teste-imagens').asFile
+            systemProperty 'calamidade.teste', 'imagens'
             programArgument '--quickPlaySingleplayer'; programArgument 'teste'
             programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
@@ -223,6 +253,36 @@ tasks.register('checkShaders') {
             }
         }
         zip.close()
+        // 0.14.0 (fase 3): shaders de núcleo (shaders/core, GLSL 150 do jogo), com cada "#moj_import <ns:arquivo>"
+        // trocado por assets/<ns>/shaders/include/<arquivo>, como o NeoForge resolve (ClientHooks.getShaderImportLocation).
+        roots.each { root ->
+            root.eachDir { ns ->
+                def core = new File(ns, 'shaders/core')
+                if (!core.isDirectory()) return
+                core.listFiles().findAll { it.name.endsWith('.vsh') || it.name.endsWith('.fsh') }.sort().each { shader ->
+                    def body = new StringBuilder()
+                    shader.getText('UTF-8').split('\n', -1).each { line ->
+                        def m = line.trim() =~ /^#moj_import <([a-z0-9_.-]+):([a-z0-9_.\/-]+)>$/
+                        if (m.matches()) {
+                            def include = new File(root, "${m.group(1)}/shaders/include/${m.group(2)}")
+                            if (!include.isFile()) throw new GradleException("${shader}: #moj_import ${m.group(1)}:${m.group(2)} não encontrado")
+                            body.append(include.getText('UTF-8')).append('\n')
+                        } else body.append(line).append('\n')
+                    }
+                    def stage = shader.name.endsWith('.vsh') ? 'vert' : 'frag'
+                    def target = new File(out, "${ns.name}_core_${shader.name}.${stage}")
+                    target.setText(body.toString(), 'UTF-8')
+                    def result = processes.exec {
+                        commandLine validator.absolutePath, '-S', stage, target.absolutePath
+                        ignoreExitValue = true
+                    }
+                    def text = result.standardOutput.asText.get() + result.standardError.asText.get()
+                    if (result.result.get().exitValue != 0)
+                        throw new GradleException("checkShaders: ${ns.name}:core/${shader.name} não compila:\n${text}")
+                    checked++
+                }
+            }
+        }
         // Cópias da biblioteca em outros namespaces (addons não alcançam o namespace do motor) devem ser idênticas.
         def library = new File(roots[0], 'calamidade_awakening/shaders/fx/calamidade_fx.glsl')
         roots.each { root ->
@@ -262,6 +322,72 @@ def apiLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVer
     }
 }
 tasks.named('check') { dependsOn 'checkApiDocs' }
+
+// 0.14 (fase 1): compatibilidade binária da api.v1 contra a base do último release (scripts/api-base/, gerada do JAR
+// publicado, byte a byte igual ao do release). checkApiCompat (parte do build) roda o autoteste do verificador e falha
+// se faltar classe ou membro, se um cabeçalho mudar, se um tipo extensível ganhar método abstrato ou se um enum perder
+// ou reordenar constantes. Adições são permitidas (AGENTS.md, regra 1).
+tasks.register('checkApiCompat') {
+    group = 'verification'
+    description = 'Falha se a api.v1 compilada quebra a compatibilidade binária com a base do último release.'
+    def jarFile = tasks.named('jar').flatMap { it.archiveFile }
+    dependsOn tasks.named('jar')
+    inputs.file(jarFile)
+    inputs.file('scripts/ApiCompat.java')
+    inputs.dir('scripts/api-base')
+    outputs.upToDateWhen { false }
+    def launcher = apiLauncher
+    def root = layout.projectDirectory.asFile
+    doLast {
+        def java = launcher.get().executablePath.asFile.absolutePath
+        def bases = new File(root, 'scripts/api-base').listFiles().findAll { it.name.endsWith('.txt') }.sort { it.name }
+        def runs = [[]] + bases.collect { ['--base', it.absolutePath] }
+        runs.each { extra ->
+            def process = ([java, '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', 'scripts/ApiCompat.java',
+                            '--jar', jarFile.get().asFile.absolutePath] + extra).execute(null, root)
+            def out = new StringBuilder(), err = new StringBuilder()
+            process.consumeProcessOutput(out, err)
+            int code = process.waitFor()
+            if (out) logger.lifecycle(out.toString().trim())
+            if (code != 0) throw new GradleException("checkApiCompat falhou:\n" + err.toString().trim())
+        }
+    }
+}
+tasks.named('check') { dependsOn 'checkApiCompat' }
+
+// 0.14 (fase 1): referência visual da Sky API da 0.12.0. Roda os passes reais sky e atmosphere pela prévia (Node e
+// Playwright, ~2 min) e compara 15 cenas com src/test/resources/referencia-ceu/. Fora do check (precisa de Node);
+// rode em toda etapa que tocar em céu, atmosfera ou shaders: ./gradlew checkCeuReferencia.
+// 0.14 (fase 2): mais 11 cenas com fundos de céu e, depois, a prova da composição dos fundos com a Atmosphere, o
+// apagamento do sol e o eclipse por sondas de pixel (node scripts/fundo_composicao.cjs, checkFundoComposicao).
+tasks.register('checkFundoComposicao', Exec) {
+    group = 'verification'
+    description = 'Prova por sondas de pixel a composição dos fundos de céu com Atmosphere, sol do jogo e eclipse (node scripts/fundo_composicao.cjs).'
+    dependsOn tasks.named('jar')
+    workingDir = layout.projectDirectory.asFile
+    commandLine 'node', 'scripts/fundo_composicao.cjs'
+}
+
+// 0.14 (fase 3): objetos do céu (estrelas, constelações, nebulosas) com os shaders de núcleo reais em WebGL2 e os
+// passes reais: composição NORMAL, LUMINOUS e COVER, Atmosphere, eclipse, sol do jogo, ordem e lente, por sondas de
+// pixel com controles negativos (node scripts/objetos_composicao.cjs, checkObjetosComposicao).
+tasks.register('checkObjetosComposicao', Exec) {
+    group = 'verification'
+    description = 'Prova por sondas de pixel a composição das estrelas e nebulosas com o fundo, a Atmosphere, o eclipse, o sol do jogo e a lente (node scripts/objetos_composicao.cjs).'
+    dependsOn tasks.named('jar')
+    mustRunAfter 'checkFundoComposicao'
+    workingDir = layout.projectDirectory.asFile
+    commandLine 'node', 'scripts/objetos_composicao.cjs'
+}
+
+tasks.register('checkCeuReferencia', Exec) {
+    group = 'verification'
+    description = 'Compara a aparência dos passes sky e atmosphere com as referências (15 cenas da 0.12.0, 11 com fundos e as de objetos do céu; node scripts/referencia_ceu.cjs).'
+    dependsOn tasks.named('jar')
+    finalizedBy tasks.named('checkFundoComposicao'), tasks.named('checkObjetosComposicao')
+    workingDir = layout.projectDirectory.asFile
+    commandLine 'node', 'scripts/referencia_ceu.cjs'
+}
 
 // 0.8.0: as receitas de docs/ai/receitas/ trazem o código dos efeitos reais do vfx-sample. Cada bloco de código
 // precedido por "<!-- arquivo: caminho -->" precisa ser idêntico ao arquivo. syncRecipes copia os arquivos para os
@@ -552,6 +678,128 @@ tasks.register('testeCeu') {
         lines.findAll { it.startsWith('|') }.each { logger.lifecycle(it) }
         logger.lifecycle("testeCeu: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeCeu:\n' + failed.join('\n'))
+    }
+}
+
+// 0.14: teste do Backdrop (xvfb-run ./gradlew testeBackdrop), no mundo do testeJogo e com o vfx-sample. Na fase 1 era
+// um experimento com um protótipo só no mod de teste; desde a fase 2 usa os fundos reais do motor (Backdrop) pela API,
+// com sondas de pixel: orientação, giro, parcial, gradiente, sol e lua, Atmosphere, lente, eclipse, céu bloqueado,
+// horizonte, estado de renderização, customSkies, recarga, custo, transição de perfil e regressão entre dimensões.
+// Relatório em run/teste-backdrop/calamidade-backdrop.txt (PASS/FAIL afirmam; INFO mede).
+def testeBackdropDir = layout.projectDirectory.dir('run/teste-backdrop').asFile
+def prepararTesteBackdrop = tasks.register('prepararTesteBackdrop') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo e o JAR do vfx-sample para run/teste-backdrop.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteBackdrop: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        def sample = fileTree('examples/vfx-sample/build/libs') { include 'vfx-sample-*.jar'; exclude '*-sources.jar' }
+        if (sample.isEmpty()) throw new GradleException('prepararTesteBackdrop: rode ./gradlew -p examples/vfx-sample build antes')
+        ['saves', 'mods', 'screenshots', 'logs', 'config'].each { project.delete(new File(testeBackdropDir, it)) }
+        project.delete(new File(testeBackdropDir, 'calamidade-backdrop.txt'))
+        project.copy { from world; into new File(testeBackdropDir, 'saves/teste'); exclude 'session.lock'; exclude 'data/calamidade_awakening_*' }
+        project.copy { from sample; into new File(testeBackdropDir, 'mods') }
+        new File(testeBackdropDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'lang:pt_br',
+            'maxFps:260', 'enableVsync:false'].join('\n') + '\n'
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteBackdrop') task.dependsOn prepararTesteBackdrop }
+tasks.register('testeBackdrop') {
+    group = 'verification'
+    description = 'Roda o experimento do Backdrop em AFTER_SKY (precisa de tela: xvfb-run) e falha se alguma afirmação falhar.'
+    dependsOn 'runTesteBackdrop'
+    doLast {
+        def report = new File(testeBackdropDir, 'calamidade-backdrop.txt')
+        if (!report.exists()) throw new GradleException('testeBackdrop: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM backdrop')) failed << "FAIL roteiro incompleto (falta 'FIM backdrop')"
+        lines.findAll { it.startsWith('INFO') }.each { logger.lifecycle(it) }
+        logger.lifecycle("testeBackdrop: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeBackdrop:\n' + failed.join('\n'))
+    }
+}
+
+// 0.14 (fase 3): teste das estrelas e nebulosas (xvfb-run ./gradlew testeEstrelas), no mundo do testeJogo e com o
+// vfx-sample: nada sem addon, cor exata (NORMAL), fundo preservado (LUMINOUS), nebulosa semitransparente e COVER,
+// Atmosphere com a camada de cobertura, estrelas no eclipse, bloqueios, customSkies, perfis de qualidade (teto de
+// estrelas, uma chamada por campo), recarga, custo e regressão do Overworld. Relatório em
+// run/teste-estrelas/calamidade-estrelas.txt (PASS/FAIL afirmam; INFO mede).
+def testeEstrelasDir = layout.projectDirectory.dir('run/teste-estrelas').asFile
+def prepararTesteEstrelas = tasks.register('prepararTesteEstrelas') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo e o JAR do vfx-sample para run/teste-estrelas.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteEstrelas: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        def sample = fileTree('examples/vfx-sample/build/libs') { include 'vfx-sample-*.jar'; exclude '*-sources.jar' }
+        if (sample.isEmpty()) throw new GradleException('prepararTesteEstrelas: rode ./gradlew -p examples/vfx-sample build antes')
+        ['saves', 'mods', 'screenshots', 'logs', 'config'].each { project.delete(new File(testeEstrelasDir, it)) }
+        project.delete(new File(testeEstrelasDir, 'calamidade-estrelas.txt'))
+        project.copy { from world; into new File(testeEstrelasDir, 'saves/teste'); exclude 'session.lock'; exclude 'data/calamidade_awakening_*' }
+        project.copy { from sample; into new File(testeEstrelasDir, 'mods') }
+        new File(testeEstrelasDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'lang:pt_br',
+            'maxFps:260', 'enableVsync:false'].join('\n') + '\n'
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteEstrelas') task.dependsOn prepararTesteEstrelas }
+tasks.register('testeEstrelas') {
+    group = 'verification'
+    description = 'Roda o teste em jogo das estrelas e nebulosas (precisa de tela: xvfb-run) e falha se alguma afirmação falhar.'
+    dependsOn 'runTesteEstrelas'
+    doLast {
+        def report = new File(testeEstrelasDir, 'calamidade-estrelas.txt')
+        if (!report.exists()) throw new GradleException('testeEstrelas: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM estrelas')) failed << "FAIL roteiro incompleto (falta 'FIM estrelas')"
+        lines.findAll { it.startsWith('INFO') }.each { logger.lifecycle(it) }
+        logger.lifecycle("testeEstrelas: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeEstrelas:\n' + failed.join('\n'))
+    }
+}
+
+// 0.14 (fase 4): teste das imagens, flipbooks e impostors (xvfb-run ./gradlew testeImagens), no mundo do testeJogo, numa só
+// inicialização do cliente: nada sem addon, cor exata e transparência, silhueta, flipbooks LOOP/ONCE/PING_PONG/TRACK,
+// proteção de flashes, vistas e LOD do impostor, FRONT e BEHIND com um portal, recursos inválidos, lote, cegueira,
+// customSkies, recarga, custo e regressão do Overworld. Relatório em run/teste-imagens/calamidade-imagens.txt.
+def testeImagensDir = layout.projectDirectory.dir('run/teste-imagens').asFile
+def prepararTesteImagens = tasks.register('prepararTesteImagens') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo para run/teste-imagens.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteImagens: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        ['saves', 'mods', 'screenshots', 'logs', 'config'].each { project.delete(new File(testeImagensDir, it)) }
+        project.delete(new File(testeImagensDir, 'calamidade-imagens.txt'))
+        project.copy { from world; into new File(testeImagensDir, 'saves/teste'); exclude 'session.lock'; exclude 'data/calamidade_awakening_*' }
+        new File(testeImagensDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'lang:pt_br',
+            'maxFps:260', 'enableVsync:false'].join('\n') + '\n'
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteImagens') task.dependsOn prepararTesteImagens }
+tasks.register('testeImagens') {
+    group = 'verification'
+    description = 'Roda o teste em jogo das imagens, flipbooks e impostors (precisa de tela: xvfb-run) e falha se alguma afirmação falhar.'
+    dependsOn 'runTesteImagens'
+    doLast {
+        def report = new File(testeImagensDir, 'calamidade-imagens.txt')
+        if (!report.exists()) throw new GradleException('testeImagens: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM imagens')) failed << "FAIL roteiro incompleto (falta 'FIM imagens')"
+        lines.findAll { it.startsWith('INFO') }.each { logger.lifecycle(it) }
+        logger.lifecycle("testeImagens: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeImagens:\n' + failed.join('\n'))
     }
 }
 

@@ -339,6 +339,72 @@ public final class StageScene {
         return out;
     }
 
+    /**
+     * Custom backgrounds of every active instance that has one (0.14.0), weighted like the sky layers (opacity
+     * envelope times the range fade), with the instance's real age in seconds for the spin.
+     */
+    List<dev.calamidade_awakening.api.BackdropMath.Candidate<BackdropFrame.Source>> backdrops(Vec3 camera, float partial) {
+        if (level == null || active.isEmpty()) return List.of();
+        List<dev.calamidade_awakening.api.BackdropMath.Candidate<BackdropFrame.Source>> out = new ArrayList<>(1);
+        double now = level.getGameTime() + partial;
+        for (StageEvent effect : active.values()) {
+            VisualKind kind = VisualKind.byId(effect.visual());
+            var backdrop = kind.backdrop();
+            if (backdrop == null) continue;
+            double age = now - effect.tick();
+            Vec3 origin = age < 0 ? null : center(effect, partial);
+            if (origin == null) continue;
+            double local = localAge(effect, age);
+            float weight = (float) FrameBudget.envelope(local, kind.duration)
+                * dev.calamidade_awakening.api.AtmosphereMath.rangeFade(origin.distanceTo(camera), kind.range);
+            if (!(weight > 0)) continue;
+            var sampler = kind.clock().at(local);
+            var state = backdrop.sample(sampler, 1f);
+            out.add(new dev.calamidade_awakening.api.BackdropMath.Candidate<>(new BackdropFrame.Source(backdrop, state, age / 20.0),
+                kind.hero(), weight, state.opacity(), effect.order(), 0));
+        }
+        return out;
+    }
+
+    /**
+     * Star fields and nebulae of every active instance that has them (0.14.0, phase 3), weighted like the backgrounds
+     * (opacity envelope times the range fade), with the instance's real age in seconds for the spin and the twinkle.
+     */
+    List<dev.calamidade_awakening.api.SkyObjectsMath.Candidate<SkyObjectsFrame.Source>> skyObjects(Vec3 camera, float partial) {
+        if (level == null || active.isEmpty()) return List.of();
+        List<dev.calamidade_awakening.api.SkyObjectsMath.Candidate<SkyObjectsFrame.Source>> out = new ArrayList<>(2);
+        double now = level.getGameTime() + partial;
+        for (StageEvent effect : active.values()) {
+            VisualKind kind = VisualKind.byId(effect.visual());
+            if (!kind.hasSkyObjects()) continue;
+            double age = now - effect.tick();
+            Vec3 origin = age < 0 ? null : center(effect, partial);
+            if (origin == null) continue;
+            double local = localAge(effect, age);
+            float weight = (float) FrameBudget.envelope(local, kind.duration)
+                * dev.calamidade_awakening.api.AtmosphereMath.rangeFade(origin.distanceTo(camera), kind.range);
+            if (!(weight > 0)) continue;
+            var sampler = kind.clock().at(local);
+            for (var field : kind.stars()) {
+                var state = field.sample(sampler, 1f);
+                out.add(new dev.calamidade_awakening.api.SkyObjectsMath.Candidate<>(new SkyObjectsFrame.Source(field,
+                    state.brightness(), state.rotation(), state.spin(), age / 20.0), kind.hero(), weight, state.opacity(),
+                    effect.order(), dev.calamidade_awakening.api.SkyObjectsMath.RANK_EFFECT, field.order()));
+            }
+            for (var nebula : kind.nebulae()) {
+                var state = nebula.sample(sampler, 1f);
+                out.add(new dev.calamidade_awakening.api.SkyObjectsMath.Candidate<>(new SkyObjectsFrame.Source(nebula,
+                    state.brightness(), state.rotation(), state.spin(), age / 20.0), kind.hero(), weight, state.opacity(),
+                    effect.order(), dev.calamidade_awakening.api.SkyObjectsMath.RANK_EFFECT, nebula.order()));
+            }
+            // 0.14.0 (phase 4): images and impostors, on the instance clock.
+            if (!kind.images().isEmpty() || !kind.impostors().isEmpty())
+                SkyObjectsFrame.sprites(out, kind.images(), kind.impostors(), sampler, kind.clock().at(local + 1), kind.hero(), weight,
+                    effect.order(), dev.calamidade_awakening.api.SkyObjectsMath.RANK_EFFECT, age / 20.0);
+        }
+        return out;
+    }
+
     /** Anchor direction of a sky layer from the camera, or null when its point coincides with the camera. */
     static dev.calamidade_awakening.api.v1.Sky.Direction anchorDirection(dev.calamidade_awakening.api.v1.Sky layer,
             Vec3 camera, Vec3 center, Basis basis, double timeOfDay) {

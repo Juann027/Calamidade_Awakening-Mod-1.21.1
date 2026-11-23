@@ -145,10 +145,51 @@ Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **p
 - **BossBar:** barra vanilla mais estilos de cliente (`BossBars`), barra segmentada com nome da fase, fantasma de dano e clarão; acessibilidade de tamanho, contraste, rótulos e "forçar vanilla"; canal `boss_v1`.
 - Chefe de exemplo: o Sentinela do Eclipse (receita 27), que dispara o eclipse da 0.12 em área na fase final.
 
+### 0.14 — Custom Sky (candidata ao release v0.14.0, integrada sobre a 0.13.0; não publicada)
+
+Fases 0 a 4 implementadas no branch `claude/ceu-personalizado` e integradas à Boss Engine da 0.13 em `claude/integracao-0.13-0.14-u8nraa`. **Entrou:** Backdrop (cubemap, panorama, gradiente), estrelas, constelações e nebulosas procedurais, imagens, flipbooks e impostors, `customSkies`. **Adiado** (sem versão definida, ou 0.15 quando indicado): domo procedural, nebulosas e fundos por PNG animado, perfis de céu em JSON de datapack, camadas de noite sobre o sol, nuvens próprias, receita de céu no vfx-sample. **Não testado:** GPU física, dois jogadores reais, shaderpacks e renderizadores alternativos.
+
+Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 continuam como estão, e nada novo aparece sem um addon pedir. Arquitetura e verificações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
+
+**Entregue na 0.14.0** (candidata):
+
+- **Backdrop:** cubemap 3 × 2, panorama equirretangular e gradiente, substituição parcial ou completa, sol e lua do jogo redesenhados a pedido (fase 2).
+- **Estrelas, constelações e nebulosas procedurais:** campo por semente, catálogo manual com constelações, composição `SkyBlend` NORMAL, LUMINOUS e COVER, `SkyDarkening` (fase 3).
+- **Imagens no céu, flipbooks e impostors:** `SkyImage`, `SkyImpostor`, `layer(FRONT)`, cache `SkyTextures` com orçamento por perfil, ferramenta `gerar_impostor.cjs` (fase 4).
+- Config de cliente `customSkies`; integração com a Boss Engine da 0.13 sem mudança de rede.
+
+**Adiado (não está na 0.14.0; sem versão definida, em "Depois da 0.14"):** domo procedural de Backdrop; nebulosas, galáxias e fundos por PNG animado (além dos flipbooks de `SkyImage`); perfis de céu em JSON de datapack; camadas desenhadas de noite sobre o sol; nuvens próprias; receita de céu no vfx-sample; limites definidos por medição em GPU física.
+
+**Proposta aprovada (histórico, antes da implementação):**
+
+- **Backdrop:** fundo de céu por cubemap de 6 faces, panorama equirretangular, gradiente ou domo procedural; substituição parcial (com transparência) ou completa (cobrindo o céu do jogo e redesenhando só o que o addon pedir: gradiente, sol, lua, estrelas); em dimensões próprias, `ProfileSkyEffects` continua dono do céu inteiro.
+- **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho. **Feito na fase 3** (com nebulosas procedurais e a composição híbrida por objeto: `SkyBlend` NORMAL, LUMINOUS e COVER).
+- **Nebulosas e galáxias:** procedurais e por PNG; fundos animados.
+- **Imagens no céu e impostors:** PNG com transparência, tamanho angular, rotação, cor, brilho, por trilha da Timeline; folhas de sprites, flipbooks, vários ângulos. **Feito na fase 4** (`SkyImage`, `SkyImpostor`, `layer(FRONT)`, cache `SkyTextures` com orçamento por perfil, ferramenta `gerar_impostor.cjs`; modelos 3D reais continuam na 0.15).
+- Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias** — os três adiados, não entregues na 0.14.0.
+- Limites e custos definidos por medição (nenhum limite da proposta é definitivo sem benchmark).
+
+### 0.15 — Sky Objects & Cinematics (proposta aprovada)
+
+- **Modelos 3D reais do Blockbench:** formato principal Bedrock `.geo.json` com um subconjunto documentado de animação, validado contra exportações reais; alternativas Java (`ModelPart`), OBJ/JSON de bloco e renderizadores externos (sem dependência do GeckoLib).
+- **Sky Space, World Space e Entity Space** escolhidos pelo addon; LOD opcional (billboard → impostor → modelo), cache de malhas.
+- **Transições céu ↔ mundo e portais cinematográficos** coordenados pela Timeline existente; recorte por CPU ou GPU escolhido por medição; continuidade garantida só perto do ponto de referência.
+- **Integração opcional com entidades** (o addon cuida de IA, vida, dano e spawn), sem duplicar a Boss API da 0.13.
+- Itens desta lista que vieram de "Depois da 0.13" e de "Evolução da API": **lentes que entortam feixes e efeitos de addons** e **cache de malhas estáticas e LOD adaptativo**.
+
+### Depois da 0.14
+
+Adiados da 0.14 (planejados para ela, não entregues na 0.14.0; versão a definir):
+
+- Perfis de céu em JSON de datapack (codec, `/reload`, envio do perfil inteiro).
+- Camadas desenhadas também de noite sobre o sol; nuvens próprias.
+- Domo procedural de Backdrop; nebulosas, galáxias e fundos por PNG animado.
+- Receita de céu personalizado no vfx-sample; limites de memória e envio medidos em GPU física.
+
 ### Depois da 0.13
 
-- **Perfis de céu em JSON de datapack:** codec de `Sky`, `Atmosphere` e `SkyProfile`, recarga com `/reload` e envio do perfil inteiro aos clientes (hoje os perfis são definidos em código).
-- Sky API: camadas desenhadas também de noite sobre o sol (eclipse "fantástico" fora do horário), nuvens próprias e lentes que entortam feixes e efeitos de addons.
+- Perfis de céu em JSON de datapack → planejado para a 0.14, adiado (veja "Depois da 0.14").
+- Sky API: camadas desenhadas também de noite sobre o sol e nuvens próprias → planejadas para a 0.14, adiadas; ~~lentes que entortam feixes e efeitos de addons~~ → 0.15.
 - Trail API (rastros e marcas): fitas com histórico de posições para entidades, projéteis e pontas de feixe; marcas que ficam no chão por um tempo.
 - Títulos e HUD cinematográficos sincronizados à Timeline.
 - Ramificações de feixes (raios que se dividem) e feixes curvos.
@@ -163,4 +204,4 @@ Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **p
 - Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos, força de um golpe) para os ganchos de cliente.
 - Orientação seguindo o olhar (yaw e pitch da cabeça) além do corpo.
 - Transição suave (crossfade) opcional no release, para loops cujas bordas não coincidem.
-- Cache de malhas estáticas e LOD adaptativo ao frametime.
+- ~~Cache de malhas estáticas e LOD adaptativo ao frametime~~ → 0.15 (Sky Objects).

@@ -1,0 +1,1128 @@
+# Base de compatibilidade binária da api.v1 (gerada por scripts/ApiCompat.java; não edite à mão).
+C dev.calamidade_awakening.api.v1.Addons$Card :: public final class dev.calamidade_awakening.api.v1.Addons$Card extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Addons$Card(java.lang.String, java.lang.String, java.lang.String, int, net.minecraft.resources.ResourceLocation, java.util.List<dev.calamidade_awakening.api.v1.Addons$Shot>); ;; (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILnet/minecraft/resources/ResourceLocation;Ljava/util/List;)V
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public java.lang.String titleKey(); ;; ()Ljava/lang/String;
+M public java.lang.String fallback(); ;; ()Ljava/lang/String;
+M public java.lang.String tier(); ;; ()Ljava/lang/String;
+M public int cooldown(); ;; ()I
+M public net.minecraft.resources.ResourceLocation shader(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public java.util.List<dev.calamidade_awakening.api.v1.Addons$Shot> camera(); ;; ()Ljava/util/List;
+C dev.calamidade_awakening.api.v1.Addons$Cast :: public interface dev.calamidade_awakening.api.v1.Addons$Cast
+M public abstract boolean cast(net.minecraft.server.level.ServerPlayer, net.minecraft.world.phys.Vec3); ;; (Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/phys/Vec3;)Z
+C dev.calamidade_awakening.api.v1.Addons$Entry :: public final class dev.calamidade_awakening.api.v1.Addons$Entry extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Addons$Entry(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Addons$Card, dev.calamidade_awakening.api.v1.Addons$Range, dev.calamidade_awakening.api.v1.Addons$TunedCast); ;; (Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Addons$Card;Ldev/calamidade_awakening/api/v1/Addons$Range;Ldev/calamidade_awakening/api/v1/Addons$TunedCast;)V
+M public java.lang.String skillKey(); ;; ()Ljava/lang/String;
+M public net.minecraft.resources.ResourceLocation art(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public net.minecraft.resources.ResourceLocation effect(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public dev.calamidade_awakening.api.v1.Addons$Card card(); ;; ()Ldev/calamidade_awakening/api/v1/Addons$Card;
+M public dev.calamidade_awakening.api.v1.Addons$Range power(); ;; ()Ldev/calamidade_awakening/api/v1/Addons$Range;
+M public dev.calamidade_awakening.api.v1.Addons$TunedCast action(); ;; ()Ldev/calamidade_awakening/api/v1/Addons$TunedCast;
+C dev.calamidade_awakening.api.v1.Addons$Range :: public final class dev.calamidade_awakening.api.v1.Addons$Range extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Addons$Range(float, float, float); ;; (FFF)V
+M public float clamp(float); ;; (F)F
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public float min(); ;; ()F
+M public float initial(); ;; ()F
+M public float max(); ;; ()F
+C dev.calamidade_awakening.api.v1.Addons$Shot :: public final class dev.calamidade_awakening.api.v1.Addons$Shot extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Addons$Shot(int, net.minecraft.world.phys.Vec3, float); ;; (ILnet/minecraft/world/phys/Vec3;F)V
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public int endTick(); ;; ()I
+M public net.minecraft.world.phys.Vec3 camera(); ;; ()Lnet/minecraft/world/phys/Vec3;
+M public float fov(); ;; ()F
+C dev.calamidade_awakening.api.v1.Addons$TunedCast :: public interface dev.calamidade_awakening.api.v1.Addons$TunedCast
+M public abstract boolean cast(net.minecraft.server.level.ServerPlayer, net.minecraft.world.phys.Vec3, float); ;; (Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/phys/Vec3;F)Z
+C dev.calamidade_awakening.api.v1.Addons :: public final class dev.calamidade_awakening.api.v1.Addons
+M public static void resources(java.lang.String, java.lang.Class<?>); ;; (Ljava/lang/String;Ljava/lang/Class;)V
+M public static void publish(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Addons$Card); ;; (Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Addons$Card;)V
+M public static synchronized void publish(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Addons$Card, dev.calamidade_awakening.api.v1.Addons$Cast); ;; (Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Addons$Card;Ldev/calamidade_awakening/api/v1/Addons$Cast;)V
+M public static synchronized void publish(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Addons$Card, dev.calamidade_awakening.api.v1.Addons$Range, dev.calamidade_awakening.api.v1.Addons$TunedCast); ;; (Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Addons$Card;Ldev/calamidade_awakening/api/v1/Addons$Range;Ldev/calamidade_awakening/api/v1/Addons$TunedCast;)V
+M public static synchronized java.util.List<dev.calamidade_awakening.api.v1.Addons$Entry> entries(); ;; ()Ljava/util/List;
+M public static synchronized void finishRegistration(); ;; ()V
+M public static dev.calamidade_awakening.api.v1.Addons$Entry find(net.minecraft.resources.ResourceLocation); ;; (Lnet/minecraft/resources/ResourceLocation;)Ldev/calamidade_awakening/api/v1/Addons$Entry;
+C dev.calamidade_awakening.api.v1.Atmosphere$Builder :: public final class dev.calamidade_awakening.api.v1.Atmosphere$Builder
+M public dev.calamidade_awakening.api.v1.Atmosphere$Builder sky(int, int, float); ;; (IIF)Ldev/calamidade_awakening/api/v1/Atmosphere$Builder;
+M public dev.calamidade_awakening.api.v1.Atmosphere$Builder fog(int, float, float, float); ;; (IFFF)Ldev/calamidade_awakening/api/v1/Atmosphere$Builder;
+M public dev.calamidade_awakening.api.v1.Atmosphere$Builder exposure(float); ;; (F)Ldev/calamidade_awakening/api/v1/Atmosphere$Builder;
+M public dev.calamidade_awakening.api.v1.Atmosphere$Builder ambient(int, float); ;; (IF)Ldev/calamidade_awakening/api/v1/Atmosphere$Builder;
+M public dev.calamidade_awakening.api.v1.Atmosphere$Builder stars(float); ;; (F)Ldev/calamidade_awakening/api/v1/Atmosphere$Builder;
+M public dev.calamidade_awakening.api.v1.Atmosphere$Builder track(dev.calamidade_awakening.api.v1.Atmosphere$Param, java.lang.String); ;; (Ldev/calamidade_awakening/api/v1/Atmosphere$Param;Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Atmosphere$Builder;
+M public dev.calamidade_awakening.api.v1.Atmosphere$Builder weightPhase(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Atmosphere$Builder;
+M public dev.calamidade_awakening.api.v1.Atmosphere build(); ;; ()Ldev/calamidade_awakening/api/v1/Atmosphere;
+C dev.calamidade_awakening.api.v1.Atmosphere$Param :: public final class dev.calamidade_awakening.api.v1.Atmosphere$Param extends java.lang.Enum<dev.calamidade_awakening.api.v1.Atmosphere$Param>
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$Param SKY_BLEND; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$Param;
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$Param FOG_DENSITY; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$Param;
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$Param FOG_START; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$Param;
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$Param FOG_END; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$Param;
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$Param EXPOSURE; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$Param;
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$Param AMBIENT_STRENGTH; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$Param;
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$Param STARS; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$Param;
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$Param WEIGHT; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$Param;
+M public final float min; ;; F
+M public final float max; ;; F
+M public static dev.calamidade_awakening.api.v1.Atmosphere$Param[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Atmosphere$Param;
+M public static dev.calamidade_awakening.api.v1.Atmosphere$Param valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Atmosphere$Param;
+M public float clamp(float); ;; (F)F
+C dev.calamidade_awakening.api.v1.Atmosphere$Rgb :: public final class dev.calamidade_awakening.api.v1.Atmosphere$Rgb extends java.lang.Record
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$Rgb WHITE; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$Rgb BLACK; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;
+M public dev.calamidade_awakening.api.v1.Atmosphere$Rgb(float, float, float); ;; (FFF)V
+M public static dev.calamidade_awakening.api.v1.Atmosphere$Rgb of(int); ;; (I)Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;
+M public int argb(); ;; ()I
+M public dev.calamidade_awakening.api.v1.Atmosphere$Rgb lerp(dev.calamidade_awakening.api.v1.Atmosphere$Rgb, float); ;; (Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;F)Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;
+M public float luminance(); ;; ()F
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public float r(); ;; ()F
+M public float g(); ;; ()F
+M public float b(); ;; ()F
+C dev.calamidade_awakening.api.v1.Atmosphere$State :: public final class dev.calamidade_awakening.api.v1.Atmosphere$State extends java.lang.Record
+M public static final dev.calamidade_awakening.api.v1.Atmosphere$State NEUTRAL; ;; Ldev/calamidade_awakening/api/v1/Atmosphere$State;
+M public dev.calamidade_awakening.api.v1.Atmosphere$State(float, dev.calamidade_awakening.api.v1.Atmosphere$Rgb, dev.calamidade_awakening.api.v1.Atmosphere$Rgb, float, dev.calamidade_awakening.api.v1.Atmosphere$Rgb, float, float, float, float, dev.calamidade_awakening.api.v1.Atmosphere$Rgb, float, float); ;; (FLdev/calamidade_awakening/api/v1/Atmosphere$Rgb;Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;FLdev/calamidade_awakening/api/v1/Atmosphere$Rgb;FFFFLdev/calamidade_awakening/api/v1/Atmosphere$Rgb;FF)V
+M public boolean active(); ;; ()Z
+M public float fogNear(float); ;; (F)F
+M public float fogFar(float, float); ;; (FF)F
+M public dev.calamidade_awakening.api.v1.Atmosphere$Rgb fogColorOver(dev.calamidade_awakening.api.v1.Atmosphere$Rgb); ;; (Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;)Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;
+M public float screenFog(double); ;; (D)F
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public float weight(); ;; ()F
+M public dev.calamidade_awakening.api.v1.Atmosphere$Rgb skyTop(); ;; ()Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;
+M public dev.calamidade_awakening.api.v1.Atmosphere$Rgb skyHorizon(); ;; ()Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;
+M public float skyBlend(); ;; ()F
+M public dev.calamidade_awakening.api.v1.Atmosphere$Rgb fogColor(); ;; ()Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;
+M public float fogDensity(); ;; ()F
+M public float fogStart(); ;; ()F
+M public float fogEnd(); ;; ()F
+M public float exposure(); ;; ()F
+M public dev.calamidade_awakening.api.v1.Atmosphere$Rgb ambientTint(); ;; ()Ldev/calamidade_awakening/api/v1/Atmosphere$Rgb;
+M public float ambientStrength(); ;; ()F
+M public float stars(); ;; ()F
+C dev.calamidade_awakening.api.v1.Atmosphere :: public final class dev.calamidade_awakening.api.v1.Atmosphere
+M public static final float MAX_DISTANCE; ;; F
+M public static final float MAX_EXPOSURE; ;; F
+M public static final float MIN_FOG_SPAN; ;; F
+M public static final float ACTIVE_WEIGHT; ;; F
+M public static dev.calamidade_awakening.api.v1.Atmosphere$Builder builder(); ;; ()Ldev/calamidade_awakening/api/v1/Atmosphere$Builder;
+M public int skyTop(); ;; ()I
+M public int skyHorizon(); ;; ()I
+M public float skyBlend(); ;; ()F
+M public int fogColor(); ;; ()I
+M public float fogDensity(); ;; ()F
+M public float fogStart(); ;; ()F
+M public float fogEnd(); ;; ()F
+M public float exposure(); ;; ()F
+M public int ambientTint(); ;; ()I
+M public float ambientStrength(); ;; ()F
+M public float stars(); ;; ()F
+M public java.lang.String track(dev.calamidade_awakening.api.v1.Atmosphere$Param); ;; (Ldev/calamidade_awakening/api/v1/Atmosphere$Param;)Ljava/lang/String;
+M public java.util.Map<dev.calamidade_awakening.api.v1.Atmosphere$Param, java.lang.String> tracks(); ;; ()Ljava/util/Map;
+M public java.lang.String weightPhase(); ;; ()Ljava/lang/String;
+M public boolean animated(); ;; ()Z
+M public void validate(dev.calamidade_awakening.api.v1.Timeline); ;; (Ldev/calamidade_awakening/api/v1/Timeline;)V
+M public dev.calamidade_awakening.api.v1.Atmosphere$State sample(dev.calamidade_awakening.api.v1.Timeline$Sampler, float); ;; (Ldev/calamidade_awakening/api/v1/Timeline$Sampler;F)Ldev/calamidade_awakening/api/v1/Atmosphere$State;
+M public static dev.calamidade_awakening.api.v1.Atmosphere$State mix(java.util.List<dev.calamidade_awakening.api.v1.Atmosphere$State>); ;; (Ljava/util/List;)Ldev/calamidade_awakening/api/v1/Atmosphere$State;
+C dev.calamidade_awakening.api.v1.Beam$Builder :: public final class dev.calamidade_awakening.api.v1.Beam$Builder
+M public dev.calamidade_awakening.api.v1.Beam$Builder width(float, float); ;; (FF)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Beam$Builder color(int, int); ;; (II)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Beam$Builder color(int); ;; (I)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Beam$Builder intensity(float); ;; (F)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Beam$Builder pulses(int, float, float); ;; (IFF)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Beam$Builder wave(float, float, float); ;; (FFF)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Beam$Builder noise(float); ;; (F)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Beam$Builder reveal(float); ;; (F)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Beam$Builder track(dev.calamidade_awakening.api.v1.Beam$Param, java.lang.String); ;; (Ldev/calamidade_awakening/api/v1/Beam$Param;Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Beam$Builder weightPhase(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Beam build(); ;; ()Ldev/calamidade_awakening/api/v1/Beam;
+C dev.calamidade_awakening.api.v1.Beam$Param :: public final class dev.calamidade_awakening.api.v1.Beam$Param extends java.lang.Enum<dev.calamidade_awakening.api.v1.Beam$Param>
+M public static final dev.calamidade_awakening.api.v1.Beam$Param CORE_WIDTH; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param HALO_WIDTH; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param INTENSITY; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param PULSE_COUNT; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param PULSE_SPEED; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param PULSE_SIZE; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param WAVE_AMPLITUDE; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param WAVE_LENGTH; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param WAVE_SPEED; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param NOISE; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param REVEAL; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param WEIGHT; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param FROM_X; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param FROM_Y; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param FROM_Z; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param TO_X; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param TO_Y; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static final dev.calamidade_awakening.api.v1.Beam$Param TO_Z; ;; Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public final float min; ;; F
+M public final float max; ;; F
+M public static dev.calamidade_awakening.api.v1.Beam$Param[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public static dev.calamidade_awakening.api.v1.Beam$Param valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Beam$Param;
+M public float clamp(float); ;; (F)F
+C dev.calamidade_awakening.api.v1.Beam$State :: public final class dev.calamidade_awakening.api.v1.Beam$State extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Beam$State(float, float, float, float, float, float, float, float, float, int, int, float, int, float, float, float, float, float, float, float); ;; (FFFFFFFFFIIFIFFFFFFF)V
+M public boolean visible(); ;; ()Z
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public float weight(); ;; ()F
+M public float fromX(); ;; ()F
+M public float fromY(); ;; ()F
+M public float fromZ(); ;; ()F
+M public float toX(); ;; ()F
+M public float toY(); ;; ()F
+M public float toZ(); ;; ()F
+M public float coreWidth(); ;; ()F
+M public float haloWidth(); ;; ()F
+M public int coreColor(); ;; ()I
+M public int haloColor(); ;; ()I
+M public float intensity(); ;; ()F
+M public int pulses(); ;; ()I
+M public float pulseSpeed(); ;; ()F
+M public float pulseSize(); ;; ()F
+M public float waveAmplitude(); ;; ()F
+M public float waveLength(); ;; ()F
+M public float waveSpeed(); ;; ()F
+M public float noise(); ;; ()F
+M public float reveal(); ;; ()F
+C dev.calamidade_awakening.api.v1.Beam :: public final class dev.calamidade_awakening.api.v1.Beam
+M public static final int MAX_PER_EFFECT; ;; I
+M public static final float MAX_CORE_WIDTH; ;; F
+M public static final float MAX_HALO_WIDTH; ;; F
+M public static final float MAX_INTENSITY; ;; F
+M public static final int MAX_PULSES; ;; I
+M public static final float MAX_TRACK_OFFSET; ;; F
+M public static final float ACTIVE_WEIGHT; ;; F
+M public static dev.calamidade_awakening.api.v1.Beam$Builder builder(dev.calamidade_awakening.api.v1.Point, dev.calamidade_awakening.api.v1.Point); ;; (Ldev/calamidade_awakening/api/v1/Point;Ldev/calamidade_awakening/api/v1/Point;)Ldev/calamidade_awakening/api/v1/Beam$Builder;
+M public dev.calamidade_awakening.api.v1.Point from(); ;; ()Ldev/calamidade_awakening/api/v1/Point;
+M public dev.calamidade_awakening.api.v1.Point to(); ;; ()Ldev/calamidade_awakening/api/v1/Point;
+M public float coreWidth(); ;; ()F
+M public float haloWidth(); ;; ()F
+M public int coreColor(); ;; ()I
+M public int haloColor(); ;; ()I
+M public float intensity(); ;; ()F
+M public int pulses(); ;; ()I
+M public float pulseSpeed(); ;; ()F
+M public float pulseSize(); ;; ()F
+M public float waveAmplitude(); ;; ()F
+M public float waveLength(); ;; ()F
+M public float waveSpeed(); ;; ()F
+M public float noise(); ;; ()F
+M public float reveal(); ;; ()F
+M public java.lang.String track(dev.calamidade_awakening.api.v1.Beam$Param); ;; (Ldev/calamidade_awakening/api/v1/Beam$Param;)Ljava/lang/String;
+M public java.util.Map<dev.calamidade_awakening.api.v1.Beam$Param, java.lang.String> tracks(); ;; ()Ljava/util/Map;
+M public java.lang.String weightPhase(); ;; ()Ljava/lang/String;
+M public boolean animated(); ;; ()Z
+M public void validate(dev.calamidade_awakening.api.v1.Timeline); ;; (Ldev/calamidade_awakening/api/v1/Timeline;)V
+M public dev.calamidade_awakening.api.v1.Beam$State sample(dev.calamidade_awakening.api.v1.Timeline$Sampler, float); ;; (Ldev/calamidade_awakening/api/v1/Timeline$Sampler;F)Ldev/calamidade_awakening/api/v1/Beam$State;
+C dev.calamidade_awakening.api.v1.EffectSource$Kind :: public final class dev.calamidade_awakening.api.v1.EffectSource$Kind extends java.lang.Enum<dev.calamidade_awakening.api.v1.EffectSource$Kind>
+M public static final dev.calamidade_awakening.api.v1.EffectSource$Kind PLAYER; ;; Ldev/calamidade_awakening/api/v1/EffectSource$Kind;
+M public static final dev.calamidade_awakening.api.v1.EffectSource$Kind ENTITY; ;; Ldev/calamidade_awakening/api/v1/EffectSource$Kind;
+M public static final dev.calamidade_awakening.api.v1.EffectSource$Kind BLOCK; ;; Ldev/calamidade_awakening/api/v1/EffectSource$Kind;
+M public static final dev.calamidade_awakening.api.v1.EffectSource$Kind SCRIPT; ;; Ldev/calamidade_awakening/api/v1/EffectSource$Kind;
+M public static dev.calamidade_awakening.api.v1.EffectSource$Kind[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/EffectSource$Kind;
+M public static dev.calamidade_awakening.api.v1.EffectSource$Kind valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/EffectSource$Kind;
+C dev.calamidade_awakening.api.v1.EffectSource :: public final class dev.calamidade_awakening.api.v1.EffectSource
+M public static dev.calamidade_awakening.api.v1.EffectSource player(net.minecraft.world.entity.player.Player); ;; (Lnet/minecraft/world/entity/player/Player;)Ldev/calamidade_awakening/api/v1/EffectSource;
+M public static dev.calamidade_awakening.api.v1.EffectSource player(java.util.UUID); ;; (Ljava/util/UUID;)Ldev/calamidade_awakening/api/v1/EffectSource;
+M public static dev.calamidade_awakening.api.v1.EffectSource entity(net.minecraft.world.entity.Entity); ;; (Lnet/minecraft/world/entity/Entity;)Ldev/calamidade_awakening/api/v1/EffectSource;
+M public static dev.calamidade_awakening.api.v1.EffectSource entity(java.util.UUID); ;; (Ljava/util/UUID;)Ldev/calamidade_awakening/api/v1/EffectSource;
+M public static dev.calamidade_awakening.api.v1.EffectSource block(net.minecraft.world.level.Level, net.minecraft.core.BlockPos); ;; (Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Ldev/calamidade_awakening/api/v1/EffectSource;
+M public static dev.calamidade_awakening.api.v1.EffectSource block(net.minecraft.resources.ResourceLocation, net.minecraft.core.BlockPos); ;; (Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/core/BlockPos;)Ldev/calamidade_awakening/api/v1/EffectSource;
+M public static dev.calamidade_awakening.api.v1.EffectSource block(net.minecraft.world.level.block.entity.BlockEntity); ;; (Lnet/minecraft/world/level/block/entity/BlockEntity;)Ldev/calamidade_awakening/api/v1/EffectSource;
+M public static dev.calamidade_awakening.api.v1.EffectSource script(); ;; ()Ldev/calamidade_awakening/api/v1/EffectSource;
+M public dev.calamidade_awakening.api.v1.EffectSource$Kind kind(); ;; ()Ldev/calamidade_awakening/api/v1/EffectSource$Kind;
+M public java.util.UUID uuid(); ;; ()Ljava/util/UUID;
+M public net.minecraft.resources.ResourceLocation dimension(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public net.minecraft.core.BlockPos pos(); ;; ()Lnet/minecraft/core/BlockPos;
+M public boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public int hashCode(); ;; ()I
+M public java.lang.String toString(); ;; ()Ljava/lang/String;
+C dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Component :: public final class dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Component
+M public void tick(); ;; ()V
+M public boolean stop(); ;; ()Z
+M public java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> handle(); ;; ()Ljava/util/Optional;
+M public boolean active(); ;; ()Z
+M public net.minecraft.world.level.block.entity.BlockEntity blockEntity(); ;; ()Lnet/minecraft/world/level/block/entity/BlockEntity;
+C dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Mode :: public final class dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Mode extends java.lang.Enum<dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Mode>
+M public static final dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Mode PERIODIC; ;; Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger$Mode;
+M public static final dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Mode REDSTONE; ;; Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger$Mode;
+M public static final dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Mode PROXIMITY; ;; Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger$Mode;
+M public static dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Mode[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger$Mode;
+M public static dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Mode valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger$Mode;
+C dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger :: public final class dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger mode(dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Mode); ;; (Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger$Mode;)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger periodic(int); ;; (I)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger redstone(); ;; ()Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger proximity(double); ;; (D)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger period(int); ;; (I)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger radius(double); ;; (D)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger offset(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger yaw(float); ;; (F)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger pitch(float); ;; (F)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger cooldown(int); ;; (I)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public net.minecraft.resources.ResourceLocation effect(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Mode mode(); ;; ()Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger$Mode;
+M public int period(); ;; ()I
+M public double radius(); ;; ()D
+M public int cooldown(); ;; ()I
+M public dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger$Component attach(net.minecraft.world.level.block.entity.BlockEntity); ;; (Lnet/minecraft/world/level/block/entity/BlockEntity;)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger$Component;
+C dev.calamidade_awakening.api.v1.EffectTriggers$EntityTrigger :: public final class dev.calamidade_awakening.api.v1.EffectTriggers$EntityTrigger
+M public dev.calamidade_awakening.api.v1.EffectTriggers$EntityTrigger offset(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/EffectTriggers$EntityTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$EntityTrigger followBody(boolean); ;; (Z)Ldev/calamidade_awakening/api/v1/EffectTriggers$EntityTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$EntityTrigger pitch(float); ;; (F)Ldev/calamidade_awakening/api/v1/EffectTriggers$EntityTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$EntityTrigger cooldown(int); ;; (I)Ldev/calamidade_awakening/api/v1/EffectTriggers$EntityTrigger;
+M public net.minecraft.resources.ResourceLocation effect(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public int cooldown(); ;; ()I
+M public java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> fire(net.minecraft.world.entity.Entity); ;; (Lnet/minecraft/world/entity/Entity;)Ljava/util/Optional;
+M public java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> fire(net.minecraft.world.entity.Entity, net.minecraft.world.entity.Entity); ;; (Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity;)Ljava/util/Optional;
+C dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot :: public final class dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot extends java.lang.Enum<dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot>
+M public static final dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot CASTER; ;; Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger$Spot;
+M public static final dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot EYES; ;; Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger$Spot;
+M public static final dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot AIM; ;; Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger$Spot;
+M public static final dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot TARGET; ;; Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger$Spot;
+M public static dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger$Spot;
+M public static dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger$Spot;
+C dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger :: public final class dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger
+M public dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger at(dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot); ;; (Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger$Spot;)Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger reach(double); ;; (D)Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger offset(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger cooldown(int); ;; (I)Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger durability(int); ;; (I)Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger;
+M public net.minecraft.resources.ResourceLocation effect(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger$Spot spot(); ;; ()Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger$Spot;
+M public int cooldown(); ;; ()I
+M public int durability(); ;; ()I
+M public net.minecraft.world.InteractionResultHolder<net.minecraft.world.item.ItemStack> use(net.minecraft.world.level.Level, net.minecraft.world.entity.player.Player, net.minecraft.world.InteractionHand); ;; (Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/InteractionHand;)Lnet/minecraft/world/InteractionResultHolder;
+M public boolean attack(net.minecraft.world.item.ItemStack, net.minecraft.world.entity.LivingEntity, net.minecraft.world.entity.LivingEntity); ;; (Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/entity/LivingEntity;)Z
+M public java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> fire(net.minecraft.world.entity.LivingEntity, net.minecraft.world.InteractionHand, net.minecraft.world.entity.Entity); ;; (Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/InteractionHand;Lnet/minecraft/world/entity/Entity;)Ljava/util/Optional;
+C dev.calamidade_awakening.api.v1.EffectTriggers :: public final class dev.calamidade_awakening.api.v1.EffectTriggers
+M public static dev.calamidade_awakening.api.v1.EffectTriggers$ItemTrigger item(net.minecraft.resources.ResourceLocation); ;; (Lnet/minecraft/resources/ResourceLocation;)Ldev/calamidade_awakening/api/v1/EffectTriggers$ItemTrigger;
+M public static dev.calamidade_awakening.api.v1.EffectTriggers$BlockTrigger blockEntity(net.minecraft.resources.ResourceLocation); ;; (Lnet/minecraft/resources/ResourceLocation;)Ldev/calamidade_awakening/api/v1/EffectTriggers$BlockTrigger;
+M public static dev.calamidade_awakening.api.v1.EffectTriggers$EntityTrigger entity(net.minecraft.resources.ResourceLocation); ;; (Lnet/minecraft/resources/ResourceLocation;)Ldev/calamidade_awakening/api/v1/EffectTriggers$EntityTrigger;
+C dev.calamidade_awakening.api.v1.Effects$Context :: public final class dev.calamidade_awakening.api.v1.Effects$Context extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Effects$Context(net.minecraft.server.level.ServerLevel, net.minecraft.world.phys.Vec3, net.minecraft.server.level.ServerPlayer, net.minecraft.world.entity.Entity, long, int, dev.calamidade_awakening.api.v1.Effects$Handle); ;; (Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/entity/Entity;JILdev/calamidade_awakening/api/v1/Effects$Handle;)V
+M public dev.calamidade_awakening.api.v1.Effects$Context(net.minecraft.server.level.ServerLevel, net.minecraft.world.phys.Vec3, net.minecraft.server.level.ServerPlayer, net.minecraft.world.entity.Entity, long, int, dev.calamidade_awakening.api.v1.Effects$Handle, dev.calamidade_awakening.api.v1.Timeline, double, long); ;; (Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/entity/Entity;JILdev/calamidade_awakening/api/v1/Effects$Handle;Ldev/calamidade_awakening/api/v1/Timeline;DJ)V
+M public dev.calamidade_awakening.api.v1.Effects$Context(net.minecraft.server.level.ServerLevel, net.minecraft.world.phys.Vec3, net.minecraft.server.level.ServerPlayer, net.minecraft.world.entity.Entity, long, int, dev.calamidade_awakening.api.v1.Effects$Handle, dev.calamidade_awakening.api.v1.Timeline, double, long, float, float, dev.calamidade_awakening.api.v1.EffectSource); ;; (Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/entity/Entity;JILdev/calamidade_awakening/api/v1/Effects$Handle;Ldev/calamidade_awakening/api/v1/Timeline;DJFFLdev/calamidade_awakening/api/v1/EffectSource;)V
+M public java.util.List<net.minecraft.world.entity.LivingEntity> living(double); ;; (D)Ljava/util/List;
+M public net.minecraft.world.phys.Vec3 facing(double, double, double); ;; (DDD)Lnet/minecraft/world/phys/Vec3;
+M public net.minecraft.world.phys.Vec3 forward(); ;; ()Lnet/minecraft/world/phys/Vec3;
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public net.minecraft.server.level.ServerLevel level(); ;; ()Lnet/minecraft/server/level/ServerLevel;
+M public net.minecraft.world.phys.Vec3 center(); ;; ()Lnet/minecraft/world/phys/Vec3;
+M public net.minecraft.server.level.ServerPlayer caster(); ;; ()Lnet/minecraft/server/level/ServerPlayer;
+M public net.minecraft.world.entity.Entity anchor(); ;; ()Lnet/minecraft/world/entity/Entity;
+M public long seed(); ;; ()J
+M public int tick(); ;; ()I
+M public dev.calamidade_awakening.api.v1.Effects$Handle handle(); ;; ()Ldev/calamidade_awakening/api/v1/Effects$Handle;
+M public dev.calamidade_awakening.api.v1.Timeline timeline(); ;; ()Ldev/calamidade_awakening/api/v1/Timeline;
+M public double localAge(); ;; ()D
+M public long age(); ;; ()J
+M public float yaw(); ;; ()F
+M public float pitch(); ;; ()F
+M public dev.calamidade_awakening.api.v1.EffectSource source(); ;; ()Ldev/calamidade_awakening/api/v1/EffectSource;
+C dev.calamidade_awakening.api.v1.Effects$Cue :: public interface dev.calamidade_awakening.api.v1.Effects$Cue
+M public abstract void run(dev.calamidade_awakening.api.v1.Effects$Context); ;; (Ldev/calamidade_awakening/api/v1/Effects$Context;)V
+C dev.calamidade_awakening.api.v1.Effects$Definition :: public final class dev.calamidade_awakening.api.v1.Effects$Definition extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Effects$Definition(int, double, int, dev.calamidade_awakening.api.v1.Effects$Shape, dev.calamidade_awakening.api.v1.Effects$Material, net.minecraft.resources.ResourceLocation, net.minecraft.resources.ResourceLocation); ;; (IDILdev/calamidade_awakening/api/v1/Effects$Shape;Ldev/calamidade_awakening/api/v1/Effects$Material;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;)V
+M public dev.calamidade_awakening.api.v1.Effects$Definition(int, double, int, dev.calamidade_awakening.api.v1.Effects$Shape, dev.calamidade_awakening.api.v1.Effects$Material, net.minecraft.resources.ResourceLocation, net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Effects$Impact); ;; (IDILdev/calamidade_awakening/api/v1/Effects$Shape;Ldev/calamidade_awakening/api/v1/Effects$Material;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Effects$Impact;)V
+M public dev.calamidade_awakening.api.v1.Effects$Definition(int, double, int, dev.calamidade_awakening.api.v1.Effects$Shape, dev.calamidade_awakening.api.v1.Effects$Material, net.minecraft.resources.ResourceLocation, net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Effects$Impact, double); ;; (IDILdev/calamidade_awakening/api/v1/Effects$Shape;Ldev/calamidade_awakening/api/v1/Effects$Material;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Effects$Impact;D)V
+M public dev.calamidade_awakening.api.v1.Effects$Definition(int, double, int, dev.calamidade_awakening.api.v1.Effects$Shape, dev.calamidade_awakening.api.v1.Effects$Material, net.minecraft.resources.ResourceLocation, net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Effects$Impact, double, dev.calamidade_awakening.api.v1.Effects$Priority); ;; (IDILdev/calamidade_awakening/api/v1/Effects$Shape;Ldev/calamidade_awakening/api/v1/Effects$Material;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Effects$Impact;DLdev/calamidade_awakening/api/v1/Effects$Priority;)V
+M public dev.calamidade_awakening.api.v1.Effects$Definition withRange(double); ;; (D)Ldev/calamidade_awakening/api/v1/Effects$Definition;
+M public dev.calamidade_awakening.api.v1.Effects$Definition withPriority(dev.calamidade_awakening.api.v1.Effects$Priority); ;; (Ldev/calamidade_awakening/api/v1/Effects$Priority;)Ldev/calamidade_awakening/api/v1/Effects$Definition;
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public int ticks(); ;; ()I
+M public double radius(); ;; ()D
+M public int argb(); ;; ()I
+M public dev.calamidade_awakening.api.v1.Effects$Shape shape(); ;; ()Ldev/calamidade_awakening/api/v1/Effects$Shape;
+M public dev.calamidade_awakening.api.v1.Effects$Material material(); ;; ()Ldev/calamidade_awakening/api/v1/Effects$Material;
+M public net.minecraft.resources.ResourceLocation particle(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public net.minecraft.resources.ResourceLocation sound(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public dev.calamidade_awakening.api.v1.Effects$Impact impact(); ;; ()Ldev/calamidade_awakening/api/v1/Effects$Impact;
+M public double range(); ;; ()D
+M public dev.calamidade_awakening.api.v1.Effects$Priority priority(); ;; ()Ldev/calamidade_awakening/api/v1/Effects$Priority;
+C dev.calamidade_awakening.api.v1.Effects$Handle :: public interface dev.calamidade_awakening.api.v1.Effects$Handle
+M public abstract boolean stop(); ;; ()Z
+M public default boolean release(); ;; ()Z
+M public default boolean alive(); ;; ()Z
+C dev.calamidade_awakening.api.v1.Effects$Impact :: public final class dev.calamidade_awakening.api.v1.Effects$Impact extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Effects$Impact(int, int, float, dev.calamidade_awakening.api.v1.Effects$ImpactStyle); ;; (IIFLdev/calamidade_awakening/api/v1/Effects$ImpactStyle;)V
+M public float weight(double); ;; (D)F
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public int tick(); ;; ()I
+M public int duration(); ;; ()I
+M public float strength(); ;; ()F
+M public dev.calamidade_awakening.api.v1.Effects$ImpactStyle style(); ;; ()Ldev/calamidade_awakening/api/v1/Effects$ImpactStyle;
+C dev.calamidade_awakening.api.v1.Effects$ImpactStyle :: public final class dev.calamidade_awakening.api.v1.Effects$ImpactStyle extends java.lang.Enum<dev.calamidade_awakening.api.v1.Effects$ImpactStyle>
+M public static final dev.calamidade_awakening.api.v1.Effects$ImpactStyle TINTED_FLASH; ;; Ldev/calamidade_awakening/api/v1/Effects$ImpactStyle;
+M public static final dev.calamidade_awakening.api.v1.Effects$ImpactStyle MONOCHROME; ;; Ldev/calamidade_awakening/api/v1/Effects$ImpactStyle;
+M public static dev.calamidade_awakening.api.v1.Effects$ImpactStyle[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Effects$ImpactStyle;
+M public static dev.calamidade_awakening.api.v1.Effects$ImpactStyle valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Effects$ImpactStyle;
+C dev.calamidade_awakening.api.v1.Effects$Material :: public final class dev.calamidade_awakening.api.v1.Effects$Material extends java.lang.Enum<dev.calamidade_awakening.api.v1.Effects$Material>
+M public static final dev.calamidade_awakening.api.v1.Effects$Material NONE; ;; Ldev/calamidade_awakening/api/v1/Effects$Material;
+M public static final dev.calamidade_awakening.api.v1.Effects$Material CRYSTAL; ;; Ldev/calamidade_awakening/api/v1/Effects$Material;
+M public static final dev.calamidade_awakening.api.v1.Effects$Material VEIL; ;; Ldev/calamidade_awakening/api/v1/Effects$Material;
+M public static final dev.calamidade_awakening.api.v1.Effects$Material LENS; ;; Ldev/calamidade_awakening/api/v1/Effects$Material;
+M public static final dev.calamidade_awakening.api.v1.Effects$Material NEBULA; ;; Ldev/calamidade_awakening/api/v1/Effects$Material;
+M public static dev.calamidade_awakening.api.v1.Effects$Material[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Effects$Material;
+M public static dev.calamidade_awakening.api.v1.Effects$Material valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Effects$Material;
+C dev.calamidade_awakening.api.v1.Effects$Priority :: public final class dev.calamidade_awakening.api.v1.Effects$Priority extends java.lang.Enum<dev.calamidade_awakening.api.v1.Effects$Priority>
+M public static final dev.calamidade_awakening.api.v1.Effects$Priority NORMAL; ;; Ldev/calamidade_awakening/api/v1/Effects$Priority;
+M public static final dev.calamidade_awakening.api.v1.Effects$Priority HERO; ;; Ldev/calamidade_awakening/api/v1/Effects$Priority;
+M public static dev.calamidade_awakening.api.v1.Effects$Priority[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Effects$Priority;
+M public static dev.calamidade_awakening.api.v1.Effects$Priority valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Effects$Priority;
+C dev.calamidade_awakening.api.v1.Effects$Shape :: public final class dev.calamidade_awakening.api.v1.Effects$Shape extends java.lang.Enum<dev.calamidade_awakening.api.v1.Effects$Shape>
+M public static final dev.calamidade_awakening.api.v1.Effects$Shape NONE; ;; Ldev/calamidade_awakening/api/v1/Effects$Shape;
+M public static final dev.calamidade_awakening.api.v1.Effects$Shape PRISM; ;; Ldev/calamidade_awakening/api/v1/Effects$Shape;
+M public static final dev.calamidade_awakening.api.v1.Effects$Shape RINGS; ;; Ldev/calamidade_awakening/api/v1/Effects$Shape;
+M public static final dev.calamidade_awakening.api.v1.Effects$Shape ORBIT; ;; Ldev/calamidade_awakening/api/v1/Effects$Shape;
+M public static final dev.calamidade_awakening.api.v1.Effects$Shape NEXUS; ;; Ldev/calamidade_awakening/api/v1/Effects$Shape;
+M public static dev.calamidade_awakening.api.v1.Effects$Shape[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Effects$Shape;
+M public static dev.calamidade_awakening.api.v1.Effects$Shape valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Effects$Shape;
+C dev.calamidade_awakening.api.v1.Effects :: public final class dev.calamidade_awakening.api.v1.Effects
+M public static final double DEFAULT_RANGE; ;; D
+M public static final int MAX_TICKS; ;; I
+M public static void register(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Effects$Definition); ;; (Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Effects$Definition;)V
+M public static void timeline(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Timeline); ;; (Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Timeline;)V
+M public static void atmosphere(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Atmosphere); ;; (Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Atmosphere;)V
+M public static void beams(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Beam...); ;; (Lnet/minecraft/resources/ResourceLocation;[Ldev/calamidade_awakening/api/v1/Beam;)V
+M public static void lights(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Light...); ;; (Lnet/minecraft/resources/ResourceLocation;[Ldev/calamidade_awakening/api/v1/Light;)V
+M public static void terrain(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.TerrainEdit...); ;; (Lnet/minecraft/resources/ResourceLocation;[Ldev/calamidade_awakening/api/v1/TerrainEdit;)V
+M public static void sky(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Sky...); ;; (Lnet/minecraft/resources/ResourceLocation;[Ldev/calamidade_awakening/api/v1/Sky;)V
+M public static void cue(net.minecraft.resources.ResourceLocation, int, dev.calamidade_awakening.api.v1.Effects$Cue); ;; (Lnet/minecraft/resources/ResourceLocation;ILdev/calamidade_awakening/api/v1/Effects$Cue;)V
+M public static void cue(net.minecraft.resources.ResourceLocation, java.lang.String, dev.calamidade_awakening.api.v1.Effects$Cue); ;; (Lnet/minecraft/resources/ResourceLocation;Ljava/lang/String;Ldev/calamidade_awakening/api/v1/Effects$Cue;)V
+M public static void onImpact(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.Effects$Cue); ;; (Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/Effects$Cue;)V
+M public static boolean cooldownReady(dev.calamidade_awakening.api.v1.EffectSource, net.minecraft.resources.ResourceLocation, net.minecraft.server.level.ServerLevel); ;; (Ldev/calamidade_awakening/api/v1/EffectSource;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/server/level/ServerLevel;)Z
+M public static long cooldownLeft(dev.calamidade_awakening.api.v1.EffectSource, net.minecraft.resources.ResourceLocation, net.minecraft.server.level.ServerLevel); ;; (Ldev/calamidade_awakening/api/v1/EffectSource;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/server/level/ServerLevel;)J
+M public static void startCooldown(dev.calamidade_awakening.api.v1.EffectSource, net.minecraft.resources.ResourceLocation, net.minecraft.server.level.ServerLevel, int); ;; (Ldev/calamidade_awakening/api/v1/EffectSource;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/server/level/ServerLevel;I)V
+M public static java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> start(net.minecraft.resources.ResourceLocation, net.minecraft.server.level.ServerLevel, net.minecraft.world.phys.Vec3); ;; (Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;)Ljava/util/Optional;
+M public static java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> start(net.minecraft.resources.ResourceLocation, net.minecraft.server.level.ServerLevel, net.minecraft.world.phys.Vec3, float, float); ;; (Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;FF)Ljava/util/Optional;
+M public static java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> start(net.minecraft.resources.ResourceLocation, net.minecraft.server.level.ServerPlayer, net.minecraft.world.phys.Vec3); ;; (Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/phys/Vec3;)Ljava/util/Optional;
+M public static java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> start(net.minecraft.resources.ResourceLocation, net.minecraft.server.level.ServerPlayer, net.minecraft.world.phys.Vec3, float, float); ;; (Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/phys/Vec3;FF)Ljava/util/Optional;
+M public static java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> start(net.minecraft.resources.ResourceLocation, net.minecraft.server.level.ServerLevel, dev.calamidade_awakening.api.v1.Placement); ;; (Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/server/level/ServerLevel;Ldev/calamidade_awakening/api/v1/Placement;)Ljava/util/Optional;
+M public static java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> follow(net.minecraft.resources.ResourceLocation, net.minecraft.world.entity.Entity, net.minecraft.world.phys.Vec3); ;; (Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/phys/Vec3;)Ljava/util/Optional;
+M public static java.util.Optional<dev.calamidade_awakening.api.v1.Effects$Handle> follow(net.minecraft.resources.ResourceLocation, net.minecraft.world.entity.Entity, net.minecraft.world.phys.Vec3, boolean); ;; (Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/phys/Vec3;Z)Ljava/util/Optional;
+C dev.calamidade_awakening.api.v1.Light$Builder :: public final class dev.calamidade_awakening.api.v1.Light$Builder
+M public dev.calamidade_awakening.api.v1.Light$Builder color(int); ;; (I)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public dev.calamidade_awakening.api.v1.Light$Builder intensity(float); ;; (F)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public dev.calamidade_awakening.api.v1.Light$Builder radius(float); ;; (F)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public dev.calamidade_awakening.api.v1.Light$Builder falloff(float); ;; (F)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public dev.calamidade_awakening.api.v1.Light$Builder width(float); ;; (F)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public dev.calamidade_awakening.api.v1.Light$Builder height(float); ;; (F)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public dev.calamidade_awakening.api.v1.Light$Builder flicker(float, float); ;; (FF)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public dev.calamidade_awakening.api.v1.Light$Builder track(dev.calamidade_awakening.api.v1.Light$Param, java.lang.String); ;; (Ldev/calamidade_awakening/api/v1/Light$Param;Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public dev.calamidade_awakening.api.v1.Light$Builder weightPhase(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public dev.calamidade_awakening.api.v1.Light build(); ;; ()Ldev/calamidade_awakening/api/v1/Light;
+C dev.calamidade_awakening.api.v1.Light$Param :: public final class dev.calamidade_awakening.api.v1.Light$Param extends java.lang.Enum<dev.calamidade_awakening.api.v1.Light$Param>
+M public static final dev.calamidade_awakening.api.v1.Light$Param INTENSITY; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static final dev.calamidade_awakening.api.v1.Light$Param RADIUS; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static final dev.calamidade_awakening.api.v1.Light$Param FALLOFF; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static final dev.calamidade_awakening.api.v1.Light$Param WIDTH; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static final dev.calamidade_awakening.api.v1.Light$Param HEIGHT; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static final dev.calamidade_awakening.api.v1.Light$Param FLICKER; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static final dev.calamidade_awakening.api.v1.Light$Param FLICKER_SPEED; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static final dev.calamidade_awakening.api.v1.Light$Param X; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static final dev.calamidade_awakening.api.v1.Light$Param Y; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static final dev.calamidade_awakening.api.v1.Light$Param Z; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static final dev.calamidade_awakening.api.v1.Light$Param WEIGHT; ;; Ldev/calamidade_awakening/api/v1/Light$Param;
+M public final float min; ;; F
+M public final float max; ;; F
+M public static dev.calamidade_awakening.api.v1.Light$Param[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Light$Param;
+M public static dev.calamidade_awakening.api.v1.Light$Param valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Light$Param;
+M public float clamp(float); ;; (F)F
+C dev.calamidade_awakening.api.v1.Light$Shape :: public final class dev.calamidade_awakening.api.v1.Light$Shape extends java.lang.Enum<dev.calamidade_awakening.api.v1.Light$Shape>
+M public static final dev.calamidade_awakening.api.v1.Light$Shape POINT; ;; Ldev/calamidade_awakening/api/v1/Light$Shape;
+M public static final dev.calamidade_awakening.api.v1.Light$Shape SEGMENT; ;; Ldev/calamidade_awakening/api/v1/Light$Shape;
+M public static final dev.calamidade_awakening.api.v1.Light$Shape DISC; ;; Ldev/calamidade_awakening/api/v1/Light$Shape;
+M public static final dev.calamidade_awakening.api.v1.Light$Shape RING; ;; Ldev/calamidade_awakening/api/v1/Light$Shape;
+M public static dev.calamidade_awakening.api.v1.Light$Shape[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Light$Shape;
+M public static dev.calamidade_awakening.api.v1.Light$Shape valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Light$Shape;
+C dev.calamidade_awakening.api.v1.Light$State :: public final class dev.calamidade_awakening.api.v1.Light$State extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Light$State(float, float, float, float, int, float, float, float, float, float); ;; (FFFFIFFFFF)V
+M public boolean visible(); ;; ()Z
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public float weight(); ;; ()F
+M public float x(); ;; ()F
+M public float y(); ;; ()F
+M public float z(); ;; ()F
+M public int color(); ;; ()I
+M public float intensity(); ;; ()F
+M public float radius(); ;; ()F
+M public float falloff(); ;; ()F
+M public float width(); ;; ()F
+M public float height(); ;; ()F
+C dev.calamidade_awakening.api.v1.Light :: public final class dev.calamidade_awakening.api.v1.Light
+M public static final int MAX_PER_EFFECT; ;; I
+M public static final float MAX_RADIUS; ;; F
+M public static final float MAX_INTENSITY; ;; F
+M public static final float MAX_TRACK_OFFSET; ;; F
+M public static final float ACTIVE_WEIGHT; ;; F
+M public static dev.calamidade_awakening.api.v1.Light$Builder point(dev.calamidade_awakening.api.v1.Point); ;; (Ldev/calamidade_awakening/api/v1/Point;)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public static dev.calamidade_awakening.api.v1.Light$Builder segment(dev.calamidade_awakening.api.v1.Point, dev.calamidade_awakening.api.v1.Point); ;; (Ldev/calamidade_awakening/api/v1/Point;Ldev/calamidade_awakening/api/v1/Point;)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public static dev.calamidade_awakening.api.v1.Light$Builder along(dev.calamidade_awakening.api.v1.Beam); ;; (Ldev/calamidade_awakening/api/v1/Beam;)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public static dev.calamidade_awakening.api.v1.Light$Builder disc(dev.calamidade_awakening.api.v1.Point, float); ;; (Ldev/calamidade_awakening/api/v1/Point;F)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public static dev.calamidade_awakening.api.v1.Light$Builder ring(dev.calamidade_awakening.api.v1.Point, float, float); ;; (Ldev/calamidade_awakening/api/v1/Point;FF)Ldev/calamidade_awakening/api/v1/Light$Builder;
+M public dev.calamidade_awakening.api.v1.Light$Shape shape(); ;; ()Ldev/calamidade_awakening/api/v1/Light$Shape;
+M public dev.calamidade_awakening.api.v1.Point from(); ;; ()Ldev/calamidade_awakening/api/v1/Point;
+M public dev.calamidade_awakening.api.v1.Point to(); ;; ()Ldev/calamidade_awakening/api/v1/Point;
+M public dev.calamidade_awakening.api.v1.Beam beam(); ;; ()Ldev/calamidade_awakening/api/v1/Beam;
+M public int color(); ;; ()I
+M public float intensity(); ;; ()F
+M public float radius(); ;; ()F
+M public float falloff(); ;; ()F
+M public float width(); ;; ()F
+M public float height(); ;; ()F
+M public float flicker(); ;; ()F
+M public float flickerSpeed(); ;; ()F
+M public java.lang.String track(dev.calamidade_awakening.api.v1.Light$Param); ;; (Ldev/calamidade_awakening/api/v1/Light$Param;)Ljava/lang/String;
+M public java.util.Map<dev.calamidade_awakening.api.v1.Light$Param, java.lang.String> tracks(); ;; ()Ljava/util/Map;
+M public java.lang.String weightPhase(); ;; ()Ljava/lang/String;
+M public boolean animated(); ;; ()Z
+M public void validate(dev.calamidade_awakening.api.v1.Timeline); ;; (Ldev/calamidade_awakening/api/v1/Timeline;)V
+M public dev.calamidade_awakening.api.v1.Light$State sample(dev.calamidade_awakening.api.v1.Timeline$Sampler, float, double, float, float); ;; (Ldev/calamidade_awakening/api/v1/Timeline$Sampler;FDFF)Ldev/calamidade_awakening/api/v1/Light$State;
+M public static float flickerFactor(float, float, double, float); ;; (FFDF)F
+C dev.calamidade_awakening.api.v1.Placement :: public final class dev.calamidade_awakening.api.v1.Placement
+M public static dev.calamidade_awakening.api.v1.Placement at(net.minecraft.world.phys.Vec3); ;; (Lnet/minecraft/world/phys/Vec3;)Ldev/calamidade_awakening/api/v1/Placement;
+M public static dev.calamidade_awakening.api.v1.Placement at(net.minecraft.world.phys.Vec3, float, float); ;; (Lnet/minecraft/world/phys/Vec3;FF)Ldev/calamidade_awakening/api/v1/Placement;
+M public static dev.calamidade_awakening.api.v1.Placement on(net.minecraft.world.entity.Entity); ;; (Lnet/minecraft/world/entity/Entity;)Ldev/calamidade_awakening/api/v1/Placement;
+M public static dev.calamidade_awakening.api.v1.Placement on(net.minecraft.world.entity.Entity, net.minecraft.world.phys.Vec3); ;; (Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/phys/Vec3;)Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement withOrientation(float, float); ;; (FF)Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement withYaw(float); ;; (F)Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement withLookOf(net.minecraft.world.entity.Entity); ;; (Lnet/minecraft/world/entity/Entity;)Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement facing(net.minecraft.world.phys.Vec3); ;; (Lnet/minecraft/world/phys/Vec3;)Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement arrivingFrom(net.minecraft.world.phys.Vec3); ;; (Lnet/minecraft/world/phys/Vec3;)Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement shifted(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement followingBody(); ;; ()Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement withCaster(net.minecraft.server.level.ServerPlayer); ;; (Lnet/minecraft/server/level/ServerPlayer;)Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement withSource(dev.calamidade_awakening.api.v1.EffectSource); ;; (Ldev/calamidade_awakening/api/v1/EffectSource;)Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement withCooldown(int); ;; (I)Ldev/calamidade_awakening/api/v1/Placement;
+M public dev.calamidade_awakening.api.v1.Placement boundTo(net.minecraft.world.level.block.entity.BlockEntity); ;; (Lnet/minecraft/world/level/block/entity/BlockEntity;)Ldev/calamidade_awakening/api/v1/Placement;
+M public net.minecraft.world.phys.Vec3 position(); ;; ()Lnet/minecraft/world/phys/Vec3;
+M public net.minecraft.world.entity.Entity anchor(); ;; ()Lnet/minecraft/world/entity/Entity;
+M public boolean anchored(); ;; ()Z
+M public float yaw(); ;; ()F
+M public float pitch(); ;; ()F
+M public boolean followBody(); ;; ()Z
+M public net.minecraft.server.level.ServerPlayer caster(); ;; ()Lnet/minecraft/server/level/ServerPlayer;
+M public dev.calamidade_awakening.api.v1.EffectSource source(); ;; ()Ldev/calamidade_awakening/api/v1/EffectSource;
+M public int cooldown(); ;; ()I
+M public net.minecraft.world.level.block.entity.BlockEntity block(); ;; ()Lnet/minecraft/world/level/block/entity/BlockEntity;
+M public java.lang.String toString(); ;; ()Ljava/lang/String;
+C dev.calamidade_awakening.api.v1.Point$Source :: public final class dev.calamidade_awakening.api.v1.Point$Source extends java.lang.Enum<dev.calamidade_awakening.api.v1.Point$Source>
+M public static final dev.calamidade_awakening.api.v1.Point$Source CENTER; ;; Ldev/calamidade_awakening/api/v1/Point$Source;
+M public static final dev.calamidade_awakening.api.v1.Point$Source WORLD; ;; Ldev/calamidade_awakening/api/v1/Point$Source;
+M public static final dev.calamidade_awakening.api.v1.Point$Source ANCHOR; ;; Ldev/calamidade_awakening/api/v1/Point$Source;
+M public static final dev.calamidade_awakening.api.v1.Point$Source ANCHOR_EYE; ;; Ldev/calamidade_awakening/api/v1/Point$Source;
+M public static final dev.calamidade_awakening.api.v1.Point$Source ANCHOR_AIM; ;; Ldev/calamidade_awakening/api/v1/Point$Source;
+M public static final dev.calamidade_awakening.api.v1.Point$Source CASTER; ;; Ldev/calamidade_awakening/api/v1/Point$Source;
+M public static final dev.calamidade_awakening.api.v1.Point$Source CASTER_EYE; ;; Ldev/calamidade_awakening/api/v1/Point$Source;
+M public static final dev.calamidade_awakening.api.v1.Point$Source CASTER_AIM; ;; Ldev/calamidade_awakening/api/v1/Point$Source;
+M public static dev.calamidade_awakening.api.v1.Point$Source[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Point$Source;
+M public static dev.calamidade_awakening.api.v1.Point$Source valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Point$Source;
+M public boolean entity(); ;; ()Z
+M public boolean caster(); ;; ()Z
+M public boolean aim(); ;; ()Z
+M public boolean eye(); ;; ()Z
+C dev.calamidade_awakening.api.v1.Point :: public final class dev.calamidade_awakening.api.v1.Point
+M public static final double MAX_OFFSET; ;; D
+M public static final double MAX_REACH; ;; D
+M public static final double MAX_WORLD; ;; D
+M public static dev.calamidade_awakening.api.v1.Point center(); ;; ()Ldev/calamidade_awakening/api/v1/Point;
+M public static dev.calamidade_awakening.api.v1.Point center(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/Point;
+M public static dev.calamidade_awakening.api.v1.Point facing(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/Point;
+M public static dev.calamidade_awakening.api.v1.Point world(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/Point;
+M public static dev.calamidade_awakening.api.v1.Point anchor(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/Point;
+M public static dev.calamidade_awakening.api.v1.Point anchorEye(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/Point;
+M public static dev.calamidade_awakening.api.v1.Point anchorAim(double); ;; (D)Ldev/calamidade_awakening/api/v1/Point;
+M public static dev.calamidade_awakening.api.v1.Point caster(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/Point;
+M public static dev.calamidade_awakening.api.v1.Point casterEye(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/Point;
+M public static dev.calamidade_awakening.api.v1.Point casterAim(double); ;; (D)Ldev/calamidade_awakening/api/v1/Point;
+M public dev.calamidade_awakening.api.v1.Point$Source source(); ;; ()Ldev/calamidade_awakening/api/v1/Point$Source;
+M public double x(); ;; ()D
+M public double y(); ;; ()D
+M public double z(); ;; ()D
+M public double reach(); ;; ()D
+M public boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public int hashCode(); ;; ()I
+M public java.lang.String toString(); ;; ()Ljava/lang/String;
+C dev.calamidade_awakening.api.v1.Sky$Anchor :: public final class dev.calamidade_awakening.api.v1.Sky$Anchor extends java.lang.Enum<dev.calamidade_awakening.api.v1.Sky$Anchor>
+M public static final dev.calamidade_awakening.api.v1.Sky$Anchor DIRECTION; ;; Ldev/calamidade_awakening/api/v1/Sky$Anchor;
+M public static final dev.calamidade_awakening.api.v1.Sky$Anchor WORLD; ;; Ldev/calamidade_awakening/api/v1/Sky$Anchor;
+M public static final dev.calamidade_awakening.api.v1.Sky$Anchor CENTER; ;; Ldev/calamidade_awakening/api/v1/Sky$Anchor;
+M public static final dev.calamidade_awakening.api.v1.Sky$Anchor SUN; ;; Ldev/calamidade_awakening/api/v1/Sky$Anchor;
+M public static final dev.calamidade_awakening.api.v1.Sky$Anchor MOON; ;; Ldev/calamidade_awakening/api/v1/Sky$Anchor;
+M public static dev.calamidade_awakening.api.v1.Sky$Anchor[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Sky$Anchor;
+M public static dev.calamidade_awakening.api.v1.Sky$Anchor valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Sky$Anchor;
+C dev.calamidade_awakening.api.v1.Sky$Builder :: public final class dev.calamidade_awakening.api.v1.Sky$Builder
+M public dev.calamidade_awakening.api.v1.Sky$Builder direction(float, float); ;; (FF)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder toward(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder centerOffset(double, double, double); ;; (DDD)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder onSun(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder onMoon(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder hidesVanilla(boolean); ;; (Z)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder size(float); ;; (F)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder rotation(float); ;; (F)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder spin(float); ;; (F)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder tilt(float); ;; (F)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder intensity(float); ;; (F)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder progress(float); ;; (F)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder lens(float); ;; (F)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder darken(float); ;; (F)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder color(int, int); ;; (II)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder track(dev.calamidade_awakening.api.v1.Sky$Param, java.lang.String); ;; (Ldev/calamidade_awakening/api/v1/Sky$Param;Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Builder weightPhase(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky build(); ;; ()Ldev/calamidade_awakening/api/v1/Sky;
+C dev.calamidade_awakening.api.v1.Sky$Direction :: public final class dev.calamidade_awakening.api.v1.Sky$Direction extends java.lang.Record
+M public static final dev.calamidade_awakening.api.v1.Sky$Direction UP; ;; Ldev/calamidade_awakening/api/v1/Sky$Direction;
+M public dev.calamidade_awakening.api.v1.Sky$Direction(double, double, double); ;; (DDD)V
+M public static dev.calamidade_awakening.api.v1.Sky$Direction of(double, double); ;; (DD)Ldev/calamidade_awakening/api/v1/Sky$Direction;
+M public static dev.calamidade_awakening.api.v1.Sky$Direction toward(double, double, double, double, double, double); ;; (DDDDDD)Ldev/calamidade_awakening/api/v1/Sky$Direction;
+M public double azimuth(); ;; ()D
+M public double elevation(); ;; ()D
+M public double angleTo(dev.calamidade_awakening.api.v1.Sky$Direction); ;; (Ldev/calamidade_awakening/api/v1/Sky$Direction;)D
+M public dev.calamidade_awakening.api.v1.Sky$Direction offset(double, double); ;; (DD)Ldev/calamidade_awakening/api/v1/Sky$Direction;
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public double x(); ;; ()D
+M public double y(); ;; ()D
+M public double z(); ;; ()D
+C dev.calamidade_awakening.api.v1.Sky$Param :: public final class dev.calamidade_awakening.api.v1.Sky$Param extends java.lang.Enum<dev.calamidade_awakening.api.v1.Sky$Param>
+M public static final dev.calamidade_awakening.api.v1.Sky$Param AZIMUTH; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static final dev.calamidade_awakening.api.v1.Sky$Param ELEVATION; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static final dev.calamidade_awakening.api.v1.Sky$Param SIZE; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static final dev.calamidade_awakening.api.v1.Sky$Param ROTATION; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static final dev.calamidade_awakening.api.v1.Sky$Param SPIN; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static final dev.calamidade_awakening.api.v1.Sky$Param TILT; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static final dev.calamidade_awakening.api.v1.Sky$Param INTENSITY; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static final dev.calamidade_awakening.api.v1.Sky$Param PROGRESS; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static final dev.calamidade_awakening.api.v1.Sky$Param LENS; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static final dev.calamidade_awakening.api.v1.Sky$Param DARKEN; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static final dev.calamidade_awakening.api.v1.Sky$Param WEIGHT; ;; Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public final float min; ;; F
+M public final float max; ;; F
+M public static dev.calamidade_awakening.api.v1.Sky$Param[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public static dev.calamidade_awakening.api.v1.Sky$Param valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Sky$Param;
+M public float clamp(float); ;; (F)F
+C dev.calamidade_awakening.api.v1.Sky$State :: public final class dev.calamidade_awakening.api.v1.Sky$State extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Sky$State(dev.calamidade_awakening.api.v1.Sky$Type, float, float, float, float, float, float, float, float, float, float, float, int, int); ;; (Ldev/calamidade_awakening/api/v1/Sky$Type;FFFFFFFFFFFII)V
+M public boolean visible(); ;; ()Z
+M public dev.calamidade_awakening.api.v1.Sky$Direction direction(dev.calamidade_awakening.api.v1.Sky$Direction); ;; (Ldev/calamidade_awakening/api/v1/Sky$Direction;)Ldev/calamidade_awakening/api/v1/Sky$Direction;
+M public float radius(); ;; ()F
+M public float darkening(); ;; ()F
+M public double rotationAt(double); ;; (D)D
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public dev.calamidade_awakening.api.v1.Sky$Type type(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Type;
+M public float weight(); ;; ()F
+M public float azimuth(); ;; ()F
+M public float elevation(); ;; ()F
+M public float size(); ;; ()F
+M public float rotation(); ;; ()F
+M public float spin(); ;; ()F
+M public float tilt(); ;; ()F
+M public float intensity(); ;; ()F
+M public float progress(); ;; ()F
+M public float lens(); ;; ()F
+M public float darken(); ;; ()F
+M public int primary(); ;; ()I
+M public int secondary(); ;; ()I
+C dev.calamidade_awakening.api.v1.Sky$Type :: public final class dev.calamidade_awakening.api.v1.Sky$Type extends java.lang.Enum<dev.calamidade_awakening.api.v1.Sky$Type>
+M public static final dev.calamidade_awakening.api.v1.Sky$Type BLACK_HOLE; ;; Ldev/calamidade_awakening/api/v1/Sky$Type;
+M public static final dev.calamidade_awakening.api.v1.Sky$Type PORTAL; ;; Ldev/calamidade_awakening/api/v1/Sky$Type;
+M public static final dev.calamidade_awakening.api.v1.Sky$Type ECLIPSE; ;; Ldev/calamidade_awakening/api/v1/Sky$Type;
+M public static final dev.calamidade_awakening.api.v1.Sky$Type RIFT; ;; Ldev/calamidade_awakening/api/v1/Sky$Type;
+M public static final dev.calamidade_awakening.api.v1.Sky$Type CELESTIAL_BODY; ;; Ldev/calamidade_awakening/api/v1/Sky$Type;
+M public static final dev.calamidade_awakening.api.v1.Sky$Type AURORA; ;; Ldev/calamidade_awakening/api/v1/Sky$Type;
+M public static final dev.calamidade_awakening.api.v1.Sky$Type DISTANT_BOLTS; ;; Ldev/calamidade_awakening/api/v1/Sky$Type;
+M public static dev.calamidade_awakening.api.v1.Sky$Type[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Sky$Type;
+M public static dev.calamidade_awakening.api.v1.Sky$Type valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Sky$Type;
+C dev.calamidade_awakening.api.v1.Sky :: public final class dev.calamidade_awakening.api.v1.Sky
+M public static final int MAX_PER_EFFECT; ;; I
+M public static final float MAX_SIZE; ;; F
+M public static final float MAX_INTENSITY; ;; F
+M public static final float MAX_SPIN; ;; F
+M public static final float ACTIVE_WEIGHT; ;; F
+M public static final double MAX_DISTANCE; ;; D
+M public static final float ECLIPSE_SUN_RATIO; ;; F
+M public static final float ECLIPSE_START_DISTANCE; ;; F
+M public static float eclipseCoverage(float); ;; (F)F
+M public static dev.calamidade_awakening.api.v1.Sky$Builder builder(dev.calamidade_awakening.api.v1.Sky$Type); ;; (Ldev/calamidade_awakening/api/v1/Sky$Type;)Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public static dev.calamidade_awakening.api.v1.Sky$Builder blackHole(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public static dev.calamidade_awakening.api.v1.Sky$Builder portal(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public static dev.calamidade_awakening.api.v1.Sky$Builder eclipse(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public static dev.calamidade_awakening.api.v1.Sky$Builder rift(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public static dev.calamidade_awakening.api.v1.Sky$Builder body(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public static dev.calamidade_awakening.api.v1.Sky$Builder aurora(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public static dev.calamidade_awakening.api.v1.Sky$Builder bolts(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Builder;
+M public dev.calamidade_awakening.api.v1.Sky$Type type(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Type;
+M public dev.calamidade_awakening.api.v1.Sky$Anchor anchor(); ;; ()Ldev/calamidade_awakening/api/v1/Sky$Anchor;
+M public double anchorX(); ;; ()D
+M public double anchorY(); ;; ()D
+M public double anchorZ(); ;; ()D
+M public float size(); ;; ()F
+M public float rotation(); ;; ()F
+M public float spin(); ;; ()F
+M public float tilt(); ;; ()F
+M public float intensity(); ;; ()F
+M public float progress(); ;; ()F
+M public float lens(); ;; ()F
+M public float darken(); ;; ()F
+M public int primary(); ;; ()I
+M public int secondary(); ;; ()I
+M public boolean hidesVanilla(); ;; ()Z
+M public java.lang.String track(dev.calamidade_awakening.api.v1.Sky$Param); ;; (Ldev/calamidade_awakening/api/v1/Sky$Param;)Ljava/lang/String;
+M public java.util.Map<dev.calamidade_awakening.api.v1.Sky$Param, java.lang.String> tracks(); ;; ()Ljava/util/Map;
+M public java.lang.String weightPhase(); ;; ()Ljava/lang/String;
+M public boolean animated(); ;; ()Z
+M public void validate(dev.calamidade_awakening.api.v1.Timeline); ;; (Ldev/calamidade_awakening/api/v1/Timeline;)V
+M public dev.calamidade_awakening.api.v1.Sky$State sample(dev.calamidade_awakening.api.v1.Timeline$Sampler, float); ;; (Ldev/calamidade_awakening/api/v1/Timeline$Sampler;F)Ldev/calamidade_awakening/api/v1/Sky$State;
+C dev.calamidade_awakening.api.v1.SkyProfile$Builder :: public final class dev.calamidade_awakening.api.v1.SkyProfile$Builder
+M public dev.calamidade_awakening.api.v1.SkyProfile$Builder state(java.lang.String, dev.calamidade_awakening.api.v1.SkyProfile$State); ;; (Ljava/lang/String;Ldev/calamidade_awakening/api/v1/SkyProfile$State;)Ldev/calamidade_awakening/api/v1/SkyProfile$Builder;
+M public dev.calamidade_awakening.api.v1.SkyProfile$Builder initial(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/SkyProfile$Builder;
+M public dev.calamidade_awakening.api.v1.SkyProfile build(); ;; ()Ldev/calamidade_awakening/api/v1/SkyProfile;
+C dev.calamidade_awakening.api.v1.SkyProfile$State :: public final class dev.calamidade_awakening.api.v1.SkyProfile$State
+M public static dev.calamidade_awakening.api.v1.SkyProfile$StateBuilder builder(); ;; ()Ldev/calamidade_awakening/api/v1/SkyProfile$StateBuilder;
+M public java.util.List<dev.calamidade_awakening.api.v1.Sky> layers(); ;; ()Ljava/util/List;
+M public dev.calamidade_awakening.api.v1.Atmosphere atmosphere(); ;; ()Ldev/calamidade_awakening/api/v1/Atmosphere;
+M public boolean vanillaSun(); ;; ()Z
+M public boolean vanillaMoon(); ;; ()Z
+M public boolean vanillaSky(); ;; ()Z
+C dev.calamidade_awakening.api.v1.SkyProfile$StateBuilder :: public final class dev.calamidade_awakening.api.v1.SkyProfile$StateBuilder
+M public dev.calamidade_awakening.api.v1.SkyProfile$StateBuilder layers(dev.calamidade_awakening.api.v1.Sky...); ;; ([Ldev/calamidade_awakening/api/v1/Sky;)Ldev/calamidade_awakening/api/v1/SkyProfile$StateBuilder;
+M public dev.calamidade_awakening.api.v1.SkyProfile$StateBuilder atmosphere(dev.calamidade_awakening.api.v1.Atmosphere); ;; (Ldev/calamidade_awakening/api/v1/Atmosphere;)Ldev/calamidade_awakening/api/v1/SkyProfile$StateBuilder;
+M public dev.calamidade_awakening.api.v1.SkyProfile$StateBuilder vanillaSun(boolean); ;; (Z)Ldev/calamidade_awakening/api/v1/SkyProfile$StateBuilder;
+M public dev.calamidade_awakening.api.v1.SkyProfile$StateBuilder vanillaMoon(boolean); ;; (Z)Ldev/calamidade_awakening/api/v1/SkyProfile$StateBuilder;
+M public dev.calamidade_awakening.api.v1.SkyProfile$StateBuilder vanillaSky(boolean); ;; (Z)Ldev/calamidade_awakening/api/v1/SkyProfile$StateBuilder;
+M public dev.calamidade_awakening.api.v1.SkyProfile$State build(); ;; ()Ldev/calamidade_awakening/api/v1/SkyProfile$State;
+C dev.calamidade_awakening.api.v1.SkyProfile :: public final class dev.calamidade_awakening.api.v1.SkyProfile
+M public static final int MAX_STATES; ;; I
+M public static dev.calamidade_awakening.api.v1.SkyProfile$Builder builder(); ;; ()Ldev/calamidade_awakening/api/v1/SkyProfile$Builder;
+M public java.util.Map<java.lang.String, dev.calamidade_awakening.api.v1.SkyProfile$State> states(); ;; ()Ljava/util/Map;
+M public java.lang.String initial(); ;; ()Ljava/lang/String;
+M public boolean has(java.lang.String); ;; (Ljava/lang/String;)Z
+M public dev.calamidade_awakening.api.v1.SkyProfile$State state(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/SkyProfile$State;
+C dev.calamidade_awakening.api.v1.SkyProfiles :: public final class dev.calamidade_awakening.api.v1.SkyProfiles
+M public static final int MAX_TICKS; ;; I
+M public static synchronized void define(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.SkyProfile); ;; (Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/SkyProfile;)V
+M public static synchronized java.util.Optional<dev.calamidade_awakening.api.v1.SkyProfile> profile(net.minecraft.resources.ResourceLocation); ;; (Lnet/minecraft/resources/ResourceLocation;)Ljava/util/Optional;
+M public static synchronized java.util.Map<net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.SkyProfile> profiles(); ;; ()Ljava/util/Map;
+M public static boolean setState(net.minecraft.server.MinecraftServer, net.minecraft.resources.ResourceLocation, java.lang.String, int); ;; (Lnet/minecraft/server/MinecraftServer;Lnet/minecraft/resources/ResourceLocation;Ljava/lang/String;I)Z
+M public static java.util.Optional<java.lang.String> state(net.minecraft.server.MinecraftServer, net.minecraft.resources.ResourceLocation); ;; (Lnet/minecraft/server/MinecraftServer;Lnet/minecraft/resources/ResourceLocation;)Ljava/util/Optional;
+C dev.calamidade_awakening.api.v1.TerrainEdit$Builder :: public final class dev.calamidade_awakening.api.v1.TerrainEdit$Builder
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder commitAt(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder burn(dev.calamidade_awakening.api.v1.TerrainPalette, int); ;; (Ldev/calamidade_awakening/api/v1/TerrainPalette;I)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder fill(dev.calamidade_awakening.api.v1.TerrainEdit$Fill); ;; (Ldev/calamidade_awakening/api/v1/TerrainEdit$Fill;)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder structure(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder structureOffset(float, float, float); ;; (FFF)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder blocksPerTick(int); ;; (I)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder replacingBlockEntities(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder cooling(int); ;; (I)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder heatTrack(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder glow(int); ;; (I)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder smoke(float); ;; (F)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder cracks(float); ;; (F)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder noHeat(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Builder standIn(dev.calamidade_awakening.api.v1.TerrainEdit$StandIn); ;; (Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn;)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit build(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainEdit;
+C dev.calamidade_awakening.api.v1.TerrainEdit$Fill :: public final class dev.calamidade_awakening.api.v1.TerrainEdit$Fill extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Fill(dev.calamidade_awakening.api.v1.TerrainEdit$FillKind, float, java.lang.String, float, float, float); ;; (Ldev/calamidade_awakening/api/v1/TerrainEdit$FillKind;FLjava/lang/String;FFF)V
+M public static dev.calamidade_awakening.api.v1.TerrainEdit$Fill solid(java.lang.String, float); ;; (Ljava/lang/String;F)Ldev/calamidade_awakening/api/v1/TerrainEdit$Fill;
+M public static dev.calamidade_awakening.api.v1.TerrainEdit$Fill shell(java.lang.String, float); ;; (Ljava/lang/String;F)Ldev/calamidade_awakening/api/v1/TerrainEdit$Fill;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Fill at(float, float, float); ;; (FFF)Ldev/calamidade_awakening/api/v1/TerrainEdit$Fill;
+M public boolean contains(double, double, double); ;; (DDD)Z
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public dev.calamidade_awakening.api.v1.TerrainEdit$FillKind kind(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainEdit$FillKind;
+M public float radius(); ;; ()F
+M public java.lang.String block(); ;; ()Ljava/lang/String;
+M public float x(); ;; ()F
+M public float y(); ;; ()F
+M public float z(); ;; ()F
+C dev.calamidade_awakening.api.v1.TerrainEdit$FillKind :: public final class dev.calamidade_awakening.api.v1.TerrainEdit$FillKind extends java.lang.Enum<dev.calamidade_awakening.api.v1.TerrainEdit$FillKind>
+M public static final dev.calamidade_awakening.api.v1.TerrainEdit$FillKind SOLID; ;; Ldev/calamidade_awakening/api/v1/TerrainEdit$FillKind;
+M public static final dev.calamidade_awakening.api.v1.TerrainEdit$FillKind SHELL; ;; Ldev/calamidade_awakening/api/v1/TerrainEdit$FillKind;
+M public static dev.calamidade_awakening.api.v1.TerrainEdit$FillKind[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/TerrainEdit$FillKind;
+M public static dev.calamidade_awakening.api.v1.TerrainEdit$FillKind valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/TerrainEdit$FillKind;
+C dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Builder :: public final class dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Builder
+M public dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Builder from(float, float, float); ;; (FFF)Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Builder fall(int); ;; (I)Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Builder track(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Builder reveal(int); ;; (I)Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Builder color(int); ;; (I)Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Builder trail(float); ;; (F)Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$StandIn build(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn;
+C dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Kind :: public final class dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Kind extends java.lang.Enum<dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Kind>
+M public static final dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Kind SPHERE; ;; Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Kind;
+M public static final dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Kind STRUCTURE; ;; Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Kind;
+M public static dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Kind[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Kind;
+M public static dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Kind valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Kind;
+C dev.calamidade_awakening.api.v1.TerrainEdit$StandIn :: public final class dev.calamidade_awakening.api.v1.TerrainEdit$StandIn
+M public static dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Builder sphere(float); ;; (F)Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Builder;
+M public static dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Builder structure(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainEdit$StandIn$Kind kind(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn$Kind;
+M public float radius(); ;; ()F
+M public float x(); ;; ()F
+M public float y(); ;; ()F
+M public float z(); ;; ()F
+M public int fall(); ;; ()I
+M public int reveal(); ;; ()I
+M public int color(); ;; ()I
+M public float trail(); ;; ()F
+M public java.lang.String track(); ;; ()Ljava/lang/String;
+M public float progress(dev.calamidade_awakening.api.v1.Timeline, double, int); ;; (Ldev/calamidade_awakening/api/v1/Timeline;DI)F
+M public float opacity(double, int); ;; (DI)F
+M public java.lang.String toString(); ;; ()Ljava/lang/String;
+C dev.calamidade_awakening.api.v1.TerrainEdit :: public final class dev.calamidade_awakening.api.v1.TerrainEdit
+M public static final int MAX_PER_EFFECT; ;; I
+M public static final int MAX_THICKNESS; ;; I
+M public static final int MAX_BLOCKS_PER_TICK; ;; I
+M public static final int MAX_COOLING; ;; I
+M public static final float MAX_FILL_RADIUS; ;; F
+M public static final float MAX_OFFSET; ;; F
+M public static dev.calamidade_awakening.api.v1.TerrainEdit$Builder carve(dev.calamidade_awakening.api.v1.TerrainShape); ;; (Ldev/calamidade_awakening/api/v1/TerrainShape;)Ldev/calamidade_awakening/api/v1/TerrainEdit$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainShape shape(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public java.lang.String marker(); ;; ()Ljava/lang/String;
+M public dev.calamidade_awakening.api.v1.TerrainPalette palette(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainPalette;
+M public int thickness(); ;; ()I
+M public dev.calamidade_awakening.api.v1.TerrainEdit$Fill fill(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainEdit$Fill;
+M public java.lang.String structure(); ;; ()Ljava/lang/String;
+M public float structureX(); ;; ()F
+M public float structureY(); ;; ()F
+M public float structureZ(); ;; ()F
+M public int blocksPerTick(); ;; ()I
+M public boolean replacesBlockEntities(); ;; ()Z
+M public boolean heat(); ;; ()Z
+M public int cooling(); ;; ()I
+M public int glow(); ;; ()I
+M public java.lang.String heatTrack(); ;; ()Ljava/lang/String;
+M public float smoke(); ;; ()F
+M public float cracks(); ;; ()F
+M public dev.calamidade_awakening.api.v1.TerrainEdit$StandIn standIn(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainEdit$StandIn;
+M public float heatAt(dev.calamidade_awakening.api.v1.Timeline, double, double); ;; (Ldev/calamidade_awakening/api/v1/Timeline;DD)F
+M public void validate(dev.calamidade_awakening.api.v1.Timeline, int); ;; (Ldev/calamidade_awakening/api/v1/Timeline;I)V
+M public java.lang.String toString(); ;; ()Ljava/lang/String;
+C dev.calamidade_awakening.api.v1.TerrainEditEvent :: public final class dev.calamidade_awakening.api.v1.TerrainEditEvent extends net.neoforged.bus.api.Event implements net.neoforged.bus.api.ICancellableEvent
+M public dev.calamidade_awakening.api.v1.TerrainEditEvent(net.minecraft.server.level.ServerLevel, net.minecraft.resources.ResourceLocation, int, dev.calamidade_awakening.api.v1.TerrainEdit, net.minecraft.world.phys.Vec3, net.minecraft.world.level.levelgen.structure.BoundingBox, int, dev.calamidade_awakening.api.v1.EffectSource, net.minecraft.world.entity.Entity); ;; (Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/resources/ResourceLocation;ILdev/calamidade_awakening/api/v1/TerrainEdit;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/level/levelgen/structure/BoundingBox;ILdev/calamidade_awakening/api/v1/EffectSource;Lnet/minecraft/world/entity/Entity;)V
+M public net.minecraft.server.level.ServerLevel level(); ;; ()Lnet/minecraft/server/level/ServerLevel;
+M public net.minecraft.resources.ResourceLocation effect(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public int index(); ;; ()I
+M public dev.calamidade_awakening.api.v1.TerrainEdit edit(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainEdit;
+M public net.minecraft.world.phys.Vec3 origin(); ;; ()Lnet/minecraft/world/phys/Vec3;
+M public net.minecraft.world.level.levelgen.structure.BoundingBox area(); ;; ()Lnet/minecraft/world/level/levelgen/structure/BoundingBox;
+M public int blocks(); ;; ()I
+M public dev.calamidade_awakening.api.v1.EffectSource source(); ;; ()Ldev/calamidade_awakening/api/v1/EffectSource;
+M public net.minecraft.world.entity.Entity entity(); ;; ()Lnet/minecraft/world/entity/Entity;
+C dev.calamidade_awakening.api.v1.TerrainPalette$Band :: public final class dev.calamidade_awakening.api.v1.TerrainPalette$Band extends java.lang.Enum<dev.calamidade_awakening.api.v1.TerrainPalette$Band>
+M public static final dev.calamidade_awakening.api.v1.TerrainPalette$Band FLOOR; ;; Ldev/calamidade_awakening/api/v1/TerrainPalette$Band;
+M public static final dev.calamidade_awakening.api.v1.TerrainPalette$Band WALL; ;; Ldev/calamidade_awakening/api/v1/TerrainPalette$Band;
+M public static final dev.calamidade_awakening.api.v1.TerrainPalette$Band RIM; ;; Ldev/calamidade_awakening/api/v1/TerrainPalette$Band;
+M public static dev.calamidade_awakening.api.v1.TerrainPalette$Band[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/TerrainPalette$Band;
+M public static dev.calamidade_awakening.api.v1.TerrainPalette$Band valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/TerrainPalette$Band;
+C dev.calamidade_awakening.api.v1.TerrainPalette$Builder :: public final class dev.calamidade_awakening.api.v1.TerrainPalette$Builder
+M public dev.calamidade_awakening.api.v1.TerrainPalette$Builder add(dev.calamidade_awakening.api.v1.TerrainPalette$Band, java.lang.String, int); ;; (Ldev/calamidade_awakening/api/v1/TerrainPalette$Band;Ljava/lang/String;I)Ldev/calamidade_awakening/api/v1/TerrainPalette$Builder;
+M public dev.calamidade_awakening.api.v1.TerrainPalette build(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainPalette;
+C dev.calamidade_awakening.api.v1.TerrainPalette$Entry :: public final class dev.calamidade_awakening.api.v1.TerrainPalette$Entry extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.TerrainPalette$Entry(java.lang.String, int); ;; (Ljava/lang/String;I)V
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public java.lang.String block(); ;; ()Ljava/lang/String;
+M public int weight(); ;; ()I
+C dev.calamidade_awakening.api.v1.TerrainPalette :: public final class dev.calamidade_awakening.api.v1.TerrainPalette
+M public static final int MAX_WEIGHT; ;; I
+M public static final int MAX_ENTRIES; ;; I
+M public static dev.calamidade_awakening.api.v1.TerrainPalette$Builder builder(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainPalette$Builder;
+M public static dev.calamidade_awakening.api.v1.TerrainPalette burnt(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainPalette;
+M public java.util.List<dev.calamidade_awakening.api.v1.TerrainPalette$Entry> entries(dev.calamidade_awakening.api.v1.TerrainPalette$Band); ;; (Ldev/calamidade_awakening/api/v1/TerrainPalette$Band;)Ljava/util/List;
+M public int pick(dev.calamidade_awakening.api.v1.TerrainPalette$Band, int); ;; (Ldev/calamidade_awakening/api/v1/TerrainPalette$Band;I)I
+M public int pickAt(dev.calamidade_awakening.api.v1.TerrainPalette$Band, int, int, int, long); ;; (Ldev/calamidade_awakening/api/v1/TerrainPalette$Band;IIIJ)I
+M public boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public int hashCode(); ;; ()I
+M public java.lang.String toString(); ;; ()Ljava/lang/String;
+C dev.calamidade_awakening.api.v1.TerrainShape$Kind :: public final class dev.calamidade_awakening.api.v1.TerrainShape$Kind extends java.lang.Enum<dev.calamidade_awakening.api.v1.TerrainShape$Kind>
+M public static final dev.calamidade_awakening.api.v1.TerrainShape$Kind SPHERE; ;; Ldev/calamidade_awakening/api/v1/TerrainShape$Kind;
+M public static final dev.calamidade_awakening.api.v1.TerrainShape$Kind CRATER; ;; Ldev/calamidade_awakening/api/v1/TerrainShape$Kind;
+M public static final dev.calamidade_awakening.api.v1.TerrainShape$Kind TRENCH; ;; Ldev/calamidade_awakening/api/v1/TerrainShape$Kind;
+M public static final dev.calamidade_awakening.api.v1.TerrainShape$Kind CYLINDER; ;; Ldev/calamidade_awakening/api/v1/TerrainShape$Kind;
+M public static dev.calamidade_awakening.api.v1.TerrainShape$Kind[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/TerrainShape$Kind;
+M public static dev.calamidade_awakening.api.v1.TerrainShape$Kind valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/TerrainShape$Kind;
+C dev.calamidade_awakening.api.v1.TerrainShape$Primitive :: public final class dev.calamidade_awakening.api.v1.TerrainShape$Primitive extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.TerrainShape$Primitive(dev.calamidade_awakening.api.v1.TerrainShape$Kind, boolean, float, float, float, float, float, float, float); ;; (Ldev/calamidade_awakening/api/v1/TerrainShape$Kind;ZFFFFFFF)V
+M public double distance(double, double, double); ;; (DDD)D
+M public double bound(); ;; ()D
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public dev.calamidade_awakening.api.v1.TerrainShape$Kind kind(); ;; ()Ldev/calamidade_awakening/api/v1/TerrainShape$Kind;
+M public boolean subtract(); ;; ()Z
+M public float x(); ;; ()F
+M public float y(); ;; ()F
+M public float z(); ;; ()F
+M public float a(); ;; ()F
+M public float b(); ;; ()F
+M public float c(); ;; ()F
+M public float d(); ;; ()F
+C dev.calamidade_awakening.api.v1.TerrainShape :: public final class dev.calamidade_awakening.api.v1.TerrainShape
+M public static final float MAX_SIZE; ;; F
+M public static final float MAX_LENGTH; ;; F
+M public static final float MAX_OFFSET; ;; F
+M public static final int MAX_PRIMITIVES; ;; I
+M public static final float MAX_EXTENT; ;; F
+M public static final float MAX_ROUGHNESS; ;; F
+M public static dev.calamidade_awakening.api.v1.TerrainShape sphere(float); ;; (F)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public static dev.calamidade_awakening.api.v1.TerrainShape crater(float, float); ;; (FF)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public static dev.calamidade_awakening.api.v1.TerrainShape trench(float, float); ;; (FF)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public static dev.calamidade_awakening.api.v1.TerrainShape cylinder(float, float); ;; (FF)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public static dev.calamidade_awakening.api.v1.TerrainShape union(dev.calamidade_awakening.api.v1.TerrainShape, dev.calamidade_awakening.api.v1.TerrainShape...); ;; (Ldev/calamidade_awakening/api/v1/TerrainShape;[Ldev/calamidade_awakening/api/v1/TerrainShape;)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public dev.calamidade_awakening.api.v1.TerrainShape union(dev.calamidade_awakening.api.v1.TerrainShape); ;; (Ldev/calamidade_awakening/api/v1/TerrainShape;)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public dev.calamidade_awakening.api.v1.TerrainShape minus(dev.calamidade_awakening.api.v1.TerrainShape); ;; (Ldev/calamidade_awakening/api/v1/TerrainShape;)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public dev.calamidade_awakening.api.v1.TerrainShape offset(float, float, float); ;; (FFF)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public dev.calamidade_awakening.api.v1.TerrainShape profile(float); ;; (F)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public dev.calamidade_awakening.api.v1.TerrainShape clearance(float); ;; (F)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public dev.calamidade_awakening.api.v1.TerrainShape rough(float, float); ;; (FF)Ldev/calamidade_awakening/api/v1/TerrainShape;
+M public java.util.List<dev.calamidade_awakening.api.v1.TerrainShape$Primitive> primitives(); ;; ()Ljava/util/List;
+M public float roughness(); ;; ()F
+M public float roughScale(); ;; ()F
+M public double extent(); ;; ()D
+M public double baseDistance(double, double, double); ;; (DDD)D
+M public double distance(double, double, double, long); ;; (DDDJ)D
+M public double edge(double, double, double, long); ;; (DDDJ)D
+M public boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public int hashCode(); ;; ()I
+M public java.lang.String toString(); ;; ()Ljava/lang/String;
+C dev.calamidade_awakening.api.v1.Timeline$Builder :: public final class dev.calamidade_awakening.api.v1.Timeline$Builder
+M public dev.calamidade_awakening.api.v1.Timeline$Builder phase(java.lang.String, int, int, int, int); ;; (Ljava/lang/String;IIII)Ldev/calamidade_awakening/api/v1/Timeline$Builder;
+M public dev.calamidade_awakening.api.v1.Timeline$Builder track(java.lang.String, dev.calamidade_awakening.api.v1.Timeline$Keyframe...); ;; (Ljava/lang/String;[Ldev/calamidade_awakening/api/v1/Timeline$Keyframe;)Ldev/calamidade_awakening/api/v1/Timeline$Builder;
+M public dev.calamidade_awakening.api.v1.Timeline$Builder marker(java.lang.String, int); ;; (Ljava/lang/String;I)Ldev/calamidade_awakening/api/v1/Timeline$Builder;
+M public dev.calamidade_awakening.api.v1.Timeline$Builder sustain(int, int); ;; (II)Ldev/calamidade_awakening/api/v1/Timeline$Builder;
+M public dev.calamidade_awakening.api.v1.Timeline$Builder release(int); ;; (I)Ldev/calamidade_awakening/api/v1/Timeline$Builder;
+M public dev.calamidade_awakening.api.v1.Timeline build(); ;; ()Ldev/calamidade_awakening/api/v1/Timeline;
+C dev.calamidade_awakening.api.v1.Timeline$Easing :: public final class dev.calamidade_awakening.api.v1.Timeline$Easing extends java.lang.Enum<dev.calamidade_awakening.api.v1.Timeline$Easing>
+M public static final dev.calamidade_awakening.api.v1.Timeline$Easing LINEAR; ;; Ldev/calamidade_awakening/api/v1/Timeline$Easing;
+M public static final dev.calamidade_awakening.api.v1.Timeline$Easing SMOOTH; ;; Ldev/calamidade_awakening/api/v1/Timeline$Easing;
+M public static final dev.calamidade_awakening.api.v1.Timeline$Easing EASE_IN; ;; Ldev/calamidade_awakening/api/v1/Timeline$Easing;
+M public static final dev.calamidade_awakening.api.v1.Timeline$Easing EASE_OUT; ;; Ldev/calamidade_awakening/api/v1/Timeline$Easing;
+M public static final dev.calamidade_awakening.api.v1.Timeline$Easing EASE_IN_OUT; ;; Ldev/calamidade_awakening/api/v1/Timeline$Easing;
+M public static final dev.calamidade_awakening.api.v1.Timeline$Easing OVERSHOOT; ;; Ldev/calamidade_awakening/api/v1/Timeline$Easing;
+M public static dev.calamidade_awakening.api.v1.Timeline$Easing[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/Timeline$Easing;
+M public static dev.calamidade_awakening.api.v1.Timeline$Easing valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/Timeline$Easing;
+M public double apply(double); ;; (D)D
+C dev.calamidade_awakening.api.v1.Timeline$Keyframe :: public final class dev.calamidade_awakening.api.v1.Timeline$Keyframe extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.Timeline$Keyframe(int, float, dev.calamidade_awakening.api.v1.Timeline$Easing); ;; (IFLdev/calamidade_awakening/api/v1/Timeline$Easing;)V
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public int tick(); ;; ()I
+M public float value(); ;; ()F
+M public dev.calamidade_awakening.api.v1.Timeline$Easing easing(); ;; ()Ldev/calamidade_awakening/api/v1/Timeline$Easing;
+C dev.calamidade_awakening.api.v1.Timeline$Phase :: final class dev.calamidade_awakening.api.v1.Timeline$Phase extends java.lang.Record
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public int start(); ;; ()I
+M public int end(); ;; ()I
+M public int rise(); ;; ()I
+M public int fall(); ;; ()I
+C dev.calamidade_awakening.api.v1.Timeline$Sampler :: public final class dev.calamidade_awakening.api.v1.Timeline$Sampler
+M public dev.calamidade_awakening.api.v1.Timeline$Sampler(dev.calamidade_awakening.api.v1.Timeline, double); ;; (Ldev/calamidade_awakening/api/v1/Timeline;D)V
+M public dev.calamidade_awakening.api.v1.Timeline timeline(); ;; ()Ldev/calamidade_awakening/api/v1/Timeline;
+M public double localAge(); ;; ()D
+M public float weight(java.lang.String); ;; (Ljava/lang/String;)F
+M public float progress(java.lang.String); ;; (Ljava/lang/String;)F
+M public float value(java.lang.String); ;; (Ljava/lang/String;)F
+M public int tick(java.lang.String); ;; (Ljava/lang/String;)I
+M public double since(java.lang.String); ;; (Ljava/lang/String;)D
+C dev.calamidade_awakening.api.v1.Timeline :: public final class dev.calamidade_awakening.api.v1.Timeline
+M public static dev.calamidade_awakening.api.v1.Timeline$Keyframe keyframe(int, float, dev.calamidade_awakening.api.v1.Timeline$Easing); ;; (IFLdev/calamidade_awakening/api/v1/Timeline$Easing;)Ldev/calamidade_awakening/api/v1/Timeline$Keyframe;
+M public static dev.calamidade_awakening.api.v1.Timeline$Keyframe keyframe(int, float); ;; (IF)Ldev/calamidade_awakening/api/v1/Timeline$Keyframe;
+M public static dev.calamidade_awakening.api.v1.Timeline$Builder builder(int); ;; (I)Ldev/calamidade_awakening/api/v1/Timeline$Builder;
+M public static dev.calamidade_awakening.api.v1.Timeline empty(int); ;; (I)Ldev/calamidade_awakening/api/v1/Timeline;
+M public int duration(); ;; ()I
+M public float weight(java.lang.String, double); ;; (Ljava/lang/String;D)F
+M public float progress(java.lang.String, double); ;; (Ljava/lang/String;D)F
+M public int start(java.lang.String); ;; (Ljava/lang/String;)I
+M public int end(java.lang.String); ;; (Ljava/lang/String;)I
+M public boolean hasPhase(java.lang.String); ;; (Ljava/lang/String;)Z
+M public java.util.Set<java.lang.String> phases(); ;; ()Ljava/util/Set;
+M public float value(java.lang.String, double); ;; (Ljava/lang/String;D)F
+M public boolean hasTrack(java.lang.String); ;; (Ljava/lang/String;)Z
+M public java.util.Set<java.lang.String> tracks(); ;; ()Ljava/util/Set;
+M public java.util.List<dev.calamidade_awakening.api.v1.Timeline$Keyframe> keyframes(java.lang.String); ;; (Ljava/lang/String;)Ljava/util/List;
+M public int tick(java.lang.String); ;; (Ljava/lang/String;)I
+M public boolean hasMarker(java.lang.String); ;; (Ljava/lang/String;)Z
+M public java.util.Set<java.lang.String> markers(); ;; ()Ljava/util/Set;
+M public boolean sustained(); ;; ()Z
+M public int sustainStart(); ;; ()I
+M public int sustainEnd(); ;; ()I
+M public int releaseStart(); ;; ()I
+M public double localAge(double, double); ;; (DD)D
+M public long endAge(long, int); ;; (JI)J
+M public dev.calamidade_awakening.api.v1.Timeline$Sampler at(double); ;; (D)Ldev/calamidade_awakening/api/v1/Timeline$Sampler;
+C dev.calamidade_awakening.api.v1.WorldEvents$Handle :: public interface dev.calamidade_awakening.api.v1.WorldEvents$Handle extends dev.calamidade_awakening.api.v1.Effects$Handle
+M public abstract net.minecraft.resources.ResourceLocation id(); ;; ()Lnet/minecraft/resources/ResourceLocation;
+M public abstract dev.calamidade_awakening.api.v1.WorldEvents$Scope scope(); ;; ()Ldev/calamidade_awakening/api/v1/WorldEvents$Scope;
+M public abstract boolean persistent(); ;; ()Z
+M public abstract int priority(); ;; ()I
+C dev.calamidade_awakening.api.v1.WorldEvents$Options :: public final class dev.calamidade_awakening.api.v1.WorldEvents$Options extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.WorldEvents$Options(net.minecraft.world.phys.Vec3, boolean, int); ;; (Lnet/minecraft/world/phys/Vec3;ZI)V
+M public static dev.calamidade_awakening.api.v1.WorldEvents$Options defaults(); ;; ()Ldev/calamidade_awakening/api/v1/WorldEvents$Options;
+M public dev.calamidade_awakening.api.v1.WorldEvents$Options at(net.minecraft.world.phys.Vec3); ;; (Lnet/minecraft/world/phys/Vec3;)Ldev/calamidade_awakening/api/v1/WorldEvents$Options;
+M public dev.calamidade_awakening.api.v1.WorldEvents$Options persistent(boolean); ;; (Z)Ldev/calamidade_awakening/api/v1/WorldEvents$Options;
+M public dev.calamidade_awakening.api.v1.WorldEvents$Options priority(int); ;; (I)Ldev/calamidade_awakening/api/v1/WorldEvents$Options;
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public net.minecraft.world.phys.Vec3 position(); ;; ()Lnet/minecraft/world/phys/Vec3;
+M public boolean persistent(); ;; ()Z
+M public int priority(); ;; ()I
+C dev.calamidade_awakening.api.v1.WorldEvents$Scope :: public final class dev.calamidade_awakening.api.v1.WorldEvents$Scope extends java.lang.Enum<dev.calamidade_awakening.api.v1.WorldEvents$Scope>
+M public static final dev.calamidade_awakening.api.v1.WorldEvents$Scope AREA; ;; Ldev/calamidade_awakening/api/v1/WorldEvents$Scope;
+M public static final dev.calamidade_awakening.api.v1.WorldEvents$Scope DIMENSION; ;; Ldev/calamidade_awakening/api/v1/WorldEvents$Scope;
+M public static final dev.calamidade_awakening.api.v1.WorldEvents$Scope SERVER; ;; Ldev/calamidade_awakening/api/v1/WorldEvents$Scope;
+M public static dev.calamidade_awakening.api.v1.WorldEvents$Scope[] values(); ;; ()[Ldev/calamidade_awakening/api/v1/WorldEvents$Scope;
+M public static dev.calamidade_awakening.api.v1.WorldEvents$Scope valueOf(java.lang.String); ;; (Ljava/lang/String;)Ldev/calamidade_awakening/api/v1/WorldEvents$Scope;
+C dev.calamidade_awakening.api.v1.WorldEvents :: public final class dev.calamidade_awakening.api.v1.WorldEvents
+M public static final int MAX_PRIORITY; ;; I
+M public static java.util.Optional<dev.calamidade_awakening.api.v1.WorldEvents$Handle> start(net.minecraft.resources.ResourceLocation, dev.calamidade_awakening.api.v1.WorldEvents$Scope, net.minecraft.server.level.ServerLevel, dev.calamidade_awakening.api.v1.WorldEvents$Options); ;; (Lnet/minecraft/resources/ResourceLocation;Ldev/calamidade_awakening/api/v1/WorldEvents$Scope;Lnet/minecraft/server/level/ServerLevel;Ldev/calamidade_awakening/api/v1/WorldEvents$Options;)Ljava/util/Optional;
+M public static java.util.Optional<dev.calamidade_awakening.api.v1.WorldEvents$Handle> get(net.minecraft.server.MinecraftServer, net.minecraft.resources.ResourceLocation); ;; (Lnet/minecraft/server/MinecraftServer;Lnet/minecraft/resources/ResourceLocation;)Ljava/util/Optional;
+M public static java.util.List<dev.calamidade_awakening.api.v1.WorldEvents$Handle> active(net.minecraft.server.MinecraftServer); ;; (Lnet/minecraft/server/MinecraftServer;)Ljava/util/List;
+C dev.calamidade_awakening.api.v1.client.AddonLayers$Film :: public final class dev.calamidade_awakening.api.v1.client.AddonLayers$Film extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Film(cyou.rimuru.rimulib.mc1211.client.cinematic.Subject, net.minecraft.world.phys.Vec3, int, long); ;; (Lcyou/rimuru/rimulib/mc1211/client/cinematic/Subject;Lnet/minecraft/world/phys/Vec3;IJ)V
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Film(cyou.rimuru.rimulib.mc1211.client.cinematic.Subject, net.minecraft.world.phys.Vec3, int, long, dev.calamidade_awakening.api.v1.Timeline); ;; (Lcyou/rimuru/rimulib/mc1211/client/cinematic/Subject;Lnet/minecraft/world/phys/Vec3;IJLdev/calamidade_awakening/api/v1/Timeline;)V
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public cyou.rimuru.rimulib.mc1211.client.cinematic.Subject subject(); ;; ()Lcyou/rimuru/rimulib/mc1211/client/cinematic/Subject;
+M public net.minecraft.world.phys.Vec3 center(); ;; ()Lnet/minecraft/world/phys/Vec3;
+M public int duration(); ;; ()I
+M public long instance(); ;; ()J
+M public dev.calamidade_awakening.api.v1.Timeline timeline(); ;; ()Ldev/calamidade_awakening/api/v1/Timeline;
+C dev.calamidade_awakening.api.v1.client.AddonLayers$Hud :: public final class dev.calamidade_awakening.api.v1.client.AddonLayers$Hud extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Hud(net.minecraft.client.gui.GuiGraphics, dev.calamidade_awakening.api.v1.client.AddonLayers$Time); ;; (Lnet/minecraft/client/gui/GuiGraphics;Ldev/calamidade_awakening/api/v1/client/AddonLayers$Time;)V
+M public dev.calamidade_awakening.api.v1.Timeline$Sampler timeline(); ;; ()Ldev/calamidade_awakening/api/v1/Timeline$Sampler;
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public net.minecraft.client.gui.GuiGraphics graphics(); ;; ()Lnet/minecraft/client/gui/GuiGraphics;
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Time time(); ;; ()Ldev/calamidade_awakening/api/v1/client/AddonLayers$Time;
+C dev.calamidade_awakening.api.v1.client.AddonLayers$Panel :: public final class dev.calamidade_awakening.api.v1.client.AddonLayers$Panel extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Panel(net.minecraft.client.gui.GuiGraphics, float); ;; (Lnet/minecraft/client/gui/GuiGraphics;F)V
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public net.minecraft.client.gui.GuiGraphics graphics(); ;; ()Lnet/minecraft/client/gui/GuiGraphics;
+M public float partial(); ;; ()F
+C dev.calamidade_awakening.api.v1.client.AddonLayers$Post :: public final class dev.calamidade_awakening.api.v1.client.AddonLayers$Post
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Post(cyou.rimuru.rimulib.mc1211.client.api.FxApi$Frame, dev.calamidade_awakening.api.v1.client.AddonLayers$Time, net.minecraft.world.phys.Vec3, double, double, long, dev.calamidade_awakening.api.Quality, boolean, int); ;; (Lcyou/rimuru/rimulib/mc1211/client/api/FxApi$Frame;Ldev/calamidade_awakening/api/v1/client/AddonLayers$Time;Lnet/minecraft/world/phys/Vec3;DDJLdev/calamidade_awakening/api/Quality;ZI)V
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Post(cyou.rimuru.rimulib.mc1211.client.api.FxApi$Frame, dev.calamidade_awakening.api.v1.client.AddonLayers$Time, net.minecraft.world.phys.Vec3, double, double, double, long, dev.calamidade_awakening.api.Quality, boolean, int); ;; (Lcyou/rimuru/rimulib/mc1211/client/api/FxApi$Frame;Ldev/calamidade_awakening/api/v1/client/AddonLayers$Time;Lnet/minecraft/world/phys/Vec3;DDDJLdev/calamidade_awakening/api/Quality;ZI)V
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Post(cyou.rimuru.rimulib.mc1211.client.api.FxApi$Frame, dev.calamidade_awakening.api.v1.client.AddonLayers$Time, net.minecraft.world.phys.Vec3, double, double, double, long, dev.calamidade_awakening.api.Quality, boolean, int, float, float); ;; (Lcyou/rimuru/rimulib/mc1211/client/api/FxApi$Frame;Ldev/calamidade_awakening/api/v1/client/AddonLayers$Time;Lnet/minecraft/world/phys/Vec3;DDDJLdev/calamidade_awakening/api/Quality;ZIFF)V
+M public float yaw(); ;; ()F
+M public float pitch(); ;; ()F
+M public net.minecraft.world.phys.Vec3 facing(double, double, double); ;; (DDD)Lnet/minecraft/world/phys/Vec3;
+M public boolean pass(java.lang.String, java.util.function.Consumer<cyou.rimuru.rimulib.mc1211.client.render.Uniforms>); ;; (Ljava/lang/String;Ljava/util/function/Consumer;)Z
+M public void uploadTracks(cyou.rimuru.rimulib.mc1211.client.render.Uniforms, java.lang.String); ;; (Lcyou/rimuru/rimulib/mc1211/client/render/Uniforms;Ljava/lang/String;)V
+M public int passesLeft(); ;; ()I
+M public int used(); ;; ()I
+M public void bloom(float); ;; (F)V
+M public void shake(float); ;; (F)V
+M public void desaturate(float); ;; (F)V
+M public void contrast(float); ;; (F)V
+M public void flash(int, float); ;; (IF)V
+M public void aberration(float); ;; (F)V
+M public void zoomBlur(float); ;; (F)V
+M public void vignette(int, float); ;; (IF)V
+M public void afterimage(float); ;; (F)V
+M public void grain(float); ;; (F)V
+M public float partial(); ;; ()F
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Time time(); ;; ()Ldev/calamidade_awakening/api/v1/client/AddonLayers$Time;
+M public dev.calamidade_awakening.api.v1.Timeline$Sampler timeline(); ;; ()Ldev/calamidade_awakening/api/v1/Timeline$Sampler;
+M public net.minecraft.world.phys.Vec3 center(); ;; ()Lnet/minecraft/world/phys/Vec3;
+M public double distance(); ;; ()D
+M public double age(); ;; ()D
+M public double realAge(); ;; ()D
+M public long instance(); ;; ()J
+M public dev.calamidade_awakening.api.Quality quality(); ;; ()Ldev/calamidade_awakening/api/Quality;
+M public boolean flashAllowed(); ;; ()Z
+M public float screenEffects(); ;; ()F
+M public boolean motionEffects(); ;; ()Z
+C dev.calamidade_awakening.api.v1.client.AddonLayers$Start :: public final class dev.calamidade_awakening.api.v1.client.AddonLayers$Start extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Start(net.minecraft.client.multiplayer.ClientLevel, net.minecraft.world.phys.Vec3, long, float, boolean, long); ;; (Lnet/minecraft/client/multiplayer/ClientLevel;Lnet/minecraft/world/phys/Vec3;JFZJ)V
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public net.minecraft.client.multiplayer.ClientLevel level(); ;; ()Lnet/minecraft/client/multiplayer/ClientLevel;
+M public net.minecraft.world.phys.Vec3 center(); ;; ()Lnet/minecraft/world/phys/Vec3;
+M public long age(); ;; ()J
+M public float seed(); ;; ()F
+M public boolean caster(); ;; ()Z
+M public long instance(); ;; ()J
+C dev.calamidade_awakening.api.v1.client.AddonLayers$Time :: public final class dev.calamidade_awakening.api.v1.client.AddonLayers$Time extends java.lang.Record
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Time(float, float, float, double); ;; (FFFD)V
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Time(float, float, float, double, dev.calamidade_awakening.api.v1.Timeline$Sampler); ;; (FFFDLdev/calamidade_awakening/api/v1/Timeline$Sampler;)V
+M public final java.lang.String toString(); ;; ()Ljava/lang/String;
+M public final int hashCode(); ;; ()I
+M public final boolean equals(java.lang.Object); ;; (Ljava/lang/Object;)Z
+M public float progress(); ;; ()F
+M public float opacity(); ;; ()F
+M public float seed(); ;; ()F
+M public double radius(); ;; ()D
+M public dev.calamidade_awakening.api.v1.Timeline$Sampler timeline(); ;; ()Ldev/calamidade_awakening/api/v1/Timeline$Sampler;
+C dev.calamidade_awakening.api.v1.client.AddonLayers$World :: public final class dev.calamidade_awakening.api.v1.client.AddonLayers$World
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$World(dev.calamidade_awakening.client.geometry.Mesh, net.minecraft.world.phys.Vec3, dev.calamidade_awakening.api.v1.client.AddonLayers$Time); ;; (Ldev/calamidade_awakening/client/geometry/Mesh;Lnet/minecraft/world/phys/Vec3;Ldev/calamidade_awakening/api/v1/client/AddonLayers$Time;)V
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$World(dev.calamidade_awakening.client.geometry.Mesh, net.minecraft.world.phys.Vec3, dev.calamidade_awakening.api.v1.client.AddonLayers$Time, float, float); ;; (Ldev/calamidade_awakening/client/geometry/Mesh;Lnet/minecraft/world/phys/Vec3;Ldev/calamidade_awakening/api/v1/client/AddonLayers$Time;FF)V
+M public float yaw(); ;; ()F
+M public float pitch(); ;; ()F
+M public net.minecraft.world.phys.Vec3 facing(double, double, double); ;; (DDD)Lnet/minecraft/world/phys/Vec3;
+M public dev.calamidade_awakening.api.v1.client.AddonLayers$Time time(); ;; ()Ldev/calamidade_awakening/api/v1/client/AddonLayers$Time;
+M public dev.calamidade_awakening.api.v1.Timeline$Sampler timeline(); ;; ()Ldev/calamidade_awakening/api/v1/Timeline$Sampler;
+M public int remainingVertices(); ;; ()I
+M public void triangle(net.minecraft.world.phys.Vec3, net.minecraft.world.phys.Vec3, net.minecraft.world.phys.Vec3, int); ;; (Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/phys/Vec3;I)V
+M public void ribbon(net.minecraft.world.phys.Vec3, net.minecraft.world.phys.Vec3, net.minecraft.world.phys.Vec3, double, int); ;; (Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/phys/Vec3;DI)V
+C dev.calamidade_awakening.api.v1.client.AddonLayers :: public final class dev.calamidade_awakening.api.v1.client.AddonLayers
+M public static void world(net.minecraft.resources.ResourceLocation, java.util.function.Consumer<dev.calamidade_awakening.api.v1.client.AddonLayers$World>); ;; (Lnet/minecraft/resources/ResourceLocation;Ljava/util/function/Consumer;)V
+M public static void hud(net.minecraft.resources.ResourceLocation, java.util.function.Consumer<dev.calamidade_awakening.api.v1.client.AddonLayers$Hud>); ;; (Lnet/minecraft/resources/ResourceLocation;Ljava/util/function/Consumer;)V
+M public static void panel(net.minecraft.resources.ResourceLocation, java.util.function.Consumer<dev.calamidade_awakening.api.v1.client.AddonLayers$Panel>); ;; (Lnet/minecraft/resources/ResourceLocation;Ljava/util/function/Consumer;)V
+M public static void post(net.minecraft.resources.ResourceLocation, java.util.function.Consumer<dev.calamidade_awakening.api.v1.client.AddonLayers$Post>); ;; (Lnet/minecraft/resources/ResourceLocation;Ljava/util/function/Consumer;)V
+M public static void film(net.minecraft.resources.ResourceLocation, java.util.function.Function<dev.calamidade_awakening.api.v1.client.AddonLayers$Film, java.util.List<cyou.rimuru.rimulib.mc1211.client.cinematic.Shot>>); ;; (Lnet/minecraft/resources/ResourceLocation;Ljava/util/function/Function;)V
+M public static void start(net.minecraft.resources.ResourceLocation, java.util.function.Consumer<dev.calamidade_awakening.api.v1.client.AddonLayers$Start>); ;; (Lnet/minecraft/resources/ResourceLocation;Ljava/util/function/Consumer;)V
+M public static java.util.function.Consumer<dev.calamidade_awakening.api.v1.client.AddonLayers$World> world(java.lang.String); ;; (Ljava/lang/String;)Ljava/util/function/Consumer;
+M public static java.util.function.Consumer<dev.calamidade_awakening.api.v1.client.AddonLayers$Hud> hud(java.lang.String); ;; (Ljava/lang/String;)Ljava/util/function/Consumer;
+M public static java.util.function.Consumer<dev.calamidade_awakening.api.v1.client.AddonLayers$Panel> panel(java.lang.String); ;; (Ljava/lang/String;)Ljava/util/function/Consumer;
+M public static java.util.function.Consumer<dev.calamidade_awakening.api.v1.client.AddonLayers$Post> post(java.lang.String); ;; (Ljava/lang/String;)Ljava/util/function/Consumer;
+M public static java.util.function.Function<dev.calamidade_awakening.api.v1.client.AddonLayers$Film, java.util.List<cyou.rimuru.rimulib.mc1211.client.cinematic.Shot>> film(java.lang.String); ;; (Ljava/lang/String;)Ljava/util/function/Function;
+M public static java.util.function.Consumer<dev.calamidade_awakening.api.v1.client.AddonLayers$Start> start(java.lang.String); ;; (Ljava/lang/String;)Ljava/util/function/Consumer;
+C dev.calamidade_awakening.api.v1.client.ProfileSkyEffects :: public class dev.calamidade_awakening.api.v1.client.ProfileSkyEffects extends net.minecraft.client.renderer.DimensionSpecialEffects
+M public dev.calamidade_awakening.api.v1.client.ProfileSkyEffects(net.minecraft.client.renderer.DimensionSpecialEffects); ;; (Lnet/minecraft/client/renderer/DimensionSpecialEffects;)V
+M public net.minecraft.client.renderer.DimensionSpecialEffects base(); ;; ()Lnet/minecraft/client/renderer/DimensionSpecialEffects;
+M public boolean replacing(net.minecraft.client.multiplayer.ClientLevel); ;; (Lnet/minecraft/client/multiplayer/ClientLevel;)Z
+M public static void engine(java.util.function.Predicate<net.minecraft.client.multiplayer.ClientLevel>); ;; (Ljava/util/function/Predicate;)V
+M public boolean renderSky(net.minecraft.client.multiplayer.ClientLevel, int, float, org.joml.Matrix4f, net.minecraft.client.Camera, org.joml.Matrix4f, boolean, java.lang.Runnable); ;; (Lnet/minecraft/client/multiplayer/ClientLevel;IFLorg/joml/Matrix4f;Lnet/minecraft/client/Camera;Lorg/joml/Matrix4f;ZLjava/lang/Runnable;)Z
+M public net.minecraft.world.phys.Vec3 getBrightnessDependentFogColor(net.minecraft.world.phys.Vec3, float); ;; (Lnet/minecraft/world/phys/Vec3;F)Lnet/minecraft/world/phys/Vec3;
+M public boolean isFoggyAt(int, int); ;; (II)Z
+M public float[] getSunriseColor(float, float); ;; (FF)[F
+M public boolean renderClouds(net.minecraft.client.multiplayer.ClientLevel, int, float, com.mojang.blaze3d.vertex.PoseStack, double, double, double, org.joml.Matrix4f, org.joml.Matrix4f); ;; (Lnet/minecraft/client/multiplayer/ClientLevel;IFLcom/mojang/blaze3d/vertex/PoseStack;DDDLorg/joml/Matrix4f;Lorg/joml/Matrix4f;)Z
+M public boolean renderSnowAndRain(net.minecraft.client.multiplayer.ClientLevel, int, float, net.minecraft.client.renderer.LightTexture, double, double, double); ;; (Lnet/minecraft/client/multiplayer/ClientLevel;IFLnet/minecraft/client/renderer/LightTexture;DDD)Z
+M public boolean tickRain(net.minecraft.client.multiplayer.ClientLevel, int, net.minecraft.client.Camera); ;; (Lnet/minecraft/client/multiplayer/ClientLevel;ILnet/minecraft/client/Camera;)Z
+M public void adjustLightmapColors(net.minecraft.client.multiplayer.ClientLevel, float, float, float, float, int, int, org.joml.Vector3f); ;; (Lnet/minecraft/client/multiplayer/ClientLevel;FFFFIILorg/joml/Vector3f;)V

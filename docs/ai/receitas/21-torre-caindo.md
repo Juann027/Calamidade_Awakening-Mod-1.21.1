@@ -9,6 +9,8 @@
 | Usa | `TerrainEdit.structure`, `structureOffset`, `StandIn.structure()`, cratera com `clearance` |
 | Custo | servidor: ~700 blocos planejados num tick; cliente: 1 malha (vértices no F7), aura e rastro no passe `terrain`, 1 zona quente, 2 luzes |
 
+> **Caso de uso.** A torre é uma construção que deve **ficar** no mundo. Destroços, poeira ou fogo que só precisam aparecer durante a cena não são estruturas: use o dublê, a poeira do motor, feixes, luz ou camadas do addon. Quando usar cada peça: [Escolher a operação](../../TERRENO-0.11.md#escolher-a-operação).
+
 ## Estruturas
 
 | Regra | Detalhe |

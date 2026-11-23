@@ -1,5 +1,194 @@
 # Validação, medições e limites
 
+## Candidata ao release 0.14.0 (23/11/2026, não publicada)
+
+Metadados de release: `CalamidadeAwakening.BUILD = "release"` e descrição do `neoforge.mods.toml` sem o aviso de desenvolvimento (o workflow recusa "DEVELOPMENT BUILD"); notas em `.github/release-notes/v0.14.0.md`. Só o texto do log, da lista de mods e do F7 muda: refeitos `./gradlew build dist` e o build do vfx-sample; os testes em jogo da integração abaixo valem sem repetição.
+
+**Correção documental:** a fase 4 registrou `testeImagens` 27/27; o roteiro (`RoteiroImagens.java`, igual nas duas branches) tem 25 verificações, e a integração deu 25/25. O "27/27" foi erro de transcrição (o relatório original não foi guardado); as linhas históricas abaixo e no MANUAL-GERAL foram anotadas.
+
+**Não testado** (nenhuma compatibilidade afirmada): GPU física, dois jogadores reais num servidor dedicado, shaderpacks (Iris/Oculus), renderizadores alternativos (Sodium/Embeddium), mod real com GeckoLib.
+
+## Integração 0.13 + 0.14, branch `claude/integracao-0.13-0.14-u8nraa` (23/11/2026)
+
+Merge comum de `origin/main` (`0fa6bc0`, 0.13.0 publicada) sobre `claude/ceu-personalizado` (`ab2a97d`, 0.14 fases 0–4). Motor **0.14.0** no build (não publicada; JAR de desenvolvimento), vfx-sample **1.11.0** (`[0.14.0,0.15.0)`). Nenhum canal de rede novo: os da 0.13.0, com `boss_v1`. Nova base de compatibilidade `scripts/api-base/api-v1-0.13.0.txt`, gerada do JAR do release v0.13.0 (SHA-256 conferido com o `SHA256SUMS.txt` do release).
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew build dist` | verde: `checkApiCompat` contra 0.12.0 e 0.13.0, `checkApiDocs`, `checkBudget`, `checkFrustum`, `checkModVersion`, `checkRecipes`; `checkShaders` só avisou (sem glslang nesta máquina) |
+| `./gradlew -p examples/vfx-sample build` | verde (`vfx-sample-1.11.0.jar`) |
+| `./gradlew compileTesteJogoJava` | verde |
+
+### Validação funcional da integração (executada nesta etapa, 23/11/2026, sobre `14e418f`)
+
+Cliente sob Xvfb (Mesa llvmpipe, por software), vfx-sample 1.11.0; um teste por vez, nenhum em paralelo.
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew testeJogo` (servidor dedicado, duas fases) | 82/82 |
+| `xvfb-run -a ./gradlew testeChefe` | 15/15 |
+| `xvfb-run -a ./gradlew testeBackdrop` | 34/34 |
+| `xvfb-run -a ./gradlew testeEstrelas` | 20/20 |
+| `xvfb-run -a ./gradlew testeImagens` | 25/25 |
+| `xvfb-run -a ./gradlew testeCeu` | 20/20 |
+| `./gradlew checkShaders` (glslangValidator 11:15.1.0, instalado nesta etapa) | 21 shaders compilados, sem erro |
+
+Nenhuma falha; nenhuma correção foi necessária.
+
+**Reaproveitados das branches de origem (não executados nesta etapa; o merge não mexeu em shaders, passes, escritor de terreno, perfis de qualidade nem Atlas):** `checkCeuReferencia`, `node scripts/testar_glsl.cjs`, `node scripts/previa_passes.cjs`, `testeCliente`, `testeMedicao`, `testeAtlas`.
+
+**Pendentes:** GPU física, Iris/Oculus e Sodium/Embeddium, dois jogadores reais num servidor dedicado (herdados da 0.12, 0.13 e 0.14).
+
+## 0.14 (Custom Sky) — fase 4: imagens, flipbooks e impostors, branch `claude/ceu-personalizado` (23/11/2026)
+
+**O motor mudou (só aditivo):**
+- API `SkyImage`, `SkyImpostor`, `Effects.images`, `Effects.impostors` e `SkyProfile.StateBuilder.images/impostors`.
+- Puro: `SkySpriteMath`.
+- Cliente: `SkyTextures` (substitui o `BackdropTextures`), `SkySprites` e `SkyObjectsFrame`.
+- Shaders: o de núcleo `sky_sprite`; `sky_objects.glsl` recebe parâmetros; `sky.fsh` compõe a camada de frente (`CaElFront`, só com `FRONT`).
+- Ferramenta: `scripts/gerar_impostor.cjs`.
+
+A versão do build continua 0.12.0. O JAR deste branch é de desenvolvimento (SHA-256 `4039d674…`, contra `a934968a…` do release, intocado junto com a tag `v0.12.0` e a `main`). Arquitetura, ajustes em relação ao plano e guia para addons: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-4-imagens-flipbooks-e-impostors-implementada).
+
+**Executado nesta sessão** (pela regra de [AGENTS.md](../AGENTS.md#quando-rodar-cada-teste-regra-permanente-desde-a-fase-3-da-014)):
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `SkySpriteCheck` novo no `checkBudget`, com casos negativos; `checkShaders` com glslangValidator: 21 shaders; `checkApiDocs` |
+| `./gradlew checkApiCompat` | verde | base 0.12.0 inteira presente e compatível (só adições) |
+| `node scripts/referencia_ceu.cjs` | 47/47 | as 38 cenas anteriores com diferença **zero** (média 0, pior 0) depois da refatoração de `sky_objects.glsl` e do `sky.fsh`; 9 cenas novas de imagens gravadas numa rodada e reproduzidas iguais na seguinte |
+| `node scripts/fundo_composicao.cjs` | 9/9 | igual à fase 2 |
+| `node scripts/objetos_composicao.cjs` | 43/43 | os 24 da fase 3 e 19 novos (I1 a I8), cada um com controle negativo que falha como esperado |
+| `xvfb-run ./gradlew testeImagens` (novo) | 27/27 registrado; correto: 25/25 | numa só inicialização; ver abaixo e a nota de correção |
+| `xvfb-run ./gradlew testeEstrelas` | 20/20 | regressão: `SkyObjectsFrame` mudou |
+| `xvfb-run ./gradlew testeBackdrop` | 34/34 | regressão: o cache de texturas do fundo mudou |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão: `FRONT` entra no passe `sky` |
+| `./gradlew dist` e `./gradlew -p examples/vfx-sample build` | verde | |
+| `gerar_impostor.cjs` e `gerar_sprites_teste.py` | ok | montar, validar e exemplo; mensagens para vista faltando, yaw fora do passo, LOD errado, id inválido e PNG corrompido; recursos de teste byte a byte iguais em duas execuções |
+
+**Falhas encontradas e corrigidas na fase** (nenhum teste foi alterado para passar):
+
+1. Na prévia, uma folha de quadros desenhada pequena misturava o quadro vizinho mesmo com 2 px de margem: a margem só protege os primeiros níveis de mipmap.
+   - Correção: mipmaps por quadro feitos na CPU e amostragem presa ao nível lido.
+   - Prova: caso I6; o controle negativo com mipmaps do driver vaza 49/255.
+2. A primeira rodada do `testeImagens` mostrou a imagem com a textura do cubemap. `ShaderInstance.setDefaultUniforms` grava `Sampler0..11` com `RenderSystem.getShaderTexture(i)` (javap `-c`), e o motor definia o amostrador antes dela.
+   - Correção: amostradores definidos depois de `setDefaultUniforms`.
+   - Prova: a rodada seguinte, completa, passou sem falhas (25 verificações; veja a nota de correção do "27/27").
+3. Uma primeira tentativa de interromper essa rodada não parou o processo. A rodada antiga e a nova dividiram `run/teste-imagens`, e o relatório misturado foi descartado. A rodada válida é a completa, sozinha (o relatório desta rodada não foi guardado; o roteiro `RoteiroImagens` tem 25 verificações, idêntico na integração, que deu 25/25: o "27" é erro de transcrição, não duas verificações a mais). Isso é infraestrutura, não um defeito do motor.
+
+**`testeImagens` (llvmpipe, 1280 × 720):**
+- Sem addon: nada; nenhuma textura de sprite e nenhuma camada de frente alocada.
+- Disco NORMAL com a cor exata (240,48,160) sobre o cubemap; a parte transparente do PNG não toca o fundo (pior 0).
+- Silhueta COVER: 502 pixels com a cor, 9 498 com o fundo, 0 na borda.
+- Flipbooks por cor sentinela: LOOP `[2, 3, 0, 1, 2, 3]`, ONCE `[3, 3, 3]`, PING_PONG `[2, 1, 0, 1, 2, 3, 2, 1]`, TRACK `[2, 2]`.
+- `flashing(true)` congela no quadro seguro com "ocultar clarões" (variação 255 → 0). A folha que pisca sem marca é pega pela rede de segurança. Um flipbook normal continua animando.
+- Impostor: a vista certa com a cor exata para as orientações 0, 90 e 180°. LOD: nível 0 grande, nível 1 pequeno.
+- `FRONT`: a imagem fica na frente de um portal do motor com a cor exata. `BEHIND`: fica atrás dele.
+- Recursos inválidos: PNG ausente, PNG corrompido, grade que não divide a imagem, descritor inválido, página ausente e descritor ausente. São 7 problemas contados uma vez cada, estáveis, e a imagem válida continua.
+- Lote: **1,00 chamada de desenho por quadro** para duas imagens da mesma textura.
+- Cegueira e `customSkies` desligam as imagens.
+- Recarga: as texturas são liberadas e enviadas de novo.
+- Memória contada (63 KiB de 256 MiB em HIGH).
+- Céu do Overworld igual antes e depois (diferença 0). Capturas: [jogo](ceu-previas/imagens-fase4-jogo.jpg) e [prévia](ceu-previas/imagens-fase4-previa.jpg).
+
+**Custo (software, llvmpipe, só tendência; GPU física pendente).** Mediana / p95 do tempo de quadro no `testeImagens`, com a câmera a 30° acima do horizonte à noite:
+
+| Cenário | Mediana / p95 |
+|---|---:|
+| Sem objetos | 17,8 / 23,9 ms |
+| 1 imagem | 17,1 / 22,4 ms |
+| 8 imagens de 3 texturas | 19,2 / 24,6 ms |
+| Flipbook | 16,7 / 21,1 ms |
+| Impostor | 20,2 / 26,4 ms |
+| Portal com imagem `BEHIND` | 51,1 / 58,2 ms |
+| Portal com imagem `FRONT` | 54,2 / 60,3 ms |
+
+Leitura:
+- As imagens custam perto do ruído entre rodadas (1 a 4 ms).
+- O portal domina por software.
+- A camada de frente custa perto de 3 ms sobre o passe que já existia.
+
+Os números do `testeEstrelas` desta rodada (por exemplo, atmosfera 44,9 ms) foram medidos com a prévia WebGL rodando ao mesmo tempo na mesma CPU e não são comparáveis com os da fase 3. Nenhum ganho ou limite é afirmado para GPU física. Os limites de envio (1 / 1 / 2 / 2 por quadro, 4 / 8 / 16 / 32 MiB) e de memória (64 / 128 / 256 / 512 MiB) continuam como pontos de partida conservadores. As texturas de teste são pequenas, então o custo de enviar texturas grandes não foi medido: fica pendente.
+
+**Reaproveitado, não executado de novo:**
+- `checkObjetosComposicao` 43/43 rodou uma vez nesta fase, no estado atual dos shaders e dos scripts da prévia; nada que ele exercita mudou depois.
+- A fase 3 inteira continua registrada abaixo.
+
+**Não rodado, com justificativa:** `testeJogo`. A fase não mexe em servidor, rede, terreno nem estado de servidor. A única execução nesta sessão foi no começo, com o código da fase 3 (`90d4097`), só para criar o mundo que os testes de cliente copiam (o container era novo). Deu 60/61; a falha foi o limite de 50 ms do desfazer da cratera grande (52,4 ms), a falha intermitente já registrada desde a 0.12.0.
+
+**Não testado:** GPU física, Iris/Oculus e shaderpacks, Sodium/Embeddium, outros mods que desenham em `AFTER_SKY`, multiplayer com dois jogadores, texturas de 4 096 px reais (só o cálculo da redução está nos testes puros) e envio de texturas grandes. Nenhuma compatibilidade é afirmada.
+
+## 0.14 (Custom Sky) — fase 3: estrelas, constelações e nebulosas, branch `claude/ceu-personalizado` (23/11/2026)
+
+**O motor mudou (só aditivo):** API `StarField`, `Nebula`, `SkyBlend`, `SkyDarkening`, `Effects.stars`, `Effects.nebulae`, `SkyProfile.StateBuilder.stars/nebulae`; puro `SkyObjectsMath`; cliente `SkyObjectsFrame`; shaders de núcleo `sky_stars`, `sky_nebula` e `include/sky_objects.glsl`; passes `sky` e `atmosphere` com a camada de cobertura (`CaElTex`, só com objetos). A versão do build continua 0.12.0 até o release da 0.14; o JAR deste branch **não** é o do release (SHA-256 `42e73c98…` contra `a934968a…` do release, intocado com a tag `v0.12.0` e a `main`) e agora se identifica como build de desenvolvimento no log, na descrição da lista de mods e no F7. Arquitetura, decisão de composição e limitações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-3-estrelas-constelações-e-nebulosas).
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `SkyObjectsCheck` novo no `checkBudget`; `checkShaders` com glslangValidator: 19 shaders, agora incluindo os de núcleo (`#moj_import` resolvido como o NeoForge) |
+| `./gradlew checkApiCompat` | verde | 89 classes e 1038 membros da base 0.12.0 presentes e compatíveis |
+| `./gradlew checkCeuReferencia` | 38/38 | as 26 cenas anteriores (15 da 0.12.0, 11 com fundos) com diferença **zero**; 12 cenas novas de objetos do céu |
+| `./gradlew checkFundoComposicao` | 9/9 | igual à fase 2 |
+| `./gradlew checkObjetosComposicao` (novo) | 24/24 | shaders de núcleo reais em WebGL2 + passes reais; números e controles negativos em CEU-PERSONALIZADO.md |
+| `xvfb-run ./gradlew testeEstrelas` (novo) | 20/20 | duas rodadas completas; a primeira deu 19/20 por uma sonda errada do teste (olhava só a face sul do cubemap), corrigida sem mudança no motor |
+| `xvfb-run ./gradlew testeBackdrop` | 34/34 | regressão da fase 2 |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão do céu procedural da 0.12.0 |
+| `./gradlew testeJogo` | 61/61 | |
+| `./gradlew -p examples/vfx-sample build` | verde | |
+
+**`testeEstrelas` (llvmpipe, 1280 × 720):** sem addon nenhum objeto, nenhuma malha, nenhum desenho e nenhuma camada de cobertura alocada; estrela `NORMAL` vermelha com cor exata (255,32,16) sobre o cubemap e o fundo intacto ao lado; catálogo com constelação numa malha; campo `LUMINOUS` à noite sem nenhum pixel mais escuro que o fundo (738 pixels acesos) e sumindo de dia (0 pixels); nebulosa `NORMAL` a 0,5 com mistura por alfa coerente (pior 1,0/255 em 7 563 pixels, alfa máximo 0,38) e sem tocar a skybox fora dela; nebulosa `COVER` só na silhueta; Atmosphere sobre a nebulosa medida (55,30,86) = esperada; camada de cobertura desenhada só nos quadros com passe; estrelas `REVEAL` no eclipse global do exemplo, de dia (0 pontos antes, 732 na totalidade); nada com cegueira; `customSkies`; tetos por perfil 4 000 / 16 000 / 40 000 / 60 000 (o campo tem 60 000; ULTRA aceita 131 072); **1,00 chamada de desenho por quadro** para um campo de 40 000 estrelas; recarga de recursos libera e remonta as malhas; céu do Overworld igual antes e depois (diferença zero). Capturas: [jogo](ceu-previas/estrelas-fase3-jogo.jpg) e [prévia](ceu-previas/estrelas-fase3-previa.jpg).
+
+**Custo (software, llvmpipe, só tendência; GPU física pendente):** mediana / p95 do tempo de quadro, segunda rodada (a primeira entre parênteses): sem objetos 7,4 / 9,6 ms (8,6); 6 000 estrelas 8,7 / 10,7 (10,3); 40 000 estrelas (HIGH) 11,8 / 14,4 (15,7); nuvem 12,3 / 15,3 (12,4); faixa (esfera inteira, ruído de 5 oitavas) 18,0 / 22,4 (17,4); atmosfera sozinha 30,0 / 36,3; 6 000 estrelas + atmosfera, com a camada de cobertura, 30,8 / 35,9. Leitura: a camada de cobertura com 6 000 estrelas custa perto de 1 ms sobre o passe de atmosfera que já existia; a faixa é o objeto mais caro por software (cobre a tela inteira com ruído por pixel), seguida da nuvem; o custo das estrelas cresce com o número desenhado, que os perfis limitam. Os números variam ~1 a 4 ms entre rodadas; nenhum ganho ou limite é afirmado para GPU física.
+
+**Não testado:** GPU física, Iris/Oculus e shaderpacks, Sodium/Embeddium, outros mods que desenham em `AFTER_SKY`, multiplayer com dois jogadores. Nenhuma compatibilidade é afirmada.
+
+## 0.14 (Custom Sky) — fase 2: Backdrop, branch `claude/ceu-personalizado` (22/11/2026)
+
+**O motor mudou (só aditivo):** API `Backdrop`, `Effects.backdrop`, `SkyProfile.StateBuilder.backdrop`; cliente `BackdropFrame` e `BackdropTextures`; passes `sky` e `atmosphere` com os fundos; opção de cliente `customSkies`. A versão do build continua 0.12.0 até o release da 0.14, então `build/libs/calamidade_awakening-0.12.0.jar` deste branch **não** é mais igual ao anexo do release (SHA-256 `c1d90a41…` contra `a934968a…` do release, que não foi tocado, nem a tag `v0.12.0`, nem a `main`). Arquitetura e resultados: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-2-backdrop-implementado).
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `BackdropCheck` novo no `checkBudget`; `checkShaders` não verificou nada nesta máquina (glslangValidator ausente; os shaders compilam no WebGL da prévia) |
+| `./gradlew checkApiCompat` | verde | 89 classes e 1038 membros da base 0.12.0 presentes e compatíveis (94 classes no JAR) |
+| `./gradlew checkCeuReferencia` | 26/26 | as 15 cenas da 0.12.0 com diferença **zero** (sem fundo, o caminho dos passes é o da 0.12.0); 11 cenas novas com fundos |
+| `./gradlew checkFundoComposicao` (novo) | 9/9 | Atmosphere sobre fundo opaco, parcial e com buraco de alfa, com e sem passe `sky`: erro máximo 0,5 a 1,0/255 contra mix(tela, gradiente, blend); sol apagado sob fundo opaco 0,0/255 e sob fundo parcial 8/255 (o apagamento da 0.12.0 sem fundo, medido no mesmo teste, erra 16/255); eclipse 0,5/255. Controles negativos (o comportamento do protótipo da fase 1): 77,5/255 e 217/255, como deviam |
+| `xvfb-run ./gradlew testeBackdrop` | 34/34 | terceira rodada; as duas primeiras falharam por erros do teste (fotos antes da entrada de 168 ticks do envelope dos efeitos longos, sondas na face de cima, a névoa da barra do dragão no End, métrica do horizonte), sem mudança no motor para isso. Lista abaixo |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão do céu procedural em jogo (eclipse em três dimensões, respawn, relogin, dimensão de teste) |
+| `./gradlew testeJogo` | 61/61 | nesta rodada, a cratera grande deu pior tick de 33,6 ms (limite 50). **Isso não resolve a falha anterior** (88,2 e 51,0 ms, abaixo): a causa continua não isolada e o caso continua pendente |
+| `./gradlew -p examples/vfx-sample build` | verde | |
+
+**`testeBackdrop` (llvmpipe, 1280 × 720):** nada desenhado nem carregado sem addon; ordem `AFTER_SKY` → RimuLib → `AFTER_LEVEL`, framebuffer principal, profundidade 1 depois do fundo; as cinco faces visíveis do cubemap na direção documentada (cor exata); fundo estático sem passe `sky` nem `atmosphere`; giro de 90°; panorama com alfa 0,5; gradiente; sol e lua cobertos pelo fundo opaco e redesenhados com `vanillaSunMoon` (alfa 1,00); Atmosphere sobre o fundo (medido (37,32,92) = esperado); lente (81% dos pixels da grade deslocados); eclipse escurece o fundo e o sol redesenhado vai de 1,00 a 0,00 na totalidade; sem fundo com cegueira, escuridão, câmera em lava e em neve em pó, e na ilha central do End com a névoa da barra do dragão; horizonte: faixa 0/255 mais clara que o fundo com a névoa casada, 90/255 sem ela; terreno idêntico com e sem fundo (estado de renderização devolvido); `customSkies` desligado e ligado; textura reaproveitada entre fundos e instâncias; recarga de recursos libera as 4 texturas e recarrega só a que está em uso; transição de perfil no End com dois fundos desenhados e a tela na mistura de A e B (t = 0,55), sem o céu do jogo; céu do Overworld igual (diferença zero) antes e depois de tudo, com a hora parada. Capturas: [jogo](ceu-previas/backdrop-fase2-jogo.jpg) e [prévia](ceu-previas/backdrop-fase2-previa.jpg).
+
+**Custo (software, llvmpipe, só tendência; GPU física pendente):** mediana do tempo de quadro em três rodadas — sem fundo 20,4 / 17,8 / 19,2 ms; cubemap 20,7 / 19,2 / 22,1 ms; panorama (esfera 64 × 32) 22,0 / 20,9 / 20,9 ms. A diferença fica dentro do ruído entre rodadas (até ~3 ms); o rasterizador por software paga cada pixel do fundo. Nenhum passe de pós é ligado por um fundo estático; com camadas ou atmosfera, os passes que já rodam fazem duas consultas de textura a mais por pixel de céu.
+
+**Não testado:** GPU física, Iris/Oculus e shaderpacks, Sodium/Embeddium, outros mods que desenham em `AFTER_SKY`, multiplayer com dois jogadores. Nenhuma compatibilidade é afirmada.
+
+**Pendências mantidas:** a cratera grande do `testeJogo` (abaixo; não aprovada até isolar a causa), a pulsação no Overworld e o multiplayer manual da 0.12.0, e os números de custo das receitas 18 a 21, que divergem do volume planejado e precisam de medição em jogo (revisão documental, abaixo).
+
+## Revisão documental da Terrain API — escolha da operação e custo (22/11/2026)
+
+**Só documentação; nenhum código mudou.** `build/libs/calamidade_awakening-0.12.0.jar` continua com o SHA-256 do release v0.12.0 (`a934968a…`). Novas seções em [TERRENO-0.11.md](TERRENO-0.11.md): "Escolher a operação" (modos, tabela de decisão, cinco exemplos comparáveis, papel das receitas 18 a 21) e "Custo de uma destruição"; regra 11 no `AGENTS.md`; skill `calamidade-efeitos`; notas nas receitas 18 a 21 (só texto, código intacto).
+
+- **Conferido no código:** sem `burn`, o planejador marca como `SEAL` só os blocos que tocam o espaço cavado por uma face (com `burn`, toda a casca até a espessura); o commit veda fluidos e queima não sólidos em `SEAL`, sem trocar sólidos; `fill` é escrito por cima de tudo, inclusive do ar; o calor do cliente usa espessura mínima 1 (`terrain.fsh`), então aparece sem `burn`; o orçamento `terrainBlocksPerTick` conta entradas percorridas (mudem ou não), é global e atende as tarefas **em ordem de chegada**, descontando a cota inteira de cada uma (o texto antigo dizia "dividido entre as edições" e foi corrigido no capítulo, no `AGENTS.md` e na receita 20); as verificações de proteção rodam num tick só, fora do orçamento; no marcador, um plano ainda não pronto é esperado (`join`) na thread do servidor.
+- **Contagens com o planejador puro** (`TerrainPlanner.plan` nas classes do build, mundo plano hipotético: sólido abaixo da origem): os números da tabela do capítulo. A mesma conta dá 73 508 planejados e 36 754 escritos para a esfera r24 com casca de 2, iguais aos registrados em jogo na 0.11.1. Os exemplos novos do capítulo foram construídos e validados (`validate`) contra essas classes.
+- **Divergência anotada, não corrigida:** as linhas "Custo" das receitas 18 a 21 ("~1 700", "~1 900", "~1 300", "~700 blocos planejados") ficam abaixo do volume planejado que o planejador dá para as mesmas formas (2 112..2 216, 3 493..3 616, 2 359..2 481 e 2 705..2 776 sem a estrutura, em 40 origens, yaws e seeds). Podem ter sido medidas como blocos escritos num mundo específico; precisam de uma medição em jogo antes de mudar o texto.
+- **Cratera grande do `testeJogo` (não resolvido, continua não aprovado; registro da rodada abaixo mantido):** a edição do teste é `sphere(24)` com `burn(…, 2)` e `noHeat()`, **sem preenchimento**; o marcador é o tick 5. Hipóteses, nenhuma comprovada: (a) o pior tick é o das verificações de proteção (fora do orçamento; 19 a 22 ms na 0.11.1 para essas 73 508 posições) somado a algo da máquina; (b) com a máquina carregada, o plano não ficou pronto até o tick 5 e espera do plano, verificações e primeiro lote de 16 384 entradas caíram no mesmo tick; (c) variação de JIT, coletor de lixo ou CPU compartilhada. O relatório atual não diz qual tick foi o pior; um próximo passo seria registrar o tempo por tick e por fase no `Medidor`. O limite de 50 ms não foi mudado.
+- **Verificações desta revisão:** `./gradlew build` verde (`checkBudget` com `TerrainCheck`, `checkRecipes`, `checkApiDocs`, `checkApiCompat`, `checkModVersion`; `checkShaders` sem glslangValidator nesta máquina, só aviso); `python3 scripts/gerar_manual.py`; links e âncoras dos arquivos alterados conferidos por script; `git diff` só com arquivos de documentação. Não rodados, porque nenhum código executável mudou: `testeJogo`, `testeCliente`, `testeCeu`, `testeBackdrop`, `checkCeuReferencia` e o build do vfx-sample.
+
+## 0.14 (Custom Sky) — fases 0 e 1, branch `claude/ceu-personalizado` (22/11/2026)
+
+**Nenhum código do motor mudou:** `build/libs/calamidade_awakening-0.12.0.jar` continua byte a byte igual ao anexo do release v0.12.0 (`a934968a…`). Esta rodada criou guardas de regressão e um experimento só no mod de teste. Arquitetura e resultados: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `checkShaders` não verificou nada nesta máquina (glslangValidator ausente; só aviso, como previsto fora do CI) |
+| `./gradlew checkApiCompat` (novo, no `check`) | verde | autoteste 7/7; 89 classes e 1038 membros da base 0.12.0 |
+| `./gradlew checkCeuReferencia` (novo) | 15/15 | duas gerações seguidas com diferença zero; escurecer a fenda em 20% é acusado nas duas cenas que a mostram |
+| `xvfb-run ./gradlew testeBackdrop` (novo) | 13/13 | três rodadas; a primeira deu 12/13 por uma hipótese minha de ordem dos passes, corrigida pelo `javap -c` |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão do céu em jogo |
+| `./gradlew testeJogo` | **60/61, duas rodadas** | falhou só o limite de tempo "cratera grande com a casca externa": pior tick 88,2 ms e depois 51,0 ms, contra o teto de 50 ms (o release teve 61/61 em outra máquina). O motor é o mesmo JAR; o mais provável é a máquina (4 núcleos compartilhados), mas a causa não foi isolada e o caso **não está aprovado** nesta rodada |
+| `./gradlew -p examples/vfx-sample build` | verde | |
+
+Pendências da 0.12.0 (multiplayer com dois jogadores, pulsação no Overworld) continuam abertas, como na seção abaixo.
+
 ## Versão 0.13.0 — Bosses (publicada: release v0.13.0)
 
 **Publicada** (workflow Release `45229440917`, tag `v0.13.0` no commit `2c90f60`). Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
@@ -213,6 +402,20 @@ JAR oficial sai do commit de release (passo 3).
 - **Conferido de novo numa sessão separada (22/11/2026):** os três anexos baixados do release passam no `sha256sum -c SHA256SUMS.txt`; build limpo do commit da tag (`git worktree` nova, sem `build/` nem `libs/`, RimuLib baixada e conferida pela task, `--no-build-cache`): `./gradlew dist` e `./gradlew -p examples/vfx-sample build` deram os mesmos SHA-256 dos anexos (build reproduzível). Nessa mesma worktree, o consumidor compilou baixando o motor de `github.com/…/releases/download/v0.12.0/` e a RimuLib do CurseForge, sem `-Pcalamidade.url`.
 
 SHA-256 de `dist/calamidade_awakening-0.12.0.jar`: `a934968a3d135fe0795abc806c548b556bb3dd9899b74a675e978a21e7c9e460`; de `vfx-sample-1.9.0.jar`: `fc8809d414a6eceb7543ff022e680cb189c19a98ea873475c64cef88e49771f9`
+
+### Testes manuais do autor (relatados em 22/11/2026)
+
+**Origem:** relato do autor na conversa de planejamento da Custom Sky Engine, depois do release. Os dados abaixo foram copiados do relato; o CSV, a GPU, a resolução, o perfil de qualidade, a cena e a carga **não foram registrados** aqui.
+
+- Nos testes manuais feitos pelo autor, as funcionalidades avaliadas da 0.12.0 tiveram bom comportamento geral (a lista exata dos casos de TESTE-REAL.md, parte 10, executados não foi registrada).
+- Uma gravação de tempos de quadro (`/calamidade_client record`): cerca de **2 553 quadros, mediana 11,41 ms, p95 18,96 ms**.
+- **Limites desses números:** são o tempo de quadro inteiro durante a gravação, não o custo da Sky API. Sem as condições exatas e sem uma medição de referência (o mesmo cenário sem o efeito), não servem para comparação com outras medições nem para afirmar custo ou ganho.
+
+### Pendentes (adiados por decisão do autor; não aprovados)
+
+- **Multiplayer manual com dois jogadores** (TESTE-REAL.md, casos 99 e 100): não executado.
+- **Leve pulsação visual no Overworld**, observada pelo autor depois de usar `/vfxsample ceu ameaca` e `/vfxsample ceu calmo` (os comandos mudam o estado da dimensão de teste, não do Overworld). O código do cliente filtra o perfil pela dimensão do nível (`SkyProfilesClient`), mas a causa da observação **não foi identificada** e **não é um bug confirmado**. Hipóteses ainda não testadas, sem conclusão: troca de perfil pelo AUTO mudando o número de camadas pintadas; rampa de exposição do `SkyFrame` (estado único entre dimensões); comportamento do próprio jogo. Mudanças futuras em SkyProfiles, Atmosphere ou estado de renderização entre dimensões devem trazer testes de regressão específicos (ver o plano da 0.14 no ROADMAP).
+- GPU física (custo dos casos 93 a 98) e Iris/Oculus (caso 102), como antes.
 
 ### Custo do passe de céu (software)
 

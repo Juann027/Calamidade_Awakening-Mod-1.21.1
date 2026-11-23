@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "textures": [
+    "calamidade_teste:textures/sky/impostors/nave_p0.png"
+  ],
+  "frame": [
+    32,
+    32
+  ],
+  "grid": [
+    8,
+    1
+  ],
+  "views": {
+    "yaw": 8
+  },
+  "frames": 3
+}

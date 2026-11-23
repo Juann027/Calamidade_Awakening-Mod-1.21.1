@@ -42,8 +42,18 @@ public final class SkyProfile {
         private final List<Sky> layers;
         private final Atmosphere atmosphere;
         private final boolean vanillaSun, vanillaMoon, vanillaSky;
+        private final Backdrop backdrop;
+        private final List<StarField> stars;
+        private final List<Nebula> nebulae;
+        private final List<SkyImage> images;
+        private final List<SkyImpostor> impostors;
 
         private State(StateBuilder b) {
+            images = List.copyOf(b.images);
+            impostors = List.copyOf(b.impostors);
+            backdrop = b.backdrop;
+            stars = List.copyOf(b.stars);
+            nebulae = List.copyOf(b.nebulae);
             layers = List.copyOf(b.layers);
             atmosphere = b.atmosphere;
             vanillaSun = b.vanillaSun;
@@ -68,6 +78,16 @@ public final class SkyProfile {
          * engine paints the gradient of the state's atmosphere, or the vanilla colors, instead).
          */
         public boolean vanillaSky() { return vanillaSky; }
+        /** Custom background of this state (0.14.0), or null. */
+        public Backdrop backdrop() { return backdrop; }
+        /** Star fields of this state (0.14.0; at most {@link StarField#MAX_PER_EFFECT}). */
+        public List<StarField> stars() { return stars; }
+        /** Nebulae of this state (0.14.0; at most {@link Nebula#MAX_PER_EFFECT}). */
+        public List<Nebula> nebulae() { return nebulae; }
+        /** Images of this state (0.14.0; at most {@link SkyImage#MAX_PER_EFFECT}). */
+        public List<SkyImage> images() { return images; }
+        /** Impostors of this state (0.14.0; at most {@link SkyImpostor#MAX_PER_EFFECT}). */
+        public List<SkyImpostor> impostors() { return impostors; }
     }
 
     /** Builder of a {@link State}. */
@@ -75,8 +95,84 @@ public final class SkyProfile {
         private final java.util.ArrayList<Sky> layers = new java.util.ArrayList<>();
         private Atmosphere atmosphere;
         private boolean vanillaSun = true, vanillaMoon = true, vanillaSky = true;
+        private Backdrop backdrop;
+        private final java.util.ArrayList<StarField> stars = new java.util.ArrayList<>();
+        private final java.util.ArrayList<Nebula> nebulae = new java.util.ArrayList<>();
+        private final java.util.ArrayList<SkyImage> images = new java.util.ArrayList<>();
+        private final java.util.ArrayList<SkyImpostor> impostors = new java.util.ArrayList<>();
 
         private StateBuilder() {}
+
+        /**
+         * Adds images (0.14.0; constant: no tracks nor phase; flipbooks play on the world clock), up to
+         * {@link SkyImage#MAX_PER_EFFECT} in total. States crossfade their images like their layers.
+         */
+        public StateBuilder images(SkyImage... values) {
+            for (SkyImage image : values) {
+                if (Objects.requireNonNull(image).animated())
+                    throw new IllegalArgumentException("The images of a profile cannot read tracks or a phase (no timeline)");
+                if (images.size() >= SkyImage.MAX_PER_EFFECT)
+                    throw new IllegalArgumentException("At most " + SkyImage.MAX_PER_EFFECT + " images per state");
+                images.add(image);
+            }
+            return this;
+        }
+
+        /**
+         * Adds impostors (0.14.0; constant: no tracks nor phase; animations play on the world clock), up to
+         * {@link SkyImpostor#MAX_PER_EFFECT} in total. States crossfade their impostors like their layers.
+         */
+        public StateBuilder impostors(SkyImpostor... values) {
+            for (SkyImpostor impostor : values) {
+                if (Objects.requireNonNull(impostor).animated())
+                    throw new IllegalArgumentException("The impostors of a profile cannot read tracks or a phase (no timeline)");
+                if (impostors.size() >= SkyImpostor.MAX_PER_EFFECT)
+                    throw new IllegalArgumentException("At most " + SkyImpostor.MAX_PER_EFFECT + " impostors per state");
+                impostors.add(impostor);
+            }
+            return this;
+        }
+
+        /**
+         * Adds star fields (0.14.0; constant: no tracks nor phase; spin and twinkle run on the world clock), up to
+         * {@link StarField#MAX_PER_EFFECT} in total. States crossfade their fields like their layers.
+         */
+        public StateBuilder stars(StarField... values) {
+            for (StarField field : values) {
+                if (Objects.requireNonNull(field).animated())
+                    throw new IllegalArgumentException("The star fields of a profile cannot read tracks or a phase (no timeline)");
+                if (stars.size() >= StarField.MAX_PER_EFFECT)
+                    throw new IllegalArgumentException("At most " + StarField.MAX_PER_EFFECT + " star fields per state");
+                stars.add(field);
+            }
+            return this;
+        }
+
+        /**
+         * Adds nebulae (0.14.0; constant: no tracks nor phase), up to {@link Nebula#MAX_PER_EFFECT} in total. States
+         * crossfade their nebulae like their layers.
+         */
+        public StateBuilder nebulae(Nebula... values) {
+            for (Nebula nebula : values) {
+                if (Objects.requireNonNull(nebula).animated())
+                    throw new IllegalArgumentException("The nebulae of a profile cannot read tracks or a phase (no timeline)");
+                if (nebulae.size() >= Nebula.MAX_PER_EFFECT)
+                    throw new IllegalArgumentException("At most " + Nebula.MAX_PER_EFFECT + " nebulae per state");
+                nebulae.add(nebula);
+            }
+            return this;
+        }
+
+        /**
+         * Custom background of the state (0.14.0; constant: no tracks nor phase; its spin runs on the world clock).
+         * States crossfade their backgrounds like their layers.
+         */
+        public StateBuilder backdrop(Backdrop value) {
+            if (Objects.requireNonNull(value).animated())
+                throw new IllegalArgumentException("The backdrop of a profile cannot read tracks or a phase (no timeline)");
+            backdrop = value;
+            return this;
+        }
 
         /** Adds sky layers (constant: no tracks nor phase), up to {@link Sky#MAX_PER_EFFECT} in total. */
         public StateBuilder layers(Sky... values) {

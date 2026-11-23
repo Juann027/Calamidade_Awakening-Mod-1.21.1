@@ -9,6 +9,8 @@
 | Usa | `TerrainShape.trench`, `TerrainEdit` com `burn` e calor, `Placement.at(posição, yaw, 0)`, `Beam` com `TO_Z` por trilha, `Effects.Impact` no marcador |
 | Custo | servidor: ~1 700 blocos planejados num tick; cliente: 1 feixe, 1 zona quente e 1 luz (passes `beams`, `terrain` e `lights`) |
 
+> **Caso de uso.** A borda queimada faz parte deste efeito, não de toda trincheira: sem `burn(...)`, o rasgo abre igual (veja Variações). Quando usar cada peça: [Escolher a operação](../../TERRENO-0.11.md#escolher-a-operação).
+
 ## Como a forma gira
 
 `TerrainShape.trench(28, 2.5f)` é uma cápsula ao longo da **frente** local, centrada na origem. A instância começa com o yaw do jogador (`Placement.at(..., player.getYRot(), 0)`), então o rasgo segue o olhar; um pitch positivo enterraria a ponta da frente. `offset(0, -1.2f, 0)` baixa o eixo para o rasgo ficar mais fundo que alto, e `rough(.8f, 2.5f)` deixa a borda irregular, com a seed da instância (igual no servidor e em todos os clientes).

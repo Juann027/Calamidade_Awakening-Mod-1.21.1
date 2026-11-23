@@ -14,3 +14,5 @@ Ferramentas: `python3 scripts/novo_efeito.py` (esqueleto de efeito), `node scrip
 Integração com outros mods (orientação, fontes, limites, gatilhos, GeckoLib e o Finisher Engine do RespectCraft): [docs/INTEGRACAO-0.10.md](../INTEGRACAO-0.10.md).
 
 Céu fantástico, eventos globais e céu por dimensão (0.12.0): [docs/CEU-0.12.md](../CEU-0.12.md).
+
+Destruição de terreno: antes de criar crateras, trincheiras ou ataques destrutivos, leia [Escolher a operação](../TERRENO-0.11.md#escolher-a-operação) e [Custo de uma destruição](../TERRENO-0.11.md#custo-de-uma-destruição) (escavação, casca, preenchimento, estrutura ou só visual; dragões e chefes). Resumo obrigatório: regra 11 do [AGENTS.md](../../AGENTS.md).

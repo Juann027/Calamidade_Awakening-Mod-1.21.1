@@ -9,6 +9,8 @@
 | Usa | `TerrainShape.crater` + `sphere` (união) com borda irregular, `TerrainEdit.Fill.solid`, `TerrainEdit.StandIn.sphere`, `Effects.Impact` com clarão tingido |
 | Custo | servidor: ~1 900 blocos planejados num tick; cliente: 1 dublê e 1 zona quente no passe `terrain`, 2 luzes |
 
+> **Caso de uso.** O preenchimento é a intenção deste efeito (o meteoro vira bloco real); uma cratera não precisa de `fill` nem de `burn`. Quando usar cada peça: [Escolher a operação](../../TERRENO-0.11.md#escolher-a-operação).
+
 ## A queda
 
 `StandIn.sphere(2.5f).from(-18, 90, -30)` começa 90 blocos acima do ponto de impacto, 18 à esquerda e 30 atrás (no referencial da instância: gira com o yaw do jogador). A posição vai do início ao impacto entre `fall(4)` e o marcador, com aceleração (`t²`); uma trilha `track("queda")` de 0 a 1 pode substituir isso. O ponto de impacto é o centro do preenchimento (`Fill.at(0, -3.5f, 0)`), então a esfera desenhada pousa exatamente onde os blocos reais aparecem. `reveal(40)`: depois do commit, a esfera desenhada fica sobre os blocos reais e some em 40 ticks.
