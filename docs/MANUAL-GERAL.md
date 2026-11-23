@@ -1971,8 +1971,7 @@ Sem o passo 3, `vanillaSun(false)` e `vanillaMoon(false)` funcionam em qualquer 
 ## 15. Chefes: Boss API, BossBar e Rig Anchors
 
 > **Estado:** implementada no branch `claude/bosses-0.13` (criado em `8cfd93a`, o `origin/main` do release v0.12.0
-> mais dois commits só de `VALIDACAO.md`); **preparada para publicação** (candidata a release, ainda não publicada no
-> GitHub). O JAR é `0.13.0` sem o aviso de build de desenvolvimento. A 0.13 **não** contém nada da 0.14 (Custom Sky Engine, branch
+> mais dois commits só de `VALIDACAO.md`); **publicada** (release v0.13.0, tag no commit `2c90f60`). O JAR é `0.13.0` sem o aviso de build de desenvolvimento. A 0.13 **não** contém nada da 0.14 (Custom Sky Engine, branch
 > `claude/ceu-personalizado`, intocado). As seções 1 a 6 são o plano aprovado (Etapa 0); a seção 7 diz o que foi feito,
 > o que mudou em relação ao plano e o que foi validado; a **seção 8 é o guia para quem vai usar a biblioteca** (só APIs
 > que existem no JAR). Na revisão pré-release, os nomes do plano que não existem no código foram corrigidos abaixo; em
@@ -2784,10 +2783,19 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 ## 19. Validação, medições e limites
 
-### Versão 0.13.0 — Bosses (preparada para publicação, branch `claude/bosses-0.13`)
+### Versão 0.13.0 — Bosses (publicada: release v0.13.0)
 
-**Preparada para publicação; ainda não publicada no GitHub.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
+**Publicada** (workflow Release `45229440917`, tag `v0.13.0` no commit `2c90f60`). Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
 (0.12.0); nada da 0.14. GPU física, shaderpacks e dois jogadores reais pendentes.
+
+#### Depois do release v0.13.0 (23/11/2026)
+
+Workflow Release `45229440917` (sucesso), tag `v0.13.0` no commit `2c90f60`. Anexos só `calamidade_awakening-0.13.0.jar`,
+`vfx-sample-1.10.0.jar` e `SHA256SUMS.txt`; baixados, `sha256sum -c` OK e **iguais aos do candidato** (`a427a90d…`,
+`56b2832a…`): o build do workflow reproduziu o local. Sem "DEVELOPMENT" no `neoforge.mods.toml` e sem classes da 0.14 ou
+GeckoLib nos JARs publicados. `examples/consumidor` passou para a 0.13.0 (faixa `[0.13.0,0.14.0)`, SHA-256 publicado) e
+`./gradlew -p examples/consumidor clean build`, sem endereço alternativo e com o JAR apagado de `libs/`, baixou
+`calamidade_awakening-0.13.0.jar` do release, conferiu o SHA-256 e compilou.
 
 #### Candidato final 0.13.0 (23/11/2026, quarta sessão)
 
@@ -3921,7 +3929,7 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 #### 0.13 — Bosses
 
-Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **preparada para publicação** (candidata a release; ainda não publicada no GitHub). Capítulo: [BOSSES-0.13.md](BOSSES-0.13.md).
+Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **publicada** (release v0.13.0, commit `2c90f60`). Capítulo: [BOSSES-0.13.md](BOSSES-0.13.md).
 
 - **Boss API** (`Boss`, `Bosses`): controlador preso a uma entidade do addon; fases, transições por tempo, vida, sinal, dano, morte e predicado, sequências pela Timeline, efeitos de entrada, saída e sustain, ações periódicas, evento global por fase, invulnerabilidade opcional, persistência na entidade, `maxPerBoss` e `bossMaxActive`, `/calamidade boss`.
 - **Pontos presos a ossos** (`RigAnchors`, `Point.socket`, `Point.socketAim`, `Effects.anchorSocket`, `AnchorCapture`): pose capturada no render do addon (vanilla, GeckoLib ou outro), providers, anchors estáticos e plano B, sem o Calamidade depender do GeckoLib; visual no cliente, aproximação estática no servidor.

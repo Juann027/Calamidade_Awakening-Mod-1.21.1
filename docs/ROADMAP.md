@@ -138,7 +138,7 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 ### 0.13 — Bosses
 
-Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **preparada para publicação** (candidata a release; ainda não publicada no GitHub). Capítulo: [BOSSES-0.13.md](BOSSES-0.13.md).
+Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **publicada** (release v0.13.0, commit `2c90f60`). Capítulo: [BOSSES-0.13.md](BOSSES-0.13.md).
 
 - **Boss API** (`Boss`, `Bosses`): controlador preso a uma entidade do addon; fases, transições por tempo, vida, sinal, dano, morte e predicado, sequências pela Timeline, efeitos de entrada, saída e sustain, ações periódicas, evento global por fase, invulnerabilidade opcional, persistência na entidade, `maxPerBoss` e `bossMaxActive`, `/calamidade boss`.
 - **Pontos presos a ossos** (`RigAnchors`, `Point.socket`, `Point.socketAim`, `Effects.anchorSocket`, `AnchorCapture`): pose capturada no render do addon (vanilla, GeckoLib ou outro), providers, anchors estáticos e plano B, sem o Calamidade depender do GeckoLib; visual no cliente, aproximação estática no servidor.

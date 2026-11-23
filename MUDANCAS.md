@@ -1,8 +1,8 @@
 # Mudanças
 
-**Estado: 0.13.0 preparada para publicação no branch `claude/bosses-0.13` (candidata a release, ainda não publicada no GitHub; seção abaixo). Último release publicado: 0.12.0 compilada (motor; vfx-sample 1.9.0), coberta pelos testes de build (`checkBudget` com `SkyCheck`, `WorldEventCheck`, `WorldEventSyncCheck` e `SkyProfileCheck`; 173 casos GLSL), pela prévia fora do jogo (`node scripts/previa_passes.cjs ceu`) e pelos testes em jogo `./gradlew testeJogo` (eventos globais e céu por dimensão no servidor dedicado, com reinício) e `xvfb-run ./gradlew testeCeu` (cliente). Pendentes: GPU física, dois jogadores em dimensões diferentes vendo o mesmo eclipse.** Veja docs/VALIDACAO.md e o roteiro em docs/TESTE-REAL.md (parte 10).
+**Estado: 0.13.0 publicada (release v0.13.0, tag no commit `2c90f60`; seção abaixo). Release anterior: 0.12.0 compilada (motor; vfx-sample 1.9.0), coberta pelos testes de build (`checkBudget` com `SkyCheck`, `WorldEventCheck`, `WorldEventSyncCheck` e `SkyProfileCheck`; 173 casos GLSL), pela prévia fora do jogo (`node scripts/previa_passes.cjs ceu`) e pelos testes em jogo `./gradlew testeJogo` (eventos globais e céu por dimensão no servidor dedicado, com reinício) e `xvfb-run ./gradlew testeCeu` (cliente). Pendentes: GPU física, dois jogadores em dimensões diferentes vendo o mesmo eclipse.** Veja docs/VALIDACAO.md e o roteiro em docs/TESTE-REAL.md (parte 10).
 
-# 0.13.0 — Bosses (preparada para publicação)
+# 0.13.0 — Bosses
 
 **Branch `claude/bosses-0.13`, baseado no 0.12.0 e sem a 0.14 (Custom Sky Engine).** O JAR é `0.13.0` estável (o aviso de build de desenvolvimento saiu no commit de preparação do release). **Servidor e clientes precisam estar na mesma versão:** a 0.13.0 cria o canal `boss_v1` (estado da barra do chefe). A API pública só cresceu (nenhum membro da 0.12.0 removido ou alterado: referência da API gerada do JAR sem remoções): addons da 0.12 carregam sem mudança. Capítulo: docs/BOSSES-0.13.md.
 
