@@ -15,6 +15,14 @@ public final class ServerConfig {
     private static final ModConfigSpec.IntValue PER_ENTITY;
     private static final ModConfigSpec.IntValue PER_BLOCK;
     private static final ModConfigSpec.IntValue PLAYER_RESERVE;
+    /** Live instances per entity for starts of its boss controller (0.13.0). */
+    private static final ModConfigSpec.IntValue PER_BOSS;
+    /** Most boss controllers attached at once (0.13.0). */
+    private static final ModConfigSpec.IntValue BOSS_MAX_ACTIVE;
+    /** Largest {@code bossMaxActive}. */
+    public static final int BOSS_MAX_ACTIVE_LIMIT = 64;
+    /** Default {@code bossMaxActive}. */
+    public static final int BOSS_MAX_ACTIVE_DEFAULT = 16;
     private static final ModConfigSpec.BooleanValue TERRAIN_ENABLED;
     private static final ModConfigSpec.IntValue TERRAIN_MAX_VOLUME;
     private static final ModConfigSpec.IntValue TERRAIN_BLOCKS_PER_TICK;
@@ -79,6 +87,16 @@ public final class ServerConfig {
             .comment("Slots of the 64 that only players may use: mobs, blocks and scripts share the rest (0 = no reserve).")
             .translation("calamidade_awakening.configuration.playerReserve")
             .defineInRange("playerReserve", SourceLimits.Rules.DEFAULT.playerReserve(), 0, SourceLimits.TOTAL);
+        PER_BOSS = builder
+            .comment("(0.13.0) Most live instances of one entity when the start comes from its boss controller (Boss API). Only entities with a controller attached get it; ordinary starts of the same entity still count toward maxPerEntity, and the total and the player reserve still apply.")
+            .translation("calamidade_awakening.configuration.maxPerBoss")
+            .defineInRange("maxPerBoss", SourceLimits.Rules.DEFAULT.perBoss(), 1, SourceLimits.MAX_PER_BOSS);
+        builder.pop();
+        builder.comment("Boss controllers (0.13.0): phases, bars and effects of bosses defined by addons.")
+            .translation("calamidade_awakening.configuration.bosses").push("bosses");
+        BOSS_MAX_ACTIVE = builder.comment("Most boss controllers attached at once; attaching above it is refused.")
+            .translation("calamidade_awakening.configuration.bossMaxActive")
+            .defineInRange("bossMaxActive", BOSS_MAX_ACTIVE_DEFAULT, 1, BOSS_MAX_ACTIVE_LIMIT);
         builder.pop();
         builder.comment("Terrain API (0.11.0): craters, burnt shells and blocks placed by effects. Conservative defaults.")
             .translation("calamidade_awakening.configuration.terrain").push("terrain");
@@ -132,9 +150,18 @@ public final class ServerConfig {
     /** Current limits; the defaults (16 per player, 4 per mob, 2 per block, 16 reserved) until the world config loads. */
     public static SourceLimits.Rules rules() {
         try {
-            return new SourceLimits.Rules(PER_PLAYER.get(), PER_ENTITY.get(), PER_BLOCK.get(), PLAYER_RESERVE.get());
+            return new SourceLimits.Rules(PER_PLAYER.get(), PER_ENTITY.get(), PER_BLOCK.get(), PLAYER_RESERVE.get(), PER_BOSS.get());
         } catch (IllegalStateException notLoaded) {
             return SourceLimits.Rules.DEFAULT;
+        }
+    }
+
+    /** Most boss controllers at once (0.13.0); 16 until the world config loads. */
+    public static int bossMaxActive() {
+        try {
+            return BOSS_MAX_ACTIVE.get();
+        } catch (IllegalStateException notLoaded) {
+            return BOSS_MAX_ACTIVE_DEFAULT;
         }
     }
 

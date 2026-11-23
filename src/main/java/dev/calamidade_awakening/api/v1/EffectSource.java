@@ -47,9 +47,14 @@ public final class EffectSource {
     private final UUID uuid;
     private final ResourceLocation dimension;
     private final BlockPos pos;
+    private final boolean boss;
 
     private EffectSource(Kind kind, UUID uuid, ResourceLocation dimension, BlockPos pos) {
-        this.kind = kind; this.uuid = uuid; this.dimension = dimension; this.pos = pos;
+        this(kind, uuid, dimension, pos, false);
+    }
+
+    private EffectSource(Kind kind, UUID uuid, ResourceLocation dimension, BlockPos pos, boolean boss) {
+        this.kind = kind; this.uuid = uuid; this.dimension = dimension; this.pos = pos; this.boss = boss;
     }
 
     /** A player. */
@@ -66,6 +71,31 @@ public final class EffectSource {
 
     /** A non-player entity by UUID ({@link Kind#ENTITY}). */
     public static EffectSource entity(UUID uuid) { return new EffectSource(Kind.ENTITY, Objects.requireNonNull(uuid, "uuid"), null, null); }
+
+    /**
+     * (0.13.0) The boss controller of a non-player entity: an {@link Kind#ENTITY} source with the entity's identity
+     * and a controller mark. The server honors the mark only while {@code Bosses} has a controller attached to that
+     * entity: then the entity may hold up to {@code maxPerBoss} live instances (server config, default 8) instead of
+     * {@code maxPerEntity} (default 4). Marked and unmarked starts of one entity share one count and one cooldown
+     * ({@link #equals} ignores the mark), so the mark never yields extra slots or skips a cooldown; the total of 64 and
+     * the player reserve still apply. Effects started by a {@code Boss} phase use this source automatically.
+     *
+     * <pre>{@code
+     * Effects.start(SOPRO, level, Placement.on(dragao).withSource(EffectSource.boss(dragao)));
+     * }</pre>
+     *
+     * @throws IllegalArgumentException for a player
+     */
+    public static EffectSource boss(Entity entity) {
+        Objects.requireNonNull(entity, "entity");
+        if (entity instanceof Player) throw new IllegalArgumentException("A player cannot be a boss source");
+        return new EffectSource(Kind.ENTITY, entity.getUUID(), null, null, true);
+    }
+
+    /** (0.13.0) The boss controller of a non-player entity by UUID; see {@link #boss(Entity)}. */
+    public static EffectSource boss(UUID uuid) {
+        return new EffectSource(Kind.ENTITY, Objects.requireNonNull(uuid, "uuid"), null, null, true);
+    }
 
     /** A block at a position of a level. */
     public static EffectSource block(Level level, BlockPos pos) {
@@ -97,7 +127,13 @@ public final class EffectSource {
     /** Position of a block source (immutable); null for the others. */
     public BlockPos pos() { return pos; }
 
-    /** Same kind and identity. */
+    /**
+     * (0.13.0) True for {@link #boss(Entity)} sources. Only a request: the server checks that the entity really has a
+     * boss controller before using {@code maxPerBoss}.
+     */
+    public boolean bossController() { return boss; }
+
+    /** Same kind and identity (the boss controller mark is ignored: same count and cooldown as the entity). */
     @Override public boolean equals(Object o) {
         return o instanceof EffectSource s && s.kind == kind && Objects.equals(s.uuid, uuid)
             && Objects.equals(s.dimension, dimension) && Objects.equals(s.pos, pos);
@@ -109,7 +145,7 @@ public final class EffectSource {
     /** Readable form, such as {@code ENTITY(uuid)} or {@code BLOCK(minecraft:overworld 10 64 -3)}. */
     @Override public String toString() {
         return switch (kind) {
-            case PLAYER, ENTITY -> kind + "(" + uuid + ")";
+            case PLAYER, ENTITY -> kind + "(" + uuid + (boss ? ", boss" : "") + ")";
             case BLOCK -> "BLOCK(" + dimension + " " + pos.getX() + " " + pos.getY() + " " + pos.getZ() + ")";
             case SCRIPT -> "SCRIPT";
         };

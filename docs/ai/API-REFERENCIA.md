@@ -437,6 +437,8 @@ Who started an instance (0.10.0): a player, an entity (a mob), a block or a scri
 | `static EffectSource player(UUID uuid)` | A player by UUID (for cooldown lookups of offline or remembered players). |
 | `static EffectSource entity(Entity entity)` | An entity: `Kind.PLAYER` for players, `Kind.ENTITY` for any other entity. |
 | `static EffectSource entity(UUID uuid)` | A non-player entity by UUID (`Kind.ENTITY`). |
+| `static EffectSource boss(Entity entity)` | (0.13.0) The boss controller of a non-player entity: an `Kind.ENTITY` source with the entity's identity and a controller mark. |
+| `static EffectSource boss(UUID uuid)` | (0.13.0) The boss controller of a non-player entity by UUID; see `boss(Entity)`. |
 | `static EffectSource block(Level level, BlockPos pos)` | A block at a position of a level. |
 | `static EffectSource block(ResourceLocation dimension, BlockPos pos)` | A block at a position of a dimension (for example `minecraft:overworld`). |
 | `static EffectSource block(BlockEntity blockEntity)` | The block of a block entity placed in a level. |
@@ -445,7 +447,8 @@ Who started an instance (0.10.0): a player, an entity (a mob), a block or a scri
 | `UUID uuid()` | UUID of the player or entity; null for blocks and scripts. |
 | `ResourceLocation dimension()` | Dimension of a block source; null for the others. |
 | `BlockPos pos()` | Position of a block source (immutable); null for the others. |
-| `boolean equals(Object o)` | Same kind and identity. |
+| `boolean bossController()` | (0.13.0) True for `boss(Entity)` sources. |
+| `boolean equals(Object o)` | Same kind and identity (the boss controller mark is ignored: same count and cooldown as the entity). |
 | `int hashCode()` | Hash of kind and identity. |
 | `String toString()` | Readable form, such as `ENTITY(uuid)` or `BLOCK(minecraft:overworld 10 64 -3)`. |
 
