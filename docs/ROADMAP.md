@@ -149,7 +149,7 @@ Próxima versão planejada.
 Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 continuam como estão, e nada novo aparece sem um addon pedir. Arquitetura e verificações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
 
 - **Backdrop:** fundo de céu por cubemap de 6 faces, panorama equirretangular, gradiente ou domo procedural; substituição parcial (com transparência) ou completa (cobrindo o céu do jogo e redesenhando só o que o addon pedir: gradiente, sol, lua, estrelas); em dimensões próprias, `ProfileSkyEffects` continua dono do céu inteiro.
-- **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho.
+- **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho. **Feito na fase 3** (com nebulosas procedurais e a composição híbrida por objeto: `SkyBlend` NORMAL, LUMINOUS e COVER).
 - **Nebulosas e galáxias:** procedurais e por PNG; fundos animados.
 - **Imagens no céu e impostors:** PNG com transparência, tamanho angular, rotação, cor, brilho, por trilha da Timeline; folhas de sprites, flipbooks, vários ângulos.
 - Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias**.

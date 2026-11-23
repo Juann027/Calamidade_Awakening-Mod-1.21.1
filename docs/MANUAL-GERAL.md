@@ -2663,6 +2663,29 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 ## 18. Validação, medições e limites
 
+### 0.14 (Custom Sky) — fase 3: estrelas, constelações e nebulosas, branch `claude/ceu-personalizado` (23/11/2026)
+
+**O motor mudou (só aditivo):** API `StarField`, `Nebula`, `SkyBlend`, `SkyDarkening`, `Effects.stars`, `Effects.nebulae`, `SkyProfile.StateBuilder.stars/nebulae`; puro `SkyObjectsMath`; cliente `SkyObjectsFrame`; shaders de núcleo `sky_stars`, `sky_nebula` e `include/sky_objects.glsl`; passes `sky` e `atmosphere` com a camada de cobertura (`CaElTex`, só com objetos). A versão do build continua 0.12.0 até o release da 0.14; o JAR deste branch **não** é o do release (SHA-256 `42e73c98…` contra `a934968a…` do release, intocado com a tag `v0.12.0` e a `main`) e agora se identifica como build de desenvolvimento no log, na descrição da lista de mods e no F7. Arquitetura, decisão de composição e limitações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-3-estrelas-constelações-e-nebulosas).
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `SkyObjectsCheck` novo no `checkBudget`; `checkShaders` com glslangValidator: 19 shaders, agora incluindo os de núcleo (`#moj_import` resolvido como o NeoForge) |
+| `./gradlew checkApiCompat` | verde | 89 classes e 1038 membros da base 0.12.0 presentes e compatíveis |
+| `./gradlew checkCeuReferencia` | 38/38 | as 26 cenas anteriores (15 da 0.12.0, 11 com fundos) com diferença **zero**; 12 cenas novas de objetos do céu |
+| `./gradlew checkFundoComposicao` | 9/9 | igual à fase 2 |
+| `./gradlew checkObjetosComposicao` (novo) | 24/24 | shaders de núcleo reais em WebGL2 + passes reais; números e controles negativos em CEU-PERSONALIZADO.md |
+| `xvfb-run ./gradlew testeEstrelas` (novo) | 20/20 | duas rodadas completas; a primeira deu 19/20 por uma sonda errada do teste (olhava só a face sul do cubemap), corrigida sem mudança no motor |
+| `xvfb-run ./gradlew testeBackdrop` | 34/34 | regressão da fase 2 |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão do céu procedural da 0.12.0 |
+| `./gradlew testeJogo` | 61/61 | |
+| `./gradlew -p examples/vfx-sample build` | verde | |
+
+**`testeEstrelas` (llvmpipe, 1280 × 720):** sem addon nenhum objeto, nenhuma malha, nenhum desenho e nenhuma camada de cobertura alocada; estrela `NORMAL` vermelha com cor exata (255,32,16) sobre o cubemap e o fundo intacto ao lado; catálogo com constelação numa malha; campo `LUMINOUS` à noite sem nenhum pixel mais escuro que o fundo (738 pixels acesos) e sumindo de dia (0 pixels); nebulosa `NORMAL` a 0,5 com mistura por alfa coerente (pior 1,0/255 em 7 563 pixels, alfa máximo 0,38) e sem tocar a skybox fora dela; nebulosa `COVER` só na silhueta; Atmosphere sobre a nebulosa medida (55,30,86) = esperada; camada de cobertura desenhada só nos quadros com passe; estrelas `REVEAL` no eclipse global do exemplo, de dia (0 pontos antes, 732 na totalidade); nada com cegueira; `customSkies`; tetos por perfil 4 000 / 16 000 / 40 000 / 60 000 (o campo tem 60 000; ULTRA aceita 131 072); **1,00 chamada de desenho por quadro** para um campo de 40 000 estrelas; recarga de recursos libera e remonta as malhas; céu do Overworld igual antes e depois (diferença zero). Capturas: [jogo](ceu-previas/estrelas-fase3-jogo.jpg) e [prévia](ceu-previas/estrelas-fase3-previa.jpg).
+
+**Custo (software, llvmpipe, só tendência; GPU física pendente):** mediana / p95 do tempo de quadro, segunda rodada (a primeira entre parênteses): sem objetos 7,4 / 9,6 ms (8,6); 6 000 estrelas 8,7 / 10,7 (10,3); 40 000 estrelas (HIGH) 11,8 / 14,4 (15,7); nuvem 12,3 / 15,3 (12,4); faixa (esfera inteira, ruído de 5 oitavas) 18,0 / 22,4 (17,4); atmosfera sozinha 30,0 / 36,3; 6 000 estrelas + atmosfera, com a camada de cobertura, 30,8 / 35,9. Leitura: a camada de cobertura com 6 000 estrelas custa perto de 1 ms sobre o passe de atmosfera que já existia; a faixa é o objeto mais caro por software (cobre a tela inteira com ruído por pixel), seguida da nuvem; o custo das estrelas cresce com o número desenhado, que os perfis limitam. Os números variam ~1 a 4 ms entre rodadas; nenhum ganho ou limite é afirmado para GPU física.
+
+**Não testado:** GPU física, Iris/Oculus e shaderpacks, Sodium/Embeddium, outros mods que desenham em `AFTER_SKY`, multiplayer com dois jogadores. Nenhuma compatibilidade é afirmada.
+
 ### 0.14 (Custom Sky) — fase 2: Backdrop, branch `claude/ceu-personalizado` (22/11/2026)
 
 **O motor mudou (só aditivo):** API `Backdrop`, `Effects.backdrop`, `SkyProfile.StateBuilder.backdrop`; cliente `BackdropFrame` e `BackdropTextures`; passes `sky` e `atmosphere` com os fundos; opção de cliente `customSkies`. A versão do build continua 0.12.0 até o release da 0.14, então `build/libs/calamidade_awakening-0.12.0.jar` deste branch **não** é mais igual ao anexo do release (SHA-256 `c1d90a41…` contra `a934968a…` do release, que não foi tocado, nem a tag `v0.12.0`, nem a `main`). Arquitetura e resultados: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-2-backdrop-implementado).
@@ -3690,7 +3713,7 @@ Próxima versão planejada.
 Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 continuam como estão, e nada novo aparece sem um addon pedir. Arquitetura e verificações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
 
 - **Backdrop:** fundo de céu por cubemap de 6 faces, panorama equirretangular, gradiente ou domo procedural; substituição parcial (com transparência) ou completa (cobrindo o céu do jogo e redesenhando só o que o addon pedir: gradiente, sol, lua, estrelas); em dimensões próprias, `ProfileSkyEffects` continua dono do céu inteiro.
-- **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho.
+- **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho. **Feito na fase 3** (com nebulosas procedurais e a composição híbrida por objeto: `SkyBlend` NORMAL, LUMINOUS e COVER).
 - **Nebulosas e galáxias:** procedurais e por PNG; fundos animados.
 - **Imagens no céu e impostors:** PNG com transparência, tamanho angular, rotação, cor, brilho, por trilha da Timeline; folhas de sprites, flipbooks, vários ângulos.
 - Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias**.
