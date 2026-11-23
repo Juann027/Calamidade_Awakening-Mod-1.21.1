@@ -1,4 +1,4 @@
-# Referência da API pública (api.v1) — Calamidade_Awakening 0.12.0
+# Referência da API pública (api.v1) — Calamidade_Awakening 0.13.0
 
 > Gerado por `scripts/ApiReferencia.java` a partir do `javap -public` do JAR compilado e do Javadoc dos fontes. Não edite à mão: rode `./gradlew apiDocs`. O build (`checkApiDocs`) falha se este arquivo estiver desatualizado ou se um membro público ficar sem Javadoc.
 
@@ -22,6 +22,21 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Beam.Builder`](#beambuilder)
 - [`Beam.Param`](#beamparam)
 - [`Beam.State`](#beamstate)
+- [`Boss`](#boss)
+- [`Boss.Action`](#bossaction)
+- [`Boss.Bar`](#bossbar)
+- [`Boss.BarColor`](#bossbarcolor)
+- [`Boss.BarOverlay`](#bossbaroverlay)
+- [`Boss.Builder`](#bossbuilder)
+- [`Boss.Context`](#bosscontext)
+- [`Boss.HurtAction`](#bosshurtaction)
+- [`Boss.Periodic`](#bossperiodic)
+- [`Boss.Phase`](#bossphase)
+- [`Boss.PhaseBuilder`](#bossphasebuilder)
+- [`Boss.Transition`](#bosstransition)
+- [`Boss.Trigger`](#bosstrigger)
+- [`Bosses`](#bosses)
+- [`Bosses.Handle`](#bosseshandle)
 - [`EffectSource`](#effectsource)
 - [`EffectSource.Kind`](#effectsourcekind)
 - [`EffectTriggers`](#effecttriggers)
@@ -49,6 +64,10 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Placement`](#placement)
 - [`Point`](#point)
 - [`Point.Source`](#pointsource)
+- [`RigAnchors`](#riganchors)
+- [`RigAnchors.Frame`](#riganchorsframe)
+- [`RigAnchors.Pose`](#riganchorspose)
+- [`RigAnchors.Spec`](#riganchorsspec)
 - [`Sky`](#sky)
 - [`Sky.Anchor`](#skyanchor)
 - [`Sky.Builder`](#skybuilder)
@@ -93,6 +112,11 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`AddonLayers.Start`](#addonlayersstart)
 - [`AddonLayers.Time`](#addonlayerstime)
 - [`AddonLayers.World`](#addonlayersworld)
+- [`AnchorCapture`](#anchorcapture)
+- [`AnchorCapture.Provider`](#anchorcaptureprovider)
+- [`BossBars`](#bossbars)
+- [`BossBars.Renderer`](#bossbarsrenderer)
+- [`BossBars.View`](#bossbarsview)
 - [`ProfileSkyEffects`](#profileskyeffects)
 
 ## Addons
@@ -425,6 +449,261 @@ Resolved beam at one moment: parameters already taken from tracks and clamped, t
 | `float noise()` | Lateral noise amplitude, blocks. |
 | `float reveal()` | Drawn fraction from the start, 0..1. |
 
+## Boss
+
+`dev.calamidade_awakening.api.v1.Boss` · class
+
+Definition of a boss controller (0.13.0): phases, transitions, bar and the effects each phase starts.
+
+| Membro | Descrição |
+|---|---|
+| `static String ANY` | "From any phase" for `Builder.transition`. |
+| `static int MAX_PERIODIC` | Most periodic actions of a phase. |
+| `static int MAX_EFFECTS` | Most entry or exit effects of a phase. |
+| `static Boss.Builder builder(ResourceLocation id)` | Starts a definition. |
+| `ResourceLocation id()` | Id of the boss. |
+| `Boss.Bar bar()` | Bar, or null for none. |
+| `List<Boss.Phase> phases()` | Phases in declaration order; the first is the initial phase. |
+| `List<Boss.Transition> transitions()` | Transitions in priority order. |
+| `int minDwell()` | Minimum ticks in a phase before a non-death transition. |
+| `Optional<Boss.Phase> phase(String name)` | Phase by name. |
+| `BossMachine.Spec machine()` | Machine spec built from the phases and transitions (engine use). |
+| `List<Predicate<Boss.Context>> predicates()` | Predicates of the `Trigger.when` transitions, in the order the machine numbers them (engine use). |
+| `String toString()` | Readable form with id and phase names. |
+
+## Boss.Action
+
+`dev.calamidade_awakening.api.v1.Boss.Action` · interface
+
+Server callback of a phase.
+
+| Membro | Descrição |
+|---|---|
+| `void run(Boss.Context context)` | Runs on the server thread. |
+
+## Boss.Bar
+
+`dev.calamidade_awakening.api.v1.Boss.Bar` · record
+
+Bar of a boss: the vanilla boss bar (synced by the game only when a value changes) plus an optional client style.
+
+| Membro | Descrição |
+|---|---|
+| `static ResourceLocation SEGMENTED` | Style drawn by the engine: the vanilla bar with phase marks, ghost of recent damage, phase label. |
+| `new Bar(Component name, Boss.BarColor color, Boss.BarOverlay overlay, boolean segments, ResourceLocation style, int range, boolean darken, boolean music, boolean fog)` | Canonical constructor: name, color, overlay, segments, style, range, darken, music, fog. |
+| `static Boss.Bar of(Component name)` | White bar, no divisions, vanilla look, 64 blocks. |
+| `Boss.Bar color(Boss.BarColor value)` | Copy with another color. |
+| `Boss.Bar overlay(Boss.BarOverlay value)` | Copy with other vanilla divisions. |
+| `Boss.Bar segments(boolean value)` | Copy with (true) or without phase marks; true also picks `SEGMENTED` when no style was set. |
+| `Boss.Bar style(ResourceLocation value)` | Copy with a client style (null for vanilla). |
+| `Boss.Bar range(int blocks)` | Copy with another range, 16..256 blocks. |
+| `Boss.Bar vanillaFlags(boolean darkenScreen, boolean bossMusic, boolean worldFog)` | Copy with the vanilla screen darkening, boss music and world fog flags. |
+| `Component name()` | Bar title. |
+| `Boss.BarColor color()` | Bar color. |
+| `Boss.BarOverlay overlay()` | Vanilla divisions. |
+| `boolean segments()` | Draw a mark at every `Trigger.healthBelow` threshold (custom styles). |
+| `ResourceLocation style()` | Client style id (`calamidade_awakening:segmented` or one registered with `BossBars.style`); null keeps the vanilla look. |
+| `int range()` | Players within this many blocks in the same dimension see the bar, 16..256. |
+| `boolean darken()` | Vanilla "darken screen". |
+| `boolean music()` | Vanilla "play boss music". |
+| `boolean fog()` | Vanilla "create world fog". |
+
+## Boss.BarColor
+
+`dev.calamidade_awakening.api.v1.Boss.BarColor` · enum
+
+Bar colors (the seven of the vanilla boss bar).
+
+| Membro | Descrição |
+|---|---|
+| `PINK` | Vanilla pink. |
+| `BLUE` | Vanilla blue. |
+| `RED` | Vanilla red. |
+| `GREEN` | Vanilla green. |
+| `YELLOW` | Vanilla yellow. |
+| `PURPLE` | Vanilla purple. |
+| `WHITE` | Vanilla white. |
+| `int argb()` | Accent color of the custom styles, ARGB. |
+
+## Boss.BarOverlay
+
+`dev.calamidade_awakening.api.v1.Boss.BarOverlay` · enum
+
+Divisions drawn over the bar (vanilla overlays).
+
+| Membro | Descrição |
+|---|---|
+| `PROGRESS` | No divisions. |
+| `NOTCHED_6` | 6 segments. |
+| `NOTCHED_10` | 10 segments. |
+| `NOTCHED_12` | 12 segments. |
+| `NOTCHED_20` | 20 segments. |
+
+## Boss.Builder
+
+`dev.calamidade_awakening.api.v1.Boss.Builder` · class
+
+Builder of a boss.
+
+| Membro | Descrição |
+|---|---|
+| `Boss.Builder bar(Boss.Bar value)` | The bar; without one the boss has no bar. |
+| `Boss.Builder phase(String name, Consumer<Boss.PhaseBuilder> setup)` | A phase; the first declared is the initial phase. |
+| `Boss.Builder phase(String name)` | A phase with no effects or callbacks. |
+| `Boss.Builder transition(String from, String to, Boss.Trigger trigger)` | A transition; earlier ones win when several match in the same tick. |
+| `Boss.Builder transition(String from, String to, Boss.Trigger trigger, ResourceLocation sequence)` | A transition that first plays `sequence` on the boss (a roar, a camera, a cut-scene in its Timeline) and changes the phase when that effect ends; only death breaks it. |
+| `Boss.Builder minDwell(int ticks)` | Ticks a phase lasts at least before a non-death transition (0..1200, default 20). |
+| `Boss build()` | Validates names and limits and builds the definition. |
+
+## Boss.Context
+
+`dev.calamidade_awakening.api.v1.Boss.Context` · interface
+
+What a callback sees.
+
+| Membro | Descrição |
+|---|---|
+| `LivingEntity entity()` | The boss entity. |
+| `ServerLevel level()` | Its level. |
+| `Bosses.Handle handle()` | The controller. |
+| `String phase()` | Current phase name. |
+| `long phaseTicks()` | Ticks in the current phase. |
+| `Optional<Effects.Handle> start(ResourceLocation effect)` | Starts an effect on the boss: anchored to it, following its body, with the boss controller as source (`EffectSource.boss`). |
+| `Optional<Effects.Handle> start(ResourceLocation effect, Placement placement)` | Starts an effect with a placement of the addon (a target, a direction); the source is replaced by the boss controller, so it counts toward `maxPerBoss`. |
+
+## Boss.HurtAction
+
+`dev.calamidade_awakening.api.v1.Boss.HurtAction` · interface
+
+Server callback for damage taken during a phase.
+
+| Membro | Descrição |
+|---|---|
+| `void run(Boss.Context context, DamageSource source, float amount)` | Runs on the server thread after the damage was applied (`amount` is the damage dealt). |
+
+## Boss.Periodic
+
+`dev.calamidade_awakening.api.v1.Boss.Periodic` · record
+
+A periodic action of a phase.
+
+| Membro | Descrição |
+|---|---|
+| `new Periodic(int every, Boss.Action action)` | Canonical constructor: every, action. |
+| `int every()` | Interval in ticks of the phase, 1..72000 (the first run is at tick `every`). |
+| `Boss.Action action()` | What to do. |
+
+## Boss.Phase
+
+`dev.calamidade_awakening.api.v1.Boss.Phase` · record
+
+A phase.
+
+| Membro | Descrição |
+|---|---|
+| `new Phase(String name, String label, Boss.BarColor color, List<ResourceLocation> enter, List<ResourceLocation> exit, ResourceLocation sustain, List<Boss.Periodic> periodic, ResourceLocation worldEvent, WorldEvents.Scope worldScope, boolean invulnerable, Boss.Action onEnter, Boss.Action onExit, Boss.HurtAction onHurt)` | Canonical constructor: name, label, color, enter, exit, sustain, periodic, worldEvent, worldScope, invulnerable, onEnter, onExit, onHurt. |
+| `String name()` | `[a-z0-9_]`, up to 64 characters. |
+| `String label()` | Translation key of the phase label on the bar (up to 256 characters), or null. |
+| `Boss.BarColor color()` | Bar color in this phase, or null for the bar's. |
+| `List<ResourceLocation> enter()` | Effects started when the phase begins. |
+| `List<ResourceLocation> exit()` | Effects started when the phase ends. |
+| `ResourceLocation sustain()` | Effect started when the phase begins and released (`Effects.Handle#release`) when it ends, or null. |
+| `List<Boss.Periodic> periodic()` | Actions repeated every N ticks of the phase. |
+| `ResourceLocation worldEvent()` | Effect started as a global event when the phase begins and released when the phase ends or the boss dies or is detached, or null. |
+| `WorldEvents.Scope worldScope()` | Scope of `worldEvent`. |
+| `boolean invulnerable()` | Damage to the entity is cancelled during the phase. |
+| `Boss.Action onEnter()` | Callback at the beginning, or null. |
+| `Boss.Action onExit()` | Callback at the end, or null. |
+| `Boss.HurtAction onHurt()` | Callback for damage taken, or null. |
+
+## Boss.PhaseBuilder
+
+`dev.calamidade_awakening.api.v1.Boss.PhaseBuilder` · class
+
+Builder of a phase.
+
+| Membro | Descrição |
+|---|---|
+| `Boss.PhaseBuilder enter(ResourceLocation effect)` | Effect started on the boss when the phase begins (up to `MAX_EFFECTS`). |
+| `Boss.PhaseBuilder exit(ResourceLocation effect)` | Effect started on the boss when the phase ends (up to `MAX_EFFECTS`). |
+| `Boss.PhaseBuilder sustain(ResourceLocation effect)` | Sustained effect (Timeline with `sustain`) held for the whole phase and released when it ends. |
+| `Boss.PhaseBuilder every(int ticks, Boss.Action action)` | Action every `ticks` ticks of the phase (up to `MAX_PERIODIC`). |
+| `Boss.PhaseBuilder worldEvent(ResourceLocation effect, WorldEvents.Scope scope)` | Global event (an eclipse over the arena, a storm over the dimension) for the whole phase: started at the boss position with `WorldEvents.start`, released when the phase ends, the boss dies or the controller is detached. |
+| `Boss.PhaseBuilder invulnerable()` | Damage to the entity is cancelled during this phase (opt-in; never the default). |
+| `Boss.PhaseBuilder label(String translationKey)` | Translation key of the phase label shown by the custom bar styles. |
+| `Boss.PhaseBuilder color(Boss.BarColor value)` | Bar color while this phase lasts. |
+| `Boss.PhaseBuilder onEnter(Boss.Action action)` | Callback when the phase begins (after its effects start). |
+| `Boss.PhaseBuilder onExit(Boss.Action action)` | Callback when the phase ends (before the exit effects start). |
+| `Boss.PhaseBuilder onHurt(Boss.HurtAction action)` | Callback for damage taken during the phase. |
+
+## Boss.Transition
+
+`dev.calamidade_awakening.api.v1.Boss.Transition` · record
+
+One transition: from a phase (or `ANY`) to another when the trigger fires; with a `sequence`, the engine first plays that effect on the boss and changes the phase when it ends.
+
+| Membro | Descrição |
+|---|---|
+| `new Transition(String from, String to, Boss.Trigger trigger, ResourceLocation sequence)` | Canonical constructor: from, to, trigger, sequence. |
+| `String from()` | Phase name or `ANY`. |
+| `String to()` | Target phase name. |
+| `Boss.Trigger trigger()` | What it waits for. |
+| `ResourceLocation sequence()` | Effect played before the change (its Timeline is the cut-scene), or null. |
+
+## Boss.Trigger
+
+`dev.calamidade_awakening.api.v1.Boss.Trigger` · class
+
+What a transition waits for.
+
+| Membro | Descrição |
+|---|---|
+| `static Boss.Trigger afterTicks(int ticks)` | The phase is at least `ticks` old (1..1 000 000; phase time, saved with the entity). |
+| `static Boss.Trigger healthBelow(float fraction)` | Health at or below a fraction of the maximum (0..1). |
+| `static Boss.Trigger healthAbove(float fraction)` | Health above a fraction of the maximum (0..1): a boss that heals back. |
+| `static Boss.Trigger signal(String name)` | The addon sent this signal (`Bosses.Handle#signal`) since the previous tick; `[a-z0-9_]`, up to 64. |
+| `static Boss.Trigger hurt(int hits)` | At least `hits` damage events (with damage above 0) since the phase began, 1..1 000 000. |
+| `static Boss.Trigger death()` | The entity died (fires in the death tick, even during a sequence). |
+| `static Boss.Trigger when(int every, Predicate<Boss.Context> predicate)` | A predicate of the addon, asked every `every` ticks of the phase (1..1200), never per frame. |
+| `BossMachine.Kind kind()` | Kind (engine use and diagnostics). |
+| `double value()` | Ticks, health fraction or hits, by kind; 0 for the others. |
+| `String signal()` | Signal name, or null. |
+| `int every()` | Interval of a `when` predicate, else 0. |
+| `Predicate<Boss.Context> predicate()` | Predicate of `when`, else null. |
+
+## Bosses
+
+`dev.calamidade_awakening.api.v1.Bosses` · class
+
+Boss controllers (0.13.0): register `Boss` definitions and attach them to entities of the addon.
+
+| Membro | Descrição |
+|---|---|
+| `static void define(Boss boss)` | Registers a definition (mod construction, both sides). |
+| `static Optional<Boss> definition(ResourceLocation id)` | Definition by id. |
+| `static Optional<Bosses.Handle> attach(LivingEntity entity, ResourceLocation id)` | Attaches a controller to a living, non-player entity on the server and enters the first phase. |
+| `static Optional<Bosses.Handle> get(Entity entity)` | The controller attached to an entity, if any. |
+| `static boolean isBoss(Entity entity)` | True when the entity has a controller attached (server). |
+| `static List<Bosses.Handle> active(MinecraftServer server)` | Every attached controller. |
+
+## Bosses.Handle
+
+`dev.calamidade_awakening.api.v1.Bosses.Handle` · interface
+
+Control of one attached controller, server side.
+
+| Membro | Descrição |
+|---|---|
+| `ResourceLocation id()` | Boss definition id. |
+| `LivingEntity entity()` | The entity. |
+| `String phase()` | Current phase name. |
+| `long phaseTicks()` | Ticks in the current phase. |
+| `boolean locked()` | True while a transition sequence is playing. |
+| `boolean alive()` | True while attached to this entity object (false after detach, death, removal or unload). |
+| `boolean signal(String name)` | Sends a signal for `Boss.Trigger#signal` transitions. |
+| `boolean phase(String name)` | Forces a phase (debug, scripted fights): runs exit and entry as a normal change; false when dead or unknown. |
+| `boolean detach()` | Detaches the controller: releases the phase effects and the global event, removes the bar and the saved data. |
+
 ## EffectSource
 
 `dev.calamidade_awakening.api.v1.EffectSource` · class
@@ -437,6 +716,8 @@ Who started an instance (0.10.0): a player, an entity (a mob), a block or a scri
 | `static EffectSource player(UUID uuid)` | A player by UUID (for cooldown lookups of offline or remembered players). |
 | `static EffectSource entity(Entity entity)` | An entity: `Kind.PLAYER` for players, `Kind.ENTITY` for any other entity. |
 | `static EffectSource entity(UUID uuid)` | A non-player entity by UUID (`Kind.ENTITY`). |
+| `static EffectSource boss(Entity entity)` | (0.13.0) The boss controller of a non-player entity: an `Kind.ENTITY` source with the entity's identity and a controller mark. |
+| `static EffectSource boss(UUID uuid)` | (0.13.0) The boss controller of a non-player entity by UUID; see `boss(Entity)`. |
 | `static EffectSource block(Level level, BlockPos pos)` | A block at a position of a level. |
 | `static EffectSource block(ResourceLocation dimension, BlockPos pos)` | A block at a position of a dimension (for example `minecraft:overworld`). |
 | `static EffectSource block(BlockEntity blockEntity)` | The block of a block entity placed in a level. |
@@ -445,7 +726,8 @@ Who started an instance (0.10.0): a player, an entity (a mob), a block or a scri
 | `UUID uuid()` | UUID of the player or entity; null for blocks and scripts. |
 | `ResourceLocation dimension()` | Dimension of a block source; null for the others. |
 | `BlockPos pos()` | Position of a block source (immutable); null for the others. |
-| `boolean equals(Object o)` | Same kind and identity. |
+| `boolean bossController()` | (0.13.0) True for `boss(Entity)` sources. |
+| `boolean equals(Object o)` | Same kind and identity (the boss controller mark is ignored: same count and cooldown as the entity). |
 | `int hashCode()` | Hash of kind and identity. |
 | `String toString()` | Readable form, such as `ENTITY(uuid)` or `BLOCK(minecraft:overworld 10 64 -3)`. |
 
@@ -588,6 +870,7 @@ Public common-side API: register effects, schedule server cues and start or stop
 | `static int MAX_TICKS` | Longest effect, in ticks (12000 = 10 minutes). |
 | `static void register(ResourceLocation id, Effects.Definition definition)` | Registers an external effect in your own namespace (the `calamidade_awakening` namespace is reserved). |
 | `static void timeline(ResourceLocation id, Timeline timeline)` | Attaches a `Timeline` to a registered external effect (0.7.0). |
+| `static void anchorSocket(ResourceLocation id, String name)` | (0.13.0) Makes the whole instance follow a rig anchor (`RigAnchors`) of its anchor entity: the center of an instance started with `follow` or `Placement.on` is the anchor's pose (plus the start offset, in the anchor's frame) instead of the entity's feet. |
 | `static void atmosphere(ResourceLocation id, Atmosphere atmosphere)` | Attaches an `Atmosphere` to a registered external effect (0.8.0): sky tint, fog, exposure, ambient tint and stars while its instances are active. |
 | `static void beams(ResourceLocation id, Beam... beams)` | Attaches 1..`Beam.MAX_PER_EFFECT` beams to a registered external effect (0.9.0). |
 | `static void lights(ResourceLocation id, Light... lights)` | Attaches 1..`Light.MAX_PER_EFFECT` visual lights to a registered external effect (0.9.0). |
@@ -917,14 +1200,17 @@ Immutable place in the world used by `Beam` ends and `Light` positions (0.9.0).
 | `static Point caster(double dx, double dy, double dz)` | Feet of the caster plus an offset in blocks. |
 | `static Point casterEye(double dx, double dy, double dz)` | Eyes of the caster plus an offset in blocks. |
 | `static Point casterAim(double reach)` | First block hit along the caster's look, up to `reach` blocks (0.5..`MAX_REACH`); the full reach when nothing is hit. |
+| `static Point socket(String name, double right, double up, double forward)` | (0.13.0) A rig anchor (`RigAnchors`) of the anchor entity plus `right`, `up` and `forward` blocks in the anchor's frame. |
+| `static Point socketAim(String name, double reach)` | (0.13.0) First block hit along the forward vector of a rig anchor of the anchor entity, up to `reach` blocks (0.5..`MAX_REACH`); the full reach when nothing is hit. |
 | `Point.Source source()` | What the point is attached to. |
 | `double x()` | Offset (or world coordinate for `Source.WORLD`) on x, blocks; 0 for aim points. |
 | `double y()` | Offset (or world coordinate for `Source.WORLD`) on y, blocks; 0 for aim points. |
 | `double z()` | Offset (or world coordinate for `Source.WORLD`) on z, blocks; 0 for aim points. |
 | `double reach()` | Aim distance in blocks for `*_AIM` points; 0 for the others. |
-| `boolean equals(Object o)` | Same source, offsets and reach. |
-| `int hashCode()` | Hash of source, offsets and reach. |
-| `String toString()` | Readable form, such as `CENTER(0.0, 40.0, 0.0)` or `CASTER_AIM(48.0)`. |
+| `String socket()` | (0.13.0) Rig anchor name of `ANCHOR_SOCKET*` points; null for the others. |
+| `boolean equals(Object o)` | Same source, offsets, reach and anchor name. |
+| `int hashCode()` | Hash of source, offsets, reach and anchor name. |
+| `String toString()` | Readable form, such as `CENTER(0.0, 40.0, 0.0)`, `CASTER_AIM(48.0)` or `ANCHOR_SOCKET(boca, 0.0, 0.0, 0.2)`. |
 
 ## Point.Source
 
@@ -942,10 +1228,70 @@ What a point is attached to.
 | `CASTER` | Feet of the caster plus offset. |
 | `CASTER_EYE` | Eyes of the caster plus offset. |
 | `CASTER_AIM` | First block hit along the caster's look, up to the reach. |
+| `ANCHOR_SOCKET` | (0.13.0) A rig anchor of the anchor entity plus an offset in the anchor's frame (right, up, forward). |
+| `ANCHOR_SOCKET_AIM` | (0.13.0) First block hit along the forward of a rig anchor of the anchor entity, up to the reach. |
 | `boolean entity()` | True when the point needs an entity (anchor or caster) loaded on the client. |
 | `boolean caster()` | True for the caster's points. |
 | `boolean aim()` | True for the look-ray points (`*_AIM`). |
+| `boolean socket()` | (0.13.0) True for the rig anchor points (`ANCHOR_SOCKET*`). |
 | `boolean eye()` | True for the eye points (`*_EYE`). |
+
+## RigAnchors
+
+`dev.calamidade_awakening.api.v1.RigAnchors` · class
+
+Named points of a creature's body (0.13.0): mouth, eyes, hands, wings, tail, weapon.
+
+| Membro | Descrição |
+|---|---|
+| `static void define(EntityType<?> type, String name, RigAnchors.Spec spec)` | Defines (or replaces) a static anchor of an entity type, on both sides (mod construction). |
+| `static Optional<RigAnchors.Spec> spec(EntityType<?> type, String name)` | Static anchor of a type, if defined. |
+| `static RigAnchors.Pose approximate(Entity entity, String name)` | Server-safe approximation of an anchor (works on both sides): the static definition on the entity's current position, body yaw and head look; without a definition, the eyes facing the look. |
+| `static RigAnchors.Pose approximate(Entity entity, String name, float partial)` | Like String), interpolated at `partial` (0..1) between the last two ticks. |
+
+## RigAnchors.Frame
+
+`dev.calamidade_awakening.api.v1.RigAnchors.Frame` · enum
+
+Where a static anchor hangs.
+
+| Membro | Descrição |
+|---|---|
+| `BODY` | From the feet, turning with the body yaw (hands, wings, tail, back). |
+| `HEAD` | From the eyes, turning with the head yaw and pitch (mouth, eyes, horns). |
+
+## RigAnchors.Pose
+
+`dev.calamidade_awakening.api.v1.RigAnchors.Pose` · record
+
+An anchor pose in world space: position (blocks) and unit forward and up vectors (perpendicular).
+
+| Membro | Descrição |
+|---|---|
+| `new Pose(Vec3 position, Vec3 forward, Vec3 up)` | Canonical constructor: position, forward, up. |
+| `Vec3 left()` | Unit left vector (`up × forward`). |
+| `Vec3 at(double right, double up, double forward)` | World position of a point `right`, `up` and `forward` blocks from the anchor in its frame. |
+| `AnchorMath.Pose math()` | Engine form. |
+| `static RigAnchors.Pose of(AnchorMath.Pose p)` | From the engine form. |
+| `Vec3 position()` | World position, blocks. |
+| `Vec3 forward()` | Unit vector the anchor faces. |
+| `Vec3 up()` | Unit vector of the anchor's top. |
+
+## RigAnchors.Spec
+
+`dev.calamidade_awakening.api.v1.RigAnchors.Spec` · record
+
+A static anchor: `right`, `up` and `forward` blocks from the frame's origin (each within `Point.MAX_OFFSET`).
+
+| Membro | Descrição |
+|---|---|
+| `new Spec(RigAnchors.Frame frame, double right, double up, double forward)` | Canonical constructor: frame, right, up, forward. |
+| `static RigAnchors.Spec body(double right, double up, double forward)` | Offset from the feet in the body frame. |
+| `static RigAnchors.Spec head(double right, double up, double forward)` | Offset from the eyes in the head frame (follows the look). |
+| `RigAnchors.Frame frame()` | Feet and body yaw, or eyes and head look. |
+| `double right()` | Blocks to the right of the frame origin. |
+| `double up()` | Blocks up. |
+| `double forward()` | Blocks forward. |
 
 ## Sky
 
@@ -1785,6 +2131,77 @@ Additive world mesh of one instance, drawn after particles in one batch with the
 | `int remainingVertices()` | Vertices left in this instance's share of the frame budget. |
 | `void triangle(Vec3 a, Vec3 b, Vec3 c, int argb)` | One triangle (3 vertices); points are offsets in blocks from the center, color ARGB. |
 | `void ribbon(Vec3 a, Vec3 b, Vec3 side, double width, int argb)` | Flat ribbon from `a` to `b` (offsets in blocks), `width` blocks wide along `side`; 6 vertices. |
+
+## AnchorCapture
+
+`dev.calamidade_awakening.api.v1.client.AnchorCapture` · class
+
+Client side of the rig anchors (0.13.0): the addon reports where a bone or model part was drawn this frame, and the engine uses it for `Point.socket`, `Point.socketAim` and `Effects.anchorSocket`.
+
+| Membro | Descrição |
+|---|---|
+| `static Vector3f VANILLA_FORWARD` | Forward of a part in vanilla living-entity model space (the renderer flips x and y): `(0, 0, -1)`. |
+| `static Vector3f VANILLA_UP` | Up of a part in vanilla living-entity model space: `(0, -1, 0)`. |
+| `static void capture(Entity entity, String name, Matrix4f pose)` | Reports the pose of an anchor as drawn this frame, from a camera-relative model matrix (the PoseStack of an entity renderer), with vanilla model axes (`VANILLA_FORWARD`, `VANILLA_UP`). |
+| `static void capture(Entity entity, String name, Matrix4f pose, Vector3f localForward, Vector3f localUp)` | Reports the pose of an anchor as drawn this frame, from a camera-relative model matrix and the model-space axes of the part's front and top. |
+| `static void capturePart(Entity entity, String name, PoseStack poseStack, ModelPart... chain)` | Applies a chain of model parts (root first) to a copy of the PoseStack and captures the result: the pivot of the last part, with vanilla model axes. |
+| `static boolean wanted(Entity entity, String name)` | True when an active effect asked for this anchor of this entity recently (skip the work otherwise). |
+| `static void provider(EntityType<?> type, AnchorCapture.Provider provider)` | Registers a provider for an entity type (client setup); replaces an earlier one. |
+| `static RigAnchors.Pose resolve(Entity entity, String name, float partial)` | The engine's pose of an anchor this frame, through the whole chain (capture, carried capture, provider, static, eyes); never null. |
+
+## AnchorCapture.Provider
+
+`dev.calamidade_awakening.api.v1.client.AnchorCapture.Provider` · interface
+
+Computes a pose without a render (a procedural model, a vehicle's turret).
+
+| Membro | Descrição |
+|---|---|
+| `RigAnchors.Pose resolve(Entity entity, String name, float partial)` | Pose of the anchor at `partial` (0..1), or null to fall through to the static definition. |
+
+## BossBars
+
+`dev.calamidade_awakening.api.v1.client.BossBars` · class
+
+Custom boss bar styles (0.13.0, client).
+
+| Membro | Descrição |
+|---|---|
+| `static void style(ResourceLocation id, BossBars.Renderer renderer)` | Registers (or replaces) a style (client setup). |
+| `static BossBars.Renderer style(ResourceLocation id)` | Renderer of a style, or null. |
+
+## BossBars.Renderer
+
+`dev.calamidade_awakening.api.v1.client.BossBars.Renderer` · interface
+
+Draws a bar.
+
+| Membro | Descrição |
+|---|---|
+| `int draw(GuiGraphics graphics, int x, int y, BossBars.View bar)` | Draws the bar with its top-left corner at `x`, `y` (GUI pixels; the vanilla bar is 182 wide) and returns the height used, in GUI pixels, so the next bar goes below it. |
+
+## BossBars.View
+
+`dev.calamidade_awakening.api.v1.client.BossBars.View` · record
+
+What a style draws.
+
+| Membro | Descrição |
+|---|---|
+| `new View(Component name, float progress, float ghost, Boss.BarColor color, int argb, Boss.BarOverlay overlay, Component label, float[] marks, float flash, boolean vulnerable, float scale, boolean highContrast, int phase)` | Canonical constructor: name, progress, ghost, color, argb, overlay, label, marks, flash, vulnerable, scale, highContrast, phase. |
+| `Component name()` | Bar title (from the vanilla bar). |
+| `float progress()` | Health fraction 0..1, smoothed like the vanilla bar. |
+| `float ghost()` | Trailing fraction 0..1 of recent damage (equal to progress when there is none). |
+| `Boss.BarColor color()` | Bar color of the current phase. |
+| `int argb()` | Accent color (high-contrast white when that option is on). |
+| `Boss.BarOverlay overlay()` | Vanilla divisions. |
+| `Component label()` | Phase label, or null (also null when the "phase labels" option is off). |
+| `float[] marks()` | Health thresholds of the phases, high to low, inside (0, 1); empty without segments. |
+| `float flash()` | 0..1 strength of the phase-change flash (already reduced or off by accessibility). |
+| `boolean vulnerable()` | False while the current phase cancels damage. |
+| `float scale()` | Bar scale 0.5..2 (accessibility). |
+| `boolean highContrast()` | Accessibility option: draw solid, high-contrast colors. |
+| `int phase()` | Index of the current phase. |
 
 ## ProfileSkyEffects
 

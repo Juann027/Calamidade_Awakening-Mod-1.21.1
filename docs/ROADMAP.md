@@ -138,11 +138,12 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 ### 0.13 — Bosses
 
-Próxima versão planejada.
+Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **preparada para publicação** (candidata a release; ainda não publicada no GitHub). Capítulo: [BOSSES-0.13.md](BOSSES-0.13.md).
 
-- **Pontos presos a ossos:** `Point` resolvido pelo cliente a partir de ossos de rigs (GeckoLib ou outro) por um gancho registrado pelo mod do rig, sem o Calamidade depender do GeckoLib; feixes, luzes e dublês saindo da mão ou da boca do chefe.
-- **BossBar API:** barra do chefe sincronizada às fases da Timeline (nome do golpe, fase, vulnerabilidade), com estilo próprio e acessibilidade de tamanho e contraste.
-- Um chefe de exemplo que dispara o eclipse global da 0.12 na fase final.
+- **Boss API** (`Boss`, `Bosses`): controlador preso a uma entidade do addon; fases, transições por tempo, vida, sinal, dano, morte e predicado, sequências pela Timeline, efeitos de entrada, saída e sustain, ações periódicas, evento global por fase, invulnerabilidade opcional, persistência na entidade, `maxPerBoss` e `bossMaxActive`, `/calamidade boss`.
+- **Pontos presos a ossos** (`RigAnchors`, `Point.socket`, `Point.socketAim`, `Effects.anchorSocket`, `AnchorCapture`): pose capturada no render do addon (vanilla, GeckoLib ou outro), providers, anchors estáticos e plano B, sem o Calamidade depender do GeckoLib; visual no cliente, aproximação estática no servidor.
+- **BossBar:** barra vanilla mais estilos de cliente (`BossBars`), barra segmentada com nome da fase, fantasma de dano e clarão; acessibilidade de tamanho, contraste, rótulos e "forçar vanilla"; canal `boss_v1`.
+- Chefe de exemplo: o Sentinela do Eclipse (receita 27), que dispara o eclipse da 0.12 em área na fase final.
 
 ### Depois da 0.13
 

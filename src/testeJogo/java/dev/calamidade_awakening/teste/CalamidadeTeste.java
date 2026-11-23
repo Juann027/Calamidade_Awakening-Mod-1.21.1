@@ -53,6 +53,7 @@ public final class CalamidadeTeste {
         registrar(GRANDE, TerrainEdit.carve(TerrainShape.sphere(24)).commitAt("impacto").burn(TerrainPalette.burnt(), 2).noHeat().build());
         registrar(ENTIDADES, TerrainEdit.carve(TerrainShape.crater(6, 4)).commitAt("impacto").replacingBlockEntities().noHeat().build());
         registrarCeu();
+        ChefesTeste.registrar();  // 0.13.0
         NeoForge.EVENT_BUS.register(Protecao.class);
         NeoForge.EVENT_BUS.addListener((ChunkDataEvent.Save event) -> SALVOS.add(event.getChunk().getPos().toLong()));
         NeoForge.EVENT_BUS.addListener(CalamidadeTeste::started);
@@ -60,6 +61,7 @@ public final class CalamidadeTeste {
         if (FMLEnvironment.dist == Dist.CLIENT && "medicao".equals(System.getProperty("calamidade.teste"))) RoteiroMedicao.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "atlas".equals(System.getProperty("calamidade.teste"))) RoteiroAtlas.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "ceu".equals(System.getProperty("calamidade.teste"))) RoteiroCeu.registrar();
+        if (FMLEnvironment.dist == Dist.CLIENT && "chefe".equals(System.getProperty("calamidade.teste"))) RoteiroChefe.registrar();
     }
 
     private static ResourceLocation id(String path) { return ResourceLocation.fromNamespaceAndPath(ID, path); }
@@ -112,7 +114,7 @@ public final class CalamidadeTeste {
     private static void started(ServerStartedEvent event) {
         String fase = System.getProperty("calamidade.teste");
         if (fase == null || fase.isBlank() || fase.equals("cliente") || fase.equals("medicao") || fase.equals("atlas")
-            || fase.equals("ceu")) return;
+            || fase.equals("ceu") || fase.equals("chefe")) return;
         Thread thread = new Thread(new Roteiro(event.getServer(), fase), "Calamidade teste em jogo");
         thread.setDaemon(true);
         thread.start();

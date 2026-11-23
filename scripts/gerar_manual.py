@@ -27,6 +27,7 @@ CHAPTERS = [
     ("INTEGRACAO-0.10.md", "Integração com outros mods: orientação, fontes, limites e gatilhos"),
     ("TERRENO-0.11.md", "Terrain API: destruição, crateras e objetos que viram blocos reais"),
     ("CEU-0.12.md", "Céu fantástico, eventos globais e céu por dimensão"),
+    ("BOSSES-0.13.md", "Chefes: Boss API, BossBar e Rig Anchors"),
     ("ARQUITETURA.md", "Arquitetura do motor"),
     ("HABILIDADES.md", "Criar habilidades dentro do motor"),
     ("TESTE-REAL.md", "Testes em GPU real e multiplayer"),

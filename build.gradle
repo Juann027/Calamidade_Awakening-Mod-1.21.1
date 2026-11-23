@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'dev.calamidade_awakening'
-version = '0.12.0'
+version = '0.13.0'
 base { archivesName = 'calamidade_awakening' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
@@ -74,6 +74,16 @@ neoForge {
             sourceSet = sourceSets.testeJogo
             gameDirectory = layout.projectDirectory.dir('run/teste-ceu').asFile
             systemProperty 'calamidade.teste', 'ceu'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
+        // 0.13.0: chefes no cliente (anchors, barra, acessibilidade, Sentinela do vfx-sample), uma só inicialização.
+        testeChefe {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = layout.projectDirectory.dir('run/teste-chefe').asFile
+            systemProperty 'calamidade.teste', 'chefe'
             programArgument '--quickPlaySingleplayer'; programArgument 'teste'
             programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
@@ -542,5 +552,46 @@ tasks.register('testeCeu') {
         lines.findAll { it.startsWith('|') }.each { logger.lifecycle(it) }
         logger.lifecycle("testeCeu: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeCeu:\n' + failed.join('\n'))
+    }
+}
+
+// 0.13.0: teste em jogo dos chefes no cliente (xvfb-run ./gradlew testeChefe), no mundo do testeJogo e com o vfx-sample
+// 1.10.0, numa só inicialização: anchor capturado do modelo x estático, extrapolação fora da tela, feixe saindo dos
+// olhos; barra segmentada, troca de fase, forçar vanilla, escala e alto contraste, alcance e entrada tardia; o Sentinela
+// do Eclipse de ponta a ponta. Relatório em run/teste-chefe/calamidade-chefe.txt, capturas em run/teste-chefe/screenshots/.
+def testeChefeDir = layout.projectDirectory.dir('run/teste-chefe').asFile
+def prepararTesteChefe = tasks.register('prepararTesteChefe') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo e o JAR do vfx-sample para run/teste-chefe.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteChefe: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        def sample = fileTree('examples/vfx-sample/build/libs') { include 'vfx-sample-*.jar'; exclude '*-sources.jar' }
+        if (sample.isEmpty()) throw new GradleException('prepararTesteChefe: rode ./gradlew -p examples/vfx-sample build antes')
+        ['saves', 'mods', 'screenshots', 'logs', 'config'].each { project.delete(new File(testeChefeDir, it)) }
+        project.delete(new File(testeChefeDir, 'calamidade-chefe.txt'))
+        project.copy { from world; into new File(testeChefeDir, 'saves/teste'); exclude 'session.lock'; exclude 'data/calamidade_awakening_*' }
+        project.copy { from sample; into new File(testeChefeDir, 'mods') }
+        new File(testeChefeDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'lang:pt_br',
+            'maxFps:260', 'enableVsync:false'].join('\n') + '\n'
+        if (testeMods.isPresent()) project.copy { from(testeMods.get()) { include '*.jar' }; into new File(testeChefeDir, 'mods') }
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteChefe') task.dependsOn prepararTesteChefe }
+tasks.register('testeChefe') {
+    group = 'verification'
+    description = 'Roda o teste em jogo dos chefes no cliente (precisa de tela: xvfb-run) e falha se algum caso falhar.'
+    dependsOn 'runTesteChefe'
+    doLast {
+        def report = new File(testeChefeDir, 'calamidade-chefe.txt')
+        if (!report.exists()) throw new GradleException('testeChefe: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM chefe')) failed << "FAIL roteiro incompleto (falta 'FIM chefe')"
+        logger.lifecycle("testeChefe: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeChefe:\n' + failed.join('\n'))
     }
 }
