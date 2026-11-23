@@ -2663,6 +2663,85 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 ## 18. Validação, medições e limites
 
+### 0.14 (Custom Sky) — fase 4: imagens, flipbooks e impostors, branch `claude/ceu-personalizado` (23/11/2026)
+
+**O motor mudou (só aditivo):**
+- API `SkyImage`, `SkyImpostor`, `Effects.images`, `Effects.impostors` e `SkyProfile.StateBuilder.images/impostors`.
+- Puro: `SkySpriteMath`.
+- Cliente: `SkyTextures` (substitui o `BackdropTextures`), `SkySprites` e `SkyObjectsFrame`.
+- Shaders: o de núcleo `sky_sprite`; `sky_objects.glsl` recebe parâmetros; `sky.fsh` compõe a camada de frente (`CaElFront`, só com `FRONT`).
+- Ferramenta: `scripts/gerar_impostor.cjs`.
+
+A versão do build continua 0.12.0. O JAR deste branch é de desenvolvimento (SHA-256 `4039d674…`, contra `a934968a…` do release, intocado junto com a tag `v0.12.0` e a `main`). Arquitetura, ajustes em relação ao plano e guia para addons: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-4-imagens-flipbooks-e-impostors-implementada).
+
+**Executado nesta sessão** (pela regra de [AGENTS.md](../AGENTS.md#quando-rodar-cada-teste-regra-permanente-desde-a-fase-3-da-014)):
+
+| Teste | Resultado | Observação |
+|---|---|---|
+| `./gradlew build` | verde | `SkySpriteCheck` novo no `checkBudget`, com casos negativos; `checkShaders` com glslangValidator: 21 shaders; `checkApiDocs` |
+| `./gradlew checkApiCompat` | verde | base 0.12.0 inteira presente e compatível (só adições) |
+| `node scripts/referencia_ceu.cjs` | 47/47 | as 38 cenas anteriores com diferença **zero** (média 0, pior 0) depois da refatoração de `sky_objects.glsl` e do `sky.fsh`; 9 cenas novas de imagens gravadas numa rodada e reproduzidas iguais na seguinte |
+| `node scripts/fundo_composicao.cjs` | 9/9 | igual à fase 2 |
+| `node scripts/objetos_composicao.cjs` | 43/43 | os 24 da fase 3 e 19 novos (I1 a I8), cada um com controle negativo que falha como esperado |
+| `xvfb-run ./gradlew testeImagens` (novo) | 27/27 | numa só inicialização; ver abaixo |
+| `xvfb-run ./gradlew testeEstrelas` | 20/20 | regressão: `SkyObjectsFrame` mudou |
+| `xvfb-run ./gradlew testeBackdrop` | 34/34 | regressão: o cache de texturas do fundo mudou |
+| `xvfb-run ./gradlew testeCeu` | 20/20 | regressão: `FRONT` entra no passe `sky` |
+| `./gradlew dist` e `./gradlew -p examples/vfx-sample build` | verde | |
+| `gerar_impostor.cjs` e `gerar_sprites_teste.py` | ok | montar, validar e exemplo; mensagens para vista faltando, yaw fora do passo, LOD errado, id inválido e PNG corrompido; recursos de teste byte a byte iguais em duas execuções |
+
+**Falhas encontradas e corrigidas na fase** (nenhum teste foi alterado para passar):
+
+1. Na prévia, uma folha de quadros desenhada pequena misturava o quadro vizinho mesmo com 2 px de margem: a margem só protege os primeiros níveis de mipmap.
+   - Correção: mipmaps por quadro feitos na CPU e amostragem presa ao nível lido.
+   - Prova: caso I6; o controle negativo com mipmaps do driver vaza 49/255.
+2. A primeira rodada do `testeImagens` mostrou a imagem com a textura do cubemap. `ShaderInstance.setDefaultUniforms` grava `Sampler0..11` com `RenderSystem.getShaderTexture(i)` (javap `-c`), e o motor definia o amostrador antes dela.
+   - Correção: amostradores definidos depois de `setDefaultUniforms`.
+   - Prova: a rodada seguinte, completa, deu 27/27.
+3. Uma primeira tentativa de interromper essa rodada não parou o processo. A rodada antiga e a nova dividiram `run/teste-imagens`, e o relatório misturado foi descartado. A rodada válida é a de 27/27, sozinha. Isso é infraestrutura, não um defeito do motor.
+
+**`testeImagens` (llvmpipe, 1280 × 720):**
+- Sem addon: nada; nenhuma textura de sprite e nenhuma camada de frente alocada.
+- Disco NORMAL com a cor exata (240,48,160) sobre o cubemap; a parte transparente do PNG não toca o fundo (pior 0).
+- Silhueta COVER: 502 pixels com a cor, 9 498 com o fundo, 0 na borda.
+- Flipbooks por cor sentinela: LOOP `[2, 3, 0, 1, 2, 3]`, ONCE `[3, 3, 3]`, PING_PONG `[2, 1, 0, 1, 2, 3, 2, 1]`, TRACK `[2, 2]`.
+- `flashing(true)` congela no quadro seguro com "ocultar clarões" (variação 255 → 0). A folha que pisca sem marca é pega pela rede de segurança. Um flipbook normal continua animando.
+- Impostor: a vista certa com a cor exata para as orientações 0, 90 e 180°. LOD: nível 0 grande, nível 1 pequeno.
+- `FRONT`: a imagem fica na frente de um portal do motor com a cor exata. `BEHIND`: fica atrás dele.
+- Recursos inválidos: PNG ausente, PNG corrompido, grade que não divide a imagem, descritor inválido, página ausente e descritor ausente. São 7 problemas contados uma vez cada, estáveis, e a imagem válida continua.
+- Lote: **1,00 chamada de desenho por quadro** para duas imagens da mesma textura.
+- Cegueira e `customSkies` desligam as imagens.
+- Recarga: as texturas são liberadas e enviadas de novo.
+- Memória contada (63 KiB de 256 MiB em HIGH).
+- Céu do Overworld igual antes e depois (diferença 0). Capturas: [jogo](ceu-previas/imagens-fase4-jogo.jpg) e [prévia](ceu-previas/imagens-fase4-previa.jpg).
+
+**Custo (software, llvmpipe, só tendência; GPU física pendente).** Mediana / p95 do tempo de quadro no `testeImagens`, com a câmera a 30° acima do horizonte à noite:
+
+| Cenário | Mediana / p95 |
+|---|---:|
+| Sem objetos | 17,8 / 23,9 ms |
+| 1 imagem | 17,1 / 22,4 ms |
+| 8 imagens de 3 texturas | 19,2 / 24,6 ms |
+| Flipbook | 16,7 / 21,1 ms |
+| Impostor | 20,2 / 26,4 ms |
+| Portal com imagem `BEHIND` | 51,1 / 58,2 ms |
+| Portal com imagem `FRONT` | 54,2 / 60,3 ms |
+
+Leitura:
+- As imagens custam perto do ruído entre rodadas (1 a 4 ms).
+- O portal domina por software.
+- A camada de frente custa perto de 3 ms sobre o passe que já existia.
+
+Os números do `testeEstrelas` desta rodada (por exemplo, atmosfera 44,9 ms) foram medidos com a prévia WebGL rodando ao mesmo tempo na mesma CPU e não são comparáveis com os da fase 3. Nenhum ganho ou limite é afirmado para GPU física. Os limites de envio (1 / 1 / 2 / 2 por quadro, 4 / 8 / 16 / 32 MiB) e de memória (64 / 128 / 256 / 512 MiB) continuam como pontos de partida conservadores. As texturas de teste são pequenas, então o custo de enviar texturas grandes não foi medido: fica pendente.
+
+**Reaproveitado, não executado de novo:**
+- `checkObjetosComposicao` 43/43 rodou uma vez nesta fase, no estado atual dos shaders e dos scripts da prévia; nada que ele exercita mudou depois.
+- A fase 3 inteira continua registrada abaixo.
+
+**Não rodado, com justificativa:** `testeJogo`. A fase não mexe em servidor, rede, terreno nem estado de servidor. A única execução nesta sessão foi no começo, com o código da fase 3 (`90d4097`), só para criar o mundo que os testes de cliente copiam (o container era novo). Deu 60/61; a falha foi o limite de 50 ms do desfazer da cratera grande (52,4 ms), a falha intermitente já registrada desde a 0.12.0.
+
+**Não testado:** GPU física, Iris/Oculus e shaderpacks, Sodium/Embeddium, outros mods que desenham em `AFTER_SKY`, multiplayer com dois jogadores, texturas de 4 096 px reais (só o cálculo da redução está nos testes puros) e envio de texturas grandes. Nenhuma compatibilidade é afirmada.
+
 ### 0.14 (Custom Sky) — fase 3: estrelas, constelações e nebulosas, branch `claude/ceu-personalizado` (23/11/2026)
 
 **O motor mudou (só aditivo):** API `StarField`, `Nebula`, `SkyBlend`, `SkyDarkening`, `Effects.stars`, `Effects.nebulae`, `SkyProfile.StateBuilder.stars/nebulae`; puro `SkyObjectsMath`; cliente `SkyObjectsFrame`; shaders de núcleo `sky_stars`, `sky_nebula` e `include/sky_objects.glsl`; passes `sky` e `atmosphere` com a camada de cobertura (`CaElTex`, só com objetos). A versão do build continua 0.12.0 até o release da 0.14; o JAR deste branch **não** é o do release (SHA-256 `42e73c98…` contra `a934968a…` do release, intocado com a tag `v0.12.0` e a `main`) e agora se identifica como build de desenvolvimento no log, na descrição da lista de mods e no F7. Arquitetura, decisão de composição e limitações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md#fase-3-estrelas-constelações-e-nebulosas).

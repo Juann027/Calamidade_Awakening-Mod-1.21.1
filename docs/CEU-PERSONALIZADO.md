@@ -369,7 +369,17 @@ Regras que valem para todas: nada novo sem um addon pedir; separação entre def
 - **Testes**: a prévia aceita texturas de teste e pré-passes que fazem o papel de `AFTER_SKY`; o `testeBackdrop` tem sondas, capturas e o padrão de registrar fundos no mod de teste.
 - Continuam planejados e **não** começados: na 0.14, estrelas luminosas, constelações, nebulosas, PNGs e billboards, spritesheets e imagens animadas, objetos 3D pré-renderizados e impostors, personalização mais completa da atmosfera e do céu; na 0.15, modelos Blockbench reais, modelos personalizados e animados, Sky, World e Entity Space, objetos gigantescos no céu, transições 2D ↔ 3D, portais cinematográficos, objetos atravessando portais e integração opcional com entidades e chefes. A 0.13 continua reservada aos Bosses.
 
+## O que a fase 4 deixa pronto para a 0.15 (sem implementar nada dela)
+
+- **Camada de frente** (`CaElFront`, composta no fim do passe `sky`, só nos pixels de céu, sem lente): o mesmo ponto em que modelos 3D distantes poderão ficar na frente de um portal ou de um buraco negro.
+- **Orientação e vistas** (`SkySpriteMath.orientation`, `viewAngles`, `Heading.PATH`): a convenção de frente (+Z), yaw e pitch que um modelo Blockbench real vai usar, e a transição natural "impostor ao longe, modelo de perto".
+- **Cache único de texturas com orçamento por perfil** (`SkyTextures`): pronto para as texturas de modelos e para os níveis de LOD.
+- **Formato de impostor e ferramenta**: um modelo da 0.15 pode ter um impostor gerado das próprias vistas para a distância.
+- Continuam **não** começados: modelos Blockbench reais, geometria e animação 3D, Sky/World/Entity Space, objetos gigantescos próximos, portais que transportam objetos, colisão e integração com entidades e chefes.
+
 ## Pendências que continuam abertas
+
+- Da fase 4: medir em GPU física o custo do envio de texturas grandes (2 048² e 4 096²) e de folhas de impostor reais, e só então ajustar os limites de envio e de memória por perfil; uma receita do vfx-sample com imagem, flipbook e impostor (nesta fase os exemplos estão no Javadoc, nesta página e no mod de teste).
 
 - Da 0.12.0 (VALIDACAO.md): multiplayer manual com dois jogadores; a pulsação observada no Overworld (causa não identificada, não é bug confirmado). Quando a fase 2 tocar em Atmosphere ou no estado do céu entre dimensões, entra um teste de regressão que captura o céu do Overworld antes e depois de mudar os estados da dimensão de teste, com a hora congelada.
 - Da 0.15: validar os formatos reais de exportação do Blockbench (Bedrock `.geo.json`, Java, OBJ) e o subconjunto de animação antes de qualquer leitor.
