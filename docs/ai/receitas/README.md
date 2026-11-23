@@ -1,6 +1,6 @@
 # Receitas de efeitos
 
-Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `Receitas.java` e testável no jogo com `/vfxsample receita <nome>` (permissão de comandos); as receitas 15 a 17 (gatilhos de item, bloco e mob) são testadas com o item, os blocos e o mob do exemplo; as 18 a 21 (Terrain API) mexem no terreno e se desfazem com `/calamidade terrain undo`; as 22 a 26 (0.12.0) usam a Sky API, os eventos globais e o céu por dimensão. O código dos arquivos `.md` é o mesmo dos arquivos do exemplo: `./gradlew checkRecipes` (parte do build) falha se divergirem, e `./gradlew syncRecipes` os copia de novo.
+Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `Receitas.java` e testável no jogo com `/vfxsample receita <nome>` (permissão de comandos); as receitas 15 a 17 (gatilhos de item, bloco e mob) são testadas com o item, os blocos e o mob do exemplo; as 18 a 21 (Terrain API) mexem no terreno e se desfazem com `/calamidade terrain undo`; as 22 a 26 (0.12.0) usam a Sky API, os eventos globais e o céu por dimensão; a 27 (0.13.0) é o chefe de demonstração da Boss API. O código dos arquivos `.md` é o mesmo dos arquivos do exemplo: `./gradlew checkRecipes` (parte do build) falha se divergirem, e `./gradlew syncRecipes` os copia de novo.
 
 | # | Receita | Comando | Mostra |
 |---|---|---|---|
@@ -30,5 +30,6 @@ Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `
 | 24 | [Lua gigante](24-lua-gigante.md) | `lua_gigante` | `CELESTIAL_BODY` com anéis, trilhas `ELEVATION`/`AZIMUTH` e fase |
 | 25 | [Eclipse global](25-eclipse-global.md) | `/vfxsample evento eclipse start\|release\|stop` | `WorldEvents` no escopo SERVER, persistente; `ECLIPSE` com escurecimento, raios ao longe, atmosfera |
 | 26 | [Dimensão de teste](26-dimensao-teste.md) | `/vfxsample dimensao`, `/vfxsample ceu <estado>` | `SkyProfile` com três estados, `ProfileSkyEffects`, dimensão por datapack |
+| 27 | [Chefe Sentinela do Eclipse](27-chefe-sentinela.md) | `/vfxsample chefe`, `/vfxsample chefe cratera on\|off` | Boss API (0.13.0): fases, barra segmentada, `Point.socket`, `Effects.anchorSocket`, `AnchorCapture` numa `RenderLayer`, eclipse em área |
 
 Para começar um efeito novo do zero: `python3 scripts/novo_efeito.py <namespace> <nome>` (veja [AGENTS.md](../../../AGENTS.md)). Funções GLSL usadas aqui: `calamidade_fx.glsl`, documentadas em [glsl.md](../glsl.md). Assinaturas da API: [API-REFERENCIA.md](../API-REFERENCIA.md).
