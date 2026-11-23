@@ -169,19 +169,19 @@ final class RoteiroEstrelas implements Runnable {
             try (var est = iniciar(CalamidadeTeste.EST_CAMPO)) {
                 int[] noite = foto("estrelas-luminosas-noite");
                 int escuro = 0, acesos = 0;
-                for (int y = 0; y < 300; y++) for (int x = 0; x < 1280; x++) {
+                // Olhando 45 graus para cima a tela inteira é céu (faces cima, sul, leste e oeste do cubemap).
+                for (int y = 0; y < 720; y++) for (int x = 0; x < 1280; x++) {
                     int a = pixel(sem, x, y), c = pixel(noite, x, y);
-                    if (!perto(a, FACES[2], TOL)) continue;
                     escuro = Math.max(escuro, Math.max(r(a) - r(c), Math.max(g(a) - g(c), b(a) - b(c))));
-                    if (difMax(a, c) > 12) acesos++;
+                    if (difMax(a, c) > 6) acesos++;
                 }
                 check("estrelas LUMINOUS não apagam o fundo (nenhum pixel mais escuro)", escuro <= 2 && acesos > 30,
                     "pior escurecimento " + escuro + "/255, " + acesos + " pixels acesos");
                 hora(6000);
                 int[] dia = foto("estrelas-luminosas-dia");
                 int sobra = 0;
-                for (int y = 0; y < 300; y += 2) for (int x = 0; x < 1280; x += 2)
-                    if (perto(pixel(sem, x, y), FACES[2], TOL) && difMax(pixel(sem, x, y), pixel(dia, x, y)) > 6) sobra++;
+                for (int y = 0; y < 720; y += 2) for (int x = 0; x < 1280; x += 2)
+                    if (difMax(pixel(sem, x, y), pixel(dia, x, y)) > 6) sobra++;
                 check("de dia, estrelas com daylight 1 somem (como as do jogo)", sobra < 5, sobra + " pixels diferentes");
             }
         }
@@ -367,6 +367,7 @@ final class RoteiroEstrelas implements Runnable {
         sb.append(String.format(Locale.ROOT, " sem objetos %.2f/%.2f;", med(sem), p95(sem)));
         Object[][] casos = {{"6 000 estrelas", CalamidadeTeste.EST_CAMPO, null}, {"60 000 estrelas (HIGH: 40 000)", CalamidadeTeste.EST_DENSO, null},
             {"nuvem", CalamidadeTeste.EST_NEBULOSA, null}, {"faixa", CalamidadeTeste.EST_FAIXA, null},
+            {"atmosfera sozinha (passe de tela inteira já existente)", CalamidadeTeste.EST_ATMO, null},
             {"6 000 estrelas + atmosfera (camada de cobertura)", CalamidadeTeste.EST_CAMPO, CalamidadeTeste.EST_ATMO}};
         for (Object[] caso : casos) {
             try (var a = iniciar((ResourceLocation) caso[1]); var b = caso[2] == null ? (Fundo) () -> {} : iniciar((ResourceLocation) caso[2])) {

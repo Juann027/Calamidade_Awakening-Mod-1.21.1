@@ -1,6 +1,6 @@
 # Custom Sky Engine: arquitetura (0.14 e 0.15)
 
-Documento de trabalho do branch `claude/ceu-personalizado`. Fases 0, 1 e 2 (Backdrop) concluídas; a fase 3 espera aprovação. Ainda não é capítulo do manual: entra em `gerar_manual.py` quando a 0.14 for lançada (a versão do build continua 0.12.0 até lá).
+Documento de trabalho do branch `claude/ceu-personalizado`. Fases 0, 1 e 2 (Backdrop) concluídas e aprovadas; fase 3 (estrelas, constelações e nebulosas) concluída e à espera de aprovação; a fase 4 não começou. Ainda não é capítulo do manual: entra em `gerar_manual.py` quando a 0.14 for lançada (a versão do build continua 0.12.0 até lá).
 
 Marcadores: **[V]** verificado (código, `javap`/fontes do NeoForge 21.1.267, bytecode da RimuLib 1.3.0 ou experimento em jogo, com a fonte indicada); **[H]** hipótese; **[D]** decisão de arquitetura.
 
@@ -88,14 +88,63 @@ A arquitetura acima foi seguida; o que mudou em relação a ela está marcado.
 
 **Limitações conhecidas.** Névoa casada é uma cor por quadro (a do horizonte na direção do olhar), como a do jogo: com faces muito diferentes, o terreno distante nas bordas da tela pode diferir do fundo atrás dele. Amostragem sem filtro (pixel a pixel); filtro linear daria costuras nas arestas do cubo e fica para depois, se pedido. Na prévia e em jogo, o fundo usa a cobertura amostrada; o redesenho do sol usa a cobertura no centro do sol (pode diferir nas bordas de uma textura com alfa variável). Sob fundo parcial o apagamento do sol herda o erro de 8 bits do mecanismo da 0.12.0, pela metade. O fundo não muda com o dia e a noite (a hora não o escurece; um perfil ou uma trilha `OPACITY` fazem isso). Iris/Oculus, shaderpacks, Sodium/Embeddium e GPU física **não foram testados** com o fundo.
 
+## Fase 3: estrelas, constelações e nebulosas
+
+### Decisão de composição (pedida na aprovação da fase 2): híbrida e por objeto
+
+Não há uma regra global. **[D]** Todo objeto do céu (estrelas, linhas, nebulosas e, na fase 4, imagens, billboards, spritesheets e impostors) sai em **alfa pré-multiplicado**: o pixel traz uma luz `rgb` e uma cobertura `a`, e o céu de trás vira `trás × (1 − a) + rgb` (mistura `ONE, ONE_MINUS_SRC_ALPHA`). O modo de cada objeto (`SkyBlend`) só muda o que ele traz:
+
+| Modo | Luz | Cobertura | Uso |
+|---|---|---|---|
+| `NORMAL` | cor × alfa × opacidade | alfa × opacidade | transparência real, cores exatas (nebulosa semitransparente, estrela colorida sobre fundo claro, PNG com alfa) |
+| `LUMINOUS` | cor × alfa × opacidade × brilho | 0 | luz emissiva: o fundo nunca some, só clareia (padrão das estrelas) |
+| `COVER` | cor × opacidade dentro da silhueta | 1 × opacidade onde alfa ≥ 0,5 | silhueta: esconde o fundo só dentro da forma, nunca como retângulo |
+
+O Backdrop (fundo inteiro) continua com o mecanismo de cobertura da fase 2. Uma estrela `NORMAL` fraca cobre pouco (a cobertura segue o brilho até 1) e o brilho acima de 1 alarga o disco em vez de lavar a cor; em `LUMINOUS` o brilho acima de 1 estoura para branco, como luz. Cada objeto escolhe também a reação à Atmosphere (`atmosphere`, 0..1: quanto o véu o cobre), à luz do dia (`daylight`, 0..1: como as estrelas do jogo), ao escurecimento das camadas (`SkyDarkening`: `DIM` escurece com o mundo, `REVEAL` aparece com a escuridão, `IGNORE`; com força 0..1) e ao horizonte (degradê em graus). Padrões: estrelas `LUMINOUS`, véu 1, dia 1, `REVEAL`, ordem 200; nebulosas `NORMAL`, véu 1, dia 1, `REVEAL`, ordem 100 (atrás das estrelas). `order` (−1000..1000) define quem fica na frente; em empate, o mais importante fica por cima.
+
+**Cobertura por pixel [D].** O objeto aplica a própria reação no shader (o véu com as cores da Atmosphere do quadro, a exposição do eclipse, a visibilidade de dia). Quando o passe `sky` ou o `atmosphere` vai rodar no quadro, os mesmos objetos são desenhados uma segunda vez numa **camada de cobertura** do tamanho da tela (RGBA8, limpa em zero, mesma mistura): `rgb` é a luz que os objetos trouxeram e `a` a cobertura combinada, sem o terreno na frente. A composição pré-multiplicada é associativa, então a camada é exatamente o que os objetos fizeram na tela (provado no `SkyObjectsCheck`). Os passes leem a camada (`CaElTex`, `calamidade_sky.glsl`) e:
+- **Atmosphere:** a diferença do céu vale só para o que os objetos deixam ver, `× (1 − a)`. Com véu 1, o resultado é exatamente `mix(tela, gradiente, mistura)`, como se o objeto estivesse atrás da atmosfera; com véu 0, ele brilha através dela.
+- **Escurecimento (eclipse):** `tela × exposição + rgb × (1 − exposição)`: os objetos ficam como se desenharam (cada um já aplicou `DIM`, `REVEAL` ou `IGNORE`).
+- **Sol e lua do jogo:** a parte ainda visível é `× (1 − a)`: um objeto opaco na frente do sol não ganha marca.
+- **Lente:** a cena desviada já traz os objetos; onde o desvio cai num morro, o preenchimento é o céu estimado com os objetos por cima (a camada não tem terreno).
+- **Profundidade:** os objetos não gravam profundidade, como o céu do jogo e o fundo; terreno, nuvens e as camadas procedurais da 0.12 ficam na frente.
+
+Sem objetos, ou sem esses passes no quadro, a camada não é desenhada nem alocada e os passes rodam o código da fase 2 (`CaEl.x = 0`; `checkCeuReferencia` com diferença zero). Custo da camada: o segundo desenho dos mesmos objetos, só nos quadros com passe de céu ou de atmosfera; nenhum passe de tela inteira novo. Isto prepara a fase 4: imagens e impostors entram como mais um objeto no mesmo ouvinte, com os mesmos modos, a mesma camada e as mesmas reações.
+
+### API (só aditiva; `checkApiCompat` verde contra a base 0.12.0)
+
+- `StarField.random(semente, n)` (até 65 536): magnitudes com a distribuição do céu real (cerca de quatro vezes mais estrelas por magnitude mais fraca), paleta de temperaturas, `band(polo, meia largura, fração)` (galáxia vista de lado), `region(centro, raio)`. `StarField.catalog().star(nome, azimute, elevação, magnitude, cor)` (até 4 096) e `.constellation(cor, "a", "b", "c")` (até 2 048 segmentos, `lineWidth`). Comum: `size`, `brightness`, `twinkle(quantidade, velocidade)`, `blend`, `atmosphere`, `darkening`, `daylight`, `horizon`, `opacity`, `rotation`, `spin`, `celestial` (gira com a hora como as estrelas do jogo; direções dadas como vistas à meia-noite), `order`, trilhas `OPACITY`, `BRIGHTNESS`, `ROTATION` e `weightPhase`.
+- `Nebula.cloud(azimute, elevação, raio)` e `Nebula.band(polo, meia largura)`: ruído com semente, `colors(denso, borda)`, `density`, `detail`, `warp`, `roll` e as mesmas opções comuns (padrão `NORMAL`).
+- `Effects.stars(id, campos...)` (até 4), `Effects.nebulae(id, nebulosas...)` (até 8); `SkyProfile.StateBuilder.stars(...)` e `.nebulae(...)` (constantes; estados fazem transição); eventos globais herdam do efeito. Enums novos `SkyBlend` e `SkyDarkening`. `Sky.Type` não mudou.
+- Brilho: `10^(−0,2 (m − 1))` (magnitude 1 = 1, magnitude 6 ainda visível em 8 bits). Abaixo de ~1 pixel a estrela perde brilho pela raiz da razão de tamanho em vez de encolher (sem cintilação de aliasing); as linhas têm largura mínima na tela.
+- Opção de cliente `customSkies` desliga fundos, estrelas e nebulosas. Cintilação parada com "efeitos de movimento" desligado, a 1/4 com "ocultar clarões", zero com intensidade dos efeitos de tela 0.
+
+### Desenho e desempenho (`SkyObjectsFrame`)
+
+- **[V]** Em `AFTER_SKY`, logo depois dos fundos, no mesmo ouvinte, com o estado devolvido ao jogo. Shaders de núcleo `sky_stars` e `sky_nebula` (registrados no `RegisterShadersEvent`, `#moj_import` de `sky_objects.glsl`; `checkShaders` agora compila também os shaders de núcleo).
+- **Lote:** cada campo vira um `VertexBuffer` estático uma vez (linhas primeiro, depois as estrelas da mais brilhante para a mais fraca), desenhado com **uma chamada por quadro** (medido em jogo: 1,00 chamada por quadro com 40 000 estrelas). Instancing não existe no `VertexBuffer` do jogo (`javap`: só `draw()` com a contagem inteira); o prefixo é desenhado como o `drawWithShader` faz (`setDefaultUniforms`, `apply`, `RenderSystem.drawElements` com a contagem e o tipo de índice do buffer sequencial), conferido por `javap -c`. Nebulosas: duas malhas compartilhadas (grade 24 × 24 aberta em volta do centro, só os pixels da nuvem pagam; esfera 64 × 32 para faixas).
+- **Perfis (AUTO incluído):** campos / estrelas / nebulosas / oitavas por quadro: LOW 2 / 4 000 / 2 / 3; BALANCED 3 / 16 000 / 3 / 4; HIGH 4 / 40 000 / 4 / 5; ULTRA 6 / 131 072 / 6 / 5. Os perfis menores desenham o prefixo (as mais brilhantes). Seleção como a das camadas: eventos globais, depois o perfil da dimensão, depois HERO, depois opacidade. Malhas sem uso por 1 200 quadros são liberadas; tudo é liberado na recarga de recursos e ao sair.
+- Mesmas regras do céu do jogo: nada com cegueira, escuridão, lava, neve em pó, névoa de bioma ou de chefe.
+
+### Provas
+
+- `SkyObjectsCheck` (no `checkBudget`): regras dos construtores, amostragem, geração determinística, distribuição de magnitudes, faixa e região, catálogo e segmentos, tetos e partilha do orçamento de estrelas, seleção e ordem, referencial celeste (mesmo eixo do sol), os três modos, a associatividade da camada de cobertura, reações.
+- `checkObjetosComposicao` (prévia com os shaders de núcleo **reais** em WebGL2 e os passes reais): **24/24**, cada caso com controle negativo que precisa falhar — estrelas `LUMINOUS` não apagam o fundo (pior escurecimento 0/255); `NORMAL` com a cor exata (255,32,16); nebulosa a 0,5 mistura por alfa coerente (1,3/255) sem substituir a skybox (0/255 fora dela) e sem chegar à cor dela (alfa máximo 0,40); `COVER` só na silhueta; Atmosphere sobre fundo, nebulosa e estrelas pelos dois passes 1,4/255 (sem a camada: 70,8/255); estrelas `REVEAL` no eclipse 0,5/255 da visibilidade prevista (sem a camada: 27,5/255), `DIM` 1,0/255, `IGNORE` diferente; sol sob nuvem `COVER` 0,0/255 (sem a camada: 192/255); ordem; lente (15/17 pixels de estrela deslocados perto, 16/16 iguais longe).
+- `checkCeuReferencia`: as 26 cenas anteriores com diferença zero, mais 12 cenas de objetos na referência.
+- Em jogo, `testeEstrelas` (resultados em VALIDACAO.md).
+
+**O que a prévia achou e foi corrigido:** estrelas fracas demais (conservação de fluxo pelo quadrado e escala de magnitude dura), cor `NORMAL` lavada para branco nas estrelas brilhantes e linhas de constelação serrilhadas sem largura mínima.
+
+**Limitações conhecidas.** A camada de cobertura não conhece as nuvens do jogo (desenhadas depois de `AFTER_SKY`): sobre uma nuvem na frente de uma nebulosa, a Atmosphere tinge um pouco menos e o escurecimento devolve um pouco de luz das estrelas atrás dela. A reação ao escurecimento usa a exposição do quadro anterior (um quadro de atraso numa transição). No primeiro quadro em que um passe começa, a camada pode não estar desenhada e os objetos levam o véu duas vezes por esse quadro. Exposição e tinta da Atmosphere continuam valendo para a tela inteira, objetos incluídos (como para o sol). Pixels que estouram em 255 (luz somada sobre fundo claro) perdem cor antes dos passes, como qualquer luz em 8 bits. Iris/Oculus, shaderpacks, Sodium/Embeddium, outros mods em `AFTER_SKY`, GPU física e multiplayer com dois jogadores **não foram testados**; nenhuma compatibilidade é afirmada. Shaderpacks substituem o pipeline de desenho e podem não disparar `AFTER_SKY` do mesmo jeito.
+
 ## Visão geral consolidada (0.14 e 0.15)
 
 | Modalidade | Caminho de desenho | Versão |
 |---|---|---|
 | Procedural (sete tipos da 0.12) | Passe `sky`, sem mudança | já existe |
 | Backdrop (cubemap, panorama, gradiente) | Geometria em `AFTER_SKY` (acima) | 0.14, fase 2 — **feito** |
-| Estrelas procedurais, nebulosas procedurais | Domo em `AFTER_SKY` com shader próprio | 0.14, fase 3 |
-| Catálogo de estrelas e constelações | Um `VertexBuffer` estático em `AFTER_SKY` | 0.14, fase 3 |
+| Estrelas procedurais, nebulosas procedurais | `VertexBuffer` estático por campo e malhas compartilhadas de nebulosa em `AFTER_SKY`, shaders de núcleo próprios | 0.14, fase 3 — **feito** |
+| Catálogo de estrelas e constelações | Um `VertexBuffer` estático em `AFTER_SKY` (linhas e estrelas na mesma malha) | 0.14, fase 3 — **feito** |
 | Imagens e impostors atrás das camadas | Quads em `AFTER_SKY`, atlas próprio com `.mcmeta` | 0.14, fase 4 |
 | Imagens, impostors e modelos na frente de camadas ou mascarados por portal | Alvo próprio sob demanda, composto dentro do passe `sky` | 0.14 (imagens) e 0.15 (modelos) |
 | Modelos em World e Entity Space | `RenderType` de entidade do jogo; cache opcional | 0.15 |
@@ -117,5 +166,6 @@ Regras que valem para todas: nada novo sem um addon pedir; separação entre def
 - Da 0.12.0 (VALIDACAO.md): multiplayer manual com dois jogadores; a pulsação observada no Overworld (causa não identificada, não é bug confirmado). Quando a fase 2 tocar em Atmosphere ou no estado do céu entre dimensões, entra um teste de regressão que captura o céu do Overworld antes e depois de mudar os estados da dimensão de teste, com a hora congelada.
 - Da 0.15: validar os formatos reais de exportação do Blockbench (Bedrock `.geo.json`, Java, OBJ) e o subconjunto de animação antes de qualquer leitor.
 - GPU física, Iris/Oculus e Sodium/Embeddium com os renderizadores novos (o Backdrop foi medido só por software; nenhuma compatibilidade com shaderpacks ou outros mods é afirmada).
-- Uma receita do vfx-sample com um fundo de céu, quando a 0.14 tiver capítulo próprio (nesta fase, os exemplos estão no Javadoc, nesta página e no mod de teste).
+- Uma receita do vfx-sample com um fundo de céu, estrelas e nebulosas, quando a 0.14 tiver capítulo próprio (nas fases 2 e 3, os exemplos estão no Javadoc, nesta página e no mod de teste).
+- O JAR deste branch mantém o número 0.12.0 até o release da 0.14, mas **não** é o release: o aviso de build de desenvolvimento aparece no log, na descrição da lista de mods e no F7 (`CalamidadeAwakening.BUILD`); o release tira o aviso.
 - Da 0.12.0, continuam: a falha intermitente do limite de 50 ms da cratera grande do `testeJogo` (causa não isolada; nesta rodada passou com 33,6 ms, o que não a resolve) e a pulsação no Overworld (o teste de regressão de céu entre dimensões da fase 2 deu diferença zero com a hora parada, mas a pulsação relatada não foi reproduzida nem explicada).
