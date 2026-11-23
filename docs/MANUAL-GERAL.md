@@ -2789,6 +2789,46 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 **Preparada para publicação; ainda não publicada no GitHub.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
 (0.12.0); nada da 0.14. GPU física, shaderpacks e dois jogadores reais pendentes.
 
+#### Candidato final 0.13.0 (23/11/2026, quarta sessão)
+
+**Commit de preparação `1789722`** sobre `59080b5` (histórico preservado): `neoforge.mods.toml` sem o comentário e o
+sufixo DEVELOPMENT BUILD (descrição igual à dos releases anteriores); "em desenvolvimento" → "preparada para
+publicação" em `MUDANCAS.md`, `AGENTS.md`, `docs/ROADMAP.md`, `docs/BOSSES-0.13.md` e aqui; manual regerado;
+`syncRecipes` e `apiDocs` sem diferença. `build.gradle`, versões, dependências, `release.yml`, notas da v0.13.0, receitas
+e vfx-sample sem mudança. **Ainda não publicada:** sem merge na `main`, sem tag, sem workflow.
+
+Rodada consolidada de release, uma vez:
+
+| Verificação | Resultado |
+|---|---|
+| Build limpo numa worktree nova de `1789722` (sem `build/`, `libs/`, `dist/`): `./gradlew clean build dist --no-build-cache` | verde: RimuLib baixada do CurseForge e conferida (`15ccd495…`), `checkApiDocs`, `checkBudget` (todos PASS, `BossCheck` incluso), `checkFrustum`, `checkModVersion` (0.13.0; vfx-sample 1.10.0 exige `[0.13.0,0.14.0)`), `checkRecipes`, `checkShaders` (13 shaders, glslangValidator 15.1) |
+| `./gradlew -p examples/vfx-sample clean build --no-build-cache` | verde |
+| Marcas de desenvolvimento | nenhuma ("DEVELOPMENT BUILD", "do not distribute", "em desenvolvimento") em nenhum arquivo dos dois JARs |
+| Metadados do motor | `version="0.13.0"`; Minecraft `[1.21.1]`, NeoForge `[21.1,21.2)`, RimuLib `[1.3.0,2.0)`, todos `BOTH`; nenhuma outra dependência (sem GeckoLib) |
+| Metadados do vfx-sample | `1.10.0`; motor `[0.13.0,0.14.0)`, RimuLib `[1.3.0,2.0)` |
+| Isolamento cliente/servidor | bytecode (`javap -v`) das 227 classes fora de pacotes `client`: nenhuma referência a `net/minecraft/client` ou `com/mojang/blaze3d` (controle: `BossBarClient` tem 142) |
+| GeckoLib | nenhuma classe ou texto `geckolib`/`software/bernie` no JAR |
+| 0.14 | nenhum dos 107 arquivos que a 0.14 acrescenta sobre `8cfd93a` existe em `1789722` |
+| Recursos | 371 entradas; `assets/` igual ao da 0.12.0 exceto `lang/en_us.json` e `lang/pt_br.json`; 12 arquivos de shader |
+| Reprodutibilidade local | o mesmo commit compilado de novo no repositório principal deu os mesmos SHA-256 |
+
+**JARs candidatos (build local; não publicados):**
+
+```
+a427a90dd471c8d83abe3be8a64e034e52c2bc8413250d816ec6e19f5decb0ff  calamidade_awakening-0.13.0.jar
+56b2832ae2c8c670358f597286bb742c04657ee04e5a3e95abc1329cdaf069e0  vfx-sample-1.10.0.jar
+```
+
+O workflow de release recompila no GitHub: os hashes publicados precisam ser conferidos contra estes no momento da
+publicação; se diferirem (por exemplo por causa do commit de merge na `main` ou do ambiente), investigar antes de
+anunciar.
+
+Reaproveitado sem nova execução (o código Java validado não mudou; desde então só o metadado `description`, Javadoc e
+documentos): `testeJogo` 82/82 e `testeChefe` 15/15 (revisão pré-release), compatibilidade da API com a 0.12.0,
+consumidor isolado. Continuam pendentes: dois jogadores reais (TESTE-REAL.md, parte 11), troca de dimensão do chefe em
+jogo, GeckoLib real, GPU física, shaderpacks e outros renderizadores; a barra pode ficar visível por até 0,5 s depois de
+o jogador trocar de dimensão.
+
 #### Preparação final do release (23/11/2026, terceira sessão)
 
 **Candidata ao release:** `claude/bosses-0.13` avançado de `233763a` para `50099ab` por avanço simples (push sem força,
@@ -2876,7 +2916,7 @@ renderizadores; um chefe que volta quando `bossMaxActive` está cheio fica sem c
 Candidata: `claude/bosses-0.13` em `50099ab`. Notas: `.github/release-notes/v0.13.0.md` (caminho que o workflow lê).
 
 1. Opcional, recomendado: TESTE-REAL.md parte 11 (dois jogadores) e uma GPU física; registrar aqui.
-2. **Commit de release** em `claude/bosses-0.13` (único lugar onde o aviso sai):
+2. **Feito em `1789722`** (commit de preparação; itens abaixo conferidos). **Commit de release** em `claude/bosses-0.13` (único lugar onde o aviso sai):
    - `src/main/resources/META-INF/neoforge.mods.toml`: apagar a linha de comentário "0.13 em desenvolvimento…" e o
      sufixo ` [DEVELOPMENT BUILD of 0.13 (bosses) — not a published release; do not distribute]` da `description`;
    - texto "em desenvolvimento / não publicada" → "publicada" em `MUDANCAS.md` (linha de estado e título da 0.13),
@@ -2887,6 +2927,7 @@ Candidata: `claude/bosses-0.13` em `50099ab`. Notas: `.github/release-notes/v0.1
    `./gradlew clean build dist --no-build-cache` (com glslangValidator) e `./gradlew -p examples/vfx-sample build`;
    conferir que o `neoforge.mods.toml` dentro do JAR não tem "DEVELOPMENT BUILD"; `sha256sum` dos dois JARs.
 4. **PR** `claude/bosses-0.13` → `main` (sem merge automático); revisar o diff (só 0.13, nada da 0.14); merge comum.
+   Depois do merge: trocar "preparada para publicação" por "publicada" só depois do release existir (commit de documentação).
 5. **Release**: Actions → Release → Run workflow no `main`, tag `v0.13.0`, título `Bosses` (release "Calamidade_Awakening
    0.13.0 — Bosses"). O workflow cria a tag no commit do `main`, recusa tag ≠ `0.13.0` e o aviso de desenvolvimento.
 6. Conferir anexos: só `calamidade_awakening-0.13.0.jar`, `vfx-sample-1.10.0.jar` e `SHA256SUMS.txt`; SHA-256 iguais
