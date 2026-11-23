@@ -2349,6 +2349,8 @@ providers (`api.v1.client`, nunca carregadas no servidor dedicado). Servidor e c
 | Mod real com GeckoLib | **não testado**; só a arquitetura (captura no renderizador do addon) |
 | GPU física, shaderpacks (Iris/Oculus), Sodium/Embeddium e outros renderizadores | **não testado**; nenhuma compatibilidade afirmada |
 | Mesmo efeito de evento global em dois chefes ao mesmo tempo | o segundo fica sem o evento (limite de um evento por efeito) |
+| Chefe que troca de dimensão (portal, `tp` entre dimensões) | revisão estática (NeoForge 21.1.267): o estado vai com a entidade (`restoreFrom` copia o attachment); a cópia antiga sai com `CHANGED_DIMENSION`; ao entrar a nova, o controlador antigo é encerrado (sustain, evento de fase e sequência soltos, barra removida para quem via) e um novo é retomado na nova dimensão, só para jogadores dela. Sequência em andamento termina na chegada. Handle antigo deixa de valer. **Sem teste automatizado** (roteiro manual: TESTE-REAL.md, caso 109) |
+| Jogador que troca de dimensão ou renasce | a barra é revista a cada 10 ticks: no outro mundo ela pode continuar visível (e receber atualização de progresso) por até 0,5 s antes de sumir; ao renascer perto, pode faltar por até 0,5 s. Limitação conhecida, não bloqueante |
 
 <a id="cap16"></a>
 
@@ -2759,6 +2761,21 @@ Motor 0.12.0 e vfx-sample 1.9.0 nos dois lados (servidor e clientes: canais novo
 | 101 | `/calamidade world list`, `stop <id>`, `release <id>` sem permissão e com permissão 2; `worldEventsMax = 1` na config do servidor e dois eventos. | Sem permissão, o comando não existe. Com o limite em 1, o segundo evento só entra se tiver prioridade maior (troca o primeiro). |
 | 102 | Opcional: com Iris/Oculus e um shader pack. | Anote o que acontece (o pack troca o céu; o sol pode não ser apagado). |
 
+### Parte 11 — chefes com dois jogadores (0.13.0)
+
+Servidor **dedicado** com motor 0.13.0 e vfx-sample 1.10.0, dois clientes (A e B) com os mesmos JARs, os dois operadores, F7 aberto. Cerca de 15 minutos. Anote o resultado de cada caso em VALIDACAO.md (seção 0.13.0) com o SHA-256 dos JARs.
+
+| # | Passos | Esperado |
+|---|---|---|
+| 103 | A e B juntos: A roda `/vfxsample chefe`; os dois batem no golem até 40% de vida. | Os dois veem a mesma barra segmentada, o nome da fase, as marcas e o fantasma do dano; a troca despertar → combate → (rugido) → fúria aparece para os dois no mesmo momento, com o clarão; eclipse em área para os dois. |
+| 104 | **Entrada tardia:** B sai do servidor antes do 103; entra durante a fúria, a menos de 64 blocos. | B vê a barra já na fase "fúria" (vermelha, rótulo certo) em até 0,5 s, sem a barra vanilla por cima. |
+| 105 | **Alcance:** B se afasta 100 blocos e volta (andando, não por tp). | A barra de B some ao passar de 64 blocos e volta na fase atual; a de A não muda. |
+| 106 | **Logout:** B sai durante a luta e entra de novo perto do golem. | Ao sair, nada fica preso no cliente de B; ao voltar, a barra reaparece na fase atual. A continua vendo a luta normalmente. |
+| 107 | **Dimensão do jogador:** B entra num portal do Nether durante a luta e volta. | No Nether, a barra de B some em até 0,5 s (pode aparecer por esse instante); ao voltar e chegar a 64 blocos, ela reaparece na fase atual. A não é afetado. |
+| 108 | **Dois chefes:** A roda `/vfxsample chefe` de novo a uns 20 blocos do primeiro. | Duas barras, cada uma com a sua fase; `/calamidade boss list` mostra dois; ferir um não mexe na barra do outro. |
+| 109 | **Dimensão do chefe:** `/execute in minecraft:the_nether run tp @e[type=iron_golem,limit=1,sort=nearest] ~ 100 ~` (a partir do Overworld, perto do golem). | No Overworld a barra some para A e B e a aura e o eclipse do golem são soltos (tocam a saída e acabam); quem estiver no Nether perto do destino passa a ver a barra na **mesma fase** e o sustain de novo; `/calamidade boss list` mostra um só controlador desse golem. |
+| 110 | **Fim:** mate um chefe (`/kill` no golem) e use `/calamidade boss detach` no outro. | Morte: fase "derrota", o eclipse é solto, a barra some para os dois quando o golem é removido. Detach: a barra some na hora para os dois. Nada fica no céu nem no F7 (linha de chefes vazia). |
+
 ### Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
@@ -2771,6 +2788,41 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 **Não publicada.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
 (0.12.0); nada da 0.14. GPU física, shaderpacks e dois jogadores reais pendentes.
+
+#### Preparação final do release (23/11/2026, terceira sessão)
+
+**Candidata ao release:** `claude/bosses-0.13` avançado de `233763a` para `50099ab` por avanço simples (push sem força,
+aceito); é o mesmo commit de `claude/pensive-clarke-bfqzz1`, então as correções da revisão estão na branch candidata.
+`main` (`8cfd93a`) e `claude/ceu-personalizado` (`ab2a97d`) intocados; nenhuma tag `v0.13*`. O JAR continua marcado
+DEVELOPMENT BUILD.
+
+**Nenhum teste automatizado foi executado nesta sessão**: nenhum código do motor mudou (só documentação), então valem
+os resultados da revisão pré-release abaixo, todos sobre o código de `50099ab` (`testeJogo` 82/82, `testeChefe` 15/15,
+`build`/`dist`, `checkShaders` 13, vfx-sample, consumidor isolado).
+
+Revisão estática desta sessão (código do NeoForge 21.1.267 conferido no `neoforge-21.1.267-sources.jar`):
+
+- **Chefe trocando de dimensão — sem defeito.** `Entity.changeDimension` cria a cópia, chama `restoreFrom` (que passa
+  por `saveWithoutId`/`load` e copia os attachments, logo o estado do chefe), remove a antiga com `CHANGED_DIMENSION`
+  (não destrói o estado) e só então `addDuringTeleport` da nova. No `EntityJoinLevelEvent` da nova, o `BossServer`
+  encerra o controlador antigo (`end(false)`: sequência parada, sustain e evento de fase soltos, `boss_v1` de remoção e
+  barra vanilla removida para quem via na dimensão antiga) e cria um novo, retomado no tick seguinte na nova dimensão,
+  com a barra só para jogadores dela (`viewers` filtra por nível). Um controlador por UUID (mapa `ACTIVE`): sem
+  duplicata. Instâncias presas à entidade antiga acabam sozinhas (`StageNetwork.lost()`: âncora removida ou em outro
+  nível). Limitações: sequência em andamento termina na chegada; o handle antigo deixa de valer (documentado).
+- **Dois jogadores, entrada tardia, alcance, logout, dimensão do jogador, dois chefes — lógica conferida.** Cada barra
+  é um `ServerBossEvent` com UUID próprio; quem passa a ver recebe o estado `boss_v1` atual antes de ser adicionado;
+  troca de fase manda um pacote a cada jogador que vê; logout tira o jogador da barra (o cliente limpa no logout);
+  dimensão e respawn são revistos a cada 10 ticks. Limitação: por até 0,5 s depois de trocar de dimensão a barra pode
+  continuar visível (e com progresso) para aquele jogador. Não há pacote por tick. **Dois clientes reais não foram
+  testados** (não há ambiente com dois clientes aqui): roteiro manual curto em TESTE-REAL.md, parte 11 (casos 103 a 110).
+- **Limpeza — sem defeito.** Morte: regra de morte no mesmo tick (sai da fase, solta o que ela mantinha), barra em 0;
+  remoção da entidade (`KILLED`) → controlador encerrado e estado apagado. Sem regra de morte, o que a fase mantinha é
+  solto quando a entidade é removida (~1 s). `discard`/`detach`/3 falhas → encerrado e estado apagado. Descarregar ou
+  trocar de dimensão → visual solto, estado mantido. Servidor parando → mapas limpos; eventos globais da fase não são
+  persistentes. Timeline: a sequência é parada (`stopSequence`) em morte, fase forçada e encerramento; sustain recebe
+  `release()` (ou `stop()` se não puder). Rig Anchors no cliente: capturas por (id, nome) conferidas pela UUID,
+  podadas a cada 128 quadros e limpas no logout; provider com erro é removido.
 
 #### Revisão pré-release (23/11/2026, sessão separada; branch `claude/pensive-clarke-bfqzz1` sobre `233763a`)
 
@@ -2819,25 +2871,33 @@ com a entidade, visual solto e retomado); mod real com GeckoLib; GPU física; Ir
 renderizadores; um chefe que volta quando `bossMaxActive` está cheio fica sem controlador até o próximo carregamento
 (estado mantido, aviso no log); o mesmo efeito de evento global em dois chefes ao mesmo tempo (o segundo fica sem ele).
 
-##### Checklist para publicar a 0.13.0 (só com autorização)
+##### Procedimento de publicação da 0.13.0 (cada passo só com autorização explícita)
 
-1. Autorização do autor; levar os commits desta revisão para `claude/bosses-0.13` (avanço simples, sem reescrever) ou
-   abrir o PR a partir deste branch.
-2. Opcional, recomendado: o roteiro manual de dois jogadores (TESTE-REAL.md) e uma GPU física; registrar aqui.
-3. Commit de release: tirar o comentário e o texto `[DEVELOPMENT BUILD …]` do `neoforge.mods.toml`; "em
-   desenvolvimento/não publicada" → publicada em `MUDANCAS.md`, `docs/ROADMAP.md`, `docs/BOSSES-0.13.md`, `AGENTS.md` e
-   aqui; `python3 scripts/gerar_manual.py`; `./gradlew syncRecipes`; revisar `.github/release-notes/v0.13.0.md`.
-4. `./gradlew clean build dist` (com glslangValidator) e `./gradlew -p examples/vfx-sample build`; anotar os SHA-256.
-5. PR para `main`, merge; Actions → Release com tag `v0.13.0` e título `Bosses` (o workflow recusa tag ≠ versão e o
-   aviso de desenvolvimento).
-6. Conferir os anexos (só `calamidade_awakening-0.13.0.jar`, `vfx-sample-1.10.0.jar`, `SHA256SUMS.txt`) e que os
-   SHA-256 batem com o build local.
-7. Só depois: `examples/consumidor/build.gradle` para `0.13.0` com o SHA-256 publicado e
-   `./gradlew -p examples/consumidor clean build` sem endereço alternativo; registrar aqui.
+Candidata: `claude/bosses-0.13` em `50099ab`. Notas: `.github/release-notes/v0.13.0.md` (caminho que o workflow lê).
 
-Os JARs desta sessão (`f2b352e1…` do motor no último build, depois do Javadoc de `Bosses.Handle`; o consumidor isolado
-compilou contra o build anterior, `39d335c7…`, com as mesmas assinaturas) são de **desenvolvimento**: não publicar; o JAR
-oficial sai do commit de release (passo 4).
+1. Opcional, recomendado: TESTE-REAL.md parte 11 (dois jogadores) e uma GPU física; registrar aqui.
+2. **Commit de release** em `claude/bosses-0.13` (único lugar onde o aviso sai):
+   - `src/main/resources/META-INF/neoforge.mods.toml`: apagar a linha de comentário "0.13 em desenvolvimento…" e o
+     sufixo ` [DEVELOPMENT BUILD of 0.13 (bosses) — not a published release; do not distribute]` da `description`;
+   - texto "em desenvolvimento / não publicada" → "publicada" em `MUDANCAS.md` (linha de estado e título da 0.13),
+     `docs/ROADMAP.md` (0.13), `docs/BOSSES-0.13.md` (quadro de estado), `AGENTS.md` (linhas 15 e 17) e no título
+     desta seção;
+   - `python3 scripts/gerar_manual.py` e `./gradlew syncRecipes`; reler `.github/release-notes/v0.13.0.md`.
+3. **Build limpo** numa worktree nova do commit de release (sem `build/`, `libs/`, `dist/`):
+   `./gradlew clean build dist --no-build-cache` (com glslangValidator) e `./gradlew -p examples/vfx-sample build`;
+   conferir que o `neoforge.mods.toml` dentro do JAR não tem "DEVELOPMENT BUILD"; `sha256sum` dos dois JARs.
+4. **PR** `claude/bosses-0.13` → `main` (sem merge automático); revisar o diff (só 0.13, nada da 0.14); merge comum.
+5. **Release**: Actions → Release → Run workflow no `main`, tag `v0.13.0`, título `Bosses` (release "Calamidade_Awakening
+   0.13.0 — Bosses"). O workflow cria a tag no commit do `main`, recusa tag ≠ `0.13.0` e o aviso de desenvolvimento.
+6. Conferir anexos: só `calamidade_awakening-0.13.0.jar`, `vfx-sample-1.10.0.jar` e `SHA256SUMS.txt`; SHA-256 iguais
+   aos do passo 3; `sha256sum -c` dos anexos baixados.
+7. **Depois do release publicado:** `examples/consumidor/build.gradle` com `calamidadeVersao = '0.13.0'` e o SHA-256
+   publicado; `./gradlew -p examples/consumidor clean build` sem endereço alternativo; registrar aqui. Antes disso o
+   consumidor fica no 0.12.0 (o JAR 0.13.0 ainda não existe no GitHub).
+
+Os JARs da revisão (`f2b352e1…` do motor no último build, depois do Javadoc de `Bosses.Handle`; o consumidor isolado
+compilou contra o build anterior, `39d335c7…`, com as mesmas assinaturas) são de **desenvolvimento**: não publicar; o
+JAR oficial sai do commit de release (passo 3).
 
 #### Executado (23/11/2026, sessão da implementação)
 
