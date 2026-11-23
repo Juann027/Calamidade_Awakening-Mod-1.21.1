@@ -1,6 +1,6 @@
 # Custom Sky Engine: arquitetura (0.14 e 0.15)
 
-Documento de trabalho do branch `claude/ceu-personalizado`. Fases 0, 1 e 2 (Backdrop) concluídas e aprovadas; fase 3 (estrelas, constelações e nebulosas) concluída e à espera de aprovação; a fase 4 não começou. Ainda não é capítulo do manual: entra em `gerar_manual.py` quando a 0.14 for lançada (a versão do build continua 0.12.0 até lá).
+Documento de trabalho do branch `claude/ceu-personalizado`. Fases 0, 1 e 2 (Backdrop) concluídas e aprovadas; fase 3 (estrelas, constelações e nebulosas) concluída, com a validação registrada em VALIDACAO.md; a fase 4 (imagens, spritesheets e impostors) tem [plano](#fase-4-plano-técnico-aguardando-aprovação) à espera de aprovação e **não começou**. Ainda não é capítulo do manual: entra em `gerar_manual.py` quando a 0.14 for lançada (a versão do build continua 0.12.0 até lá).
 
 Marcadores: **[V]** verificado (código, `javap`/fontes do NeoForge 21.1.267, bytecode da RimuLib 1.3.0 ou experimento em jogo, com a fonte indicada); **[H]** hipótese; **[D]** decisão de arquitetura.
 
@@ -137,6 +137,148 @@ Sem objetos, ou sem esses passes no quadro, a camada não é desenhada nem aloca
 
 **Limitações conhecidas.** A camada de cobertura não conhece as nuvens do jogo (desenhadas depois de `AFTER_SKY`): sobre uma nuvem na frente de uma nebulosa, a Atmosphere tinge um pouco menos e o escurecimento devolve um pouco de luz das estrelas atrás dela. A reação ao escurecimento usa a exposição do quadro anterior (um quadro de atraso numa transição). No primeiro quadro em que um passe começa, a camada pode não estar desenhada e os objetos levam o véu duas vezes por esse quadro. Exposição e tinta da Atmosphere continuam valendo para a tela inteira, objetos incluídos (como para o sol). Pixels que estouram em 255 (luz somada sobre fundo claro) perdem cor antes dos passes, como qualquer luz em 8 bits. Iris/Oculus, shaderpacks, Sodium/Embeddium, outros mods em `AFTER_SKY`, GPU física e multiplayer com dois jogadores **não foram testados**; nenhuma compatibilidade é afirmada. Shaderpacks substituem o pipeline de desenho e podem não disparar `AFTER_SKY` do mesmo jeito.
 
+## Fase 4: plano técnico (aguardando aprovação)
+
+**Nada desta seção está implementado.** É a proposta para PNGs e billboards arbitrários, spritesheets e flipbooks e objetos 3D pré-renderizados (impostors). Modelos Blockbench reais, geometria, Sky/World/Entity Space, objetos que atravessam portais e transição para o objeto real próximo continuam na 0.15 e não entram aqui. Marcadores como no resto do documento: o que depende de API do jogo ainda não conferida está como **[H]** e será conferido com `javap` na etapa 4.0, antes do primeiro uso.
+
+### Arquitetura
+
+1. **[D] Mais um tipo de objeto do céu, no caminho que já existe.** Imagens, flipbooks e impostors são todos "um quadrilátero tangente à esfera do céu, com um retângulo de textura": um único renderizador (`SkySprites`, dentro do ouvinte do `SkyObjectsFrame` em `AFTER_SKY`), um único shader de núcleo novo (`sky_sprite`, que importa `sky_objects.glsl`), os mesmos modos `SkyBlend`, as mesmas reações (`atmosphere`, `daylight`, `SkyDarkening`, `horizon`), a mesma `order` intercalada com estrelas e nebulosas e a **mesma camada de cobertura** da fase 3. Consequência: Atmosphere, escurecimento do eclipse, apagamento do sol e da lua do jogo e lente gravitacional funcionam sobre as imagens sem código novo nos passes (como já foi provado para estrelas e nebulosas). Nenhum passe de tela inteira novo; nenhum renderizador, cache ou composição paralela.
+2. **[D] Objetos no infinito.** Como o fundo e as estrelas, um objeto desta fase tem direção, não posição: não grava profundidade, terreno e nuvens ficam na frente, não há paralaxe com o movimento do jogador. Paralaxe, distância real e objetos no mundo são a 0.15 (World Space).
+3. **[D] Atrás das camadas procedurais, por padrão.** O que é desenhado em `AFTER_SKY` fica atrás das sete camadas da 0.12 (o passe `sky` pinta por cima): um dragão desenhado assim passa atrás de um buraco negro e é entortado pela lente, o que é o certo para objetos distantes. Para um objeto **na frente** de uma camada (uma nave passando diante do portal), a etapa 4.4 propõe `layer(FRONT)`: os objetos `FRONT` vão para uma segunda camada de tela (RGBA8, alocada só quando existe um objeto `FRONT` **e** o passe `sky` roda no quadro) e o passe `sky` a compõe depois das camadas, só nos pixels de céu (`final = céu × (1 − a) + rgb`), sem lente. Sem camada procedural ativa, `FRONT` é igual a atrás e nada é alocado. É a mesma peça de que os modelos da 0.15 vão precisar, então não é trabalho perdido. **Decisão do autor:** fazer na fase 4 (recomendado, custo baixo) ou deixar para a 0.15.
+4. **Separação comum × cliente, como nas fases anteriores.** A definição (comum) só guarda `ResourceLocation`s e parâmetros e é registrada nos dois lados; o cliente carrega texturas e descritores. **Nenhum pacote novo, nenhum canal novo**: tudo deriva do relógio da instância (efeitos e eventos globais) ou do estado do perfil (`sky_profile_v1` já existente).
+
+### APIs públicas propostas (só aditivas; `checkApiCompat` em toda etapa)
+
+Classes novas em `api.v1`; nenhuma existente muda de assinatura e `Sky.Type` não ganha constantes.
+
+```java
+// Imagem estática: planeta ilustrado, símbolo, estrutura gigante, criatura parada
+SkyImage dragao = SkyImage.of("meumod:textures/sky/dragao.png")
+    .direction(120, 35)            // azimute, elevação (graus), mesmo referencial do Sky e das estrelas
+    .size(18)                      // largura angular em graus; altura pela proporção do PNG (ou size(l, a))
+    .roll(-10).pivot(.5f, .5f)     // giro no plano do céu, em graus, em torno do pivô (0..1 da imagem)
+    .up(SkyImage.Up.HORIZON)       // HORIZON (de pé em relação ao zênite), CELESTIAL (gira com o céu), PATH (alinha ao movimento)
+    .blend(SkyBlend.COVER).tint(0xFFFFE0C0).brightness(1f).opacity(1f)
+    .atmosphere(.6f).daylight(0f).darkening(SkyDarkening.DIM, 1f).horizon(4f)
+    .order(300).filter(SkyImage.Filter.SMOOTH)   // SMOOTH (linear + mipmaps) ou PIXEL (sem filtro, arte em pixel)
+    .track(SkyImage.Param.AZIMUTH, "voo_az")     // trilhas da Timeline: AZIMUTH, ELEVATION, SIZE, ROLL, OPACITY, BRIGHTNESS, FRAME
+    .weightPhase("aparicao")
+    .build();
+
+// Spritesheet / flipbook: a mesma classe, com a grade de quadros
+SkyImage asas = SkyImage.sheet("meumod:textures/sky/dragao_voo.png", 4, 2)   // colunas, linhas (ordem por linha)
+    .frames(8).fps(12)
+    .play(SkyImage.Play.LOOP)      // LOOP, ONCE (para no último), PING_PONG, TRACK (quadro vindo da trilha FRAME)
+    .clock(SkyImage.Clock.INSTANCE) // INSTANCE (relógio da instância, igual em todos os clientes) ou WORLD (tempo do jogo: perfis)
+    .startFrame(0).blendFrames(true)            // mistura entre quadros vizinhos (2 consultas; desligada em LOW)
+    .flashing(false)               // true para folhas que piscam: congela/desacelera com "ocultar clarões"
+    .direction(200, 40).size(25).build();
+
+// Impostor: objeto 3D pré-renderizado de vários ângulos (o descritor vem dos recursos)
+SkyImpostor nave = SkyImpostor.of("meumod:nave")   // assets/meumod/calamidade/impostors/nave.json
+    .direction(90, 20).size(12)
+    .orientation(45, 0, 0)         // yaw, pitch, roll do objeto, em graus
+    .heading(SkyImpostor.Heading.PATH)   // FIXED ou PATH (aponta para onde a trilha de azimute/elevação o leva)
+    .viewBlend(SkyImpostor.ViewBlend.AUTO)  // NEAREST, PAIR, QUAD; AUTO segue o perfil de qualidade
+    .track(SkyImpostor.Param.YAW, "giro").build();
+
+Effects.images(id, dragao, asas);          // até 8 por efeito; eventos globais herdam do efeito
+Effects.impostors(id, nave);               // até 4 por efeito
+SkyProfile.state("guerra").images(...).impostors(...);   // constantes por estado; transição por crossfade
+```
+
+Opções comuns copiam as de `StarField` e `Nebula` (mesmos nomes, mesmas faixas, mesmos padrões de validação contra a Timeline em `validate`). Padrões: `SkyBlend.NORMAL`, véu 1, dia 0 (imagens não somem de dia, ao contrário das estrelas), `IGNORE`, horizonte 0, ordem 300 (na frente das estrelas). Limites do construtor: tamanho angular (0, 180]°, até 8 192 quadros por folha, grade até 64 × 64.
+
+### Tipos de imagem e formatos para addons
+
+| Recurso | Onde | Regras |
+|---|---|---|
+| Imagem estática | `assets/<ns>/textures/sky/*.png` (qualquer caminho de textura) | PNG RGBA, alfa direto (não pré-multiplicado). Lado até 4 096 px; acima do `GL_MAX_TEXTURE_SIZE` da placa, reduzida na carga com aviso. Potência de 2 não é exigida; é recomendada com `SMOOTH` (mipmaps limpos). |
+| Spritesheet | um PNG em grade | Quadros do mesmo tamanho, ordem por linha, da esquerda para a direita. Com `SMOOTH`, **margem de 2 px** transparente em volta de cada quadro (os mipmaps não vazam de um quadro para o outro); o motor também prende a amostragem dentro do quadro. `.mcmeta` do jogo **não** é usado (veja Decisões). |
+| Impostor | descritor `assets/<ns>/calamidade/impostors/<nome>.json` + PNGs | Lido na recarga de recursos (F3+T recarrega). Exemplo abaixo. |
+
+```json
+{
+  "format": 1,
+  "textures": ["meumod:textures/sky/nave_views.png"],
+  "frame": [256, 256], "grid": [16, 12], "gutter": 2,
+  "views": { "yaw": 16, "pitch": [-30, 0, 30, 60], "mirror": false },
+  "frames": 3, "fps": 8, "play": "loop",
+  "pivot": [0.5, 0.5],
+  "lod": [ { "textures": ["meumod:textures/sky/nave_views_128.png"], "frame": [128, 128], "below": 96 } ]
+}
+```
+
+Índice do quadro na grade: `((animação × nPitch) + pitch) × nYaw + yaw`, com várias páginas quando não couber numa textura. `yaw` 0 = o objeto visto de frente (eixo −Z local olhando para a câmera, como o `Placement`), crescendo no sentido horário visto de cima; `mirror: true` usa simetria bilateral e guarda só meia volta. `lod.below` em pixels na tela: abaixo disso, usa a versão menor (carregada à parte, só quando precisa).
+
+**Ferramenta de assar impostors (etapa 4.5, opcional):** `scripts/gerar_impostor.cjs` (Node + Playwright + WebGL, que o projeto já usa) abre um `.gltf`/`.obj` exportado do Blockbench, renderiza as vistas e quadros com fundo transparente e grava a grade e o descritor. Fica fora do JAR e não carrega geometria no jogo: o jogo só vê PNGs. Os formatos reais de exportação do Blockbench continuam a validar (pendência da 0.15); a ferramenta só precisa ler um deles.
+
+### Estratégia de renderização
+
+- **Lote por textura.** Todo quadro, a CPU monta os quadriláteros visíveis (4 vértices por objeto, dezenas no máximo) num buffer dinâmico e desenha **uma chamada por textura distinta, por trecho de `order`** (estrelas e nebulosas se intercalam pela ordem). Recorte na CPU por cone de visão (raio angular do objeto contra o frustum); fora da tela não custa nada. **[H]** Reaproveitar o formato de vértice próprio da fase 3 (`STAR_FORMAT`: posição, cor, UV0, UV1, UV2, normal) para levar retângulo do quadro A, retângulo do quadro B e mistura, cor pré-multiplicada e parâmetros de reação; o envio por quadro (`BufferBuilder` → `VertexBuffer.upload` dinâmico) será conferido com `javap`.
+- **Shader `sky_sprite`.** Amostra o quadro (ou dois, com `blendFrames`/`viewBlend`), multiplica pela tinta, aplica a reação do objeto (mesmo código de `sky_objects.glsl`) e devolve alfa pré-multiplicado conforme o `SkyBlend`. `COVER` usa o limiar alfa ≥ 0,5 da fase 3 (silhueta, nunca retângulo).
+- **Alfa pré-multiplicado na carga.** O PNG é pré-multiplicado na CPU antes do envio: com filtro linear e mipmaps, alfa direto deixa franjas escuras nas bordas de um dragão; pré-multiplicado não.
+- **Filtro.** `SMOOTH` = linear + mipmaps gerados na carga (objetos que aparecem pequenos não cintilam); `PIXEL` = sem filtro, como o Backdrop. **[H]** `AbstractTexture.setFilter(blur, mipmap)` e a geração de mipmaps a conferir.
+- **Flipbook.** O quadro é calculado na CPU por objeto (Java puro, `SkySpriteMath.frame`): `INSTANCE` usa o relógio da instância (igual em todos os clientes, sem pacote); `WORLD` usa o tempo do jogo (perfis de dimensão, sincronizado pelo próprio jogo); `TRACK` lê a trilha `FRAME` da Timeline; `ONCE` para no último quadro. Nada de textura animada por tick: só muda o retângulo de UV, então mil quadros custam o mesmo que um.
+- **Impostor.** A direção da câmera para um objeto no infinito é a própria direção dele, então a vista escolhida depende **só** da orientação do objeto e da posição dele no céu (com `Heading.PATH`, do movimento): vetor de vista local = inverso da rotação do objeto × direção. Escolha da vista mais próxima (`NEAREST`), das duas vizinhas em yaw (`PAIR`) ou das quatro em yaw e pitch (`QUAD`, mistura bilinear), com pesos calculados na CPU; a troca entre vistas é por mistura, sem salto.
+
+### Cache e gerenciamento de memória
+
+- **[D] Uma textura por PNG, carregada sob demanda, compartilhada** (o mesmo esquema do `BackdropTextures`, generalizado num carregador comum `SkyTextures` em vez de um segundo cache): o fundo e as imagens passam a usar a mesma classe. O PNG é decodificado numa thread de trabalho e enviado na thread de render no máximo **uma textura por quadro** (sem engasgo de várias de uma vez); o objeto aparece com fade quando a textura fica pronta. Efeitos e eventos globais pedem as texturas assim que a instância chega ao cliente (antes do envelope a deixar visível).
+- **Orçamento de VRAM por perfil** (pontos de partida, a medir): LOW 64 MiB, BALANCED 128, HIGH 256, ULTRA 512, contando RGBA8 com mipmaps (+⅓). Exemplos: um PNG 2 048² = 21 MiB; um impostor 16 × 4 vistas × 3 quadros de 256² = 50 MiB. Acima do orçamento, usa o nível de `lod` menor; sem nível menor, recusa a carga com um aviso único no log e no F7, sem travar.
+- **Liberação** após 1 200 quadros sem uso (como as malhas da fase 3), na recarga de recursos e ao sair do mundo. Nenhuma cópia na CPU fica guardada (a camada de cobertura já resolve sol e lua, ao contrário do fundo).
+- **F7:** imagens e impostors desenhados, texturas residentes, VRAM estimada, envios no quadro, recusas por orçamento.
+
+### Composição e cobertura
+
+Sem regra nova: os três modos e a camada de cobertura da fase 3 valem para qualquer imagem. `NORMAL` para PNG com transparência real (cores exatas, alfa contínuo), `LUMINOUS` para coisas que brilham (o fundo só clareia), `COVER` para silhuetas sólidas (o dragão esconde a nebulosa e o sol só dentro da forma). A ordem entre objetos é `order`, em empate o mais importante; o Backdrop fica sempre atrás de todos; as camadas procedurais ficam na frente, salvo `layer(FRONT)` (item 3 da arquitetura).
+
+### Integração com Timeline, SkyProfiles e WorldEvents
+
+- Trilhas da Timeline por nome (como em `StarField`/`Nebula`): `AZIMUTH`, `ELEVATION`, `SIZE`, `ROLL`, `OPACITY`, `BRIGHTNESS`, `FRAME` (impostor também `YAW`, `PITCH`); `weightPhase` para aparecer e sumir com uma fase. Uma nave que cruza o céu = duas trilhas e `Heading.PATH`.
+- Perfis de dimensão: imagens e impostors constantes por estado, crossfade entre estados, flipbooks com `Clock.WORLD`.
+- Eventos globais: herdam do efeito, como as camadas, os fundos e as estrelas.
+- Seleção como a da fase 3: eventos globais, depois o perfil da dimensão, depois HERO, depois opacidade; tetos por perfil (pontos de partida: imagens 8 / 24 / 48 / 96 e impostors 2 / 4 / 8 / 16 por quadro, em LOW / BALANCED / HIGH / ULTRA; AUTO segue o perfil escolhido).
+- Mesmas regras do céu do jogo (cegueira, escuridão, lava, neve em pó, névoa de bioma ou de chefe) e a opção `customSkies`.
+- Acessibilidade: `spin` para com "efeitos de movimento" desligado, como hoje; flipbooks continuam (são conteúdo), exceto os marcados `flashing(true)`, que congelam com "ocultar clarões" e com intensidade dos efeitos de tela 0.
+
+### Estratégia de testes (pela regra de [AGENTS.md](../AGENTS.md#quando-rodar-cada-teste-regra-permanente-desde-a-fase-3-da-014))
+
+- **Durante o desenvolvimento (segundos a ~4 min):** `SkySpriteCheck` novo no `checkBudget` (validação dos construtores; quadro do flipbook em LOOP, ONCE, PING_PONG, TRACK, INSTANCE e WORLD; escolha e pesos das vistas do impostor, `Heading.PATH`, `mirror`; LOD por pixels; contabilidade de VRAM e recusa; recorte por cone; ordem e chaves de lote; leitura do descritor com erros); `checkShaders` para `sky_sprite`; `checkApiCompat`; `checkObjetosComposicao` ampliado com casos de imagem (cor exata em `NORMAL`, silhueta `COVER` sobre o sol, `LUMINOUS`, Atmosphere, eclipse, lente, margem do flipbook sem vazamento, troca de vista do impostor), cada um com controle negativo; prévia WebGL para olhar. Minecraft não é aberto nas etapas 4.0, 4.2 e 4.3 (só na 4.1 e no fim da fase, abaixo).
+- **Ao concluir as imagens (4.1) e ao fim da fase:** um único teste em jogo novo, `testeImagens`, com todos os cenários numa só inicialização do cliente: nada sem addon; cor exata; silhueta; flipbook com uma cor sentinela por quadro conferida em tempos conhecidos; `ONCE` parado no último; quadro pela trilha; impostor com vistas coloridas em orientações conhecidas; LOD; recarga libera e recarrega; VRAM contabilizada; chamadas de desenho ≤ texturas visíveis; `customSkies`; cegueira; regressão do céu do Overworld; custo.
+- **Rodada consolidada no fim da fase, escolhida pelo risco:** `checkCeuReferencia` (as 38 cenas atuais com diferença zero + cenas novas); `testeEstrelas` e `testeBackdrop` **uma vez**, porque `SkyObjectsFrame` e o carregador de texturas do fundo mudam; `testeCeu` uma vez **só se** a etapa 4.4 (`FRONT`) mexer no passe `sky`; build do vfx-sample. `testeJogo` **não** está previsto: a fase não mexe em servidor, rede nem terreno, só acrescenta registros comuns sem estado de servidor; se isso mudar durante a implementação, ele entra.
+- O registro final em VALIDACAO.md separa o que foi executado, o que foi reaproveitado (com commit) e o que fica pendente.
+
+### Riscos e limitações
+
+- **Perspectiva dos impostors:** sem paralaxe e sem mudar com o movimento do jogador (o objeto está no infinito); a vista só muda com orientação e posição no céu. A iluminação vem assada nas imagens e não acompanha o sol do jogo (a tinta e `daylight` atenuam, não corrigem). Entre vistas, a mistura pode mostrar "fantasma" em objetos finos; mais vistas resolvem, ao custo de VRAM. Para ver de perto ou de qualquer ângulo: modelos reais, 0.15.
+- **VRAM e engasgos:** folhas grandes consomem memória rápido; envio de uma textura de 4 096² na thread de render custa alguns ms (por isso um envio por quadro e decodificação fora dela). Placas antigas podem ter `GL_MAX_TEXTURE_SIZE` menor.
+- **Vazamento de quadros** com mipmaps em folhas sem margem: mitigado pela margem exigida e pela amostragem presa, provado na prévia.
+- **8 bits:** como na fase 3, luz somada sobre fundo claro estoura em 255 antes dos passes.
+- **`COVER` com arte de borda suave** fica serrilhado no limiar 0,5: arte suave deve usar `NORMAL`.
+- **`FRONT`** depende do passe `sky` rodando; objetos `FRONT` não sofrem lente (certo para quem está na frente) e a regra com nuvens segue a das camadas da 0.12.
+- **Não testado e não afirmado:** GPU física, Iris/Oculus e shaderpacks, Sodium/Embeddium, outros mods em `AFTER_SKY`, dois jogadores. Direitos das imagens dos addons são responsabilidade de quem as publica.
+
+### Decisões que o autor precisa aprovar
+
+1. **Textura por PNG sob demanda (recomendado)** em vez do atlas do jogo com `.mcmeta` que este documento previa: o atlas do jogo costura tudo na recarga (VRAM para imagens sem uso, limite de tamanho do atlas) e anima por tick, igual para todos, sem FPS próprio, sem `ONCE` e sem Timeline. Empacotar imagens pequenas numa página só fica como otimização futura, se o F7 mostrar chamadas demais.
+2. **`layer(FRONT)` na fase 4 (recomendado)** ou na 0.15.
+3. **Ferramenta de assar impostors** na fase 4 (versão mínima, recomendado) ou depois.
+4. **Flipbooks e acessibilidade** como descrito (continuam tocando; só `flashing(true)` congela).
+
+### Etapas sugeridas (um commit por etapa)
+
+| Etapa | Conteúdo | Verificação |
+|---|---|---|
+| 4.0 | `javap` de tudo marcado [H]; `SkySpriteMath` (Java puro); esqueleto da API; `SkySpriteCheck` | build, `checkApiCompat` |
+| 4.1 | `SkyImage` estática: `SkyTextures` (carregador comum, Backdrop migrado sem mudança visível), shader `sky_sprite`, lote, camada de cobertura, `Effects.images`, perfis | build, `checkShaders`, `checkObjetosComposicao` ampliado; `testeImagens` (parte estática) uma vez |
+| 4.2 | Flipbooks: grade, relógios, trilha `FRAME`, `blendFrames`, margem, `flashing` | build, puros, prévia |
+| 4.3 | Impostors: descritor e recarga, vistas e mistura, `Heading.PATH`, LOD, orçamento de VRAM, F7 | build, puros, prévia |
+| 4.4 | `layer(FRONT)` (se aprovado) | `checkCeuReferencia` (diferença zero nas 38) |
+| 4.5 | `gerar_impostor.cjs`, texturas de teste geradas por script (byte a byte iguais), exemplos no Javadoc e nesta página | prévia |
+| 4.6 | Rodada consolidada da fase, VALIDACAO.md, capturas | lista da seção de testes |
+
 ## Visão geral consolidada (0.14 e 0.15)
 
 | Modalidade | Caminho de desenho | Versão |
@@ -145,7 +287,7 @@ Sem objetos, ou sem esses passes no quadro, a camada não é desenhada nem aloca
 | Backdrop (cubemap, panorama, gradiente) | Geometria em `AFTER_SKY` (acima) | 0.14, fase 2 — **feito** |
 | Estrelas procedurais, nebulosas procedurais | `VertexBuffer` estático por campo e malhas compartilhadas de nebulosa em `AFTER_SKY`, shaders de núcleo próprios | 0.14, fase 3 — **feito** |
 | Catálogo de estrelas e constelações | Um `VertexBuffer` estático em `AFTER_SKY` (linhas e estrelas na mesma malha) | 0.14, fase 3 — **feito** |
-| Imagens e impostors atrás das camadas | Quads em `AFTER_SKY`, atlas próprio com `.mcmeta` | 0.14, fase 4 |
+| Imagens, flipbooks e impostors atrás das camadas | Quads em lote em `AFTER_SKY`, textura por PNG sob demanda, mesma camada de cobertura (proposta da fase 4; o atlas com `.mcmeta` previsto antes está em revisão) | 0.14, fase 4 — planejada |
 | Imagens, impostors e modelos na frente de camadas ou mascarados por portal | Alvo próprio sob demanda, composto dentro do passe `sky` | 0.14 (imagens) e 0.15 (modelos) |
 | Modelos em World e Entity Space | `RenderType` de entidade do jogo; cache opcional | 0.15 |
 | Portais no mundo, transições, ponte para entidades | Timeline existente; recorte CPU × GPU escolhido por medição | 0.15 |
