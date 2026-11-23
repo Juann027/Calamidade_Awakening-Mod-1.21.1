@@ -4,7 +4,9 @@
 > mais dois commits só de `VALIDACAO.md`); **não publicada**. O JAR do branch é `0.13.0` marcado como build de
 > desenvolvimento no `neoforge.mods.toml`. A 0.13 **não** contém nada da 0.14 (Custom Sky Engine, branch
 > `claude/ceu-personalizado`, intocado). As seções 1 a 6 são o plano aprovado (Etapa 0); a seção 7 diz o que foi feito,
-> o que mudou em relação ao plano e o que foi validado.
+> o que mudou em relação ao plano e o que foi validado; a **seção 8 é o guia para quem vai usar a biblioteca** (só APIs
+> que existem no JAR). Na revisão pré-release, os nomes do plano que não existem no código foram corrigidos abaixo; em
+> caso de dúvida, valem a seção 7, a seção 8 e `docs/ai/API-REFERENCIA.md` (gerada do JAR com javap).
 
 A 0.13 transforma o Calamidade numa biblioteca para **chefes cinematográficos de addons**. O motor não cria
 criaturas, barras ou eventos sozinho: tudo começa porque um addon pediu.
@@ -20,7 +22,7 @@ Timeline, BossBar, Rig Anchors, integração com os efeitos existentes, sincroni
 | Núcleo puro | `api/BossMachine`, `api/AnchorMath`, `api/BossBarMath`; `api/SourceLimits` (regra `perBoss`) | Máquina de fases determinística, matemática dos anchors e da barra; sem Minecraft, no `checkBudget` |
 | API comum | `api/v1/Boss`, `api/v1/Bosses`, `api/v1/RigAnchors`; adições em `Point`, `EffectSource`, `Effects` | Definição e controle do chefe, anchors estáticos (servidor e cliente) |
 | API de cliente | `api/v1/client/AnchorCapture`, `api/v1/client/BossBars` | Captura de pose e providers; estilos de barra |
-| Servidor | `boss/BossServer`, `boss/BossData`, `boss/BossCommand` | Estado autoritativo, gatilhos, barra vanilla, persistência, comandos |
+| Servidor | `boss/BossServer` (estado salvo: `BossServer.Saved`, um attachment da entidade), `boss/BossCommand` | Estado autoritativo, gatilhos, barra vanilla, persistência, comandos |
 | Cliente | `client/boss/AnchorCache`, `client/boss/BossBarClient` | Anchors por quadro, desenho da barra |
 | Rede | `net/BossSync`, canal **`boss_v1`** | Um pacote por mudança de estado, e a quem chega depois |
 
@@ -75,13 +77,14 @@ h.get().signal("carga_completa");  h.get().phase();  h.get().detach();
   ações periódicas `every(n, ...)`, evento global opcional (iniciado na entrada, solto na saída e na morte),
   `onEnter`/`onExit`/`onHurt`, rótulo da barra (chave de tradução), cor própria e `invulnerable()` (opt-in, nunca
   padrão).
-- **Sequências**: `transition(de, para, gatilho).through(efeito)` toca a Timeline do efeito e trava a máquina até ele
-  acabar (ou até o marcador `fim`, se existir); só a morte quebra a trava.
+- **Sequências**: `transition(de, para, gatilho, efeito)` toca a Timeline do efeito e trava a máquina até a instância
+  acabar (não há marcador especial de fim); só a morte (ou `Handle.phase(nome)`) quebra a trava.
 - **Tempo e persistência**: o estado salvo na entidade é fase, **tempo decorrido na fase** (ticks em que o chefe foi de
   fato processado), golpes e alvo de sequência pendente. Tempo de mundo com o chunk descarregado ou o servidor
   desligado não conta; uma sequência pendente termina ao recarregar. Chefe salvo com id desconhecido (addon removido)
   é ignorado e limpo, com aviso no log.
-- **Efeitos do chefe** começam com `EffectSource.boss(entidade)` e seguem a entidade (`Effects.follow`).
+- **Efeitos do chefe** começam com `EffectSource.boss(entidade)` e seguem o corpo da entidade
+  (`Boss.Context.start(efeito)` usa `Placement.on(entidade).followingBody()`).
 
 ### 3.2 `maxPerBoss` e a origem dos efeitos
 
@@ -102,7 +105,8 @@ h.get().signal("carga_completa");  h.get().phase();  h.get().detach();
 
 - Base: `ServerBossEvent` vanilla (nome, progresso, 7 cores, divisões, escurecer, música, névoa). O Calamidade decide
   quem vê (mesma dimensão, dentro de `range`, 16..256, padrão 64), revisando a lista a cada 10 ticks (entrada tardia,
-  troca de dimensão, respawn) e removendo no logout, na morte, no descarregamento e no `detach`.
+  troca de dimensão, respawn) e removendo no logout, quando a entidade sai do mundo (morta, descartada, descarregada ou
+  trocando de dimensão) e no `detach`. Depois da morte a barra fica em 0 até a entidade ser removida (animação de morte).
 - Progresso enviado só com variação ≥ 0,5% ou a cada 5 ticks se mudou (`BossBarMath.shouldSend`).
 - Extensão pelo `boss_v1` (uma vez por mudança): estilo, rótulo da fase, cor de destaque, marcas dos segmentos (os
   limiares de `healthBelow`), vulnerabilidade e o tick de início da fase.
@@ -114,7 +118,7 @@ h.get().signal("carga_completa");  h.get().phase();  h.get().detach();
 
 ### 3.4 Rig Anchors
 
-Uma `AnchorPose` tem posição, frente e cima (ortonormais). Resolução por quadro, com cache por (entidade, nome):
+Uma `RigAnchors.Pose` tem posição, frente e cima (ortonormais). Resolução por quadro, com cache por (entidade, nome):
 
 1. **Captura no render** — `AnchorCapture.capture(entity, "boca", poseStack.last().pose())` no renderizador do addon
    (vanilla, `RenderLayer`, GeckoLib ou outro). Uma cópia de matriz, só para anchors que algum efeito ativo pediu
@@ -131,13 +135,14 @@ Fora da tela, a última captura acompanha o deslocamento e o giro do corpo por a
   anchor (partículas nos olhos, explosão no corpo).
 
 **Anchors visuais × autoritativos.** A pose capturada no cliente só orienta o visual (feixes, luzes, partículas).
-Ela **nunca** volta ao servidor. Para dano, colisão ou qualquer consequência, o servidor usa `RigAnchors.serverPose`
+Ela **nunca** volta ao servidor. Para dano, colisão ou qualquer consequência, o servidor usa `RigAnchors.approximate`
 (definição estática + posição, corpo e cabeça da entidade no servidor), uma aproximação documentada; o centro de
 servidor de uma instância com `anchorSocket` é essa aproximação.
 
-**GeckoLib** não é dependência. A receita mostra como capturar a matriz de um osso num `GeoRenderLayer` do addon (com
-os eixos do modelo informados), com nomes a conferir com javap na versão do GeckoLib do addon. Para modelos vanilla,
-`AnchorCapture.capturePart` aplica uma cadeia de `ModelPart`.
+**GeckoLib** não é dependência. A seção 8 (item 8) mostra o esqueleto de uma captura num `GeoRenderLayer` do addon
+(com os eixos do modelo informados), com nomes a conferir com javap na versão do GeckoLib do addon; **nenhum mod real
+com GeckoLib foi testado**. A receita 27 usa só um modelo vanilla. Para modelos vanilla, `AnchorCapture.capturePart`
+aplica uma cadeia de `ModelPart`.
 
 ## 4. Riscos técnicos
 
@@ -146,8 +151,8 @@ os eixos do modelo informados), com nomes a conferir com javap na versão do Gec
 | Entidade fora da tela (sem render no quadro) | Extrapolação da última captura por 10 ticks, depois o estático; documentado |
 | Shaderpacks (Iris/Oculus), Sodium/Embeddium alterando o render das entidades | A captura acontece no render da entidade, como os próprios modelos; não afirmamos compatibilidade sem teste (pendência) |
 | Eixos de modelo diferentes (vanilla invertido, GeckoLib não) | `capture` com eixos explícitos; padrão vanilla (frente −Z, cima −Y no espaço do modelo) |
-| Callback de addon com erro | Capturado e registrado com id do chefe e fase; 3 falhas seguidas pausam o controlador (barra some, efeitos soltos) com `ERROR` no log, nunca em silêncio |
-| Cancelar dano conflitar com outros mods | Só com `invulnerable()` na fase; prioridade normal do evento |
+| Callback de addon com erro | Capturado e registrado com id do chefe e fase; 3 falhas seguidas **removem** o controlador (barra some, efeitos soltos, estado salvo apagado, como um `detach`) com `ERROR` no log, nunca em silêncio |
+| Cancelar dano conflitar com outros mods | Só com `invulnerable()` na fase; `LivingIncomingDamageEvent` com prioridade `LOW`; dano que ignora invulnerabilidade (`/kill`) passa |
 | Barra vanilla tem 7 cores | Visual rico só no cliente com o mod (obrigatório por causa da rede); o vanilla é o fallback |
 | Persistência com addon atualizado (fase renomeada) | Fase desconhecida volta à primeira; alvo pendente desconhecido descartado |
 | Merge futuro com a 0.14 | Código em arquivos novos; mudanças curtas nos arquivos comuns (lista na seção 1) |
@@ -243,6 +248,10 @@ Exemplo completo: receita 27 (`docs/ai/receitas/27-chefe-sentinela.md`, `Sentine
 - **Removida por `DISCARDED` ou `KILLED`** encerra o controlador e apaga o estado; **descarregada ou trocando de
   dimensão** encerra só o visual e mantém o estado salvo na entidade.
 - **F7:** linha "Chefes: N barras (N personalizadas) · Anchors: capturados, carregados, provider, estáticos".
+- **Revisão pré-release:** o controlador só avança (tempo da fase, regras, ações periódicas, estado salvo) nos ticks em
+  que o jogo processa a entidade: chunk carregado na borda da visão (entidades no mundo, mas paradas) ou `/tick freeze`
+  não contam, como o descarregamento. A barra continua acompanhando vida e alcance. Rótulo de fase e id de estilo
+  acima de 256 caracteres são recusados na definição (o `boss_v1` não os carregaria).
 
 ### Configuração
 
@@ -269,3 +278,104 @@ progresso vai pela barra vanilla, só quando muda 0,5% (ou depois de 5 ticks). `
 - Cliente: anchors só para os `Point` usados por instâncias ativas, um mapa por quadro; captura = cópia de uma matriz, só
   para anchors pedidos nos últimos 120 quadros; a barra personalizada são retângulos e texto, sem textura nem passe.
 - Nenhum orçamento novo de passes: feixes e luzes continuam nos tetos atuais. Custo em GPU física não foi medido.
+
+## 8. Guia do modder (revisão pré-release)
+
+Tudo abaixo existe no JAR 0.13.0 (conferido contra `docs/ai/API-REFERENCIA.md`). Exemplo completo e testado: receita
+27 (`SentinelaEclipse.java`). Onde algo **não** foi testado, está dito.
+
+**1. Definir um boss.** `Boss.builder(id)` com pelo menos uma fase; `Bosses.define(boss)` no construtor comum do mod
+(os dois lados). A primeira fase declarada é a inicial. Nomes de fase e de sinal: `[a-z0-9_]`, até 64 caracteres;
+até 32 fases e 64 transições. Erros de definição lançam `IllegalArgumentException` ao montar (`phase`, `transition`,
+`build`), no carregamento do mod, nunca no meio da luta.
+
+**2. Anexar a uma entidade existente.** No servidor, na thread do servidor, com a entidade já no mundo:
+`Bosses.attach(entidade, id)` devolve um `Bosses.Handle` ou `Optional.empty()` (jogador, entidade morta ou removida,
+outro chefe já anexado à mesma entidade, `bossMaxActive` cheio). O motor nunca cria a entidade nem anexa sozinho; a
+entidade continua do addon (IA, atributos, modelo, spawn, loot). Ao recarregar o chunk ou reiniciar o servidor, o
+controlador volta sozinho a partir do estado salvo na entidade — não chame `attach` de novo para isso (chamar devolve
+o mesmo handle se ele já voltou; antes de voltar, `attach` começaria do zero). **Um `Handle` vale para um objeto de
+entidade carregado:** depois de o chunk descarregar (ou de a entidade trocar de dimensão), `handle.alive()` fica
+`false` e o controlador retomado tem outro handle. Não guarde handles entre descarregamentos: pegue o atual com
+`Bosses.get(entidade)` (por exemplo achando a entidade pela UUID).
+
+**3. Fases.** `.phase(nome, p -> p.enter(..).exit(..).sustain(..).every(n, ctx -> ..).worldEvent(efeito, escopo)
+.invulnerable().label(chave).color(cor).onEnter(..).onExit(..).onHurt(..))` e transições
+`.transition(de, para, Boss.Trigger.afterTicks/healthBelow/healthAbove/signal/hurt/death/when)`; `Boss.ANY` como
+origem vale para todas as fases. Regras avaliadas na ordem declarada, no máximo uma transição por tick, depois de
+`minDwell` (padrão 20) — a morte não espera. Uma sequência: `.transition(de, para, gatilho, efeito)` toca o efeito e
+trava a máquina até ele acabar. O addon conversa com a máquina por `handle.signal(nome)` (o sinal espera o `minDwell`
+e é descartado depois de avaliado) e força uma fase com `handle.phase(nome)`.
+
+**4. Iniciar e encerrar efeitos.** Efeitos de `enter` tocam na entrada; `exit` na saída; `sustain` começa na entrada e
+recebe `release()` na saída (use uma Timeline com `sustain`, receita 6). Dentro de callbacks, `ctx.start(efeito)` (preso
+ao corpo do chefe) ou `ctx.start(efeito, placement)`; os dois já marcam a fonte `EffectSource.boss`. Fora de callbacks,
+`Effects.start(..., Placement.on(mob).withSource(EffectSource.boss(mob)))`. Todo início pode ser recusado
+(`Optional.empty()`): trate como "não tocou".
+
+**5. BossBar.** `.bar(Boss.Bar.of(nome).color(..).overlay(..).segments(true).range(blocos).vanillaFlags(escurecer,
+música, névoa))`. Sem `bar(...)`, não há barra. `segments(true)` marca os limiares de `healthBelow` e escolhe o estilo
+`calamidade_awakening:segmented`; um estilo próprio é registrado no cliente com `BossBars.style(id, renderer)` e
+escolhido com `Bar.style(id)`. O jogador pode forçar a barra vanilla, mudar escala e contraste (config de cliente
+`bossBar`). Rótulo da fase: chave de tradução de até 256 caracteres.
+
+**6. Rig Anchors.** `RigAnchors.define(tipo, nome, RigAnchors.Spec.head(direita, cima, frente))` (ou `Spec.body`)
+no construtor comum: é a pose estática, usada no servidor e como plano B no cliente. Captura real (opcional, cliente):
+chame `AnchorCapture.capture(entidade, nome, poseStack.last().pose())` no render, só quando
+`AnchorCapture.wanted(entidade, nome)`; ou registre `AnchorCapture.provider(tipo, provider)`.
+
+**7. Modelo vanilla.** Uma `RenderLayer` sem desenho (adicionada em `EntityRenderersEvent.AddLayers`) aplica a cadeia
+de partes e captura — é o que a receita 27 faz com o golem (`root`, `head`, deslocamento até os olhos). Alternativa:
+`AnchorCapture.capturePart(entidade, nome, poseStack, partes...)`. Os eixos padrão são os do modelo vanilla
+(`VANILLA_FORWARD` = −Z, `VANILLA_UP` = −Y).
+
+**8. GeckoLib (opcional, no addon).** O Calamidade não depende do GeckoLib e não deve passar a depender. Num addon que
+já usa GeckoLib, a captura fica no renderizador do próprio addon: por exemplo num `GeoRenderLayer` que, para o osso
+desejado, chama `AnchorCapture.capture(entidade, "boca", poseStack.last().pose(), frente, cima)` com a pose do osso já
+aplicada e os eixos **do modelo do addon** (podem ser diferentes dos do vanilla; o padrão de `capture` sem eixos é o
+vanilla). Os nomes dos métodos do GeckoLib (por exemplo `renderForBone`) mudam entre versões: confira com javap na
+versão que o addon usa. **Não testado com um mod GeckoLib real**: valide no F7 (linha de anchors: "captured") e
+vendo o feixe sair do osso; se a frente sair invertida, troque os eixos.
+
+**9. Feixes a partir de um anchor.** `Effects.beams(id, Beam.builder(Point.socket("olhos", 0, 0, .15),
+Point.socketAim("olhos", 32)).build())`: começa no anchor e vai até o primeiro bloco na frente dele (no cliente). Para a
+instância inteira seguir o anchor: `Effects.anchorSocket(id, "olhos")`. **Dano e colisão nunca usam a pose do
+cliente**: no cue do servidor, use `RigAnchors.approximate(entidade, nome)` (receita 27, `acertar`).
+
+**10. WorldEvents durante fases.** `p.worldEvent(efeito, WorldEvents.Scope.AREA|DIMENSION|SERVER)`: começa na entrada
+da fase e é solto na saída, na morte (pela fase de morte), no `detach`, quando o controlador é removido por falhas e
+quando a entidade é descarregada (volta ao recarregar). `AREA` é uma instância comum na posição do chefe e conta em
+`maxPerBoss`; `DIMENSION`/`SERVER` usam `WorldEvents.start` (não persistentes) e obedecem ao limite de eventos globais
+— se já houver um evento do mesmo efeito ativo (de outro chefe, por exemplo), a fase segue sem o evento. Prefira `AREA`.
+
+**11. `maxPerBoss`.** Só vale para inícios com `EffectSource.boss(entidade)` de uma entidade com controlador anexado:
+até `maxPerBoss` (padrão 8, 1..32) instâncias vivas da entidade, contando juntas as comuns e as marcadas. Mobs sem
+controlador ficam em `maxPerEntity` (4) mesmo com a marca. O total de 64 e a reserva de jogadores continuam valendo.
+Some o que a fase mantém vivo ao mesmo tempo (sustain + evento `AREA` + efeitos de entrada + periódicos ainda vivos)
+e mantenha abaixo de 8.
+
+**12. Terreno.** Só pela Terrain API (`Effects.terrain`), com as regras e o desfazer do servidor; nunca
+`level.setBlock` em massa num cue. Faça como a receita 27: cratera pequena, uma vez por fase (não em ataques
+periódicos), de preferência desligada por padrão no addon.
+
+**13. Limpar.** `handle.detach()` solta sustain, evento de fase e sequência, remove a barra e apaga o estado salvo.
+Morte (`KILLED`) e `discard()` fazem o mesmo sozinhos quando a entidade sai do mundo. Descarregar o chunk ou trocar
+de dimensão só solta o visual e mantém o estado. Um callback que lança exceção 3 vezes seguidas remove o controlador
+(com `ERROR` no log). Para a luta acabar com tudo limpo, declare `transition(Boss.ANY, "morte", Trigger.death())`: a
+saída da fase anterior solta o que ela mantinha no mesmo tick.
+
+**14. Servidor × cliente.** Servidor (autoritativo): máquina de fases, gatilhos, dano e invulnerabilidade, efeitos,
+barra vanilla, `boss_v1`, `RigAnchors.approximate`, estado salvo. O controlador só avança nos ticks em que o jogo
+processa a entidade. Cliente (só visual): estilo da barra, fantasma de dano, clarão, rótulo, captura de anchors e
+providers (`api.v1.client`, nunca carregadas no servidor dedicado). Servidor e clientes precisam do Calamidade 0.13.0
+(canal `boss_v1`).
+
+### Limites conhecidos e o que não foi validado
+
+| Item | Estado |
+|---|---|
+| Lógica de fases, limites, persistência, barra e anchors | testes automatizados (`BossCheck`, `testeJogo`, `testeChefe`) |
+| Dois jogadores reais (entrada tardia, alcance, troca de dimensão, logout) | **não testado manualmente**; a lógica de alcance foi testada com um jogador |
+| Mod real com GeckoLib | **não testado**; só a arquitetura (captura no renderizador do addon) |
+| GPU física, shaderpacks (Iris/Oculus), Sodium/Embeddium e outros renderizadores | **não testado**; nenhuma compatibilidade afirmada |
+| Mesmo efeito de evento global em dois chefes ao mesmo tempo | o segundo fica sem o evento (limite de um evento por efeito) |

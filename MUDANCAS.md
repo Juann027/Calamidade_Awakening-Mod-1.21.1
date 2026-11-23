@@ -13,6 +13,7 @@
 - **F7:** linha de chefes (barras, personalizadas e anchors capturados, carregados, por provider e estáticos).
 - **Exemplo 1.10.0** (`[0.13.0,0.14.0)`): receita 27, o **Sentinela do Eclipse** (`/vfxsample chefe`): golem de ferro vanilla com três fases, barra segmentada, olhos capturados por uma `RenderLayer`, feixe com dano calculado no servidor, rugido (sequência) e o eclipse da receita 25 em área na fúria; cratera opcional desligada por padrão (só `carve`, raio 3, uma vez).
 - **Testes:** `BossCheck` no `checkBudget` (máquina, anchors, barra, `maxPerBoss`, definições, `Point.socket`, codec do `boss_v1`); cenários de chefe no `testeJogo` (com reinício); `testeChefe` novo no cliente.
+- **Revisão pré-release:** o controlador só avança (tempo da fase, regras, ações periódicas, estado salvo) quando o jogo processa a entidade; num chunk carregado só na borda da visão ou com `/tick freeze` ele espera, como descarregado (antes o tempo da fase corria com o chefe parado). Rótulo de fase e id de estilo da barra acima de 256 caracteres são recusados na definição (antes o pacote `boss_v1` falhava ao ser codificado). O workflow de release recusa uma tag diferente da versão e um JAR ainda marcado como build de desenvolvimento. Guia para addons em docs/BOSSES-0.13.md, seção 8; notas em `.github/release-notes/v0.13.0.md`.
 
 # 0.12.0 — Sky & World Events
 

@@ -5,7 +5,74 @@
 **Não publicada.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
 (0.12.0); nada da 0.14. GPU física, shaderpacks e dois jogadores reais pendentes.
 
-### Executado (23/11/2026)
+### Revisão pré-release (23/11/2026, sessão separada; branch `claude/pensive-clarke-bfqzz1` sobre `233763a`)
+
+Auditoria estática da Boss API (persistência, fases e sinais, barra e multiplayer, anchors, limites), do
+empacotamento e da documentação. Achados e o que foi feito:
+
+| Achado | Classe | Situação |
+|---|---|---|
+| O controlador avançava (tempo da fase, regras, ações periódicas) com a entidade carregada mas **não processada** (chunk na borda da visão) ou com `/tick freeze`: um chefe parado podia trocar de fase sozinho | correção recomendada | corrigido (`BossServer.processed`); a barra continua seguindo vida e alcance |
+| Rótulo de fase ou id de estilo com mais de 256 caracteres passava na definição e fazia o `boss_v1` falhar ao codificar (pacote ao jogador) | correção recomendada | corrigido: recusado na definição (`IllegalArgumentException`) |
+| `testeChefe` falhava 2/15 neste ambiente (o mesmo com o `BossServer` da `233763a`): a 200 blocos o chunk do golem foi descarregado e recarregado; o motor retomou o controlador certo, mas o roteiro usava o handle e o objeto antigos, o `detach` não fazia nada e a barra ficava (o que também derrubava a verificação do Sentinela) | defeito do teste | roteiro corrigido (acha o controlador atual pela UUID; o detalhe registra a recarga) |
+| Handle guardado depois de o chunk descarregar fica inválido (`alive()` false); nada dizia isso ao modder | documentação | Javadoc de `Bosses.Handle` e guia (seção 8 do capítulo) |
+| Seções de plano do `BOSSES-0.13.md` citavam nomes que não existem (`boss/BossData`, `.through(...)`, marcador `fim`, `RigAnchors.serverPose`, `AnchorPose`, `Effects.follow`), "3 falhas pausam" (removem) e "prioridade normal" (é `LOW`); prometiam um exemplo GeckoLib na receita que não existe | documentação | corrigido; seção 8 nova: guia do modder (14 itens) só com APIs do JAR, GeckoLib como esqueleto **não testado** |
+| O workflow de release publicaria um JAR ainda marcado DEVELOPMENT BUILD ou com tag diferente da versão | correção recomendada | `release.yml` confere tag × `build.gradle` e recusa o aviso |
+| Faltavam as notas `.github/release-notes/v0.13.0.md` (o workflow exige) | preparação | escritas, sem afirmar compatibilidade não testada |
+
+Sem bloqueadores encontrados no código. Conferido sem mudança: limites (`maxPerBoss` só com controlador confirmado;
+mesma contagem e recarga da entidade, `equals` ignora a marca; total 64 e reserva valem; mob comum continua em 4);
+persistência (estado gravado a cada tick processado, retomado ao carregar; id desconhecido descartado; morte e
+`discard` apagam; descarregar e trocar de dimensão só soltam o visual; eventos globais da fase não são persistentes, então
+nada fica preso no mundo depois de o chefe morrer, ser removido ou descarregar); barra (só na mesma dimensão e no
+alcance, revisão a cada 10 ticks, logout, remoção por `boss_v1`; progresso só com 0,5% ou 5 ticks; nenhum pacote por
+tick); anchors (pose do cliente só visual, servidor usa `approximate`; plano B estático); isolamento cliente/servidor
+(`boss/`, `net/`, `api/` e `api/v1` sem classes de cliente; o `testeJogo` carrega o mod num servidor dedicado).
+
+**Executado nesta sessão** (container novo; RimuLib baixada e conferida pela task):
+
+| Teste | Resultado | Por quê |
+|---|---|---|
+| `./gradlew build` e `dist` | verdes | `BossCheck` com 3 casos novos (estilo e rótulo longos recusados, rótulo de 256 aceito); `checkApiDocs` (referência regerada: só textos de Javadoc mudaram), `checkRecipes`, `checkModVersion` |
+| `./gradlew checkShaders --rerun` com glslangValidator 15.1 | 13 shaders compilados | o CI de release exige; na sessão anterior só tinha avisado |
+| `./gradlew -p examples/vfx-sample build` | verde | contra o JAR desta revisão |
+| `./gradlew testeJogo` (uma rodada, duas fases) | **82/82** | as 79 anteriores mais 3 novas: chefe num chunk carregado sem processar entidades fica na fase `a` com 0 ticks por 60 ticks; volta a andar quando o chunk passa a processar; com `/tick freeze` o tempo da fase não anda (0 → 0 em 30 ticks). Reinício: chefe de volta na fase `b` com 17 ticks (salvo com 10; o mundo andou 283) |
+| `xvfb-run -a ./gradlew testeChefe` | 13/15 → **15/15** | 1ª: duas falhas (acima); 2ª, com o `BossServer` da `233763a`: as mesmas duas (não vinham da correção); 3ª, com diagnóstico: golem `UNLOADED_TO_CHUNK` e controlador retomado na fase `c`; 4ª, com o roteiro corrigido: 15/15 (inclui o caminho "chunk descarregado → chefe retomado na fase certa com a barra") |
+| Consumidor contra a 0.13.0, **isolado** | compila | cópia de `examples/consumidor` no scratchpad com versão e SHA-256 do JAR local e `-Pcalamidade.url=file://…`; `examples/consumidor` continua apontando para o release 0.12.0 |
+| JAR | conferido | 371 entradas; nenhum dos 107 arquivos que a 0.14 acrescenta sobre `8cfd93a`; nada de GeckoLib; `version="0.13.0"` e o aviso DEVELOPMENT BUILD no `neoforge.mods.toml` |
+
+**Reaproveitado da sessão anterior (sem mudança no que valida):** compatibilidade da API com a 0.12.0 (nenhuma assinatura
+mudou nesta revisão, só Javadoc); `testeCeu`, `testeCliente`, `testeMedicao`, `testeAtlas`, `testar_glsl.cjs` e
+`previa_passes.cjs` (nenhum shader, passe, escritor de terreno, perfil ou Atlas mudou).
+
+**Pendente (não bloqueante, nada afirmado sem evidência):** dois jogadores reais num servidor dedicado (entrada tardia,
+alcance, troca de dimensão do jogador e do chefe, logout, dois chefes visíveis ao mesmo tempo para os dois) — só a lógica
+foi testada, com um jogador; troca de dimensão **do chefe** não tem teste automatizado (arquitetura: estado copiado
+com a entidade, visual solto e retomado); mod real com GeckoLib; GPU física; Iris/Oculus, Sodium/Embeddium e outros
+renderizadores; um chefe que volta quando `bossMaxActive` está cheio fica sem controlador até o próximo carregamento
+(estado mantido, aviso no log); o mesmo efeito de evento global em dois chefes ao mesmo tempo (o segundo fica sem ele).
+
+#### Checklist para publicar a 0.13.0 (só com autorização)
+
+1. Autorização do autor; levar os commits desta revisão para `claude/bosses-0.13` (avanço simples, sem reescrever) ou
+   abrir o PR a partir deste branch.
+2. Opcional, recomendado: o roteiro manual de dois jogadores (TESTE-REAL.md) e uma GPU física; registrar aqui.
+3. Commit de release: tirar o comentário e o texto `[DEVELOPMENT BUILD …]` do `neoforge.mods.toml`; "em
+   desenvolvimento/não publicada" → publicada em `MUDANCAS.md`, `docs/ROADMAP.md`, `docs/BOSSES-0.13.md`, `AGENTS.md` e
+   aqui; `python3 scripts/gerar_manual.py`; `./gradlew syncRecipes`; revisar `.github/release-notes/v0.13.0.md`.
+4. `./gradlew clean build dist` (com glslangValidator) e `./gradlew -p examples/vfx-sample build`; anotar os SHA-256.
+5. PR para `main`, merge; Actions → Release com tag `v0.13.0` e título `Bosses` (o workflow recusa tag ≠ versão e o
+   aviso de desenvolvimento).
+6. Conferir os anexos (só `calamidade_awakening-0.13.0.jar`, `vfx-sample-1.10.0.jar`, `SHA256SUMS.txt`) e que os
+   SHA-256 batem com o build local.
+7. Só depois: `examples/consumidor/build.gradle` para `0.13.0` com o SHA-256 publicado e
+   `./gradlew -p examples/consumidor clean build` sem endereço alternativo; registrar aqui.
+
+Os JARs desta sessão (`f2b352e1…` do motor no último build, depois do Javadoc de `Bosses.Handle`; o consumidor isolado
+compilou contra o build anterior, `39d335c7…`, com as mesmas assinaturas) são de **desenvolvimento**: não publicar; o JAR
+oficial sai do commit de release (passo 4).
+
+### Executado (23/11/2026, sessão da implementação)
 
 | Teste | Resultado | Cobre |
 |---|---|---|
