@@ -453,6 +453,172 @@ const FUNDO_CENAS = {
     backdrop: [fundo('grade', 1), fundo('nebulosa', 2, { alpha: 0.4 })] },
 };
 
+// 0.14 (fase 3): objetos do céu (StarField, Nebula) com os shaders de núcleo reais (sky_stars, sky_nebula e
+// sky_objects.glsl) em WebGL2. A geometria é montada aqui como no SkyObjectsFrame (mesmos atributos, mesmos números do
+// SkyObjectsMath: brilho por magnitude, meio tamanho, pedaços de linha a cada 2 graus); o referencial do objeto é o
+// do mundo (celestial desligado: o giro com a hora é testado no SkyObjectsCheck). Os objetos vão para uma textura RGBA8
+// limpa em zero, com a mistura pré-multiplicada (ONE, ONE_MINUS_SRC_ALPHA) — a camada de cobertura do jogo —, e um
+// pré-passe só da prévia compõe essa textura sobre os pixels de céu (no jogo os objetos são desenhados direto na tela
+// em AFTER_SKY e o terreno cobre depois; a composição pré-multiplicada é associativa, então dá o mesmo).
+const CORE = path.join(ROOT, 'src/main/resources/assets/calamidade_awakening/shaders');
+const BLENDS = { NORMAL: 0, LUMINOUS: 1, COVER: 2 }, DARKENINGS = { DIM: 0, REVEAL: 1, IGNORE: 2 };
+const starIntensity = m => Math.min(Math.max(Math.pow(10, -0.2 * (m - 1)), 0), 32);
+const starHalf = (i, size) => 0.045 * size * (0.8 + 0.5 * Math.sqrt(Math.min(Math.max(i, 0), 8))) * Math.PI / 180;
+function basisOf(axis) {
+  const helper = Math.abs(axis[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const u = norm(cross(helper, axis));
+  return [u, cross(axis, u)];
+}
+function coreSource(name, ext) {
+  return fs.readFileSync(path.join(CORE, 'core', name + '.' + ext), 'utf8').split('\n').map(l => {
+    const m = l.trim().match(/^#moj_import <calamidade_awakening:(.+)>$/);
+    return m ? fs.readFileSync(path.join(CORE, 'include', m[1]), 'utf8') : l;
+  }).join('\n').replace('#version 150', '#version 300 es\nprecision highp float;\nprecision highp int;');
+}
+// Um campo de estrelas: estrelas { az, el, mag, argb, size } e linhas { from: [az, el], to: [az, el], argb, width }.
+function starMesh(o) {
+  const pos = [], col = [], uv0 = [], uv1 = [], uv2 = [], nor = [];
+  const vertex = (p, argb, u, v, a, b, c, d, n) => {
+    pos.push(p[0] * 50, p[1] * 50, p[2] * 50);
+    col.push((argb >> 16) & 255, (argb >> 8) & 255, argb & 255, (argb >>> 24) & 255);
+    uv0.push(u, v); uv1.push(a, b); uv2.push(c, d); nor.push(...n.map(x => Math.round(x * 127)));
+  };
+  for (const l of o.lines || []) {
+    const a = skyDir(...l.from), b = skyDir(...l.to), angle = Math.acos(Math.min(Math.max(dot(a, b), -1), 1));
+    const n = Math.min(Math.max(Math.ceil(angle * 180 / Math.PI / 2), 1), 90);
+    const half = Math.min(Math.max(Math.round((l.width ?? 0.12) / 2 * Math.PI / 180 * 1e5), 1), 32767);
+    const along = t => { const sa = Math.sin((1 - t) * angle) / Math.sin(angle), sb = Math.sin(t * angle) / Math.sin(angle);
+      return norm([0, 1, 2].map(k => a[k] * sa + b[k] * sb)); };
+    for (let k = 0; k < n; k++) {
+      const t0 = k / n, t1 = (k + 1) / n, p0 = along(t0), p1 = along(t1), tg = norm([0, 1, 2].map(i => p1[i] - p0[i]));
+      vertex(p0, l.argb, t0, -1, 1000, 0, half, 1, tg); vertex(p1, l.argb, t1, -1, 1000, 0, half, 1, tg);
+      vertex(p1, l.argb, t1, 1, 1000, 0, half, 1, tg); vertex(p0, l.argb, t0, 1, 1000, 0, half, 1, tg);
+    }
+  }
+  for (const st of o.stars || []) {
+    const d = skyDir(st.az, st.el), i = starIntensity(st.mag), h0 = starHalf(i, st.size ?? 1);
+    const gain = Math.min(Math.max(Math.round(i * 1000), 0), 32767), h = Math.min(Math.max(Math.round(h0 * 1e5), 1), 32767);
+    for (const c of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) vertex(d, st.argb, c[0], c[1], gain, 0, h, 0, [0, 1, 0]);
+  }
+  return { attribs: { Position: { data: pos, size: 3, type: 'float' }, Color: { data: col, size: 4, type: 'ubyte' },
+    UV0: { data: uv0, size: 2, type: 'float' }, UV1: { data: uv1, size: 2, type: 'short' }, UV2: { data: uv2, size: 2, type: 'short' },
+    Normal: { data: nor, size: 3, type: 'byte' } },
+    quads: pos.length / 12 };
+}
+let nebulaMeshes = null;
+function nebulaMesh(band) {
+  if (!nebulaMeshes) {
+    const grid = { pos: [], uv: [] }, sphere = { pos: [], uv: [] };
+    for (let j = 0; j < 24; j++) for (let i = 0; i < 24; i++)
+      for (const c of [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]) { grid.pos.push(0, 0, 0); grid.uv.push(c[0] * 2 / 24 - 1, c[1] * 2 / 24 - 1); }
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 64; i++)
+      for (const c of [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]) {
+        // BackdropMath.panoramaDirection: u em azimute (sul no meio, oeste à direita), v do zênite ao nadir.
+        const az = (c[0] / 64 - 0.5) * 360, el = 90 - c[1] / 32 * 180;
+        sphere.pos.push(...skyDir(az, el).map(v => v * 50)); sphere.uv.push(0, 0);
+      }
+    const pack = m => ({ attribs: { Position: { data: m.pos, size: 3, type: 'float' }, UV0: { data: m.uv, size: 2, type: 'float' } }, quads: m.pos.length / 12 });
+    nebulaMeshes = { cloud: pack(grid), band: pack(sphere) };
+  }
+  return band ? nebulaMeshes.band : nebulaMeshes.cloud;
+}
+// Valores do quadro (sky_objects.glsl): exposição do mundo, noite, véu da atmosfera da cena.
+function objectFrame(cena, exposure) {
+  const a = cena.atmo;
+  return { f4: { CaFrame: [exposure, cena.night ?? 1, 0, 0], CaVeil: a ? [a.blend, a.fogDensity, 0, 0] : [0, 0, 0, 0] },
+    f3: { CaVeilTop: a ? a.skyTop : [0, 0, 0], CaVeilHorizon: a ? a.skyHorizon : [0, 0, 0], CaVeilFog: a ? a.fogColor : [0, 0, 0] } };
+}
+const argb4 = c => [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255, ((c >>> 24) & 255) / 255];
+function objectDraws(cena, exposure) {
+  const frame = objectFrame(cena, exposure);
+  const ordered = [...cena.objetos].map((o, i) => ({ o, i })).sort((x, y) => (x.o.order ?? (x.o.type === 'nebula' ? 100 : 200))
+    - (y.o.order ?? (y.o.type === 'nebula' ? 100 : 200)) || x.i - y.i).map(x => x.o);
+  return ordered.map(o => {
+    const common = { CaObjA: [BLENDS[o.blend || (o.type === 'nebula' ? 'NORMAL' : 'LUMINOUS')], o.opacity ?? 1, o.brightness ?? 1, o.atmosphere ?? 1],
+      CaObjB: [DARKENINGS[o.darkening || 'REVEAL'], o.strength ?? 1, o.daylight ?? 1, (o.horizon ?? 4) > 0 ? Math.sin((o.horizon ?? 4) * Math.PI / 180) : 0] };
+    if (o.type === 'stars') {
+      return { vs: coreSource('sky_stars', 'vsh'), fs: coreSource('sky_stars', 'fsh'), ...starMesh(o),
+        f4: { ...frame.f4, ...common, CaStar: [1.1, 0, 0, 0] }, f3: frame.f3, f2: { ScreenSize: [W, H] } };
+    }
+    const band = o.shape === 'BAND', center = skyDir(o.az, o.el), b = basisOf(center), roll = (o.roll || 0) * Math.PI / 180;
+    const right = [0, 1, 2].map(k => b[0][k] * Math.cos(roll) + b[1][k] * Math.sin(roll));
+    const up = [0, 1, 2].map(k => -b[0][k] * Math.sin(roll) + b[1][k] * Math.cos(roll));
+    return { vs: coreSource('sky_nebula', 'vsh'), fs: coreSource('sky_nebula', 'fsh'), ...nebulaMesh(band),
+      f4: { ...frame.f4, ...common, CaNebA: [band ? 1 : 0, o.extent * Math.PI / 180, o.density ?? 0.7, o.detail ?? 3],
+        CaNebB: [o.warp ?? 0.7, o.seed ?? 123.4, o.octaves ?? 5, 0], CaNebInner: argb4(o.inner ?? 0xffd080ff), CaNebOuter: argb4(o.outer ?? 0x803050c0) },
+      f3: { ...frame.f3, CaNebCenter: center, CaNebRight: right, CaNebUp: up }, f2: {} };
+  });
+}
+// Pré-passe só da prévia: a camada dos objetos sobre os pixels de céu (o jogo desenha direto e o terreno cobre depois).
+const ELEMENTS_FSH = `
+#include "calamidade_fx.glsl"
+#include "calamidade_sky.glsl"
+void main() {
+    vec3 color = texture(DiffuseSampler, texCoord).rgb;
+    if (skyAt(texCoord)) {
+        vec4 e = caElementsAt(texCoord);
+        color = color * (1.0 - e.a) + e.rgb;
+    }
+    fragColor = vec4(color, 1.0);
+}`;
+const estrela = (az, el, mag, argb, o) => ({ az, el, mag, argb, ...o });
+// Catálogo de teste: um campo regular de estrelas brancas fracas e algumas brilhantes coloridas.
+function campo(az0, el0, n, passo, mag, argb) {
+  const out = [];
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) out.push(estrela(az0 + i * passo, el0 + j * passo, mag, argb));
+  return out;
+}
+const OBJ_LOOK = [skyDir(0, 30), -10, 0];
+const CONSTELACAO = { type: 'stars', stars: [estrela(-14, 34, 0.5, 0xffcfe0ff), estrela(-4, 40, 1, 0xffffffff), estrela(6, 37, 0.8, 0xffffe0b0),
+  estrela(14, 30, 1.2, 0xffffc080), estrela(-8, 24, 1.5, 0xffa0c0ff)],
+  lines: [{ from: [-14, 34], to: [-4, 40], argb: 0x90a0b8ff }, { from: [-4, 40], to: [6, 37], argb: 0x90a0b8ff },
+    { from: [6, 37], to: [14, 30], argb: 0x90a0b8ff }, { from: [-4, 40], to: [-8, 24], argb: 0x90a0b8ff }] };
+const OBJ_CENAS = {
+  // A: estrelas LUMINOUS sobre fundo opaco (o fundo atrás não some).
+  obj_estrelas_fundo: { env: env(DUSK, 0.5), look: OBJ_LOOK, layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'stars', stars: campo(-20, 18, 9, 5, 2.5, 0xffffffff), horizon: 0 }] },
+  obj_estrelas_fundo__sem: { env: env(DUSK, 0.5), look: OBJ_LOOK, layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)] },
+  // B: uma estrela vermelha brilhante e grande sobre fundo claro, NORMAL (cor exata) e LUMINOUS (luz somada).
+  obj_cor_normal: { env: env(DAY, 0.25), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'stars', blend: 'NORMAL', stars: [estrela(0, 30, -1.5, 0xffff2010, { size: 16 })], horizon: 0, daylight: 0 }] },
+  obj_cor_luminosa: { env: env(DAY, 0.25), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'stars', blend: 'LUMINOUS', stars: [estrela(0, 30, -1.5, 0xffff2010, { size: 16 })], horizon: 0, daylight: 0 }] },
+  // C: nebulosa semitransparente de cor única (NORMAL, densidade 0,5) e a mesma em COVER (silhueta) sobre o fundo.
+  obj_nebulosa_normal: { env: env(DUSK, 0.5), look: OBJ_LOOK, layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'nebula', az: 0, el: 30, extent: 18, density: 0.5, inner: 0xffff40a0, outer: 0xffff40a0, horizon: 0, daylight: 0 }] },
+  obj_nebulosa_cover: { env: env(DUSK, 0.5), look: OBJ_LOOK, layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'nebula', az: 0, el: 30, extent: 18, density: 1, blend: 'COVER', inner: 0xffff40a0, outer: 0xffff40a0, horizon: 0, daylight: 0 }] },
+  // D: atmosfera (TINGE, sem névoa nem estrelas) sobre fundo opaco, nebulosa NORMAL e estrelas LUMINOUS.
+  obj_atmosfera: { env: env(DUSK, 0.5), look: OBJ_LOOK, layers: [], atmo: TINGE, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'nebula', az: 8, el: 32, extent: 16, density: 0.8, inner: 0xffffe080, outer: 0xc04060ff, horizon: 0, daylight: 0 },
+      { type: 'stars', stars: campo(-24, 16, 10, 5, 1.5, 0xffffffff), horizon: 0, daylight: 0 }] },
+  // E: eclipse de dia: estrelas REVEAL (escondidas pelo dia) e nebulosa DIM, sobre fundo opaco, sem atmosfera, longe
+  // do disco (mais de 45 graus: a coroa vai até ~39).
+  obj_eclipse: { env: env(DAY, ECL_TIME), look: [ECL_DIR, -9, 10], layers: [eclipse({ progress: 1, seconds: 15 })], darkening: true, night: 0,
+    backdrop: [fundo('nebulosa', 2)], objetos: [
+      { type: 'nebula', az: -38, el: 42, extent: 9, density: 0.7, inner: 0xff80ffc0, outer: 0xff80ffc0, darkening: 'DIM', horizon: 0, daylight: 0 },
+      { type: 'stars', stars: campo(-47, 2, 6, 3, 2, 0xffffffff), horizon: 0 }] },
+  // F: sol do jogo apagado sob uma nuvem COVER na frente dele.
+  obj_sol: { env: env(DAY, SUN_TIME), look: [SUN_DIR, 0, 0], layers: [], hideSun: 1,
+    objetos: [{ type: 'nebula', az: Math.atan2(-SUN_DIR[0], SUN_DIR[2]) * 180 / Math.PI, el: Math.asin(SUN_DIR[1]) * 180 / Math.PI, extent: 20,
+      density: 1, blend: 'COVER', inner: 0xff6080c0, outer: 0xff6080c0, horizon: 0, daylight: 0 }] },
+  // G: ordem: nuvem COVER na frente das estrelas (ordem 300) e atrás (ordem 100).
+  obj_ordem_frente: { env: env(DUSK, 0.5), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'stars', stars: [estrela(0, 30, -1, 0xffffffff, { size: 4 })], horizon: 0 },
+      { type: 'nebula', az: 0, el: 30, extent: 10, density: 1, blend: 'COVER', inner: 0xff203040, outer: 0xff203040, order: 300, horizon: 0, daylight: 0 }] },
+  obj_ordem_atras: { env: env(DUSK, 0.5), look: [skyDir(0, 30), 0, 0], layers: [], noSkyPass: true, backdrop: [fundo('nebulosa', 2)],
+    objetos: [{ type: 'stars', stars: [estrela(0, 30, -1, 0xffffffff, { size: 4 })], horizon: 0 },
+      { type: 'nebula', az: 0, el: 30, extent: 10, density: 1, blend: 'COVER', inner: 0xff203040, outer: 0xff203040, order: 100, horizon: 0, daylight: 0 }] },
+  // H: lente: buraco negro sobre um campo de estrelas.
+  obj_lente: { env: env(DUSK, 0.5), look: [BH_DIR, -8, 4], layers: [bh({ size: 12, progress: 1, seconds: 14, spinDegrees: 260 })],
+    objetos: [{ type: 'stars', stars: campo(-55, -4, 16, 4, 2, 0xffffffff), horizon: 0 }] },
+  // Vitrine (folha da fase 3): fundo, faixa da galáxia, nebulosa, campo e constelação, com a atmosfera do anoitecer.
+  obj_vitrine: { env: env(DUSK, 0.5), look: OBJ_LOOK, layers: [], atmo: { ...NIGHTFALL(0.5, 0, 0.35), fogDensity: 0 },
+    objetos: [{ type: 'nebula', shape: 'BAND', az: 70, el: 40, extent: 8, density: 0.55, inner: 0xb0fff0d8, outer: 0x50607090, detail: 4 },
+      { type: 'nebula', az: 22, el: 26, extent: 12, density: 0.8, inner: 0xffff70c0, outer: 0x903060ff, seed: 321.7 },
+      { type: 'stars', stars: [...campo(-40, 8, 20, 3.1, 3.5, 0xffe8eeff), ...campo(-38, 10, 7, 9.3, 1.8, 0xffffd8a0)] }, CONSTELACAO] },
+};
+
 // Cobertura do eclipse (Sky.eclipseCoverage) e exposição do mundo (SkyMath.exposure), para o escurecimento.
 function eclipseCoverage(progress) {
   const p = Math.min(Math.max(progress, 0), 1), d = (1 - p) * 2.2, big = 1, small = 0.97;
@@ -555,6 +721,8 @@ function skyPasses(cena) {
   const hideSun = cena.hideSun ?? Math.max(0, ...layers.filter(l => l.anchor === 1).map(l => l.weight));
   // Controle negativo (backdropOff): o fundo é desenhado, mas os passes não sabem dele (o protótipo da fase 1).
   const bd = backdropUniforms(cena), bdPass = cena.backdropOff ? backdropUniforms({}) : bd;
+  // 0.14 (fase 3): camada de cobertura dos objetos para os passes (coverageOff: controle negativo, passes sem ela).
+  const el = cena.objetos && !cena.coverageOff ? { textures: { CaElTex: 'elements' }, f4: { CaEl: [1, 0, 0, 0] } } : { textures: {}, f4: { CaEl: [0, 0, 0, 0] } };
   const lens = skyLenses(layers);
   const a = cena.atmo;
   const lensUniforms = prefix => ({ [prefix + 'Lens0']: lens.slice(0, 4), [prefix + 'Lens1']: lens.slice(4, 8),
@@ -563,8 +731,8 @@ function skyPasses(cena) {
     { source: VANILLA_FSH, textures: { PreSun: 'sun' },
       f3: { PreAxisX: e.axes[0], PreAxisY: e.axes[1], PreAxisZ: e.axes[2] } },
     { program: 'sky', data: { name: 'CaSkyData', texels: 10, rows },
-      textures: { CaSkySunTex: 'sun', CaSkyMoonTex: 'sun', ...bdPass.textures },
-      f4: { ...bdPass.f4, CaSkyInfo: [rows.length, exposure, 2, layers.some(l => l.type === 'DISTANT_BOLTS') ? 1 : 0],
+      textures: { CaSkySunTex: 'sun', CaSkyMoonTex: 'sun', ...bdPass.textures, ...el.textures },
+      f4: { ...bdPass.f4, ...el.f4, CaSkyInfo: [rows.length, exposure, 2, layers.some(l => l.type === 'DISTANT_BOLTS') ? 1 : 0],
         CaSkyVanilla: [hideSun, 0, 0, 1], CaSkyMisc: [e.renderDistance, 0, 0, 0], ...lensUniforms('CaSky'),
         // Céu da atmosfera pintado aqui, debaixo das camadas (SkyFrame.draw).
         CaSkyAtmoA: a ? [a.blend, a.fogDensity, a.stars, 1] : [0, 0, 0, 0], CaSkyAtmoB: [0, 0, 0, 0] },
@@ -574,15 +742,17 @@ function skyPasses(cena) {
   ];
   if (cena.noSkyPass) passes.splice(1, 1);
   if (cena.noVanillaSun) passes[0].textures = {}, passes[0].f3 = { PreAxisX: [0, 0, 1], PreAxisY: [0, -1, 0], PreAxisZ: [1, 0, 0] };
+  if (cena.objetos) passes.splice(1, 0, { source: ELEMENTS_FSH, textures: { CaElTex: 'elements' } });
   if (cena.backdrop) passes.splice(1, 0, { source: BACKDROP_FSH, textures: bd.textures, f4: bd.f4, f3: bd.f3 });
   if (a) {
-    passes.push({ program: 'atmosphere', textures: bdPass.textures,
+    passes.push({ program: 'atmosphere', textures: { ...bdPass.textures, ...el.textures },
       f3: { ...bdPass.f3, CaAtmoSkyTop: a.skyTop, CaAtmoSkyHorizon: a.skyHorizon, CaAtmoFogColor: a.fogColor, CaAtmoTint: a.tint,
         CaAtmoVanillaSky: e.sky, CaAtmoVanillaFog: e.fog },
-      f4: { ...bdPass.f4, CaAtmoA: [a.blend, a.fogDensity, a.fogStart, a.fogEnd], CaAtmoB: [a.exposure, a.tintStrength, a.stars, 0],
+      f4: { ...bdPass.f4, ...el.f4, CaAtmoA: [a.blend, a.fogDensity, a.fogStart, a.fogEnd], CaAtmoB: [a.exposure, a.tintStrength, a.stars, 0],
         CaAtmoC: [e.renderDistance, cena.noSkyPass ? 0 : 1, 0, 0], ...lensUniforms('CaAtmo') },
       f1: { GTime: 37.0 } });
   }
+  passes.exposure = exposure;
   return passes;
 }
 
@@ -629,9 +799,11 @@ async function render(page, name, cena) {
   const { depth, color, viewProj } = base;
   // PREVIA_PASSES=n roda só os n primeiros passes (depuração: 1 = só a cena e o sol do jogo).
   const limit = process.env.PREVIA_PASSES ? Number(process.env.PREVIA_PASSES) : Infinity;
-  const passes = (sky ? skyPasses(cena) : effectPasses(cena)).slice(0, limit);
+  const built = sky ? skyPasses(cena) : effectPasses(cena);
+  const passes = built.slice(0, limit);
   const shaders = passes.map(p => assemble(p.program, p.source));
-  const png = await page.evaluate(async ({ W, H, depth, color, invProj, invView, viewProj, passes, shaders, images }) => {
+  const objects = sky && cena.objetos ? { draws: objectDraws(cena, built.exposure ?? 1), view, proj } : null;
+  const png = await page.evaluate(async ({ W, H, depth, color, invProj, invView, viewProj, passes, shaders, images, objects }) => {
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
@@ -666,6 +838,47 @@ async function render(page, name, cena) {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, img0.w, img0.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(img0.u8));
         named[key] = t;
       } else named[key] = tex(img0.w, img0.h, gl.RGBA32F, gl.RGBA, new Float32Array(img0.data));
+    }
+    // 0.14 (fase 3): objetos do céu com os shaders de núcleo reais numa camada RGBA8 limpa em zero (a camada de
+    // cobertura do jogo), mistura pré-multiplicada (ONE, ONE_MINUS_SRC_ALPHA) na cor e na cobertura.
+    if (objects) {
+      const el = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, el); params();
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, el, 0);
+      gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      for (const d of objects.draws) {
+        const prog = gl.createProgram();
+        gl.attachShader(prog, compile(gl.VERTEX_SHADER, d.vs)); gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, d.fs));
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+        gl.useProgram(prog);
+        const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+        for (const [name, a] of Object.entries(d.attribs)) {
+          const loc = gl.getAttribLocation(prog, name);
+          if (loc < 0) continue;
+          const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+          const arr = a.type === 'float' ? new Float32Array(a.data) : a.type === 'ubyte' ? new Uint8Array(a.data) : a.type === 'byte' ? new Int8Array(a.data) : new Int16Array(a.data);
+          gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); gl.enableVertexAttribArray(loc);
+          if (a.type === 'short') gl.vertexAttribIPointer(loc, a.size, gl.SHORT, 0, 0);
+          else gl.vertexAttribPointer(loc, a.size, a.type === 'float' ? gl.FLOAT : a.type === 'byte' ? gl.BYTE : gl.UNSIGNED_BYTE, a.type !== 'float', 0, 0);
+        }
+        const idx = new Uint32Array(d.quads * 6);
+        for (let q = 0; q < d.quads; q++) idx.set([q * 4, q * 4 + 1, q * 4 + 2, q * 4 + 2, q * 4 + 3, q * 4], q * 6);
+        const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+        const ident = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        gl.uniformMatrix4fv(gl.getUniformLocation(prog, 'ModelViewMat'), false, objects.view);
+        gl.uniformMatrix4fv(gl.getUniformLocation(prog, 'ProjMat'), false, objects.proj);
+        gl.uniformMatrix4fv(gl.getUniformLocation(prog, 'CaWorld'), false, ident);
+        for (const [n, v] of Object.entries(d.f2 || {})) gl.uniform2f(gl.getUniformLocation(prog, n), ...v);
+        for (const [n, v] of Object.entries(d.f3 || {})) gl.uniform3f(gl.getUniformLocation(prog, n), ...v);
+        for (const [n, v] of Object.entries(d.f4 || {})) gl.uniform4f(gl.getUniformLocation(prog, n), ...v);
+        gl.drawElements(gl.TRIANGLES, d.quads * 6, gl.UNSIGNED_INT, 0);
+        gl.bindVertexArray(null);
+      }
+      gl.disable(gl.BLEND);
+      named.elements = el;
     }
     const depthTex = tex(W, H, gl.R32F, gl.RED, new Float32Array(depth));
     let colorTex = tex(W, H, gl.RGBA32F, gl.RGBA, new Float32Array(color));
@@ -715,7 +928,7 @@ async function render(page, name, cena) {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     return canvas.toDataURL('image/png');
   }, { W, H, depth: Array.from(depth), color: Array.from(color), invProj: invert(proj), invView: invert(view),
-       viewProj, passes, shaders, images: sky ? { sun: sunTexture(), ...backdropImages(cena) } : {} });
+       viewProj, passes, shaders, images: sky ? { sun: sunTexture(), ...backdropImages(cena) } : {}, objects });
   const file = path.join(OUT, name + '.png');
   fs.writeFileSync(file, Buffer.from(png.split(',')[1], 'base64'));
   return file;
@@ -745,8 +958,8 @@ async function contactSheet(page, files) {
   return file;
 }
 
-const ALL = { ...CENAS, ...SKY_CENAS, ...REF_CENAS, ...FUNDO_CENAS };
-module.exports = { SKY_CENAS, REF_CENAS, FUNDO_CENAS, ALL, render, lookAt, skyDir, vanillaAxes, skyScene, perspective, viewMatrix,
+const ALL = { ...CENAS, ...SKY_CENAS, ...REF_CENAS, ...FUNDO_CENAS, ...OBJ_CENAS };
+module.exports = { SKY_CENAS, REF_CENAS, FUNDO_CENAS, OBJ_CENAS, ALL, starIntensity, render, lookAt, skyDir, vanillaAxes, skyScene, perspective, viewMatrix,
   W, H, FOV, OUT, backdropTexture };
 
 async function main() {

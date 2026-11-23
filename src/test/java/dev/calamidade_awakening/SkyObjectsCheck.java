@@ -117,7 +117,7 @@ final class SkyObjectsCheck {
         require(faint > bright * 4, "more faint stars than bright ones: " + faint + " vs " + bright);
         require(Math.abs(up - 2000) < 200, "uniform over the sphere: " + up + " of 4000 above the horizon");
         // Magnitudes: 1 is 1, brighter is more, 6 still visible on an 8-bit screen.
-        require(near(SkyObjectsMath.intensity(1), 1, 1e-6f) && SkyObjectsMath.intensity(-1.5f) > 4
+        require(near(SkyObjectsMath.intensity(1), 1, 1e-6f) && SkyObjectsMath.intensity(-1.5f) > 3
             && SkyObjectsMath.intensity(6) > 1 / 255f * 10 && SkyObjectsMath.intensity(-100) == 32, "magnitude scale");
         require(SkyObjectsMath.halfSize(4, 1) > SkyObjectsMath.halfSize(.1f, 1) && SkyObjectsMath.halfSize(1, 2) > SkyObjectsMath.halfSize(1, 1), "size grows with brightness and size");
         // Band: most stars near the great circle perpendicular to the pole (zenith pole: the horizon circle).

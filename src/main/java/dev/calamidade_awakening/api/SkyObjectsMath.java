@@ -27,16 +27,17 @@ public final class SkyObjectsMath {
     // ------------------------------------------------------------------------------------------------ brightness
 
     /**
-     * Brightness of a magnitude: {@code 10^(−0.26 (m − 1))}, clamped to 0..32. The real scale is {@code 10^(−0.4 m)};
-     * the softer slope keeps magnitude 6 visible on an 8-bit screen (0.05) while magnitude 1 is 1 and −1.5 about 4.5.
+     * Brightness of a magnitude: {@code 10^(−0.2 (m − 1))}, clamped to 0..32. The real scale is {@code 10^(−0.4 m)};
+     * the softer slope keeps magnitude 6 visible on an 8-bit screen (0.1) while magnitude 1 is 1 and −1.5 about 3.2.
      */
     public static float intensity(float magnitude) {
-        return (float) Math.clamp(Math.pow(10, -0.26 * (magnitude - 1)), 0, 32);
+        return (float) Math.clamp(Math.pow(10, -0.2 * (magnitude - 1)), 0, 32);
     }
 
     /**
      * Angular half size of a star, radians: {@code 0.045° × size × (0.8 + 0.5 √min(I, 8))}. On screen it never goes
-     * below about one pixel (the shader keeps the flux instead: smaller stars get dimmer, not thinner).
+     * below about one pixel (the shader dims it instead, by the square root of the size ratio: smaller stars get
+     * dimmer, not thinner).
      */
     public static float halfSize(float intensity, float size) {
         return (float) Math.toRadians(0.045 * size * (0.8 + 0.5 * Math.sqrt(Math.min(Math.max(intensity, 0), 8))));
@@ -362,6 +363,9 @@ public final class SkyObjectsMath {
     static double[] cross(double[] a, double[] b) {
         return new double[] {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
     }
+
+    /** Unit vector of {@code a} (straight up when {@code a} is zero). */
+    public static double[] unit(double[] a) { return normalize(a); }
 
     static double[] normalize(double[] a) {
         double l = Math.sqrt(dot(a, a));

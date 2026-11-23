@@ -92,8 +92,10 @@ function compare(name) {
 
 function main() {
   const update = process.argv.includes('--atualizar');
-  const { SKY_CENAS, REF_CENAS, FUNDO_CENAS } = require('./previa_passes.cjs');
-  const names = [...Object.keys(SKY_CENAS), ...Object.keys(REF_CENAS), ...Object.keys(FUNDO_CENAS)];
+  const { SKY_CENAS, REF_CENAS, FUNDO_CENAS, OBJ_CENAS } = require('./previa_passes.cjs');
+  // 0.14 (fase 3): as cenas de objetos do céu (sem as variantes de teste "__").
+  const objetos = Object.keys(OBJ_CENAS).filter(n => !n.includes('__'));
+  const names = [...Object.keys(SKY_CENAS), ...Object.keys(REF_CENAS), ...Object.keys(FUNDO_CENAS), ...objetos];
   const only = update ? process.argv.slice(process.argv.indexOf('--atualizar') + 1) : [];
   execFileSync(process.execPath, [path.join(__dirname, 'previa_passes.cjs'), ...names], { stdio: 'inherit' });
   if (update) {
@@ -110,7 +112,8 @@ function main() {
     console.log(`${r.ok ? 'OK    ' : 'DIFERE'} ${name}: ${r.why}`);
     if (!r.ok) failed++;
   }
-  console.log(`referência visual: ${names.length - failed}/${names.length} cenas iguais à referência (15 da 0.12.0, ${names.length - 15} com fundos de céu da 0.14)`);
+  console.log(`referência visual: ${names.length - failed}/${names.length} cenas iguais à referência (15 da 0.12.0, `
+    + `${Object.keys(FUNDO_CENAS).length} com fundos de céu e ${objetos.length} com objetos do céu da 0.14)`);
   if (failed) process.exit(1);
 }
 

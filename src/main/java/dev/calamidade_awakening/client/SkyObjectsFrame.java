@@ -52,10 +52,14 @@ import java.util.function.Consumer;
 final class SkyObjectsFrame {
     /** Radius of the geometry around the camera, blocks (no depth test, any value inside the near/far range). */
     static final float RADIUS = 50;
-    /** Vertex format of the stars: position, color, corner (UV0), brightness and twinkle phase (UV1), size and kind (UV2). */
+    /**
+     * Vertex format of the stars: position, color, corner (UV0), brightness and twinkle phase (UV1), size and kind (UV2),
+     * and for lines the great-circle tangent (Normal), padded to 36 bytes like the game's formats with a normal.
+     */
     static final VertexFormat STAR_FORMAT = VertexFormat.builder()
         .add("Position", VertexFormatElement.POSITION).add("Color", VertexFormatElement.COLOR)
-        .add("UV0", VertexFormatElement.UV0).add("UV1", VertexFormatElement.UV1).add("UV2", VertexFormatElement.UV2).build();
+        .add("UV0", VertexFormatElement.UV0).add("UV1", VertexFormatElement.UV1).add("UV2", VertexFormatElement.UV2)
+        .add("Normal", VertexFormatElement.NORMAL).padding(1).build();
     /** Smallest half size of a star on screen, pixels. */
     static final float MIN_HALF_PIXELS = 1.1f;
     private static final int GRID = 24, SEGMENTS = 64, RINGS = 32;
@@ -371,16 +375,15 @@ final class SkyObjectsFrame {
             BufferBuilder b = new BufferBuilder(bytes, VertexFormat.Mode.QUADS, STAR_FORMAT);
             for (var s : segments) {
                 int n = SkyObjectsMath.pieces(s);
-                double tanHalf = Math.tan(s.halfWidth());
+                int half = (int) Math.clamp(Math.round(s.halfWidth() * 1e5), 1, 32767);
                 for (int k = 0; k < n; k++) {
                     double t0 = k / (double) n, t1 = (k + 1) / (double) n;
                     double[] p0 = SkyObjectsMath.along(s, t0), p1 = SkyObjectsMath.along(s, t1);
-                    double[] tangent = {p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]};
-                    double[] side0 = side(p0, tangent, tanHalf), side1 = side(p1, tangent, tanHalf);
-                    lineVertex(b, p0, side0, -1, (float) t0, s.argb());
-                    lineVertex(b, p1, side1, -1, (float) t1, s.argb());
-                    lineVertex(b, p1, side1, 1, (float) t1, s.argb());
-                    lineVertex(b, p0, side0, 1, (float) t0, s.argb());
+                    double[] tangent = SkyObjectsMath.unit(new double[] {p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]});
+                    lineVertex(b, p0, tangent, -1, (float) t0, s.argb(), half);
+                    lineVertex(b, p1, tangent, -1, (float) t1, s.argb(), half);
+                    lineVertex(b, p1, tangent, 1, (float) t1, s.argb(), half);
+                    lineVertex(b, p0, tangent, 1, (float) t0, s.argb(), half);
                 }
             }
             float[][] corners = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
@@ -390,24 +393,18 @@ final class SkyObjectsFrame {
                 int half = (int) Math.clamp(Math.round(s.halfSize() * 1e5), 1, 32767);
                 for (float[] c : corners)
                     b.addVertex(s.x() * RADIUS, s.y() * RADIUS, s.z() * RADIUS).setColor(s.argb()).setUv(c[0], c[1])
-                        .setUv1(gain, phase).setUv2(half, 0);
+                        .setUv1(gain, phase).setUv2(half, 0).setNormal(0, 1, 0);
             }
             if (quads == 0) return new Mesh(null, 0, 0);
             return new Mesh(upload(b), pieces, stars.size());
         }
     }
 
-    private static double[] side(double[] p, double[] tangent, double tanHalf) {
-        double[] c = {p[1] * tangent[2] - p[2] * tangent[1], p[2] * tangent[0] - p[0] * tangent[2], p[0] * tangent[1] - p[1] * tangent[0]};
-        double l = Math.sqrt(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
-        if (l < 1e-12) return new double[3];
-        return new double[] {c[0] / l * tanHalf, c[1] / l * tanHalf, c[2] / l * tanHalf};
-    }
-
-    private static void lineVertex(BufferBuilder b, double[] p, double[] side, int across, float along, int argb) {
-        b.addVertex((float) ((p[0] + side[0] * across) * RADIUS), (float) ((p[1] + side[1] * across) * RADIUS),
-                (float) ((p[2] + side[2] * across) * RADIUS))
-            .setColor(argb).setUv(along, across).setUv1(1000, 0).setUv2(0, 1);
+    /** One corner of a line piece: the point on the great circle, the tangent (the width opens on screen), across ±1. */
+    private static void lineVertex(BufferBuilder b, double[] p, double[] tangent, int across, float along, int argb, int half) {
+        b.addVertex((float) p[0] * RADIUS, (float) p[1] * RADIUS, (float) p[2] * RADIUS)
+            .setColor(argb).setUv(along, across).setUv1(1000, 0).setUv2(half, 1)
+            .setNormal((float) tangent[0], (float) tangent[1], (float) tangent[2]);
     }
 
     /** Frees star field meshes not drawn for {@value #KEEP_FRAMES} frames (called once per frame, cheap). */

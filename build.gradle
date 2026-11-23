@@ -338,11 +338,23 @@ tasks.register('checkFundoComposicao', Exec) {
     commandLine 'node', 'scripts/fundo_composicao.cjs'
 }
 
+// 0.14 (fase 3): objetos do céu (estrelas, constelações, nebulosas) com os shaders de núcleo reais em WebGL2 e os
+// passes reais: composição NORMAL, LUMINOUS e COVER, Atmosphere, eclipse, sol do jogo, ordem e lente, por sondas de
+// pixel com controles negativos (node scripts/objetos_composicao.cjs, checkObjetosComposicao).
+tasks.register('checkObjetosComposicao', Exec) {
+    group = 'verification'
+    description = 'Prova por sondas de pixel a composição das estrelas e nebulosas com o fundo, a Atmosphere, o eclipse, o sol do jogo e a lente (node scripts/objetos_composicao.cjs).'
+    dependsOn tasks.named('jar')
+    mustRunAfter 'checkFundoComposicao'
+    workingDir = layout.projectDirectory.asFile
+    commandLine 'node', 'scripts/objetos_composicao.cjs'
+}
+
 tasks.register('checkCeuReferencia', Exec) {
     group = 'verification'
-    description = 'Compara a aparência dos passes sky e atmosphere com as referências (15 cenas da 0.12.0 e 11 com fundos; node scripts/referencia_ceu.cjs).'
+    description = 'Compara a aparência dos passes sky e atmosphere com as referências (15 cenas da 0.12.0, 11 com fundos e as de objetos do céu; node scripts/referencia_ceu.cjs).'
     dependsOn tasks.named('jar')
-    finalizedBy tasks.named('checkFundoComposicao')
+    finalizedBy tasks.named('checkFundoComposicao'), tasks.named('checkObjetosComposicao')
     workingDir = layout.projectDirectory.asFile
     commandLine 'node', 'scripts/referencia_ceu.cjs'
 }
