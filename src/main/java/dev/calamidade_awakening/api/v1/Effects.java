@@ -420,6 +420,33 @@ public final class Effects {
     }
 
     /**
+     * Attaches 1..{@value SkyImage#MAX_PER_EFFECT} {@link SkyImage images} (still PNGs or flipbooks) to a registered
+     * external effect (0.14.0). Same rules as {@link #stars}: once per effect, during mod construction, after
+     * {@link #register} and, when an image reads tracks or a phase, after {@link #timeline}. The textures are loaded on
+     * the client the first time an instance shows them.
+     *
+     * <pre>{@code
+     * Effects.images(ID, SkyImage.of("meumod:textures/sky/dragao.png").direction(120, 35).size(18).build());
+     * }</pre>
+     */
+    public static void images(ResourceLocation id, SkyImage... images) {
+        VisualKind.setImages(Objects.requireNonNull(id), List.of(Objects.requireNonNull(images)));
+    }
+
+    /**
+     * Attaches 1..{@value SkyImpostor#MAX_PER_EFFECT} {@link SkyImpostor impostors} (pre-rendered 3D objects) to a
+     * registered external effect (0.14.0). Same rules as {@link #stars}. The descriptor and pages are read on the client
+     * the first time an instance shows them; an invalid descriptor is logged once and skipped.
+     *
+     * <pre>{@code
+     * Effects.impostors(ID, SkyImpostor.of("meumod:nave").direction(90, 20).size(12).build());
+     * }</pre>
+     */
+    public static void impostors(ResourceLocation id, SkyImpostor... impostors) {
+        VisualKind.setImpostors(Objects.requireNonNull(id), List.of(Objects.requireNonNull(impostors)));
+    }
+
+    /**
      * Schedules a server callback at {@code tick} (0 .. duration-1) of every instance of a registered external effect.
      * Call during mod construction, after {@link #register} (and after {@link #timeline}, if any). Several cues per
      * effect and per tick are allowed and run in registration order. Exceptions are logged and do not stop the effect.

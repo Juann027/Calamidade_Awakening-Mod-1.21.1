@@ -225,6 +225,43 @@ public final class VisualKind {
         kind.nebulae = java.util.List.copyOf(list);
     }
 
+    // 0.14.0 (phase 4): optional images (PNGs, flipbooks) and impostors of an external effect, drawn in AFTER_SKY.
+    private volatile java.util.List<dev.calamidade_awakening.api.v1.SkyImage> images = java.util.List.of();
+    private volatile java.util.List<dev.calamidade_awakening.api.v1.SkyImpostor> impostors = java.util.List.of();
+
+    /** Registered sky images, possibly empty. */
+    public java.util.List<dev.calamidade_awakening.api.v1.SkyImage> images() { return images; }
+    /** Registered sky impostors, possibly empty. */
+    public java.util.List<dev.calamidade_awakening.api.v1.SkyImpostor> impostors() { return impostors; }
+    /** True when the kind has any sky object (stars, nebulae, images or impostors). */
+    public boolean hasSkyObjects() { return !stars.isEmpty() || !nebulae.isEmpty() || !images.isEmpty() || !impostors.isEmpty(); }
+
+    /** Binds 1..8 images once; tracks and phases they read must exist in the timeline registered before them. */
+    public static synchronized void setImages(net.minecraft.resources.ResourceLocation id,
+            java.util.List<dev.calamidade_awakening.api.v1.SkyImage> list) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its sky images: " + id);
+        if (!kind.images.isEmpty()) throw new IllegalArgumentException("Duplicate sky images: " + id);
+        if (list.isEmpty() || list.size() > dev.calamidade_awakening.api.v1.SkyImage.MAX_PER_EFFECT)
+            throw new IllegalArgumentException("Expected 1.." + dev.calamidade_awakening.api.v1.SkyImage.MAX_PER_EFFECT + " sky images");
+        for (var image : list) java.util.Objects.requireNonNull(image, "sky image").validate(kind.timeline);
+        kind.images = java.util.List.copyOf(list);
+    }
+
+    /** Binds 1..4 impostors once; tracks and phases they read must exist in the timeline registered before them. */
+    public static synchronized void setImpostors(net.minecraft.resources.ResourceLocation id,
+            java.util.List<dev.calamidade_awakening.api.v1.SkyImpostor> list) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its sky impostors: " + id);
+        if (!kind.impostors.isEmpty()) throw new IllegalArgumentException("Duplicate sky impostors: " + id);
+        if (list.isEmpty() || list.size() > dev.calamidade_awakening.api.v1.SkyImpostor.MAX_PER_EFFECT)
+            throw new IllegalArgumentException("Expected 1.." + dev.calamidade_awakening.api.v1.SkyImpostor.MAX_PER_EFFECT + " sky impostors");
+        for (var impostor : list) java.util.Objects.requireNonNull(impostor, "sky impostor").validate(kind.timeline);
+        kind.impostors = java.util.List.copyOf(list);
+    }
+
     // 0.11.0: optional terrain edits of an external effect (server commit, client heat and stand-in). Empty: none.
     private volatile java.util.List<dev.calamidade_awakening.api.v1.TerrainEdit> terrain = java.util.List.of();
 

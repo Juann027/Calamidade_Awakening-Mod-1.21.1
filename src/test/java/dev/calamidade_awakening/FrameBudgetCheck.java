@@ -73,6 +73,7 @@ public final class FrameBudgetCheck {
         SkyProfileCheck.run();
         BackdropCheck.run();
         SkyObjectsCheck.run();
+        SkySpriteCheck.run();
         timelineRegistration();
         atmosphereRegistration();
         meshBudget();

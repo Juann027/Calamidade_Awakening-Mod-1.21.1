@@ -68,6 +68,21 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Sky.Type`](#skytype)
 - [`SkyBlend`](#skyblend)
 - [`SkyDarkening`](#skydarkening)
+- [`SkyImage`](#skyimage)
+- [`SkyImage.Builder`](#skyimagebuilder)
+- [`SkyImage.Clock`](#skyimageclock)
+- [`SkyImage.Filter`](#skyimagefilter)
+- [`SkyImage.Layer`](#skyimagelayer)
+- [`SkyImage.Param`](#skyimageparam)
+- [`SkyImage.Play`](#skyimageplay)
+- [`SkyImage.State`](#skyimagestate)
+- [`SkyImage.Up`](#skyimageup)
+- [`SkyImpostor`](#skyimpostor)
+- [`SkyImpostor.Builder`](#skyimpostorbuilder)
+- [`SkyImpostor.Heading`](#skyimpostorheading)
+- [`SkyImpostor.Param`](#skyimpostorparam)
+- [`SkyImpostor.State`](#skyimpostorstate)
+- [`SkyImpostor.ViewBlend`](#skyimpostorviewblend)
 - [`SkyProfile`](#skyprofile)
 - [`SkyProfile.Builder`](#skyprofilebuilder)
 - [`SkyProfile.State`](#skyprofilestate)
@@ -706,6 +721,8 @@ Public common-side API: register effects, schedule server cues and start or stop
 | `static void backdrop(ResourceLocation id, Backdrop backdrop)` | Attaches a custom sky background (cubemap, panorama or gradient) to a registered external effect (0.14.0). |
 | `static void stars(ResourceLocation id, StarField... fields)` | Attaches 1..`StarField.MAX_PER_EFFECT` star fields (procedural fields or catalogs with constellations) to a registered external effect (0.14.0). |
 | `static void nebulae(ResourceLocation id, Nebula... nebulae)` | Attaches 1..`Nebula.MAX_PER_EFFECT` procedural nebulae to a registered external effect (0.14.0). |
+| `static void images(ResourceLocation id, SkyImage... images)` | Attaches 1..`SkyImage.MAX_PER_EFFECT` images (still PNGs or flipbooks) to a registered external effect (0.14.0). |
+| `static void impostors(ResourceLocation id, SkyImpostor... impostors)` | Attaches 1..`SkyImpostor.MAX_PER_EFFECT` impostors (pre-rendered 3D objects) to a registered external effect (0.14.0). |
 | `static void cue(ResourceLocation id, int tick, Effects.Cue cue)` | Schedules a server callback at `tick` (0 .. duration-1) of every instance of a registered external effect. |
 | `static void cue(ResourceLocation id, String marker, Effects.Cue cue)` | Schedules a cue on a marker of the effect's timeline (0.7.0). |
 | `static void onImpact(ResourceLocation id, Effects.Cue cue)` | Schedules a cue at the definition's `Impact` tick, keeping visual contact and gameplay in sync. |
@@ -1377,6 +1394,340 @@ How a sky object reacts when sky layers darken the world (0.14.0), for example d
 | `REVEAL` | Revealed by the darkness: the darkening removes daylight, so an object that daylight hides (`daylight` above 0) shows up as the sky darkens, like stars during a total eclipse. |
 | `IGNORE` | Not affected. |
 
+## SkyImage
+
+`dev.calamidade_awakening.api.v1.SkyImage` · class
+
+Immutable picture in the sky of one effect or one `SkyProfile.State` (0.14.0): any PNG an addon ships — an illustrated planet, a dragon, a ship, a creature, a giant structure, a symbol, an illustrated portal, an irregular cosmic object — shown as a billboard tangent to the sky sphere, either a still image or a spritesheet played as a flipbook.
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_PER_EFFECT` | Most images per effect or profile state. |
+| `static float ACTIVE_OPACITY` | Opacity below which an image is not drawn. |
+| `static int DEFAULT_ORDER` | Default draw order of images (lower is drawn first, behind): in front of stars (200) and nebulae (100). |
+| `static float MAX_SIZE` | Largest angular width or height, degrees. |
+| `static int MAX_GRID` | Most columns or rows of a sheet's grid. |
+| `static int MAX_FRAMES` | Most frames of a sheet. |
+| `static float MAX_FPS` | Fastest flipbook, frames per second. |
+| `static SkyImage.Builder of(String texture)` | Still image from a PNG in a resource pack (`"namespace:path.png"`, like `"meumod:textures/sky/dragao.png"`), straight (not premultiplied) alpha, up to 4096 pixels per side. |
+| `static SkyImage.Builder sheet(String texture, int columns, int rows)` | Spritesheet from a PNG cut into `columns` × `rows` equal frames (1..`MAX_GRID` each), played row by row, left to right. |
+| `String texture()` | PNG resource location, `"namespace:path.png"`. |
+| `int columns()` | Columns of the sheet's grid (1 for a still image). |
+| `int rows()` | Rows of the sheet's grid (1 for a still image). |
+| `int frames()` | Frames played (1 for a still image; at most columns × rows). |
+| `boolean animatedFrames()` | True when the image is a flipbook (more than one frame). |
+| `float fps()` | Frames per second of the flipbook. |
+| `SkyImage.Play play()` | How the flipbook plays. |
+| `SkyImage.Clock clock()` | Clock of the flipbook. |
+| `int startFrame()` | First frame at time 0 (0-based). |
+| `boolean blendFrames()` | Whether neighbouring frames are blended (two texture reads; off in the LOW profile). |
+| `boolean flashing()` | True when the addon marked the sheet as flashing: it freezes on `safeFrame` when flashes are hidden. |
+| `int safeFrame()` | Frame shown while a flashing sheet is frozen (0-based; defaults to the start frame). |
+| `double azimuth()` | Azimuth of the pivot, degrees (0 = south, 90 = west). |
+| `double elevation()` | Elevation of the pivot, degrees, −90..90. |
+| `float width()` | Angular width, degrees. |
+| `float height()` | Angular height, degrees, or NaN when it follows the proportion of the frame. |
+| `float roll()` | Turn in the plane of the sky around the pivot, degrees (positive: counterclockwise as seen from the ground). |
+| `float pivotX()` | Pivot along the width, 0..1 (0 left edge). |
+| `float pivotY()` | Pivot along the height, 0..1 (0 top edge). |
+| `SkyImage.Up up()` | Which way is up. |
+| `boolean celestial()` | True when the image turns with the time of day like the vanilla stars (direction and upright). |
+| `SkyBlend blend()` | Composition mode. |
+| `int tint()` | Tint multiplied with the texture, ARGB (alpha multiplies the opacity). |
+| `float brightness()` | Brightness multiplier, 0..16. |
+| `float opacity()` | Opacity, 0..1. |
+| `float atmosphere()` | How much the Atmosphere sky veils the image, 0..1. |
+| `SkyDarkening darkening()` | Reaction to the darkening of sky layers. |
+| `float darkeningStrength()` | Strength of the darkening reaction, 0..1. |
+| `float daylight()` | How much daylight hides the image, 0..1. |
+| `float horizon()` | Height of the fade at the horizon, degrees (0: none). |
+| `int order()` | Draw order among sky objects: lower is drawn first, behind (default `DEFAULT_ORDER`). |
+| `SkyImage.Layer layer()` | Composition layer. |
+| `SkyImage.Filter filter()` | Texture filtering. |
+| `String track(SkyImage.Param param)` | Track bound to a parameter, or null when the parameter is constant. |
+| `Map<SkyImage.Param, String> tracks()` | Every track binding, in `Param` order. |
+| `String weightPhase()` | Phase whose weight multiplies the opacity, or null. |
+| `boolean animated()` | True when a parameter depends on the timeline (tracks or a weight phase); clock flipbooks are not "animated". |
+| `void validate(Timeline timeline)` | Checks that every track and the phase this image reads exist in `timeline`, which may be null only when nothing is animated. |
+| `SkyImage.State sample(Timeline.Sampler timeline, float envelope)` | Resolves this image at one moment: `timeline` is the instance's sampler at its local age (any sampler works when nothing is animated); `envelope` is the instance's weight (0..1), which multiplies the opacity together with the phase and the `Param.OPACITY` track. |
+| `String toString()` | Short description for logs: texture, grid and size. |
+
+## SkyImage.Builder
+
+`dev.calamidade_awakening.api.v1.SkyImage.Builder` · class
+
+Builder of a `SkyImage`.
+
+| Membro | Descrição |
+|---|---|
+| `SkyImage.Builder direction(double azimuth, double elevation)` | Direction of the pivot: azimuth (0 = south, 90 = west) and elevation (−90..90), degrees (default 0, 30). |
+| `SkyImage.Builder size(float width)` | Angular width, (0, `MAX_SIZE`] degrees (default 10); the height follows the frame's proportion. |
+| `SkyImage.Builder size(float width, float height)` | Angular width and height, (0, `MAX_SIZE`] degrees each (stretches the picture if they differ from it). |
+| `SkyImage.Builder roll(float degrees)` | Turn in the plane of the sky around the pivot, degrees, ±3600 (positive: counterclockwise from the ground). |
+| `SkyImage.Builder pivot(float x, float y)` | Point of the picture placed at the direction, 0..1 each (default 0.5, 0.5; 0, 0 is the top-left corner). |
+| `SkyImage.Builder up(SkyImage.Up value)` | Which way is up (default `Up.HORIZON`). |
+| `SkyImage.Builder celestial(boolean value)` | Whether the image turns with the time of day like the vanilla stars (default false: fixed in the sky). |
+| `SkyImage.Builder blend(SkyBlend value)` | Composition with the sky behind (`SkyBlend`; default `SkyBlend.NORMAL`). |
+| `SkyImage.Builder tint(int argb)` | Tint multiplied with the texture, ARGB (default white; alpha multiplies the opacity). |
+| `SkyImage.Builder brightness(float value)` | Brightness multiplier, 0..16 (default 1; above 1 a NORMAL image glows more than it covers). |
+| `SkyImage.Builder opacity(float value)` | Opacity, 0..1 (default 1). |
+| `SkyImage.Builder atmosphere(float value)` | How much the Atmosphere sky veils the image, 0..1 (default 1). |
+| `SkyImage.Builder darkening(SkyDarkening mode, float strength)` | Reaction to sky layers that darken the world and its strength 0..1 (default `SkyDarkening.IGNORE`, 1). |
+| `SkyImage.Builder daylight(float value)` | How much daylight and rain hide the image, 0..1 (default 0: visible by day too). |
+| `SkyImage.Builder horizon(float degrees)` | Fade near the horizon, 0..30 degrees (default 0: no fade). |
+| `SkyImage.Builder order(int value)` | Draw order among sky objects, −1000..1000: lower is drawn first, behind (default `DEFAULT_ORDER`). |
+| `SkyImage.Builder layer(SkyImage.Layer value)` | Composition layer (default `Layer.BEHIND`). |
+| `SkyImage.Builder filter(SkyImage.Filter value)` | Texture filtering (default `Filter.SMOOTH`). |
+| `SkyImage.Builder frames(int count)` | Frames played, 1..columns × rows (default: every cell of the grid). |
+| `SkyImage.Builder fps(float value)` | Flipbook speed, (0, `MAX_FPS`] frames per second (default 12). |
+| `SkyImage.Builder play(SkyImage.Play value)` | How the flipbook plays (default `Play.LOOP`; `Play.TRACK` needs a `Param.FRAME` track). |
+| `SkyImage.Builder clock(SkyImage.Clock value)` | Clock of the flipbook (default `Clock.INSTANCE`). |
+| `SkyImage.Builder startFrame(int frame)` | First frame at time 0, 0-based, below the frame count (default 0). |
+| `SkyImage.Builder blendFrames(boolean value)` | Blends each frame into the next (two texture reads; off in the LOW profile; default false). |
+| `SkyImage.Builder flashing(boolean value)` | Marks the sheet as flashing (default false): it freezes on `safeFrame` while the player hides lightning flashes or turns screen effects to 0. |
+| `SkyImage.Builder safeFrame(int frame)` | Frame shown while a flashing sheet is frozen, 0-based, below the frame count (default: the start frame). |
+| `SkyImage.Builder track(SkyImage.Param param, String track)` | Takes `param` from a track of the effect's timeline instead of the constant (clamped to its range). |
+| `SkyImage.Builder weightPhase(String phase)` | Multiplies the opacity by the weight of a timeline phase (0 outside it). |
+| `SkyImage build()` | Immutable image. |
+
+## SkyImage.Clock
+
+`dev.calamidade_awakening.api.v1.SkyImage.Clock` · enum
+
+Clock of a flipbook.
+
+| Membro | Descrição |
+|---|---|
+| `INSTANCE` | The instance's age (effects and global events): every client shows the same frame at the same moment, no packet. |
+| `WORLD` | The game time of the level (the same on every client of a server). |
+
+## SkyImage.Filter
+
+`dev.calamidade_awakening.api.v1.SkyImage.Filter` · enum
+
+Texture filtering.
+
+| Membro | Descrição |
+|---|---|
+| `SMOOTH` | Linear filtering with mipmaps: no shimmering when the image is small on screen (default). |
+| `PIXEL` | No filtering, no mipmaps: crisp pixel art. |
+
+## SkyImage.Layer
+
+`dev.calamidade_awakening.api.v1.SkyImage.Layer` · enum
+
+Where the image is composed.
+
+| Membro | Descrição |
+|---|---|
+| `BEHIND` | Behind the engine's procedural `Sky` layers, with the stars and nebulae (default). |
+| `FRONT` | In front of the procedural layers and of every `BEHIND` object (a ship passing before a portal): composed at the end of the engine's sky pass, only on sky pixels, without the lens. |
+
+## SkyImage.Param
+
+`dev.calamidade_awakening.api.v1.SkyImage.Param` · enum
+
+Numeric parameters that can be driven by a timeline track, each with the range used to clamp it.
+
+| Membro | Descrição |
+|---|---|
+| `AZIMUTH` | Degrees added to the azimuth. |
+| `ELEVATION` | Degrees added to the elevation (the sum is clamped to ±90). |
+| `SIZE` | Angular width, degrees (replaces it; the height keeps the proportion). |
+| `ROLL` | Turn in the plane of the sky around the pivot, degrees (replaces it). |
+| `OPACITY` | Opacity multiplier, 0..1. |
+| `BRIGHTNESS` | Brightness multiplier, 0..16 (replaces it). |
+| `FRAME` | Frame of a `Play.TRACK` flipbook, 0..4095 (fractions blend with `Builder.blendFrames`). |
+| `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
+
+## SkyImage.Play
+
+`dev.calamidade_awakening.api.v1.SkyImage.Play` · enum
+
+How a flipbook plays its frames.
+
+| Membro | Descrição |
+|---|---|
+| `LOOP` | From the start frame to the last, then again (default). |
+| `ONCE` | From the start frame to the last, then stays on the last. |
+| `PING_PONG` | Forth and back without repeating the end frames (0 1 2 3 2 1 0 1 …). |
+| `TRACK` | The frame comes from the `Param.FRAME` track of the timeline (no clock). |
+
+## SkyImage.State
+
+`dev.calamidade_awakening.api.v1.SkyImage.State` · record
+
+An image resolved at one moment.
+
+| Membro | Descrição |
+|---|---|
+| `new State(float opacity, float brightness, double azimuth, double elevation, float width, float roll, float frame)` | Canonical constructor: opacity, brightness, azimuth, elevation, width, roll, frame. |
+| `boolean visible()` | True when the image should be drawn. |
+| `float opacity()` | Effective opacity, 0..1 (builder opacity times weight, phase and track). |
+| `float brightness()` | Brightness multiplier, 0..16. |
+| `double azimuth()` | Azimuth of the pivot, degrees (tracks added). |
+| `double elevation()` | Elevation of the pivot, degrees, −90..90 (tracks added). |
+| `float width()` | Angular width, degrees. |
+| `float roll()` | Turn in the plane of the sky, degrees. |
+| `float frame()` | Frame from the `Param.FRAME` track (0..4095), or NaN when the image plays on a clock. |
+
+## SkyImage.Up
+
+`dev.calamidade_awakening.api.v1.SkyImage.Up` · enum
+
+Which way is up for the picture on the sky.
+
+| Membro | Descrição |
+|---|---|
+| `HORIZON` | Upright: the picture's top points toward the zenith (toward north for a picture right at the zenith). |
+| `PATH` | The picture's +X (its right side) points where its direction is moving (from the azimuth and elevation tracks). |
+
+## SkyImpostor
+
+`dev.calamidade_awakening.api.v1.SkyImpostor` · class
+
+Immutable pre-rendered 3D object in the sky of one effect or one `SkyProfile.State` (0.14.0): an impostor.
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_PER_EFFECT` | Most impostors per effect or profile state. |
+| `static float ACTIVE_OPACITY` | Opacity below which an impostor is not drawn. |
+| `static int DEFAULT_ORDER` | Default draw order (lower is drawn first, behind): with the images. |
+| `static SkyImpostor.Builder of(String descriptor)` | Impostor described by `assets/<namespace>/calamidade/impostors/<path>.json` (`"namespace:path"`, like `"meumod:nave"`). |
+| `String descriptor()` | Descriptor id, `"namespace:path"`. |
+| `String descriptorPath()` | Resource path of the descriptor inside the namespace: `calamidade/impostors/<path>.json`. |
+| `String descriptorNamespace()` | Namespace of the descriptor. |
+| `double azimuth()` | Azimuth, degrees (0 = south, 90 = west). |
+| `double elevation()` | Elevation, degrees, −90..90. |
+| `float width()` | Angular width, degrees (the height follows the frame's proportion). |
+| `float yaw()` | Yaw of the object, degrees (turn around its up axis; positive turns its front toward west when it faces south). |
+| `float pitch()` | Pitch of the object, degrees (positive raises its front). |
+| `float roll()` | Roll of the object, degrees (around its front axis). |
+| `SkyImpostor.Heading heading()` | Where the object's front points. |
+| `SkyImpostor.ViewBlend viewBlend()` | How neighbouring views are blended. |
+| `boolean celestial()` | True when the impostor turns with the time of day like the vanilla stars. |
+| `SkyImage.Play play()` | How the animation plays (null: as the descriptor says). |
+| `SkyImage.Clock clock()` | Clock of the animation. |
+| `float fps()` | Animation speed, frames per second (NaN: as the descriptor says). |
+| `boolean blendFrames()` | Whether neighbouring animation frames are blended. |
+| `boolean flashing()` | True when the addon marked the animation as flashing (it freezes on frame 0 when flashes are hidden). |
+| `SkyBlend blend()` | Composition mode. |
+| `int tint()` | Tint multiplied with the texture, ARGB. |
+| `float brightness()` | Brightness multiplier, 0..16. |
+| `float opacity()` | Opacity, 0..1. |
+| `float atmosphere()` | How much the Atmosphere sky veils the impostor, 0..1. |
+| `SkyDarkening darkening()` | Reaction to the darkening of sky layers. |
+| `float darkeningStrength()` | Strength of the darkening reaction, 0..1. |
+| `float daylight()` | How much daylight hides the impostor, 0..1. |
+| `float horizon()` | Height of the fade at the horizon, degrees (0: none). |
+| `int order()` | Draw order among sky objects: lower is drawn first, behind. |
+| `SkyImage.Layer layer()` | Composition layer. |
+| `String track(SkyImpostor.Param param)` | Track bound to a parameter, or null when the parameter is constant. |
+| `Map<SkyImpostor.Param, String> tracks()` | Every track binding, in `Param` order. |
+| `String weightPhase()` | Phase whose weight multiplies the opacity, or null. |
+| `boolean animated()` | True when a parameter depends on the timeline (tracks or a weight phase). |
+| `void validate(Timeline timeline)` | Checks that every track and the phase this impostor reads exist in `timeline`, which may be null only when nothing is animated. |
+| `SkyImpostor.State sample(Timeline.Sampler timeline, float envelope)` | Resolves this impostor at one moment: `timeline` is the instance's sampler at its local age (any sampler works when nothing is animated); `envelope` is the instance's weight (0..1). |
+| `String toString()` | Short description for logs: descriptor and size. |
+
+## SkyImpostor.Builder
+
+`dev.calamidade_awakening.api.v1.SkyImpostor.Builder` · class
+
+Builder of a `SkyImpostor`.
+
+| Membro | Descrição |
+|---|---|
+| `SkyImpostor.Builder direction(double azimuth, double elevation)` | Direction: azimuth (0 = south, 90 = west) and elevation (−90..90), degrees (default 0, 30). |
+| `SkyImpostor.Builder size(float width)` | Angular width, (0, `SkyImage.MAX_SIZE`] degrees (default 10). |
+| `SkyImpostor.Builder orientation(float yaw, float pitch, float roll)` | Orientation of the object: yaw (±3600), pitch (−90..90) and roll (±3600), degrees (default 0, 0, 0). |
+| `SkyImpostor.Builder heading(SkyImpostor.Heading value)` | Where the front points (default `Heading.FIXED`). |
+| `SkyImpostor.Builder viewBlend(SkyImpostor.ViewBlend value)` | How neighbouring views are blended (default `ViewBlend.AUTO`). |
+| `SkyImpostor.Builder celestial(boolean value)` | Whether the impostor turns with the time of day like the vanilla stars (default false). |
+| `SkyImpostor.Builder play(SkyImage.Play value)` | Overrides how the animation plays (default: the descriptor's `play`). |
+| `SkyImpostor.Builder clock(SkyImage.Clock value)` | Clock of the animation (default `SkyImage.Clock#INSTANCE`). |
+| `SkyImpostor.Builder fps(float value)` | Overrides the animation speed, (0, `SkyImage.MAX_FPS`] frames per second (default: the descriptor's). |
+| `SkyImpostor.Builder blendFrames(boolean value)` | Blends neighbouring animation frames (default false; view blending then uses PAIR at most). |
+| `SkyImpostor.Builder flashing(boolean value)` | Marks the animation as flashing: frozen on frame 0 while flashes are hidden (default false). |
+| `SkyImpostor.Builder blend(SkyBlend value)` | Composition with the sky behind (`SkyBlend`; default `SkyBlend.NORMAL`). |
+| `SkyImpostor.Builder tint(int argb)` | Tint multiplied with the texture, ARGB (default white; alpha multiplies the opacity). |
+| `SkyImpostor.Builder brightness(float value)` | Brightness multiplier, 0..16 (default 1). |
+| `SkyImpostor.Builder opacity(float value)` | Opacity, 0..1 (default 1). |
+| `SkyImpostor.Builder atmosphere(float value)` | How much the Atmosphere sky veils the impostor, 0..1 (default 1). |
+| `SkyImpostor.Builder darkening(SkyDarkening mode, float strength)` | Reaction to sky layers that darken the world and its strength 0..1 (default `SkyDarkening.IGNORE`, 1). |
+| `SkyImpostor.Builder daylight(float value)` | How much daylight and rain hide the impostor, 0..1 (default 0). |
+| `SkyImpostor.Builder horizon(float degrees)` | Fade near the horizon, 0..30 degrees (default 0). |
+| `SkyImpostor.Builder order(int value)` | Draw order among sky objects, −1000..1000: lower is drawn first, behind (default `DEFAULT_ORDER`). |
+| `SkyImpostor.Builder layer(SkyImage.Layer value)` | Composition layer (default `SkyImage.Layer#BEHIND`). |
+| `SkyImpostor.Builder track(SkyImpostor.Param param, String track)` | Takes `param` from a track of the effect's timeline instead of the constant (clamped to its range). |
+| `SkyImpostor.Builder weightPhase(String phase)` | Multiplies the opacity by the weight of a timeline phase (0 outside it). |
+| `SkyImpostor build()` | Immutable impostor. |
+
+## SkyImpostor.Heading
+
+`dev.calamidade_awakening.api.v1.SkyImpostor.Heading` · enum
+
+Where the object's front points.
+
+| Membro | Descrição |
+|---|---|
+| `FIXED` | Fixed by `Builder.orientation` (and the YAW and PITCH tracks). |
+| `PATH` | Its front points where its direction is moving (from the azimuth and elevation tracks), its top toward the zenith; the orientation's yaw, pitch and roll are applied on top. |
+
+## SkyImpostor.Param
+
+`dev.calamidade_awakening.api.v1.SkyImpostor.Param` · enum
+
+Numeric parameters that can be driven by a timeline track, each with the range used to clamp it.
+
+| Membro | Descrição |
+|---|---|
+| `AZIMUTH` | Degrees added to the azimuth. |
+| `ELEVATION` | Degrees added to the elevation (the sum is clamped to ±90). |
+| `SIZE` | Angular width, degrees (replaces it). |
+| `YAW` | Yaw of the object, degrees (replaces it). |
+| `PITCH` | Pitch of the object, degrees (replaces it). |
+| `OPACITY` | Opacity multiplier, 0..1. |
+| `BRIGHTNESS` | Brightness multiplier, 0..16 (replaces it). |
+| `FRAME` | Animation frame when playing `SkyImage.Play#TRACK`, 0..4095. |
+| `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
+| `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
+
+## SkyImpostor.State
+
+`dev.calamidade_awakening.api.v1.SkyImpostor.State` · record
+
+An impostor resolved at one moment.
+
+| Membro | Descrição |
+|---|---|
+| `new State(float opacity, float brightness, double azimuth, double elevation, float width, float yaw, float pitch, float frame)` | Canonical constructor: opacity, brightness, azimuth, elevation, width, yaw, pitch, frame. |
+| `boolean visible()` | True when the impostor should be drawn. |
+| `float opacity()` | Effective opacity, 0..1. |
+| `float brightness()` | Brightness multiplier, 0..16. |
+| `double azimuth()` | Azimuth, degrees (tracks added). |
+| `double elevation()` | Elevation, degrees, −90..90 (tracks added). |
+| `float width()` | Angular width, degrees. |
+| `float yaw()` | Yaw of the object, degrees. |
+| `float pitch()` | Pitch of the object, degrees. |
+| `float frame()` | Animation frame from the `Param.FRAME` track, or NaN when it plays on a clock. |
+
+## SkyImpostor.ViewBlend
+
+`dev.calamidade_awakening.api.v1.SkyImpostor.ViewBlend` · enum
+
+How neighbouring views are blended.
+
+| Membro | Descrição |
+|---|---|
+| `AUTO` | Follows the quality profile: LOW NEAREST, BALANCED PAIR, HIGH and ULTRA QUAD (default). |
+| `NEAREST` | The closest view only (one texture read). |
+| `PAIR` | The two closest views around the yaw circle. |
+| `QUAD` | The four closest views in yaw and pitch, bilinear. |
+
 ## SkyProfile
 
 `dev.calamidade_awakening.api.v1.SkyProfile` · class
@@ -1421,6 +1772,8 @@ One state of a dimension's sky.
 | `Backdrop backdrop()` | Custom background of this state (0.14.0), or null. |
 | `List<StarField> stars()` | Star fields of this state (0.14.0; at most `StarField.MAX_PER_EFFECT`). |
 | `List<Nebula> nebulae()` | Nebulae of this state (0.14.0; at most `Nebula.MAX_PER_EFFECT`). |
+| `List<SkyImage> images()` | Images of this state (0.14.0; at most `SkyImage.MAX_PER_EFFECT`). |
+| `List<SkyImpostor> impostors()` | Impostors of this state (0.14.0; at most `SkyImpostor.MAX_PER_EFFECT`). |
 
 ## SkyProfile.StateBuilder
 
@@ -1430,6 +1783,8 @@ Builder of a `State`.
 
 | Membro | Descrição |
 |---|---|
+| `SkyProfile.StateBuilder images(SkyImage... values)` | Adds images (0.14.0; constant: no tracks nor phase; flipbooks play on the world clock), up to `SkyImage.MAX_PER_EFFECT` in total. |
+| `SkyProfile.StateBuilder impostors(SkyImpostor... values)` | Adds impostors (0.14.0; constant: no tracks nor phase; animations play on the world clock), up to `SkyImpostor.MAX_PER_EFFECT` in total. |
 | `SkyProfile.StateBuilder stars(StarField... values)` | Adds star fields (0.14.0; constant: no tracks nor phase; spin and twinkle run on the world clock), up to `StarField.MAX_PER_EFFECT` in total. |
 | `SkyProfile.StateBuilder nebulae(Nebula... values)` | Adds nebulae (0.14.0; constant: no tracks nor phase), up to `Nebula.MAX_PER_EFFECT` in total. |
 | `SkyProfile.StateBuilder backdrop(Backdrop value)` | Custom background of the state (0.14.0; constant: no tracks nor phase; its spin runs on the world clock). |
