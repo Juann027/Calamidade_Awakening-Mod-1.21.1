@@ -152,10 +152,16 @@ public final class BossMachine {
 
     /**
      * One step with its outcome and the rule that fired (index into {@link Spec#rules()}, -1 when the change finished
-     * a sequence or nothing fired), plus the phase left (-1 when unchanged).
+     * a sequence or nothing fired), the phase left (-1 when unchanged) and whether the rules were evaluated this tick
+     * ({@code evaluated} is false during the minimum dwell, a sequence lock and after death: the caller keeps pending
+     * signals then, and drops them once the rules have seen them).
      */
-    public record Step(Outcome outcome, int rule, int left) {
-        static final Step NONE = new Step(Outcome.NONE, -1, -1);
+    public record Step(Outcome outcome, int rule, int left, boolean evaluated) {
+        static final Step NONE = new Step(Outcome.NONE, -1, -1, false);
+        static final Step SEEN = new Step(Outcome.NONE, -1, -1, true);
+
+        /** Compatibility form: evaluated. */
+        public Step(Outcome outcome, int rule, int left) { this(outcome, rule, left, true); }
     }
 
     private BossMachine() {}
@@ -183,7 +189,7 @@ public final class BossMachine {
             if (!in.sequenceDone()) return Step.NONE;
             int left = state.phase;
             enter(state, state.pending);
-            return new Step(Outcome.CHANGED, -1, left);
+            return new Step(Outcome.CHANGED, -1, left, false);
         }
         if (state.phaseTicks < spec.minDwell()) return Step.NONE;
         List<Rule> rules = spec.rules();
@@ -193,7 +199,7 @@ public final class BossMachine {
             if (!matches(rule, state, in)) continue;
             return fire(state, rule, i);
         }
-        return Step.NONE;
+        return Step.SEEN;
     }
 
     /**

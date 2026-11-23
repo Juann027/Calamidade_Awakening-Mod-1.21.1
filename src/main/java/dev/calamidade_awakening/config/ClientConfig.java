@@ -12,6 +12,11 @@ public final class ClientConfig {
     private static final ModConfigSpec.BooleanValue CAMERA_SHAKE;
     private static final ModConfigSpec.BooleanValue MOTION_EFFECTS;
     private static final ModConfigSpec.BooleanValue VANILLA_FOG;
+    /** 0.13.0: boss bar accessibility. */
+    private static final ModConfigSpec.DoubleValue BOSS_BAR_SCALE;
+    private static final ModConfigSpec.BooleanValue BOSS_BAR_CONTRAST;
+    private static final ModConfigSpec.BooleanValue BOSS_BAR_LABELS;
+    private static final ModConfigSpec.BooleanValue BOSS_BAR_VANILLA;
     /** Quality mode chosen with F8 or in the Atlas (0.11.2): AUTO or a forced profile. */
     private static final ModConfigSpec.EnumValue<dev.calamidade_awakening.api.QualityMode> QUALITY;
     /** Frame rate AUTO aims at (0.11.2). */
@@ -70,6 +75,22 @@ public final class ClientConfig {
                     dev.calamidade_awakening.api.FrameLimits.MAX_LIGHTS)});
             builder.pop();
         }
+        builder.pop();
+        // 0.13.0: boss bars of addons (Boss API).
+        builder.comment("Boss bars (0.13.0) drawn with a custom style by addons that use the Boss API.")
+            .translation("calamidade_awakening.configuration.bossBar").push("bossBar");
+        BOSS_BAR_SCALE = builder.comment("Size of custom boss bars (0.5 to 2).")
+            .translation("calamidade_awakening.configuration.bossBarScale")
+            .defineInRange("scale", 1.0, 0.5, 2.0);
+        BOSS_BAR_CONTRAST = builder.comment("Solid, high-contrast colors and a dark backing for custom boss bars.")
+            .translation("calamidade_awakening.configuration.bossBarContrast")
+            .define("highContrast", false);
+        BOSS_BAR_LABELS = builder.comment("Show the phase name under custom boss bars.")
+            .translation("calamidade_awakening.configuration.bossBarLabels")
+            .define("phaseLabels", true);
+        BOSS_BAR_VANILLA = builder.comment("Always draw the vanilla boss bar, ignoring the custom styles of addons.")
+            .translation("calamidade_awakening.configuration.bossBarVanilla")
+            .define("forceVanilla", false);
         builder.pop();
         SPEC = builder.build();
     }
@@ -193,5 +214,49 @@ public final class ClientConfig {
         } catch (IllegalStateException notLoaded) {
             return true;
         }
+    }
+
+    /** Custom boss bar scale 0.5..2 (0.13.0); 1 until the config file is loaded. */
+    public static double bossBarScale() {
+        try {
+            return BOSS_BAR_SCALE.get();
+        } catch (IllegalStateException notLoaded) {
+            return 1;
+        }
+    }
+
+    /** High-contrast custom boss bars (0.13.0). */
+    public static boolean bossBarHighContrast() {
+        try {
+            return BOSS_BAR_CONTRAST.get();
+        } catch (IllegalStateException notLoaded) {
+            return false;
+        }
+    }
+
+    /** Phase labels under custom boss bars (0.13.0). */
+    public static boolean bossBarLabels() {
+        try {
+            return BOSS_BAR_LABELS.get();
+        } catch (IllegalStateException notLoaded) {
+            return true;
+        }
+    }
+
+    /** Ignore custom boss bar styles (0.13.0). */
+    public static boolean bossBarVanilla() {
+        try {
+            return BOSS_BAR_VANILLA.get();
+        } catch (IllegalStateException notLoaded) {
+            return false;
+        }
+    }
+
+    /** Test hook (0.13.0): sets the boss bar options in memory. */
+    public static void bossBar(double scale, boolean highContrast, boolean labels, boolean vanilla) {
+        store(BOSS_BAR_SCALE, Math.clamp(scale, .5, 2));
+        store(BOSS_BAR_CONTRAST, highContrast);
+        store(BOSS_BAR_LABELS, labels);
+        store(BOSS_BAR_VANILLA, vanilla);
     }
 }

@@ -94,6 +94,7 @@ final class Roteiro implements Runnable {
         custoDaCratera();
         soChunksFull();
         eventosGlobais();
+        chefes();
         prepararReinicio();
     }
 
@@ -522,6 +523,184 @@ final class Roteiro implements Runnable {
         check("reinício: pontos de interesse das composteiras salvos", !composteiras.isEmpty()
             && poi(composteiras.toArray(BlockPos[]::new)) == composteiras.size(), composteiras.size() + "");
         eventosGlobaisReinicio();
+        chefesReinicio();
+    }
+
+    // ------------------------------------------------------------------------------------------------ 0.13.0
+
+    private static final Path CHEFE = Path.of("chefe.txt");
+    private static final int CHEFE_X = 6000, CHEFE_Z = 0;
+
+    private net.minecraft.world.entity.animal.IronGolem golem(int x, int z) throws Exception {
+        return no(() -> {
+            var g = new net.minecraft.world.entity.animal.IronGolem(net.minecraft.world.entity.EntityType.IRON_GOLEM, server.overworld());
+            g.moveTo(x + .5, 1, z + .5, 0, 0);
+            g.setNoAi(true);
+            g.setPersistenceRequired();
+            server.overworld().addFreshEntity(g);
+            return g;
+        });
+    }
+
+    private int iniciarVarios(net.minecraft.world.entity.Entity e, dev.calamidade_awakening.api.v1.EffectSource fonte,
+                              List<dev.calamidade_awakening.api.v1.Effects.Handle> guardar) throws Exception {
+        return no(() -> {
+            int n = 0;
+            for (int i = 0; i < 12; i++) {
+                var h = Effects.start(ChefesTeste.FX, server.overworld(),
+                    dev.calamidade_awakening.api.v1.Placement.on(e).withSource(fonte));
+                if (h.isPresent()) { n++; guardar.add(h.get()); }
+            }
+            return n;
+        });
+    }
+
+    /**
+     * Boss API no servidor dedicado (0.13.0): attach, fases por tempo, sinal com sequência e vida, invulnerável,
+     * maxPerBoss (com e sem controlador), falhas de callback, estado desconhecido, detach; deixa um chefe na fase "b"
+     * para a fase 2 (persistência).
+     */
+    private void chefes() throws Exception {
+        var B = dev.calamidade_awakening.api.v1.Bosses.class;
+        carregar(CHEFE_X, CHEFE_Z, 24);
+        var g = golem(CHEFE_X, CHEFE_Z);
+        ChefesTeste.ENTRADAS.clear();
+        var h = no(() -> dev.calamidade_awakening.api.v1.Bosses.attach(g, ChefesTeste.CHEFE));
+        check("chefe: attach devolve o controlador na primeira fase", h.isPresent() && h.get().phase().equals("a")
+            && no(() -> dev.calamidade_awakening.api.v1.Bosses.isBoss(g)), h.map(Object::toString).orElse("vazio"));
+        var de_novo = no(() -> dev.calamidade_awakening.api.v1.Bosses.attach(g, ChefesTeste.CHEFE));
+        var outro = no(() -> dev.calamidade_awakening.api.v1.Bosses.attach(g, ChefesTeste.LIMITE));
+        check("chefe: attach repetido devolve o mesmo; outro chefe na mesma entidade é recusado",
+            de_novo.isPresent() && de_novo.get() == h.get() && outro.isEmpty(), "");
+        float antes = no(g::getHealth);
+        no(() -> { g.hurt(server.overworld().damageSources().generic(), 20); });
+        check("chefe: fase invulnerável cancela o dano (opt-in)", no(g::getHealth) == antes, antes + " -> " + no(g::getHealth));
+        boolean b = aguardar(() -> h.get().phase().equals("b"), 80);
+        check("chefe: afterTicks(40) leva à fase b", b, h.get().phase() + " " + ChefesTeste.ENTRADAS);
+        int fontes = no(() -> dev.calamidade_awakening.net.StageNetwork.liveBySource()[dev.calamidade_awakening.api.v1.EffectSource.Kind.ENTITY.ordinal()]);
+        check("chefe: aura (sustain) da fase b viva com o chefe como fonte", fontes >= 1, fontes + " instâncias de entidade");
+        // Sinal com sequência: trava até a sequência acabar.
+        no(() -> { h.get().signal("golpe"); });
+        // O sinal espera o minDwell (20 ticks) da fase b; depois a sequência trava a máquina.
+        boolean travado = aguardar(() -> h.get().locked() && h.get().phase().equals("b"), 40);
+        boolean c = aguardar(() -> h.get().phase().equals("c"), 80);
+        check("chefe: sinal com sequência trava a máquina e muda de fase quando ela acaba", travado && c, travado + " / " + c);
+        ticks(25);
+        no(() -> { g.hurt(server.overworld().damageSources().generic(), g.getMaxHealth() * .6f); });
+        boolean d = aguardar(() -> h.get().phase().equals("d"), 40);
+        check("chefe: vida abaixo de 50% leva à fase d", d, h.get().phase() + " vida " + no(g::getHealth));
+        List<Long> ticksEntrada = ChefesTeste.ENTRADAS.stream().map(e -> Long.parseLong(e.substring(e.indexOf('@') + 1))).toList();
+        check("chefe: no máximo uma transição por tick, na ordem a, b, c, d",
+            ChefesTeste.ENTRADAS.stream().map(e -> e.substring(0, e.indexOf('@'))).toList().equals(List.of("a", "b", "c", "d"))
+                && new java.util.HashSet<>(ticksEntrada).size() == ticksEntrada.size(), ChefesTeste.ENTRADAS.toString());
+
+        // maxPerBoss: 8 com controlador confirmado; marca sem controlador fica em 4; a marca não soma vagas.
+        var guardados = new ArrayList<dev.calamidade_awakening.api.v1.Effects.Handle>();
+        var l = golem(CHEFE_X + 8, CHEFE_Z);
+        no(() -> dev.calamidade_awakening.api.v1.Bosses.attach(l, ChefesTeste.LIMITE).orElseThrow());
+        int marcados = iniciarVarios(l, dev.calamidade_awakening.api.v1.EffectSource.boss(l), guardados);
+        int comuns = iniciarVarios(l, dev.calamidade_awakening.api.v1.EffectSource.entity(l), guardados);
+        check("maxPerBoss: 8 instâncias com controlador; depois nem as comuns da mesma entidade entram", marcados == 8 && comuns == 0,
+            marcados + " marcadas, " + comuns + " comuns");
+        var m = golem(CHEFE_X + 12, CHEFE_Z);
+        int semControlador = iniciarVarios(m, dev.calamidade_awakening.api.v1.EffectSource.boss(m), guardados);
+        check("maxPerBoss: a marca sem controlador anexado continua em maxPerEntity (4)", semControlador == 4, semControlador + "");
+        var n = golem(CHEFE_X + 16, CHEFE_Z);
+        no(() -> dev.calamidade_awakening.api.v1.Bosses.attach(n, ChefesTeste.LIMITE).orElseThrow());
+        int comunsPrimeiro = iniciarVarios(n, dev.calamidade_awakening.api.v1.EffectSource.entity(n), guardados);
+        int marcadasDepois = iniciarVarios(n, dev.calamidade_awakening.api.v1.EffectSource.boss(n), guardados);
+        check("maxPerBoss: comuns e marcadas dividem a mesma contagem (4 + 4 = 8)", comunsPrimeiro == 4 && marcadasDepois == 4,
+            comunsPrimeiro + " + " + marcadasDepois);
+        no(() -> { for (var gh : guardados) gh.stop(); });
+
+        // Falhas de callback: 3 seguidas removem o controlador, com erro no log.
+        var f = golem(CHEFE_X + 20, CHEFE_Z);
+        var hf = no(() -> dev.calamidade_awakening.api.v1.Bosses.attach(f, ChefesTeste.FALHO));
+        boolean removido = aguardar(() -> !dev.calamidade_awakening.api.v1.Bosses.isBoss(f), 20);
+        check("chefe: 3 falhas seguidas de callback removem o controlador sem derrubar o tick", hf.isPresent() && removido
+            && !no(() -> f.hasData(dev.calamidade_awakening.boss.BossServer.SAVED)), "");
+
+        // Estado salvo de um chefe que não existe mais (addon removido): descartado ao entrar no mundo.
+        boolean descartado = no(() -> {
+            var fantasma = new net.minecraft.world.entity.animal.IronGolem(net.minecraft.world.entity.EntityType.IRON_GOLEM, server.overworld());
+            fantasma.moveTo(CHEFE_X + 24.5, 1, CHEFE_Z + .5, 0, 0);
+            fantasma.setNoAi(true);
+            fantasma.setData(dev.calamidade_awakening.boss.BossServer.SAVED,
+                new dev.calamidade_awakening.boss.BossServer.Saved("calamidade_teste:fantasma", "x", 5, 0, ""));
+            server.overworld().addFreshEntity(fantasma);
+            return !fantasma.hasData(dev.calamidade_awakening.boss.BossServer.SAVED)
+                && !dev.calamidade_awakening.api.v1.Bosses.isBoss(fantasma);
+        });
+        check("chefe: estado salvo de um chefe indefinido é descartado com aviso", descartado, "");
+
+        // Detach solta a aura e remove o estado salvo.
+        var dt = golem(CHEFE_X + 28, CHEFE_Z);
+        var hd = no(() -> dev.calamidade_awakening.api.v1.Bosses.attach(dt, ChefesTeste.CHEFE).orElseThrow());
+        no(() -> { hd.phase("b"); });
+        ticks(2);
+        boolean detach = no(() -> hd.detach() && !hd.alive() && !dt.hasData(dev.calamidade_awakening.boss.BossServer.SAVED)
+            && !dev.calamidade_awakening.api.v1.Bosses.isBoss(dt));
+        check("chefe: detach remove o controlador e o estado salvo; phase() força a fase", detach, "");
+
+        // Comando de operador.
+        var saida = new ArrayList<String>();
+        int listados = no(() -> {
+            try {
+                return server.getCommands().getDispatcher().execute("calamidade boss list",
+                    server.createCommandSourceStack().withSource(new net.minecraft.commands.CommandSource() {
+                        public void sendSystemMessage(net.minecraft.network.chat.Component m) { saida.add(m.getString()); }
+                        public boolean acceptsSuccess() { return true; }
+                        public boolean acceptsFailure() { return true; }
+                        public boolean shouldInformAdmins() { return false; }
+                    }));
+            } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+                saida.add(e.getMessage());
+                return -1;
+            }
+        });
+        check("chefe: /calamidade boss list", listados >= 3 && saida.stream().anyMatch(t -> t.contains("phase=d")), saida.toString());
+
+        // Para a fase 2: um chefe na fase b, descarregado com o chunk (o tempo da fase para enquanto ele não está carregado).
+        int px = CHEFE_X + 200, pz = CHEFE_Z;
+        carregar(px, pz, 8);
+        var p = golem(px, pz);
+        var hp = no(() -> dev.calamidade_awakening.api.v1.Bosses.attach(p, ChefesTeste.CHEFE).orElseThrow());
+        aguardar(() -> hp.phase().equals("b"), 80);
+        ticks(10);
+        no(() -> {
+            for (int x = (px - 8) >> 4; x <= (px + 8) >> 4; x++)
+                for (int z = (pz - 8) >> 4; z <= (pz + 8) >> 4; z++) server.overworld().setChunkForced(x, z, false);
+        });
+        boolean descarregou = aguardar(() -> !hp.alive(), 1200);
+        long decorrido = no(hp::phaseTicks);
+        long mundo = no(() -> server.overworld().getGameTime());
+        Files.writeString(CHEFE, p.getUUID() + " " + decorrido + " " + mundo + "\n", StandardCharsets.UTF_8);
+        check("chefe: descarregado na fase b para o reinício (" + decorrido + " ticks na fase)", descarregou && hp.phase().equals("b"), "");
+    }
+
+    private void chefesReinicio() throws Exception {
+        String[] salvo = Files.readString(CHEFE, StandardCharsets.UTF_8).trim().split(" ");
+        java.util.UUID uuid = java.util.UUID.fromString(salvo[0]);
+        long decorrido = Long.parseLong(salvo[1]), mundo = Long.parseLong(salvo[2]);
+        ticks(100);  // o mundo anda mais 100 ticks com o chefe descarregado
+        carregar(CHEFE_X + 200, CHEFE_Z, 8);
+        boolean achou = aguardar(() -> server.overworld().getEntity(uuid) != null, 200);
+        ticks(2);
+        var g = no(() -> server.overworld().getEntity(uuid));
+        var h = no(() -> g == null ? java.util.Optional.<dev.calamidade_awakening.api.v1.Bosses.Handle>empty()
+            : dev.calamidade_awakening.api.v1.Bosses.get(g));
+        long passou = no(() -> server.overworld().getGameTime()) - mundo;
+        check("reinício: o chefe voltou na fase salva, com o tempo decorrido da fase (não o do mundo)",
+            achou && h.isPresent() && h.get().phase().equals("b") && h.get().phaseTicks() >= decorrido
+                && h.get().phaseTicks() < decorrido + 40 && passou > 100,
+            h.map(x -> x.phase() + " " + x.phaseTicks()).orElse("sem chefe") + " (salvo " + decorrido + ", mundo andou " + passou + ")");
+        if (h.isEmpty()) return;
+        ChefesTeste.ENTRADAS.clear();
+        no(() -> { ((net.minecraft.world.entity.LivingEntity) g).hurt(server.overworld().damageSources().genericKill(), Float.MAX_VALUE); });
+        boolean morte = aguardar(() -> ChefesTeste.ENTRADAS.stream().anyMatch(e -> e.startsWith("morte@")), 10);
+        boolean limpo = aguardar(() -> !dev.calamidade_awakening.api.v1.Bosses.isBoss(g) && g.isRemoved(), 80);
+        check("reinício: a morte leva à fase de morte no mesmo tick e o controlador some com a entidade", morte && limpo,
+            ChefesTeste.ENTRADAS + " / " + limpo);
     }
 
     // ------------------------------------------------------------------------------------------------ apoio

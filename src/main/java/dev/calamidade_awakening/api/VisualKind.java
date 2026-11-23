@@ -292,4 +292,20 @@ public final class VisualKind {
     public static void seal() { sealed = true; }
     public static VisualKind byId(int id) { return id < -1 ? EXTERNAL.get(id) : REGISTRY.get(id); }
     public static VisualKind[] values() { return REGISTRY.values().toArray(VisualKind[]::new); }
+
+    // 0.13.0: rig anchor the whole instance follows (Effects.anchorSocket). Null means "the anchor entity's feet".
+    private volatile String socket;
+
+    /** Rig anchor name the instance center follows, or null. */
+    public String socket() { return socket; }
+
+    /** Binds a rig anchor to an external effect; once per effect. */
+    public static synchronized void setSocket(net.minecraft.resources.ResourceLocation id, String name) {
+        VisualKind kind = BY_NAME.get(id.toString());
+        if (kind == null || kind.externalKey == null)
+            throw new IllegalArgumentException("Register the external effect before its anchor: " + id);
+        if (!BossMachine.Names.valid(name)) throw new IllegalArgumentException("Bad anchor name: " + name);
+        if (kind.socket != null) throw new IllegalArgumentException("Duplicate anchor: " + id);
+        kind.socket = name;
+    }
 }

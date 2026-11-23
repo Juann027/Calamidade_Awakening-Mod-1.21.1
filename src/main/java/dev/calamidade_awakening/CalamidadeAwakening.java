@@ -21,5 +21,7 @@ public final class CalamidadeAwakening {
         container.registerConfig(ModConfig.Type.SERVER, dev.calamidade_awakening.config.ServerConfig.SPEC);
         AwakeningSkills.register(bus);
         StageNetwork.register();
+        // 0.13.0: boss controllers (state saved on the entity).
+        dev.calamidade_awakening.boss.BossServer.register(bus);
     }
 }

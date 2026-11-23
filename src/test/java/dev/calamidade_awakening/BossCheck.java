@@ -25,6 +25,9 @@ final class BossCheck {
         anchors();
         bar();
         sources();
+        definitions();
+        sockets();
+        sync();
         System.out.println("BossCheck PASS");
     }
 
@@ -60,10 +63,16 @@ final class BossCheck {
         // Health already low and a signal on the same tick: dwell blocks both for 20 ticks, then only the first rule fires.
         in.health = .3;
         in.signals.add("golpe");
-        for (int i = 1; i < 20; i++) require(BossMachine.step(spec, s, in).outcome() == BossMachine.Outcome.NONE, "min dwell");
+        for (int i = 1; i < 20; i++) {
+            var dwell = BossMachine.step(spec, s, in);
+            require(dwell.outcome() == BossMachine.Outcome.NONE && !dwell.evaluated(), "min dwell: rules not evaluated");
+        }
         step = BossMachine.step(spec, s, in);
         require(step.outcome() == BossMachine.Outcome.CHANGED && s.phase == 2 && step.rule() == 1, "first matching rule wins");
-        require(BossMachine.step(spec, s, in).outcome() == BossMachine.Outcome.NONE, "one transition per tick, no rule from 2");
+        var after = BossMachine.step(spec, s, in);
+        require(after.outcome() == BossMachine.Outcome.NONE && !after.evaluated(), "one transition per tick; the new phase is in its dwell");
+        for (int i = 0; i < 19; i++) BossMachine.step(spec, s, in);
+        require(BossMachine.step(spec, s, in).evaluated(), "evaluated after the dwell (no rule leaves phase 2)");
         // Hurt count and WHEN predicate.
         Spec hurt = new Spec(List.of("a", "b", "c"), List.of(rule(0, 1, Kind.HURT, 3),
             new Rule(1, 2, Kind.WHEN, 0, null, 10, 0, false)), 0);
@@ -243,6 +252,72 @@ final class BossCheck {
         require(SourceLimits.admit(d, EffectSource.Kind.PLAYER, true, 10, 0, 16) == Verdict.SOURCE_LIMIT, "player unaffected");
         // A lower perBoss than perEntity is the admin's choice and is honored for controller starts.
         require(SourceLimits.admit(new Rules(16, 4, 2, 16, 2), EffectSource.Kind.ENTITY, true, 0, 0, 2) == Verdict.SOURCE_LIMIT, "perBoss 2");
+    }
+
+    private static net.minecraft.resources.ResourceLocation rl(String path) {
+        return net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("teste", path);
+    }
+
+    private static void definitions() {
+        var bar = dev.calamidade_awakening.api.v1.Boss.Bar.of(net.minecraft.network.chat.Component.literal("x"));
+        require(bar.style() == null && bar.segments(true).style().equals(dev.calamidade_awakening.api.v1.Boss.Bar.SEGMENTED),
+            "segments pick the engine style");
+        expect(() -> bar.range(8), "range below 16");
+        var boss = dev.calamidade_awakening.api.v1.Boss.builder(rl("chefe")).bar(bar.segments(true))
+            .phase("a", p -> p.enter(rl("fx")).invulnerable())
+            .phase("b")
+            .phase("c")
+            .phase("morte")
+            .transition("a", "b", dev.calamidade_awakening.api.v1.Boss.Trigger.afterTicks(10))
+            .transition("b", "c", dev.calamidade_awakening.api.v1.Boss.Trigger.when(5, ctx -> true), rl("rugido"))
+            .transition("c", "a", dev.calamidade_awakening.api.v1.Boss.Trigger.healthBelow(.25f))
+            .transition(dev.calamidade_awakening.api.v1.Boss.ANY, "morte", dev.calamidade_awakening.api.v1.Boss.Trigger.death())
+            .build();
+        var spec = boss.machine();
+        require(spec.phases().equals(List.of("a", "b", "c", "morte")) && spec.rules().size() == 4, "spec");
+        require(spec.rules().get(1).sequence() && spec.rules().get(1).predicate() == 0 && boss.predicates().size() == 1, "sequence and predicate");
+        require(spec.rules().get(3).from() == BossMachine.ANY, "ANY");
+        require(boss.phase("a").orElseThrow().invulnerable() && boss.phase("a").orElseThrow().enter().size() == 1, "phase");
+        require(BossMachine.thresholds(spec).equals(List.of(.25)), "bar marks from healthBelow");
+        expect(() -> dev.calamidade_awakening.api.v1.Boss.builder(rl("x")).phase("a")
+            .transition("a", "zzz", dev.calamidade_awakening.api.v1.Boss.Trigger.afterTicks(1)).build(), "unknown target");
+        expect(() -> dev.calamidade_awakening.api.v1.Boss.builder(rl("x")).phase("a").phase("b")
+            .transition("a", "b", dev.calamidade_awakening.api.v1.Boss.Trigger.death(), rl("seq")).build(), "death cannot wait");
+        expect(() -> dev.calamidade_awakening.api.v1.Boss.builder(rl("x")).build(), "no phases");
+        expect(() -> dev.calamidade_awakening.api.v1.Boss.Trigger.signal("Com Espaco"), "bad signal");
+        expect(() -> dev.calamidade_awakening.api.v1.Boss.Trigger.when(0, c -> true), "when interval");
+        expect(() -> dev.calamidade_awakening.api.v1.Boss.builder(rl("x")).phase("a", p -> {
+            for (int i = 0; i < 9; i++) p.every(10, c -> { });
+        }), "too many periodic actions");
+    }
+
+    private static void sockets() {
+        var a = dev.calamidade_awakening.api.v1.Point.socket("boca", 0, 0, 1);
+        require(a.equals(dev.calamidade_awakening.api.v1.Point.socket("boca", 0, 0, 1))
+            && !a.equals(dev.calamidade_awakening.api.v1.Point.socket("olhos", 0, 0, 1)), "socket name in equality");
+        require(a.source().socket() && a.source().entity() && !a.source().aim() && "boca".equals(a.socket()), "socket kind");
+        var aim = dev.calamidade_awakening.api.v1.Point.socketAim("boca", 48);
+        require(aim.source().aim() && aim.source().socket() && aim.reach() == 48, "socket aim");
+        require(dev.calamidade_awakening.api.v1.Point.anchor(0, 1, 0).socket() == null, "other points have no socket");
+        expect(() -> dev.calamidade_awakening.api.v1.Point.socket("Boca", 0, 0, 0), "bad anchor name");
+        expect(() -> dev.calamidade_awakening.api.v1.Point.socketAim("boca", 300), "reach");
+        expect(() -> dev.calamidade_awakening.api.v1.RigAnchors.Spec.head(Double.NaN, 0, 0), "NaN anchor");
+    }
+
+    private static void sync() {
+        var packet = new dev.calamidade_awakening.net.BossSync(new UUID(3, 4), false, "calamidade_awakening:segmented", 5, 2,
+            "boss.teste.fase", new float[] {.7f, .4f}, 2, 123456789L, false);
+        var buf = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+        packet.write(buf);
+        var back = dev.calamidade_awakening.net.BossSync.read(buf);
+        require(back.bar().equals(packet.bar()) && !back.removed() && back.style().equals(packet.style()) && back.color() == 5
+            && back.overlay() == 2 && back.label().equals(packet.label()) && java.util.Arrays.equals(back.marks(), packet.marks())
+            && back.phase() == 2 && back.phaseTick() == 123456789L && !back.vulnerable() && buf.readableBytes() == 0, "boss_v1 round trip");
+        var removal = dev.calamidade_awakening.net.BossSync.removal(new UUID(9, 9));
+        var rb = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+        removal.write(rb);
+        require(rb.readableBytes() == 17, "removal is 17 bytes");
+        require(dev.calamidade_awakening.net.BossSync.read(rb).removed(), "removal round trip");
     }
 
     private static void near(double a, double b, String test) {
