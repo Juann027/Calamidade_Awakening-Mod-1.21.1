@@ -85,7 +85,7 @@ public final class StageNetwork {
         /** Current frame (0.10.0): the start orientation, or the anchor's body yaw plus the yaw offset. */
         Basis basis() { return basisOf(event, anchor); }
 
-        Vec3 center() { return anchor == null ? event.center() : anchoredCenter(anchor, event.offset(), basis()); }
+        Vec3 center() { return anchor == null ? event.center() : anchoredCenter(anchor, event.offset(), basis(), kind.socket()); }
 
         void dispatch() {
             Vec3 center = center();
@@ -204,6 +204,15 @@ public final class StageNetwork {
         return event.followBody() && anchor != null ? Basis.of(bodyYaw(anchor) + event.yaw(), event.pitch()) : event.basis();
     }
 
+    /**
+     * 0.13.0: with a rig anchor ({@code Effects.anchorSocket}), the server approximation of the anchor plus the offset
+     * in the anchor's frame (x left, y up, z forward); otherwise the feet, as before.
+     */
+    static Vec3 anchoredCenter(Entity anchor, Vec3 offset, Basis basis, String socket) {
+        if (socket == null) return anchoredCenter(anchor, offset, basis);
+        return dev.calamidade_awakening.api.v1.RigAnchors.approximate(anchor, socket).at(-offset.x, offset.y, offset.z);
+    }
+
     /** Anchor feet plus the offset turned by the instance frame (world axes when the frame is the identity). */
     static Vec3 anchoredCenter(Entity anchor, Vec3 offset, Basis basis) {
         if (basis.identity()) return anchor.position().add(offset);
@@ -249,7 +258,7 @@ public final class StageNetwork {
         boolean follow = spawn.followBody() && anchor != null;
         Basis basis = follow ? Basis.of(bodyYaw(anchor) + spawn.yaw(), spawn.pitch()) : Basis.of(spawn.yaw(), spawn.pitch());
         Vec3 position = spawn.position();
-        Vec3 center = anchor == null ? position : anchoredCenter(anchor, position, basis);
+        Vec3 center = anchor == null ? position : anchoredCenter(anchor, position, basis, kind.socket());
         if (!level.hasChunkAt(BlockPos.containing(center))) return Optional.empty();
         long order = nextOrder++;
         StageEvent event = new StageEvent(kind.id, order, level.getGameTime(), caster,
@@ -317,7 +326,9 @@ public final class StageNetwork {
             if (live.source.kind() != EffectSource.Kind.PLAYER) nonPlayer++;
             if (live.source.equals(source)) same++;
         }
-        return SourceLimits.admit(ServerConfig.rules(), source.kind(), ACTIVE.size(), nonPlayer, same);
+        // 0.13.0: maxPerBoss only for controller starts of an entity that really has a controller attached.
+        boolean boss = source.bossController() && dev.calamidade_awakening.boss.BossServer.isBoss(source.uuid());
+        return SourceLimits.admit(ServerConfig.rules(), source.kind(), boss, ACTIVE.size(), nonPlayer, same);
     }
 
     /** Number of live server instances, for diagnostics. */
@@ -364,6 +375,8 @@ public final class StageNetwork {
         NetApi.toClient(WorldEventSync.PACKET);
         NetApi.toClient(WorldEventEnd.PACKET);
         NetApi.toClient(SkyProfileSync.PACKET);
+        // 0.13.0: boss bar state beyond the vanilla bar.
+        NetApi.toClient(BossSync.PACKET);
         NetApi.receive(CastRequest.PACKET, (request, ctx) -> ctx.server().execute(() -> {
             if (ctx.player() != null) AwakeningSkills.cast(ctx.player(), request.visual(), request.power());
         }));

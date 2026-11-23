@@ -20,7 +20,7 @@ public final class CalamidadeAwakening {
      * branch keeps the version number of the last release (0.12.0) but is not that JAR; it says so in the log, in the
      * mod list description and in F7, so nobody mistakes it for the published file.
      */
-    public static final String BUILD = "desenvolvimento 0.14 (céu personalizado, fase 3) — não é o release v0.12.0";
+    public static final String BUILD = "desenvolvimento 0.14 (céu personalizado, fase 4, integrado à 0.13) — não é o release v0.13.0";
 
     public CalamidadeAwakening(IEventBus bus, ModContainer container) {
         if (!"release".equals(BUILD))
@@ -30,5 +30,7 @@ public final class CalamidadeAwakening {
         container.registerConfig(ModConfig.Type.SERVER, dev.calamidade_awakening.config.ServerConfig.SPEC);
         AwakeningSkills.register(bus);
         StageNetwork.register();
+        // 0.13.0: boss controllers (state saved on the entity).
+        dev.calamidade_awakening.boss.BossServer.register(bus);
     }
 }

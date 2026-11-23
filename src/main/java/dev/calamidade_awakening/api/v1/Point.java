@@ -31,7 +31,14 @@ import java.util.Objects;
  * Point.facing(0, 1.5, 6)       // 6 blocks ahead of the center and 1.5 up, turned with the instance (0.10.0)
  * Point.casterEye(0, -0.2, 0)   // just below the caster's eyes
  * Point.casterAim(48)           // first block the caster looks at, up to 48 blocks away
+ * Point.socket("boca", 0, 0, .2)  // 0.2 blocks ahead of the anchor entity's "boca" rig anchor (0.13.0)
+ * Point.socketAim("boca", 64)     // first block hit straight ahead of the mouth, up to 64 blocks (0.13.0)
  * }</pre>
+ *
+ * <p><b>Rig anchors (0.13.0).</b> {@link #socket(String, double, double, double)} and {@link #socketAim} follow a named point of the anchor entity's
+ * body ({@link RigAnchors}): on clients, the pose the addon captured from its model this frame, else a client
+ * provider, else the static definition, else the eyes. Their offsets are right, up and forward in the anchor's own
+ * frame. These poses are visual only; server code uses {@link RigAnchors#approximate}.
  */
 public final class Point {
     /** Largest offset on each axis, in blocks. */
@@ -58,23 +65,34 @@ public final class Point {
         /** Eyes of the caster plus offset. */
         CASTER_EYE,
         /** First block hit along the caster's look, up to the reach. */
-        CASTER_AIM;
+        CASTER_AIM,
+        /** (0.13.0) A rig anchor of the anchor entity plus an offset in the anchor's frame (right, up, forward). */
+        ANCHOR_SOCKET,
+        /** (0.13.0) First block hit along the forward of a rig anchor of the anchor entity, up to the reach. */
+        ANCHOR_SOCKET_AIM;
 
         /** True when the point needs an entity (anchor or caster) loaded on the client. */
         public boolean entity() { return this != CENTER && this != WORLD; }
         /** True for the caster's points. */
         public boolean caster() { return this == CASTER || this == CASTER_EYE || this == CASTER_AIM; }
         /** True for the look-ray points ({@code *_AIM}). */
-        public boolean aim() { return this == ANCHOR_AIM || this == CASTER_AIM; }
+        public boolean aim() { return this == ANCHOR_AIM || this == CASTER_AIM || this == ANCHOR_SOCKET_AIM; }
+        /** (0.13.0) True for the rig anchor points ({@code ANCHOR_SOCKET*}). */
+        public boolean socket() { return this == ANCHOR_SOCKET || this == ANCHOR_SOCKET_AIM; }
         /** True for the eye points ({@code *_EYE}). */
         public boolean eye() { return this == ANCHOR_EYE || this == CASTER_EYE; }
     }
 
     private final Source source;
     private final double x, y, z, reach;
+    private final String socket;
 
     private Point(Source source, double x, double y, double z, double reach) {
-        this.source = source; this.x = x; this.y = y; this.z = z; this.reach = reach;
+        this(source, x, y, z, reach, null);
+    }
+
+    private Point(Source source, double x, double y, double z, double reach, String socket) {
+        this.source = source; this.x = x; this.y = y; this.z = z; this.reach = reach; this.socket = socket;
     }
 
     /** The instance center. */
@@ -127,6 +145,35 @@ public final class Point {
     /** First block hit along the caster's look, up to {@code reach} blocks (0.5..{@value #MAX_REACH}); the full reach when nothing is hit. */
     public static Point casterAim(double reach) { return aim(Source.CASTER_AIM, reach); }
 
+    /**
+     * (0.13.0) A rig anchor ({@link RigAnchors}) of the anchor entity plus {@code right}, {@code up} and
+     * {@code forward} blocks in the anchor's frame. Name {@code [a-z0-9_]}, up to 64 characters.
+     *
+     * <pre>{@code
+     * Beam.builder(Point.socket("boca", 0, 0, 0), Point.socketAim("boca", 48))  // breath from the mouth
+     * }</pre>
+     */
+    public static Point socket(String name, double right, double up, double forward) {
+        socketName(name);
+        Point p = offset(Source.ANCHOR_SOCKET, right, up, forward);
+        return new Point(Source.ANCHOR_SOCKET, p.x, p.y, p.z, 0, name);
+    }
+
+    /**
+     * (0.13.0) First block hit along the forward vector of a rig anchor of the anchor entity, up to {@code reach}
+     * blocks (0.5..{@value #MAX_REACH}); the full reach when nothing is hit.
+     */
+    public static Point socketAim(String name, double reach) {
+        socketName(name);
+        Point p = aim(Source.ANCHOR_SOCKET_AIM, reach);
+        return new Point(Source.ANCHOR_SOCKET_AIM, 0, 0, 0, p.reach, name);
+    }
+
+    private static void socketName(String name) {
+        if (!dev.calamidade_awakening.api.BossMachine.Names.valid(name))
+            throw new IllegalArgumentException("Bad anchor name: " + name);
+    }
+
     private static Point offset(Source source, double dx, double dy, double dz) {
         if (!finite(dx, dy, dz) || Math.abs(dx) > MAX_OFFSET || Math.abs(dy) > MAX_OFFSET || Math.abs(dz) > MAX_OFFSET)
             throw new IllegalArgumentException("Point offset must be finite and within " + MAX_OFFSET + " blocks");
@@ -153,18 +200,21 @@ public final class Point {
     public double z() { return z; }
     /** Aim distance in blocks for {@code *_AIM} points; 0 for the others. */
     public double reach() { return reach; }
+    /** (0.13.0) Rig anchor name of {@code ANCHOR_SOCKET*} points; null for the others. */
+    public String socket() { return socket; }
 
-    /** Same source, offsets and reach. */
+    /** Same source, offsets, reach and anchor name. */
     @Override public boolean equals(Object o) {
         return o instanceof Point p && p.source == source && Double.compare(p.x, x) == 0 && Double.compare(p.y, y) == 0
-            && Double.compare(p.z, z) == 0 && Double.compare(p.reach, reach) == 0;
+            && Double.compare(p.z, z) == 0 && Double.compare(p.reach, reach) == 0 && Objects.equals(p.socket, socket);
     }
 
-    /** Hash of source, offsets and reach. */
-    @Override public int hashCode() { return Objects.hash(source, x, y, z, reach); }
+    /** Hash of source, offsets, reach and anchor name. */
+    @Override public int hashCode() { return Objects.hash(source, x, y, z, reach, socket); }
 
-    /** Readable form, such as {@code CENTER(0.0, 40.0, 0.0)} or {@code CASTER_AIM(48.0)}. */
+    /** Readable form, such as {@code CENTER(0.0, 40.0, 0.0)}, {@code CASTER_AIM(48.0)} or {@code ANCHOR_SOCKET(boca, 0.0, 0.0, 0.2)}. */
     @Override public String toString() {
-        return source.aim() ? source + "(" + reach + ")" : source + "(" + x + ", " + y + ", " + z + ")";
+        String name = socket == null ? "" : socket + ", ";
+        return source.aim() ? source + "(" + name + reach + ")" : source + "(" + name + x + ", " + y + ", " + z + ")";
     }
 }

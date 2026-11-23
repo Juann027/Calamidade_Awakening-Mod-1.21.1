@@ -297,6 +297,24 @@ public final class Effects {
     }
 
     /**
+     * (0.13.0) Makes the whole instance follow a rig anchor ({@link RigAnchors}) of its anchor entity: the center of
+     * an instance started with {@link #follow} or {@link Placement#on} is the anchor's pose (plus the start offset, in
+     * the anchor's frame) instead of the entity's feet. Particles in the eyes, an explosion on the chest, a shader
+     * around the hands. On clients the pose is the visual one (captured from the model this frame, a provider, the
+     * static definition or the eyes); on the server, and so in cues ({@code ctx.center()}), it is
+     * {@link RigAnchors#approximate}. Instances without an anchor entity are unaffected. Call during mod construction
+     * (both sides), after {@link #register}; once per effect.
+     *
+     * <pre>{@code
+     * Effects.register(OLHOS, new Effects.Definition(60, 1.5, 0xffff4020, Effects.Shape.NONE, Effects.Material.NONE, null, null));
+     * Effects.anchorSocket(OLHOS, "olhos");
+     * }</pre>
+     */
+    public static void anchorSocket(ResourceLocation id, String name) {
+        VisualKind.setSocket(Objects.requireNonNull(id), Objects.requireNonNull(name));
+    }
+
+    /**
      * Attaches an {@link Atmosphere} to a registered external effect (0.8.0): sky tint, fog, exposure, ambient
      * tint and stars while its instances are active. Call during mod construction (common side, so a dedicated
      * server validates it too), after {@link #register} and, when the atmosphere reads tracks or a phase, after

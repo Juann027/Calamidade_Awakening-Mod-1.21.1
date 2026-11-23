@@ -109,6 +109,10 @@ public final class StageScene {
         var entity = level.getEntity(event.entityId());
         if (entity == null || !entity.getUUID().equals(event.anchorUuid()) || entity.isRemoved()) return null;
         Vec3 o = event.offset();
+        // 0.13.0: Effects.anchorSocket: the center follows a rig anchor (offset in the anchor's frame).
+        VisualKind kind = VisualKind.byId(event.visual());
+        if (kind != null && kind.socket() != null)
+            return dev.calamidade_awakening.client.boss.AnchorCache.resolve(entity, kind.socket(), partial).at(-o.x, o.y, o.z);
         return entity.getPosition(partial).add(turn(basis(event, partial), o.x, o.y, o.z));
     }
 
@@ -149,6 +153,8 @@ public final class StageScene {
         if (source == dev.calamidade_awakening.api.v1.Point.Source.WORLD) return new Vec3(point.x(), point.y(), point.z());
         net.minecraft.world.entity.Entity entity = source.caster() ? caster(event) : anchor(event);
         if (entity == null) return null;
+        // 0.13.0: rig anchors (visual pose: capture, carried capture, provider, static, eyes).
+        if (source.socket()) return socketPoint(entity, point, partial);
         if (source.aim()) {
             long key = ((long) entity.getId() << 32) ^ Double.doubleToLongBits(point.reach());
             Vec3 cached = aims.get(key);
@@ -163,6 +169,17 @@ public final class StageScene {
         }
         Vec3 base = source.eye() ? entity.getEyePosition(partial) : entity.getPosition(partial);
         return base.add(point.x(), point.y(), point.z());
+    }
+
+    /** 0.13.0: a socket point, or the first block hit ahead of the anchor for {@code ANCHOR_SOCKET_AIM}. */
+    private Vec3 socketPoint(net.minecraft.world.entity.Entity entity, dev.calamidade_awakening.api.v1.Point point, float partial) {
+        var pose = dev.calamidade_awakening.client.boss.AnchorCache.resolve(entity, point.socket(), partial);
+        if (point.source() == dev.calamidade_awakening.api.v1.Point.Source.ANCHOR_SOCKET) return pose.at(point.x(), point.y(), point.z());
+        Vec3 from = pose.position();
+        Vec3 end = from.add(pose.forward().scale(point.reach()));
+        var hit = level.clip(new net.minecraft.world.level.ClipContext(from, end,
+            net.minecraft.world.level.ClipContext.Block.OUTLINE, net.minecraft.world.level.ClipContext.Fluid.NONE, entity));
+        return hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS ? end : hit.getLocation();
     }
 
     private net.minecraft.world.entity.Entity anchor(StageEvent event) {

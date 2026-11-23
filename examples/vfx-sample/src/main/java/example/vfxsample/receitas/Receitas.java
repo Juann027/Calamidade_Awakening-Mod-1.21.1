@@ -29,7 +29,8 @@ import java.util.function.Function;
  * blocos reais, a cratera simples e a torre que cai e fica; todas se desfazem com /calamidade terrain undo. As receitas
  * 22 a 26 (1.9.0) usam a Sky API, os eventos globais e o céu por dimensão do motor 0.12.0: buraco negro, portal para
  * outra galáxia, lua gigante, o eclipse como evento global (/vfxsample evento eclipse) e a dimensão de teste
- * (/vfxsample dimensao e /vfxsample ceu).
+ * (/vfxsample dimensao e /vfxsample ceu). A receita 27 (1.10.0) é o chefe de demonstração da Boss API do motor 0.13.0,
+ * o Sentinela do Eclipse (/vfxsample chefe): fases, barra segmentada, anchor nos olhos, feixe e o eclipse em área.
  */
 public final class Receitas {
     /** Nome do comando, efeito e como ele começa no servidor. */
@@ -109,6 +110,8 @@ public final class Receitas {
         LuaGigante.register();
         EclipseGlobal.register();
         DimensaoTeste.register();
+        // 1.10.0 — Boss API do motor 0.13.0: o Sentinela do Eclipse (/vfxsample chefe).
+        SentinelaEclipse.register();
         bus.addListener(Receitas::abas);
     }
 

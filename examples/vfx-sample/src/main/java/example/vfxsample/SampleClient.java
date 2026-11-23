@@ -16,6 +16,11 @@ public final class SampleClient {
         example.vfxsample.receitas.DimensaoTeste.Client.effects(e);
     }
 
+    /** 1.10.0 — a camada do golem que informa a pose dos olhos do Sentinela (Rig Anchors). */
+    @SubscribeEvent public static void layers(net.neoforged.neoforge.client.event.EntityRenderersEvent.AddLayers e) {
+        example.vfxsample.receitas.SentinelaEclipse.Client.layers(e);
+    }
+
     @SubscribeEvent public static void setup(FMLClientSetupEvent e) {
         AddonLayers.world(Sample.SIGNAL,world -> {
             double phase = world.time().progress()*Math.TAU;

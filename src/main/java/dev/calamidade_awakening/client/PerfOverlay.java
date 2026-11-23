@@ -79,6 +79,8 @@ public final class PerfOverlay {
     static boolean lastPassCut() { return lastPassCut; }
     /** F7 line about the quality mode (0.11.2), set by ClientHooks. */
     static java.util.function.Supplier<Component> qualityLine = () -> null;
+    /** 0.13.0: rig anchors and custom boss bars of the frame (set by client.boss); null hides the line. */
+    public static java.util.function.Supplier<Component> bossLine = () -> null;
     /** Active atmospheres and whether the atmosphere pass was queued (0.8.0); outside the addon budget. */
     static void atmosphere(int active, boolean pass) { atmospheres = active; atmospherePass = pass; }
     /** HERO instances drawn and the passes they took from their own budget (0.9.0). */
@@ -260,6 +262,8 @@ public final class PerfOverlay {
             mc.getFps(), format(percentile(window, .5)), format(percentile(window, .95)), lastLimits.label()));
         Component quality = qualityLine.get();
         if (quality != null) lines.add(quality);
+        Component boss = bossLine.get();
+        if (boss != null) lines.add(boss);
         lines.add(Component.translatableWithFallback(PREFIX + "scene", "Events: %s resident · %s drawn · %s volumes",
             lastResident, lastEffects, lastVolumes));
         lines.add(Component.translatableWithFallback(PREFIX + "sources", "Sources: %s players · %s mobs · %s blocks · %s scripts",

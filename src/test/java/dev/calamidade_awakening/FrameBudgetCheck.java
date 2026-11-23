@@ -65,6 +65,7 @@ public final class FrameBudgetCheck {
         SourceCheck.run();
         TriggerCheck.run();
         TerrainCheck.run();
+        BossCheck.run();
         LimitsCheck.run();
         AutoQualityCheck.run();
         HoloCheck.run();

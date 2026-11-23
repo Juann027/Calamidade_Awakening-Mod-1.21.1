@@ -24,6 +24,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Conferir tag, versão e aviso de build de desenvolvimento
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          ver=$(grep "^version = '" build.gradle | cut -d"'" -f2)
+          case "${TAG#v}" in "$ver"|"$ver"-*) ;; *) echo "A tag $TAG não corresponde à versão $ver do build.gradle"; exit 1 ;; esac
+          # 0.13: o branch de desenvolvimento marca o JAR como DEVELOPMENT BUILD; o commit de release tira o aviso.
+          if grep -q "DEVELOPMENT BUILD" src/main/resources/META-INF/neoforge.mods.toml; then
+            echo "neoforge.mods.toml ainda marca DEVELOPMENT BUILD: tire o aviso no commit de release"; exit 1
+          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

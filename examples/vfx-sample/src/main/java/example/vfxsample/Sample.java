@@ -154,7 +154,9 @@ public final class Sample {
             // 1.9.0 — céu da dimensão de teste.
             .then(example.vfxsample.receitas.DimensaoTeste.comandoCeu())
             .then(example.vfxsample.receitas.DimensaoTeste.comandoDimensao())
-            .then(example.vfxsample.receitas.EclipseGlobal.comando()));
+            .then(example.vfxsample.receitas.EclipseGlobal.comando())
+            // 1.10.0 — chefe de demonstração da Boss API.
+            .then(example.vfxsample.receitas.SentinelaEclipse.comando()));
     }
 
     private static void impact(Effects.Context context) {

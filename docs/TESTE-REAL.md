@@ -222,6 +222,21 @@ Motor 0.12.0 e vfx-sample 1.9.0 nos dois lados (servidor e clientes: canais novo
 | 101 | `/calamidade world list`, `stop <id>`, `release <id>` sem permissão e com permissão 2; `worldEventsMax = 1` na config do servidor e dois eventos. | Sem permissão, o comando não existe. Com o limite em 1, o segundo evento só entra se tiver prioridade maior (troca o primeiro). |
 | 102 | Opcional: com Iris/Oculus e um shader pack. | Anote o que acontece (o pack troca o céu; o sol pode não ser apagado). |
 
+## Parte 11 — chefes com dois jogadores (0.13.0)
+
+Servidor **dedicado** com motor 0.13.0 e vfx-sample 1.10.0, dois clientes (A e B) com os mesmos JARs, os dois operadores, F7 aberto. Cerca de 15 minutos. Anote o resultado de cada caso em VALIDACAO.md (seção 0.13.0) com o SHA-256 dos JARs.
+
+| # | Passos | Esperado |
+|---|---|---|
+| 103 | A e B juntos: A roda `/vfxsample chefe`; os dois batem no golem até 40% de vida. | Os dois veem a mesma barra segmentada, o nome da fase, as marcas e o fantasma do dano; a troca despertar → combate → (rugido) → fúria aparece para os dois no mesmo momento, com o clarão; eclipse em área para os dois. |
+| 104 | **Entrada tardia:** B sai do servidor antes do 103; entra durante a fúria, a menos de 64 blocos. | B vê a barra já na fase "fúria" (vermelha, rótulo certo) em até 0,5 s, sem a barra vanilla por cima. |
+| 105 | **Alcance:** B se afasta 100 blocos e volta (andando, não por tp). | A barra de B some ao passar de 64 blocos e volta na fase atual; a de A não muda. |
+| 106 | **Logout:** B sai durante a luta e entra de novo perto do golem. | Ao sair, nada fica preso no cliente de B; ao voltar, a barra reaparece na fase atual. A continua vendo a luta normalmente. |
+| 107 | **Dimensão do jogador:** B entra num portal do Nether durante a luta e volta. | No Nether, a barra de B some em até 0,5 s (pode aparecer por esse instante); ao voltar e chegar a 64 blocos, ela reaparece na fase atual. A não é afetado. |
+| 108 | **Dois chefes:** A roda `/vfxsample chefe` de novo a uns 20 blocos do primeiro. | Duas barras, cada uma com a sua fase; `/calamidade boss list` mostra dois; ferir um não mexe na barra do outro. |
+| 109 | **Dimensão do chefe:** `/execute in minecraft:the_nether run tp @e[type=iron_golem,limit=1,sort=nearest] ~ 100 ~` (a partir do Overworld, perto do golem). | No Overworld a barra some para A e B e a aura e o eclipse do golem são soltos (tocam a saída e acabam); quem estiver no Nether perto do destino passa a ver a barra na **mesma fase** e o sustain de novo; `/calamidade boss list` mostra um só controlador desse golem. |
+| 110 | **Fim:** mate um chefe (`/kill` no golem) e use `/calamidade boss detach` no outro. | Morte: fase "derrota", o eclipse é solto, a barra some para os dois quando o golem é removido. Detach: a barra some na hora para os dois. Nada fica no céu nem no F7 (linha de chefes vazia). |
+
 ## Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
