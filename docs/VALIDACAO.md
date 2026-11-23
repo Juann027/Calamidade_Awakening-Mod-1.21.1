@@ -1,9 +1,18 @@
 # Validação, medições e limites
 
-## Versão 0.13.0 — Bosses (preparada para publicação, branch `claude/bosses-0.13`)
+## Versão 0.13.0 — Bosses (publicada: release v0.13.0)
 
-**Preparada para publicação; ainda não publicada no GitHub.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
+**Publicada** (workflow Release `45229440917`, tag `v0.13.0` no commit `2c90f60`). Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
 (0.12.0); nada da 0.14. GPU física, shaderpacks e dois jogadores reais pendentes.
+
+### Depois do release v0.13.0 (23/11/2026)
+
+Workflow Release `45229440917` (sucesso), tag `v0.13.0` no commit `2c90f60`. Anexos só `calamidade_awakening-0.13.0.jar`,
+`vfx-sample-1.10.0.jar` e `SHA256SUMS.txt`; baixados, `sha256sum -c` OK e **iguais aos do candidato** (`a427a90d…`,
+`56b2832a…`): o build do workflow reproduziu o local. Sem "DEVELOPMENT" no `neoforge.mods.toml` e sem classes da 0.14 ou
+GeckoLib nos JARs publicados. `examples/consumidor` passou para a 0.13.0 (faixa `[0.13.0,0.14.0)`, SHA-256 publicado) e
+`./gradlew -p examples/consumidor clean build`, sem endereço alternativo e com o JAR apagado de `libs/`, baixou
+`calamidade_awakening-0.13.0.jar` do release, conferiu o SHA-256 e compilou.
 
 ### Candidato final 0.13.0 (23/11/2026, quarta sessão)
 
