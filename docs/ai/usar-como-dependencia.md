@@ -10,7 +10,7 @@ O modelo abaixo é o projeto real [`examples/consumidor`](../../examples/consumi
 2. Ponha `libs/` no `.gitignore`.
 3. Declare a dependência no `neoforge.mods.toml` (bloco abaixo).
 4. `./gradlew baixarDependencias` (opcional: o `build` já chama) e `./gradlew build`.
-5. Quem joga instala na pasta `mods`: o seu mod, o `calamidade_awakening-0.12.0.jar` (do release) e a RimuLib 1.3.0 (do CurseForge). Servidor e clientes com a mesma versão do Calamidade.
+5. Quem joga instala na pasta `mods`: o seu mod, o `calamidade_awakening-0.13.0.jar` (do release) e a RimuLib 1.3.0 (do CurseForge). Servidor e clientes com a mesma versão do Calamidade.
 
 ## build.gradle
 
@@ -40,9 +40,9 @@ neoForge {
 // por SHA-256 e ficam em libs/ (fora do git). Nenhum dos dois entra no seu JAR: quem joga instala os dois na pasta
 // mods, ao lado do seu mod. Para outra versão, troque calamidadeVersao e calamidadeSha256 pelos do release
 // (o SHA-256 está nas notas do release e em SHA256SUMS.txt). -Pcalamidade.url=... troca o endereço (espelho ou
-// arquivo local, por exemplo file:///caminho/calamidade_awakening-0.12.0.jar); o SHA-256 continua valendo.
-def calamidadeVersao = '0.12.0'
-def calamidadeSha256 = 'a934968a3d135fe0795abc806c548b556bb3dd9899b74a675e978a21e7c9e460'
+// arquivo local, por exemplo file:///caminho/calamidade_awakening-0.13.0.jar); o SHA-256 continua valendo.
+def calamidadeVersao = '0.13.0'
+def calamidadeSha256 = 'a427a90dd471c8d83abe3be8a64e034e52c2bc8413250d816ec6e19f5decb0ff'
 def dependenciasBaixadas = [
     [arquivo: file("libs/calamidade_awakening-${calamidadeVersao}.jar"),
      url: providers.gradleProperty('calamidade.url').getOrElse(
@@ -98,7 +98,7 @@ Por que cada parte:
 - **`runtimeOnly`**: no `runClient`/`runServer` o NeoForge encontra os dois JARs no classpath e os carrega como mods (o Calamidade e a RimuLib, de que ele depende).
 - **RimuLib também**: o Calamidade precisa dela em tempo de execução, e algumas assinaturas da API (`AddonLayers.Post`, `AddonLayers.film`) usam tipos dela; com ela no `compileOnly` o compilador resolve tudo.
 - **`.part` e SHA-256**: um download interrompido ou adulterado nunca fica em `libs/`; um arquivo existente com hash diferente para o build com uma mensagem clara.
-- **`-Pcalamidade.url=...`**: troca o endereço (espelho, ou `file:///caminho/calamidade_awakening-0.12.0.jar` para testar um build local antes do release). O SHA-256 continua valendo, então o arquivo precisa ser o mesmo.
+- **`-Pcalamidade.url=...`**: troca o endereço (espelho, ou `file:///caminho/calamidade_awakening-0.13.0.jar` para testar um build local antes do release). O SHA-256 continua valendo, então o arquivo precisa ser o mesmo.
 
 ## neoforge.mods.toml
 
@@ -119,7 +119,7 @@ description="Exemplo mínimo de um mod que depende do Calamidade_Awakening sem M
 [[dependencies.consumidor]]
 modId="calamidade_awakening"
 type="required"
-versionRange="[0.12.0,0.13.0)"
+versionRange="[0.13.0,0.14.0)"
 ordering="AFTER"
 side="BOTH"
 
@@ -131,7 +131,7 @@ ordering="NONE"
 side="BOTH"
 ```
 
-A faixa `[0.12.0,0.13.0)` aceita as correções da 0.12 e recusa a 0.13, que pode mudar a rede. A API (`api.v1`) só cresce: código escrito para a 0.10, a 0.11 ou a 0.12 compila nas versões seguintes; o que muda entre versões menores é o protocolo de rede, por isso servidor e clientes precisam da mesma versão.
+A faixa `[0.13.0,0.14.0)` aceita as correções da 0.13 e recusa a 0.14, que pode mudar a rede. A API (`api.v1`) só cresce: código escrito para a 0.10, a 0.11, a 0.12 ou a 0.13 compila nas versões seguintes; o que muda entre versões menores é o protocolo de rede, por isso servidor e clientes precisam da mesma versão.
 
 ## Código mínimo
 
@@ -217,7 +217,7 @@ Chame `Efeitos.registrar()` no construtor do mod. No `build.gradle` nada muda.
 |---|---|
 | `SHA-256 de ... não confere` | Versão e hash não batem, ou o download veio errado. Confira os dois no release; apague o arquivo de `libs/` e rode de novo. |
 | `Mod calamidade_awakening requires rimulib` no `runClient` | A RimuLib não está no `runtimeOnly`. |
-| Efeitos não aparecem num servidor | O servidor e os clientes precisam do Calamidade na mesma versão (desde a 0.10.0 o pacote de início é `event_v2`, a 0.11.0 criou o `terrain_v1` e a 0.12.0 o `world_event_v1`, o `world_end_v1` e o `sky_profile_v1`; versões diferentes simplesmente não trocam efeitos ou o terreno). |
+| Efeitos não aparecem num servidor | O servidor e os clientes precisam do Calamidade na mesma versão (desde a 0.10.0 o pacote de início é `event_v2`, a 0.11.0 criou o `terrain_v1` a 0.12.0 o `world_event_v1`, o `world_end_v1` e o `sky_profile_v1` e a 0.13.0 o `boss_v1`; versões diferentes simplesmente não trocam efeitos ou o terreno). |
 | `Unknown effect` | O efeito não foi registrado no construtor do mod, ou foi registrado só no cliente. |
 | `NoClassDefFoundError: dev/calamidade_awakening/...` com dependência opcional | Uma classe sempre carregada cita tipos do Calamidade; isole como na seção acima. |
 
@@ -226,5 +226,5 @@ Chame `Efeitos.registrar()` no construtor do mod. No `build.gradle` nada muda.
 - [ ] `libs/` no `.gitignore`; nenhum JAR de terceiros no git.
 - [ ] Versão e SHA-256 do Calamidade copiados do mesmo release.
 - [ ] `compileOnly` e `runtimeOnly` com os dois JARs (Calamidade e RimuLib).
-- [ ] `neoforge.mods.toml` com `calamidade_awakening` em `[0.12.0,0.13.0)` (`required` ou `optional`).
+- [ ] `neoforge.mods.toml` com `calamidade_awakening` em `[0.13.0,0.14.0)` (`required` ou `optional`).
 - [ ] Efeitos registrados no construtor (lado comum); `./gradlew build` e um `runClient` com o efeito disparando.
