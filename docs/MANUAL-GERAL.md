@@ -1971,8 +1971,8 @@ Sem o passo 3, `vanillaSun(false)` e `vanillaMoon(false)` funcionam em qualquer 
 ## 15. Chefes: Boss API, BossBar e Rig Anchors
 
 > **Estado:** implementada no branch `claude/bosses-0.13` (criado em `8cfd93a`, o `origin/main` do release v0.12.0
-> mais dois commits só de `VALIDACAO.md`); **não publicada**. O JAR do branch é `0.13.0` marcado como build de
-> desenvolvimento no `neoforge.mods.toml`. A 0.13 **não** contém nada da 0.14 (Custom Sky Engine, branch
+> mais dois commits só de `VALIDACAO.md`); **preparada para publicação** (candidata a release, ainda não publicada no
+> GitHub). O JAR é `0.13.0` sem o aviso de build de desenvolvimento. A 0.13 **não** contém nada da 0.14 (Custom Sky Engine, branch
 > `claude/ceu-personalizado`, intocado). As seções 1 a 6 são o plano aprovado (Etapa 0); a seção 7 diz o que foi feito,
 > o que mudou em relação ao plano e o que foi validado; a **seção 8 é o guia para quem vai usar a biblioteca** (só APIs
 > que existem no JAR). Na revisão pré-release, os nomes do plano que não existem no código foram corrigidos abaixo; em
@@ -2784,9 +2784,9 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 ## 19. Validação, medições e limites
 
-### Versão 0.13.0 — Bosses (em desenvolvimento, branch `claude/bosses-0.13`)
+### Versão 0.13.0 — Bosses (preparada para publicação, branch `claude/bosses-0.13`)
 
-**Não publicada.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
+**Preparada para publicação; ainda não publicada no GitHub.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
 (0.12.0); nada da 0.14. GPU física, shaderpacks e dois jogadores reais pendentes.
 
 #### Preparação final do release (23/11/2026, terceira sessão)
@@ -3880,7 +3880,7 @@ As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TEST
 
 #### 0.13 — Bosses
 
-Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **não publicada** até o release ser autorizado. Capítulo: [BOSSES-0.13.md](BOSSES-0.13.md).
+Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **preparada para publicação** (candidata a release; ainda não publicada no GitHub). Capítulo: [BOSSES-0.13.md](BOSSES-0.13.md).
 
 - **Boss API** (`Boss`, `Bosses`): controlador preso a uma entidade do addon; fases, transições por tempo, vida, sinal, dano, morte e predicado, sequências pela Timeline, efeitos de entrada, saída e sustain, ações periódicas, evento global por fase, invulnerabilidade opcional, persistência na entidade, `maxPerBoss` e `bossMaxActive`, `/calamidade boss`.
 - **Pontos presos a ossos** (`RigAnchors`, `Point.socket`, `Point.socketAim`, `Effects.anchorSocket`, `AnchorCapture`): pose capturada no render do addon (vanilla, GeckoLib ou outro), providers, anchors estáticos e plano B, sem o Calamidade depender do GeckoLib; visual no cliente, aproximação estática no servidor.

@@ -1,8 +1,8 @@
 # Validação, medições e limites
 
-## Versão 0.13.0 — Bosses (em desenvolvimento, branch `claude/bosses-0.13`)
+## Versão 0.13.0 — Bosses (preparada para publicação, branch `claude/bosses-0.13`)
 
-**Não publicada.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
+**Preparada para publicação; ainda não publicada no GitHub.** Compilada e testada por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb). Base: `8cfd93a`
 (0.12.0); nada da 0.14. GPU física, shaderpacks e dois jogadores reais pendentes.
 
 ### Preparação final do release (23/11/2026, terceira sessão)
