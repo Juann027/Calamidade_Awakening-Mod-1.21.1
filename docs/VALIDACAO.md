@@ -10,7 +10,25 @@ Merge comum de `origin/main` (`0fa6bc0`, 0.13.0 publicada) sobre `claude/ceu-per
 | `./gradlew -p examples/vfx-sample build` | verde (`vfx-sample-1.11.0.jar`) |
 | `./gradlew compileTesteJogoJava` | verde |
 
-Pendentes (próxima etapa): os testes em jogo da integração (`testeJogo`, `testeChefe`, `testeBackdrop`, `testeEstrelas`, `testeImagens`, `testeCeu`). Nenhum shader nem passe de céu mudou no merge.
+### Validação funcional da integração (executada nesta etapa, 23/11/2026, sobre `14e418f`)
+
+Cliente sob Xvfb (Mesa llvmpipe, por software), vfx-sample 1.11.0; um teste por vez, nenhum em paralelo.
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew testeJogo` (servidor dedicado, duas fases) | 82/82 |
+| `xvfb-run -a ./gradlew testeChefe` | 15/15 |
+| `xvfb-run -a ./gradlew testeBackdrop` | 34/34 |
+| `xvfb-run -a ./gradlew testeEstrelas` | 20/20 |
+| `xvfb-run -a ./gradlew testeImagens` | 25/25 |
+| `xvfb-run -a ./gradlew testeCeu` | 20/20 |
+| `./gradlew checkShaders` (glslangValidator 11:15.1.0, instalado nesta etapa) | 21 shaders compilados, sem erro |
+
+Nenhuma falha; nenhuma correção foi necessária.
+
+**Reaproveitados das branches de origem (não executados nesta etapa; o merge não mexeu em shaders, passes, escritor de terreno, perfis de qualidade nem Atlas):** `checkCeuReferencia`, `node scripts/testar_glsl.cjs`, `node scripts/previa_passes.cjs`, `testeCliente`, `testeMedicao`, `testeAtlas`.
+
+**Pendentes:** GPU física, Iris/Oculus e Sodium/Embeddium, dois jogadores reais num servidor dedicado (herdados da 0.12, 0.13 e 0.14).
 
 ## 0.14 (Custom Sky) — fase 4: imagens, flipbooks e impostors, branch `claude/ceu-personalizado` (23/11/2026)
 
