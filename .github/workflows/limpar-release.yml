@@ -28,7 +28,7 @@ jobs:
           echo "Anexos antes:"; cat assets.txt
           while read -r name; do
             case "$name" in
-              calamidade_awakening-*.jar|vfx-sample-*.jar|SHA256SUMS.txt) ;;
+              calamidade_awakening-*.jar|vfx-sample-*.jar|bossestesting-*.jar|SHA256SUMS.txt) ;;
               *) echo "Removendo $name"; gh release delete-asset "$TAG" "$name" -y ;;
             esac
           done < assets.txt
