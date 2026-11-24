@@ -15,7 +15,23 @@ repositories {
 
 neoForge {
     version = providers.gradleProperty('neoforge.version').getOrElse('21.1.267')
-    runs { client { client() } }
+    runs {
+        client { client() }
+        // Teste de cliente (xvfb-run): mundo do autoteste, luta inteira com capturas em run-client/screenshots.
+        clientTest {
+            client()
+            gameDirectory = file('run-client')
+            systemProperty 'bossestesting.clienttest', 'true'
+            programArgument '--quickPlaySingleplayer'; programArgument 'clienttest'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+        }
+        // Autoteste: servidor dedicado sem tela, mundo plano, luta inteira forçada (run/bossestesting-selftest.txt).
+        selfTest {
+            server()
+            programArgument '--nogui'
+            systemProperty 'bossestesting.selftest', 'true'
+        }
+    }
     mods { bossestesting { sourceSet sourceSets.main } }
 }
 
@@ -33,6 +49,31 @@ dependencies {
     implementation files(engineJar)
     implementation files(rimuLibJar)
     implementation 'software.bernie.geckolib:geckolib-neoforge-1.21.1:4.9.4'
+}
+
+// Prepara o diretório do autoteste: EULA e mundo plano novo a cada execução.
+tasks.register('prepareSelfTestWorld') {
+    doLast {
+        def dir = file('run')
+        dir.mkdirs()
+        new File(dir, 'eula.txt').text = 'eula=true\n'
+        new File(dir, 'server.properties').text = 'level-type=minecraft\\:flat\ngenerator-settings={"layers"\\:[{"block"\\:"minecraft\\:bedrock","height"\\:1},{"block"\\:"minecraft\\:stone","height"\\:40},{"block"\\:"minecraft\\:dirt","height"\\:3},{"block"\\:"minecraft\\:grass_block","height"\\:1}],"biome"\\:"minecraft\\:plains"}\nonline-mode=false\nspawn-protection=0\nlevel-name=selftest\n'
+        delete new File(dir, 'selftest')
+    }
+}
+tasks.register('prepareClientTestWorld') {
+    doLast {
+        def saves = file('run-client/saves/clienttest')
+        delete saves
+        delete file('run-client/screenshots')
+        copy { from file('run/selftest'); into saves; exclude 'session.lock' }
+        new File(file('run-client'), 'options.txt').text = 'onboardAccessibility:false\njoinedFirstServer:true\ntutorialStep:none\nmusicVolume:1.0\n'
+        // Mundo de criação do servidor: liga os comandos (cheats) no level.dat não é preciso: o teste usa a fonte do servidor.
+    }
+}
+afterEvaluate {
+    tasks.named('runSelfTest') { dependsOn 'prepareSelfTestWorld' }
+    tasks.named('runClientTest') { dependsOn 'prepareClientTestWorld' }
 }
 
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
@@ -83,3 +124,5 @@ tasks.register('checkShaders') {
     }
 }
 tasks.named('check') { dependsOn 'checkShaders' }
+// Os testes do addon rodam no checkBoss (sem JUnit); a task test padrão não tem o que descobrir.
+tasks.named('test') { enabled = false }

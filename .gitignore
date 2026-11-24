@@ -9,3 +9,5 @@ dist/*.jar
 logs/
 # Dependências baixadas pelo exemplo de consumo (examples/consumidor, task baixarDependencias).
 examples/consumidor/libs/
+# Testes de cliente do BossesTesting (mundo, capturas e logs gerados).
+run-client/

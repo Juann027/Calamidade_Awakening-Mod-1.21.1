@@ -21,6 +21,8 @@ import java.util.function.Supplier;
  */
 public abstract class Brain {
     static final Logger LOG = LoggerFactory.getLogger("bossestesting");
+    /** Failed action events since start (diagnostics and the self test). */
+    public static final java.util.concurrent.atomic.AtomicInteger ERRORS = new java.util.concurrent.atomic.AtomicInteger();
 
     /** GeckoLib transition length used by the boss controllers, ticks. */
     public static final int TRANSITION = 2;
@@ -72,9 +74,11 @@ public abstract class Brain {
     public final void tick() {
         if (burstWindow > 0 && --burstWindow == 0) burst = 0;
         if (action != null) {
-            action.tick();
-            if (action.finished()) {
-                action = null;
+            Action current = action;
+            current.tick(); // may remove the boss (the swap) and interrupt this brain
+            if (current.finished()) {
+                if (action == current) action = null;
+                if (boss.isRemoved()) return;
                 boss.clearClip();
                 idle = 0;
                 if (queued != null && !boss.isDeadOrDying()) {

@@ -44,7 +44,7 @@ void main() {
     vec3 base = sampleScene(uv + offs);
     vec3 dustCol = mix(vec3(0.16, 0.12, 0.09), BtColor * 0.25, 0.35);
     base = mix(base, dustCol, clamp(dust * BtMisc.w * k * 0.55, 0.0, 0.7));
-    base += BtColor * (shell * 0.55 + ring * 1.2) * k;
+    base += BtColor * (shell * 0.5 + ring * 0.7) * k;
     if (!sky) base += BtColor * BtMisc.y * exp(-length(scene - BtCenter) / 10.0) * 1.5;
     fragColor = vec4(base, 1.0);
 }

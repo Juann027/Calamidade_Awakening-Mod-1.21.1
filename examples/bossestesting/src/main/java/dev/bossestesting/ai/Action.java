@@ -101,7 +101,7 @@ public abstract class Action {
         while (!due.isEmpty()) {
             var first = due.pollFirstEntry();
             for (Runnable r : first.getValue()) {
-                try { r.run(); } catch (RuntimeException e) { Brain.LOG.error("Event of {} failed", name(), e); }
+                try { r.run(); } catch (RuntimeException e) { Brain.ERRORS.incrementAndGet(); Brain.LOG.error("Event of {} failed", name(), e); }
             }
         }
         if (finished) return;

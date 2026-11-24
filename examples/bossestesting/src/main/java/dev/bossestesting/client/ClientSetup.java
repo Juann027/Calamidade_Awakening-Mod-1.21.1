@@ -50,6 +50,7 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void tick(ClientTickEvent.Post e) {
         ClientCosmetics.tick();
+        ClientSelfTest.tick();
         var mc = net.minecraft.client.Minecraft.getInstance();
         if (MusicClient.playing()) mc.getMusicManager().stopPlaying();
         if (mc.level == null) MusicClient.stopAll(0);

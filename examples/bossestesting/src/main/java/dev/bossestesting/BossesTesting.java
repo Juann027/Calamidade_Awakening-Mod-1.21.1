@@ -40,11 +40,14 @@ public final class BossesTesting {
         modBus.addListener(Net::register);
         modBus.addListener((net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent e) -> e.enqueueWork(dev.bossestesting.fx.Anchors::define));
         // Calamidade: effects, rig anchors and boss controllers are registered at mod construction (both sides).
+        // RimuLib resolves assets/bossestesting/shaders/fx/*.fsh through this JAR's module.
+        dev.calamidade_awakening.api.v1.Addons.resources(MODID, BossesTesting.class);
         Fx.register();
         BossDefs.register();
         NeoForge.EVENT_BUS.addListener((RegisterCommandsEvent e) -> BtCommands.register(e.getDispatcher()));
         NeoForge.EVENT_BUS.addListener((ServerTickEvent.Post e) -> Encounters.tick(e.getServer()));
         NeoForge.EVENT_BUS.register(Encounters.Events.class);
+        dev.bossestesting.selftest.SelfTest.register();
     }
 
     private static void attributes(EntityAttributeCreationEvent event) {

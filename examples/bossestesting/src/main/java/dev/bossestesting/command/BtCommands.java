@@ -98,38 +98,14 @@ public final class BtCommands {
         ServerLevel level = player.serverLevel();
         Vec3 look = player.getLookAngle().multiply(1, 0, 1).normalize();
         Vec3 spot = player.position().add(look.scale(16));
-        int gx = (int) Math.floor(spot.x), gz = (int) Math.floor(spot.z);
-        int gy = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gx, gz);
-        Vec3 ground = new Vec3(gx + .5, gy, gz + .5);
         float yaw = player.getYRot() + 180;
         if (phase2) {
-            GuilherminoFinale boss = ModEntities.FINALE.get().create(level);
-            if (boss == null) return 0;
-            boss.moveTo(ground.x, ground.y, ground.z, yaw, 0);
-            boss.setYBodyRot(yaw);
-            boss.applyConfiguredHealth(1);
-            level.addFreshEntity(boss);
-            Encounters.create(level, boss, Encounter.Stage.PHASE2);
-            Bosses.attach(boss, BossDefs.PHASE2);
-            boss.phase2().reveal();
+            Spawner.phase2(level, spot, yaw);
             c.getSource().sendSuccess(() -> Component.translatable("command.bossestesting.spawn.phase2"), true);
-            return 1;
+        } else {
+            int height = Spawner.phase1(level, spot, yaw).height();
+            c.getSource().sendSuccess(() -> Component.translatable("command.bossestesting.spawn.phase1", height), true);
         }
-        // Headroom for the descent: up to 44 blocks of air above the landing spot.
-        int clear = 0;
-        while (clear < 44 && level.getBlockState(BlockPos.containing(ground.x, ground.y + clear + 1, ground.z)).getCollisionShape(level, BlockPos.ZERO).isEmpty()
-            && level.isInWorldBounds(BlockPos.containing(ground.x, ground.y + clear + 6, ground.z))) clear++;
-        double height = Math.max(0, Math.min(38, clear - 6));
-        JarGolem boss = ModEntities.JAR_GOLEM.get().create(level);
-        if (boss == null) return 0;
-        boss.moveTo(ground.x, ground.y + height, ground.z, yaw, 0);
-        boss.setYBodyRot(yaw);
-        boss.applyConfiguredHealth();
-        level.addFreshEntity(boss);
-        Encounters.create(level, boss, Encounter.Stage.PHASE1);
-        Bosses.attach(boss, BossDefs.PHASE1);
-        ((Phase1Brain) boss.brain()).land(ground.y);
-        c.getSource().sendSuccess(() -> Component.translatable("command.bossestesting.spawn.phase1", (int) height), true);
         return 1;
     }
 
