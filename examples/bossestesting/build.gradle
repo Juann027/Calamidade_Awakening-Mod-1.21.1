@@ -1,0 +1,85 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+// BossesTesting: addon independente do Calamidade Awakening (chefe El Guilhermino). JAR próprio, mod ID próprio.
+version = '0.1.0'
+base.archivesName = 'bossestesting'
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    // GeckoLib (rigs, animações e glowmasks dos modelos do chefe). Só o addon depende dele; o motor não.
+    maven { url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' }
+}
+
+neoForge {
+    version = providers.gradleProperty('neoforge.version').getOrElse('21.1.267')
+    runs { client { client() } }
+    mods { bossestesting { sourceSet sourceSets.main } }
+}
+
+// Motor e RimuLib vêm da raiz do repositório (rode antes `./gradlew dist` lá). Nenhum dos dois é versionado.
+def engineJar = file('../../dist/calamidade_awakening-0.14.0.jar')
+def rimuLibJar = file('../../libs/rimulib-1.3.0-neoforge.jar')
+tasks.named('compileJava') {
+    doFirst {
+        [engineJar, rimuLibJar].each { jar ->
+            if (!jar.exists()) throw new GradleException("Falta ${jar}. Rode `./gradlew dist` na raiz do repositório.")
+        }
+    }
+}
+dependencies {
+    implementation files(engineJar)
+    implementation files(rimuLibJar)
+    implementation 'software.bernie.geckolib:geckolib-neoforge-1.21.1:4.9.4'
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+// Testes puros do addon (sem framework, como o checkBudget do motor): tempos dos eventos, seleção de ataques,
+// orçamento de destruição e trajetória do míssil.
+sourceSets { test { java { compileClasspath += main.output + main.compileClasspath; runtimeClasspath += main.output + main.runtimeClasspath } } }
+tasks.register('checkBoss', JavaExec) {
+    group = 'verification'
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.bossestesting.BossChecks'
+    jvmArgs '-Dstdout.encoding=UTF-8', '-Dfile.encoding=UTF-8'
+}
+tasks.named('check') { dependsOn 'checkBoss' }
+
+// Compila os shaders fx do addon como a RimuLib os monta (common.glsl + "#line 1 1" + cada '#include "x"' trocado
+// pelo arquivo do mesmo namespace), igual ao checkShaders do motor. Sem glslangValidator no PATH, só avisa.
+tasks.register('checkShaders') {
+    group = 'verification'
+    def fx = file('src/main/resources/assets/bossestesting/shaders/fx')
+    def out = layout.buildDirectory.dir('shader-check').get().asFile
+    def processes = providers
+    inputs.dir(fx)
+    outputs.dir(out)
+    doLast {
+        def validator = System.getenv('PATH').split(File.pathSeparator).collect { new File(it, 'glslangValidator') }.find { it.canExecute() }
+        if (validator == null) { logger.warn('checkShaders: glslangValidator não encontrado; shaders não verificados.'); return }
+        def zip = new java.util.zip.ZipFile(rimuLibJar)
+        def common = zip.getInputStream(zip.getEntry('assets/rimulib/shaders/fx/common.glsl')).getText('UTF-8')
+        zip.close()
+        out.mkdirs()
+        fx.listFiles().findAll { it.name.endsWith('.fsh') }.sort().each { shader ->
+            def body = new StringBuilder()
+            shader.getText('UTF-8').split('\n', -1).eachWithIndex { line, i ->
+                def t = line.trim()
+                if (t.startsWith('#include "') && t.endsWith('"')) {
+                    body.append(new File(fx, t.substring(10, t.length() - 1)).getText('UTF-8')).append('\n#line ').append(i + 2).append(' 1\n')
+                } else body.append(line).append('\n')
+            }
+            def target = new File(out, shader.name + '.frag')
+            target.setText(common + '\n#line 1 1\n' + body, 'UTF-8')
+            def result = processes.exec { commandLine validator.absolutePath, '-S', 'frag', target.absolutePath; ignoreExitValue = true }
+            if (result.result.get().exitValue != 0)
+                throw new GradleException("checkShaders: ${shader.name}:\n" + result.standardOutput.asText.get())
+        }
+        logger.lifecycle("checkShaders: ${fx.listFiles().count { it.name.endsWith('.fsh') }} shaders ok")
+    }
+}
+tasks.named('check') { dependsOn 'checkShaders' }

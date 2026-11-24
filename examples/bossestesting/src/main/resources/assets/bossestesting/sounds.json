@@ -1,0 +1,9 @@
+{
+  "music.guilhermino_phase2": {
+    "category": "music",
+    "subtitle": "subtitles.bossestesting.music",
+    "sounds": [
+      { "name": "bossestesting:music/guilhermino_phase2", "stream": true }
+    ]
+  }
+}

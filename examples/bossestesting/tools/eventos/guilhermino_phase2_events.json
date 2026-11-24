@@ -1,0 +1,522 @@
+{
+  "model": "Guilhermino Bananino - Fase 2 (guilhermino_phase2)",
+  "time_unit": "seconds",
+  "tick_hint": "1 tick = 0.05 s (20 TPS)",
+  "timeline_instruction_format": "guilhermino2:<id>  (custom instruction keyframes in each animation's 'timeline')",
+  "useful_bones": {
+    "reactor_heart": "pivot (0, 45, -4.5) inside chest cavity - origin for reactor beam / glow FX",
+    "heart_nucleus": "pivot (-0.5, 44.7, -7.6) - brightest point of the heart",
+    "missile_rack_r": "tubes at x 20.1/23.1/26.1, z -2.3/1.9, top y 63.1 (+2.8 when raised) - missile spawn points right pod",
+    "missile_rack_l": "mirror of right pod (x -20.1/-23.1/-26.1)",
+    "pod_hatch_r / pod_hatch_l": "rest = closed; opened only in missile_barrage",
+    "wires_l": "torn wires of the broken left forearm - spark FX point",
+    "head": "pilot head; at the end of death it stands alone on the ground",
+    "brow_r / brow_l / jaw": "facial rig (anger)"
+  },
+  "animations": {
+    "animation.guilhermino_phase2.idle": {
+      "length": 4.0,
+      "loop": "loop",
+      "events": [
+        {
+          "time": 0.6,
+          "id": "left_arm_spasm"
+        },
+        {
+          "time": 1.1,
+          "id": "twitch_head"
+        },
+        {
+          "time": 2.6,
+          "id": "servo_snarl"
+        },
+        {
+          "time": 3.0,
+          "id": "left_arm_spasm_2"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.walk": {
+      "length": 2.0,
+      "loop": "loop",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "left_foot_drag_strike"
+        },
+        {
+          "time": 0.62,
+          "id": "left_knee_buckle"
+        },
+        {
+          "time": 1.0,
+          "id": "right_foot_strike"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.groundslam_v2": {
+      "length": 4.2,
+      "loop": "once",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "start"
+        },
+        {
+          "time": 0.55,
+          "id": "adjust_windup"
+        },
+        {
+          "time": 0.75,
+          "id": "adjust_hit_left_arm"
+        },
+        {
+          "time": 0.8,
+          "id": "left_arm_reboot"
+        },
+        {
+          "time": 1.15,
+          "id": "left_arm_online"
+        },
+        {
+          "time": 2.5,
+          "id": "windup_peak"
+        },
+        {
+          "time": 2.65,
+          "id": "strike_start"
+        },
+        {
+          "time": 3.0,
+          "id": "impact"
+        },
+        {
+          "time": 3.45,
+          "id": "fists_lift"
+        },
+        {
+          "time": 4.2,
+          "id": "end"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.overload_v2": {
+      "length": 3.6,
+      "loop": "once",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "start"
+        },
+        {
+          "time": 0.7,
+          "id": "windup_peak"
+        },
+        {
+          "time": 0.9,
+          "id": "punch_reactor"
+        },
+        {
+          "time": 0.92,
+          "id": "reactor_surge"
+        },
+        {
+          "time": 1.1,
+          "id": "tremor_peak"
+        },
+        {
+          "time": 1.25,
+          "id": "fist_withdraw"
+        },
+        {
+          "time": 2.8,
+          "id": "stabilized"
+        },
+        {
+          "time": 3.6,
+          "id": "end"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.missile_barrage": {
+      "length": 5.2,
+      "loop": "once",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "start"
+        },
+        {
+          "time": 0.9,
+          "id": "kneel_impact"
+        },
+        {
+          "time": 1.2,
+          "id": "pods_opening"
+        },
+        {
+          "time": 1.75,
+          "id": "pods_open"
+        },
+        {
+          "time": 1.9,
+          "id": "racks_raised"
+        },
+        {
+          "time": 2.0,
+          "id": "salvo_1_right"
+        },
+        {
+          "time": 2.25,
+          "id": "salvo_2_left"
+        },
+        {
+          "time": 2.5,
+          "id": "salvo_3_right"
+        },
+        {
+          "time": 2.75,
+          "id": "salvo_4_left"
+        },
+        {
+          "time": 3.0,
+          "id": "salvo_5_right"
+        },
+        {
+          "time": 3.25,
+          "id": "salvo_6_left"
+        },
+        {
+          "time": 3.55,
+          "id": "racks_lowering"
+        },
+        {
+          "time": 3.6,
+          "id": "pods_closing"
+        },
+        {
+          "time": 3.95,
+          "id": "pods_closed"
+        },
+        {
+          "time": 4.2,
+          "id": "rise_start"
+        },
+        {
+          "time": 5.2,
+          "id": "end"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.punch_stream": {
+      "length": 2.6,
+      "loop": "once",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "guard_up"
+        },
+        {
+          "time": 0.5,
+          "id": "hit_1"
+        },
+        {
+          "time": 0.82,
+          "id": "hit_2"
+        },
+        {
+          "time": 1.1,
+          "id": "hit_3"
+        },
+        {
+          "time": 1.36,
+          "id": "hit_4"
+        },
+        {
+          "time": 1.78,
+          "id": "hit_5_heavy"
+        },
+        {
+          "time": 2.0,
+          "id": "recovery"
+        },
+        {
+          "time": 2.6,
+          "id": "end"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.exposed_reactor_charge": {
+      "length": 3.0,
+      "loop": "hold_on_last_frame",
+      "chain_to": "animation.guilhermino_phase2.exposed_reactor_fire",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "charge_start"
+        },
+        {
+          "time": 1.0,
+          "id": "chest_exposed"
+        },
+        {
+          "time": 1.3,
+          "id": "surge_1"
+        },
+        {
+          "time": 1.85,
+          "id": "surge_2"
+        },
+        {
+          "time": 2.3,
+          "id": "surge_3"
+        },
+        {
+          "time": 2.7,
+          "id": "full_charge"
+        },
+        {
+          "time": 2.85,
+          "id": "clench"
+        },
+        {
+          "time": 3.0,
+          "id": "ready_to_fire"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.exposed_reactor_fire": {
+      "length": 1.8,
+      "loop": "once",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "aim"
+        },
+        {
+          "time": 0.35,
+          "id": "fire"
+        },
+        {
+          "time": 0.45,
+          "id": "recoil_peak"
+        },
+        {
+          "time": 0.6,
+          "id": "heart_spent"
+        },
+        {
+          "time": 0.78,
+          "id": "left_arm_drops"
+        },
+        {
+          "time": 1.8,
+          "id": "end"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.death": {
+      "length": 4.5,
+      "loop": "hold_on_last_frame",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "malfunction_start"
+        },
+        {
+          "time": 0.6,
+          "id": "heart_flare"
+        },
+        {
+          "time": 0.8,
+          "id": "pod_right_blows"
+        },
+        {
+          "time": 0.95,
+          "id": "pod_left_blows"
+        },
+        {
+          "time": 1.05,
+          "id": "left_arm_falls"
+        },
+        {
+          "time": 1.4,
+          "id": "right_arm_falls"
+        },
+        {
+          "time": 1.7,
+          "id": "legs_buckle"
+        },
+        {
+          "time": 1.9,
+          "id": "torso_breaks_off"
+        },
+        {
+          "time": 2.31,
+          "id": "torso_ground_impact"
+        },
+        {
+          "time": 2.35,
+          "id": "knees_impact"
+        },
+        {
+          "time": 2.55,
+          "id": "head_ejected"
+        },
+        {
+          "time": 3.25,
+          "id": "head_ground_impact"
+        },
+        {
+          "time": 4.2,
+          "id": "pilot_still"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.overloaded_charged_punch": {
+      "length": 3.4,
+      "loop": "once",
+      "phase": "overloaded only",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "charge_start"
+        },
+        {
+          "time": 0.8,
+          "id": "stance_set"
+        },
+        {
+          "time": 1.8,
+          "id": "charge_peak"
+        },
+        {
+          "time": 1.93,
+          "id": "release"
+        },
+        {
+          "time": 2.0,
+          "id": "impact"
+        },
+        {
+          "time": 2.05,
+          "id": "front_foot_plant"
+        },
+        {
+          "time": 2.35,
+          "id": "arm_overload"
+        },
+        {
+          "time": 2.6,
+          "id": "arm_limp"
+        },
+        {
+          "time": 3.4,
+          "id": "end"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.overloaded_shield_charge_start": {
+      "length": 0.8,
+      "loop": "once",
+      "phase": "overloaded only",
+      "chain_to": "animation.guilhermino_phase2.overloaded_shield_charge_loop",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "brace"
+        },
+        {
+          "time": 0.55,
+          "id": "launch"
+        },
+        {
+          "time": 0.8,
+          "id": "chain_to_loop"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.overloaded_shield_charge_loop": {
+      "length": 0.9,
+      "loop": "loop",
+      "phase": "overloaded only",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "left_foot_stomp"
+        },
+        {
+          "time": 0.45,
+          "id": "right_foot_stomp"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.overloaded_shield_charge_impact": {
+      "length": 1.3,
+      "loop": "once",
+      "phase": "overloaded only",
+      "starts_from": "animation.guilhermino_phase2.overloaded_shield_charge_loop frame 0",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "brake"
+        },
+        {
+          "time": 0.1,
+          "id": "shield_bash_impact"
+        },
+        {
+          "time": 0.25,
+          "id": "recoil_peak"
+        },
+        {
+          "time": 0.85,
+          "id": "feet_set"
+        },
+        {
+          "time": 1.3,
+          "id": "end"
+        }
+      ]
+    },
+    "animation.guilhermino_phase2.overloaded_leap_smash": {
+      "length": 3.2,
+      "loop": "once",
+      "phase": "overloaded only",
+      "events": [
+        {
+          "time": 0.0,
+          "id": "crouch"
+        },
+        {
+          "time": 0.6,
+          "id": "launch"
+        },
+        {
+          "time": 1.05,
+          "id": "apex"
+        },
+        {
+          "time": 1.42,
+          "id": "fist_swing"
+        },
+        {
+          "time": 1.5,
+          "id": "land_impact"
+        },
+        {
+          "time": 2.0,
+          "id": "fist_lift"
+        },
+        {
+          "time": 2.6,
+          "id": "rise"
+        },
+        {
+          "time": 3.2,
+          "id": "end"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "model": "jar_golem (Guilhermino Bananino)",
+  "animation_file": "jar_golem.animation.json",
+  "time_unit": "seconds",
+  "tick_hint": "1 tick = 0.05 s (20 TPS)",
+  "notes": [
+    "Every event below is also written into the animation's 'timeline' track as a GeckoLib custom instruction 'guilhermino:<id>;' (listen via setCustomInstructionKeyframeHandler).",
+    "All animations start and end exactly on idle frame 0, except: reactor_charge ends in the charged pose (chain -> reactor_fire), dash_start ends on run frame 0 (chain -> run), dash_end starts on run frame 0, death ends lying on the ground (hold).",
+    "spawn_landing has no timeline instructions; its times are listed here for reference."
+  ],
+  "animations": {
+    "animation.guilhermino.idle": { "length": 4.0, "loop": "loop", "events": [] },
+    "animation.guilhermino.walk": { "length": 1.6, "loop": "loop", "events": [
+      { "time": 0.0, "id": "left_heel_strike" }, { "time": 0.8, "id": "right_heel_strike" } ] },
+    "animation.guilhermino.run": { "length": 0.8, "loop": "loop", "events": [
+      { "time": 0.0, "id": "left_foot_strike" }, { "time": 0.4, "id": "right_foot_strike" } ] },
+    "animation.guilhermino.spawn_landing": { "length": 4.0, "loop": "hold_on_last_frame", "events": [
+      { "time": 0.0, "id": "descent_start" }, { "time": 0.8, "id": "landing_prep" },
+      { "time": 1.5, "id": "impact" }, { "time": 2.4, "id": "rise_start" },
+      { "time": 2.72, "id": "back_foot_lift" }, { "time": 3.36, "id": "back_foot_plant" },
+      { "time": 4.0, "id": "end" } ] },
+
+    "animation.guilhermino.ground_slam": { "length": 3.0, "loop": "once", "events": [
+      { "time": 0.0, "id": "windup_start" }, { "time": 1.7, "id": "windup_peak" },
+      { "time": 1.75, "id": "strike_start" }, { "time": 2.0, "id": "impact" },
+      { "time": 2.35, "id": "fist_lift" }, { "time": 3.0, "id": "end" } ] },
+    "animation.guilhermino.reactor_charge": { "length": 2.5, "loop": "hold_on_last_frame", "chain_to": "animation.guilhermino.reactor_fire", "events": [
+      { "time": 0.0, "id": "charge_start" }, { "time": 0.9, "id": "arms_open" },
+      { "time": 1.2, "id": "surge_1" }, { "time": 1.7, "id": "surge_2" }, { "time": 2.05, "id": "surge_3" },
+      { "time": 2.3, "id": "full_charge" }, { "time": 2.4, "id": "clench" }, { "time": 2.5, "id": "ready_to_fire" } ] },
+    "animation.guilhermino.reactor_fire": { "length": 1.5, "loop": "once", "events": [
+      { "time": 0.0, "id": "aim" }, { "time": 0.3, "id": "fire" },
+      { "time": 0.4, "id": "recoil_peak" }, { "time": 0.75, "id": "stabilized" }, { "time": 1.5, "id": "end" } ] },
+    "animation.guilhermino.punch_right": { "length": 1.2, "loop": "once", "events": [
+      { "time": 0.0, "id": "windup_start" }, { "time": 0.36, "id": "launch" },
+      { "time": 0.45, "id": "hit" }, { "time": 0.6, "id": "recovery" }, { "time": 1.2, "id": "end" } ] },
+    "animation.guilhermino.punch_left": { "length": 1.2, "loop": "once", "events": [
+      { "time": 0.0, "id": "crouch_start" }, { "time": 0.42, "id": "launch" },
+      { "time": 0.5, "id": "hit" }, { "time": 0.62, "id": "recovery" }, { "time": 1.2, "id": "end" } ] },
+    "animation.guilhermino.dash_start": { "length": 0.8, "loop": "once", "chain_to": "animation.guilhermino.run", "events": [
+      { "time": 0.0, "id": "load_start" }, { "time": 0.45, "id": "coiled" },
+      { "time": 0.62, "id": "launch" }, { "time": 0.8, "id": "chain_to_run" } ] },
+    "animation.guilhermino.dash_end": { "length": 1.0, "loop": "once", "events": [
+      { "time": 0.0, "id": "brake_contact" }, { "time": 0.15, "id": "peak_decel" },
+      { "time": 0.55, "id": "step_left" }, { "time": 0.66, "id": "step_right" },
+      { "time": 0.88, "id": "feet_set" }, { "time": 1.0, "id": "end" } ] },
+
+    "animation.guilhermino.stagger": { "length": 2.0, "loop": "once", "events": [
+      { "time": 0.0, "id": "hit_received" }, { "time": 0.2, "id": "catch_step_lift" },
+      { "time": 0.5, "id": "catch_step_plant" }, { "time": 1.0, "id": "regain_control" },
+      { "time": 1.6, "id": "recover_step_plant" }, { "time": 2.0, "id": "end" } ] },
+    "animation.guilhermino.phase_transition": { "length": 5.0, "loop": "once", "events": [
+      { "time": 0.0, "id": "start" }, { "time": 0.15, "id": "glitch_onset" },
+      { "time": 1.5, "id": "max_malfunction" }, { "time": 2.3, "id": "pilot_regains_control" },
+      { "time": 3.1, "id": "roar_peak" }, { "time": 3.75, "id": "aggressive_stance" },
+      { "time": 4.3, "id": "return_to_idle" }, { "time": 5.0, "id": "end" } ] },
+    "animation.guilhermino.overload": { "length": 7.0, "loop": "once", "events": [
+      { "time": 0.0, "id": "overload_start" }, { "time": 0.08, "id": "reactor_surge" },
+      { "time": 0.75, "id": "legs_give" }, { "time": 1.3, "id": "knee_and_fists_impact" },
+      { "time": 1.6, "id": "pulse_1" }, { "time": 2.0, "id": "pulse_2" }, { "time": 2.35, "id": "pulse_3" },
+      { "time": 2.65, "id": "pulse_4" }, { "time": 2.9, "id": "pulse_5" }, { "time": 3.1, "id": "pulse_6" },
+      { "time": 3.28, "id": "pulse_7" }, { "time": 3.42, "id": "pulse_8_peak" },
+      { "time": 3.6, "id": "pause_start" }, { "time": 4.2, "id": "pilot_regains" },
+      { "time": 4.6, "id": "rise_anticipation" }, { "time": 4.85, "id": "launch" },
+      { "time": 5.05, "id": "stand_impact" }, { "time": 5.6, "id": "arms_open_threat" },
+      { "time": 6.2, "id": "threat_release" }, { "time": 7.0, "id": "end" } ] },
+    "animation.guilhermino.death": { "length": 6.0, "loop": "hold_on_last_frame", "events": [
+      { "time": 0.0, "id": "start" }, { "time": 0.4, "id": "right_arm_power_loss" },
+      { "time": 0.8, "id": "irregular_jerks_start" }, { "time": 1.6, "id": "legs_buckle" },
+      { "time": 2.4, "id": "recovery_attempt" }, { "time": 3.05, "id": "collapse" },
+      { "time": 3.6, "id": "knee_impact" }, { "time": 3.65, "id": "left_fist_brace" },
+      { "time": 4.0, "id": "topple_start" }, { "time": 4.7, "id": "ground_impact" },
+      { "time": 5.2, "id": "last_twitch" }, { "time": 5.4, "id": "pilot_slumps" },
+      { "time": 5.6, "id": "motionless" } ] }
+  }
+}
