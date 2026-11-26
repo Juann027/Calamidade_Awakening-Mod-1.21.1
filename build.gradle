@@ -124,8 +124,15 @@ neoForge {
             sourceSet = sourceSets.testeJogo
             gameDirectory = layout.projectDirectory.dir('run/teste-luz').asFile
             systemProperty 'calamidade.teste', 'luz'
+            // Benchmark rigoroso (GPU real): -Pluz.modo=bench [-Pluz.reps=5 -Pluz.aquecer=8 -Pluz.trocar=3 -Pluz.amostra=15
+            // -Pluz.largura=1920 -Pluz.altura=1080]. Sem -Pluz.modo: o roteiro funcional + capturas + medida curta.
+            systemProperty 'calamidade.luz.modo', providers.gradleProperty('luz.modo').getOrElse('completo')
+            ['reps', 'aquecer', 'trocar', 'amostra'].each { k ->
+                systemProperty "calamidade.luz.${k}", providers.gradleProperty("luz.${k}").getOrElse('')
+            }
             programArgument '--quickPlaySingleplayer'; programArgument 'teste'
-            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            programArgument '--width'; programArgument providers.gradleProperty('luz.largura').getOrElse('1280')
+            programArgument '--height'; programArgument providers.gradleProperty('luz.altura').getOrElse('720')
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
         }
         // 0.15.0: regressão de efeitos órfãos (eclipse do Sentinela, reabrir o mundo, kill, respawn), com o vfx-sample.
@@ -938,7 +945,7 @@ tasks.register('testeLuz') {
         def lines = report.readLines('UTF-8')
         def failed = lines.findAll { it.startsWith('FAIL') }
         if (!lines.contains('FIM luz')) failed << "FAIL roteiro incompleto (falta 'FIM luz')"
-        lines.findAll { it.startsWith('MEDIDA') }.each { logger.lifecycle(it) }
+        lines.findAll { it.startsWith('MEDIDA') || it.startsWith('RESUMO') }.each { logger.lifecycle(it) }
         logger.lifecycle("testeLuz: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeLuz:\n' + failed.join('\n'))
     }

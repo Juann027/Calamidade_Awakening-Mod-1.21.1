@@ -240,3 +240,54 @@ Servidor **dedicado** com motor 0.13.0 e vfx-sample 1.10.0, dois clientes (A e B
 ## Registro dos resultados
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
+
+## Parte 11 — benchmark da Light Engine (0.15.0, RTX 4060)
+
+O benchmark automatizado da 0.15 rodou só em llvmpipe (software). Esta parte mede na GPU real, com a metodologia
+corrigida na auditoria (veja [VALIDACAO.md](VALIDACAO.md#auditoria-da-metodologia-do-benchmark)).
+
+**Preparar (uma vez):** `./gradlew testeJogo` (cria o mundo de teste), `./gradlew dist`, `./gradlew -p examples/vfx-sample build`.
+
+**Máquina:** plano de energia "Alto desempenho", driver NVIDIA atual, modo de gerenciamento de energia da GPU em
+"Preferir desempenho máximo" para o `javaw.exe`, nada mais aberto (navegador, gravador, overlay do Discord/Steam/GeForce
+desligados), notebook na tomada. Não mexa no mouse nem troque de janela durante a medida.
+
+**Rodar** (na raiz do repositório; no PowerShell use `.\gradlew.bat` no lugar de `./gradlew`; abre o jogo, mede sozinho e fecha):
+
+```bash
+./gradlew testeLuz -Pluz.modo=bench -Pluz.reps=5 -Pluz.aquecer=8 -Pluz.trocar=3 -Pluz.amostra=15 -Pluz.largura=1920 -Pluz.altura=1080
+```
+
+Duração: ~7 cenários × (8 s de aquecimento global + 5 × (8 + 3 × 18,5 s)) ≈ 40 min. Para uma passada rápida de
+conferência: `-Pluz.reps=2 -Pluz.amostra=8`.
+
+**O que o roteiro faz:**
+
+- `vsync` desligado e `maxFps` 260 (`options.txt` do `prepararTesteLuz`); GUI e F3 escondidos; noite; mesma posição e câmera.
+- **Aquecimento global:** cada cenário roda uma vez em HIGH sem medir (JIT do Java, compilação dos shaders pelo
+  driver, carga do atlas de cookies, chunks).
+- **Mesma carga nos três perfis:** o cenário é montado uma vez por repetição e medido em LOW, BALANCED e HIGH sem ser
+  desmontado; o que muda entre perfis é só o teto aplicado.
+- **Ordem intercalada:** a ordem dos perfis gira a cada repetição (LOW-BAL-HIGH, BAL-HIGH-LOW, HIGH-LOW-BAL, ...) e a
+  ordem dos cenários é sorteada por repetição (semente fixa, reproduzível).
+- **Aquecimento** depois de montar (8 s) e depois de cada troca de perfil (3 s), `System.gc()` fora da janela.
+- **Amostra de 15 s** gravada quadro a quadro: tempo do quadro inteiro (de um `RenderFrameEvent.Pre` ao seguinte) e a
+  carga real de cada quadro (efeitos desenhados, luzes, passes, cookies amostrados, fallbacks).
+
+**Ler o resultado** (`run/teste-luz/calamidade-luz.txt`):
+
+- `JANELA`: uma linha por repetição, perfil e cenário: quadros, mediana, p95, p99, média e a **faixa min–max da carga**
+  na janela. Faixa larga em luzes ou cookies = carga instável (efeito nascendo ou sumindo): a janela não vale.
+- `RESUMO`: mediana das medianas, IQR das medianas (dispersão entre repetições), mediana dos p95 e p95/p99 de todos os
+  quadros juntos. Compare perfis e versões pela **mediana das medianas**; trate como empate toda diferença menor que o IQR.
+- Expectativa de sanidade: em `vazio` e `cookie_1` (carga igual nos três perfis) os perfis precisam empatar; em
+  `convencionais_24` e `cookie_estresse_32` o custo cresce LOW → BALANCED → HIGH (mais luzes e mais cookies amostrados).
+  Se não, a medição está contaminada (térmica, outra janela, vsync).
+- Linha de base 0.14.0: o mesmo arquivo `RoteiroLuz.java` roda numa cópia do commit `68fa976`
+  (`git worktree add ../base014 68fa976`, copie `libs/rimulib-1.3.0-neoforge.jar`, `run/teste-jogo/world`, o
+  `vfx-sample-1.11.0.jar` em `examples/vfx-sample/build/libs/`, o `RoteiroLuz.java` e os blocos `testeLuz` do
+  `build.gradle`); os cenários de cookie são pulados. Alterne as versões (0.14, 0.15, 0.14, 0.15) em vez de rodar uma
+  versão inteira e depois a outra.
+
+**Limite:** o tempo medido é o do quadro inteiro na CPU (o jogo espera a GPU no `swap`), não o tempo do passe de luzes
+na GPU; para isolar o passe, compare um cenário com e sem as luzes. Envie o arquivo `calamidade-luz.txt` inteiro.

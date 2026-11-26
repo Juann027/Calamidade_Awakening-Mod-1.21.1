@@ -48,6 +48,65 @@ Os Δ têm sinais misturados e ficam dentro da dispersão entre rodadas da mesma
 
 p95 e o resto das colunas (luzes, passes, KB alocados, pedidas, descartadas, cookies, fallback, MB do atlas) estão nas linhas `MEDIDA` de `run/teste-luz/calamidade-luz.txt`. Leitura: **uma luz com cookie custa o mesmo que uma convencional** no ruído do llvmpipe (o custo dominante é existir o passe); o estresse com 32 luzes por pixel é o pior caso de software e mostra por que o teto por perfil existe (LOW corta em 8 luzes e 2 cookies, sem passe extra). Memória do atlas: 21,3 MB fixos enquanto houver cookie em uso; uploads: 1 por imagem (22 ao fim do roteiro inteiro, com uma recarga de recursos no meio).
 
+### Auditoria da metodologia do benchmark
+
+Pergunta: por que BALANCED sai mais pesado que HIGH em vários cenários, e LOW às vezes mais pesado que os dois? Resposta:
+**a metodologia da rodada completa não separava o perfil do ruído**; nenhum problema do motor foi encontrado, por isso o
+motor não mudou.
+
+**1. Limites aplicados (conferidos no código).** `FrameCoordinator.limits()` → `QualityProfile.limits(ClientConfig.caps)`;
+o `prepararTesteLuz` apaga `config/`, então valem os padrões: LOW 3 efeitos desenhados / 8 luzes / 2 cookies, BALANCED
+8 / 32 / 8, HIGH 16 / 64 / 16 (cookies = `CookieAtlas.textured(luzes)`). O perfil também muda o `tier` que os shaders de
+addon leem (passos de raymarch do cubo e da teia), então em `mistura_*` o perfil muda mais que as luzes.
+
+**2. Carga real por cenário.** Vários cenários têm **a mesma carga nos três perfis**, e mesmo assim variam tanto quanto os
+perfis entre si — o piso de ruído:
+
+| Cenário (0.15, rodada completa) | Carga em LOW / BAL / HIGH | ms LOW / BAL / HIGH |
+|---|---|---|
+| vazio | sem passe nos três | 25,2 / 24,2 / 24,5 |
+| cookie_1 | 1 luz, 1 cookie nos três | 56,3 / 58,9 / 49,6 (±9% com carga igual) |
+| mistura_com_cookies | 2 luzes, 2 cookies nos três | 63,0 / 56,5 / 51,0 (cai na ordem de execução) |
+| convencionais_8 | 3 / 8 / 8 luzes | 55,8 / 64,0 / 64,5 (BAL = HIGH, coerente) |
+| cookie_estresse_32 | 8 luzes·2 cookies / 32·8+8 fallback / 32·16 | 67,3 / 127,5 / 106,9 |
+| chefe_furia | 0 / 1 / 1 luz | 79,6 / 75,5 / 69,6 (luta não determinística) |
+
+A rodada 0.14.0 mostra o mesmo padrão sem nenhum código novo (BALANCED `convencionais_8` 58,2 contra HIGH 53,9 com as
+mesmas 8 luzes; BALANCED `vazio` 21,8 contra HIGH 22,3).
+
+**3. Fallback.** Não explica o BALANCED mais caro no estresse: no shader, uma luz em fallback percorre o caminho estendido
+**sem** `textureGrad` (mais barato que a amostrada); na CPU, só a mesma consulta de mapa da amostrada. BALANCED tinha 8
+amostradas + 8 fallback, HIGH 16 amostradas, com as mesmas 32 luzes: o esperado era BALANCED ≤ HIGH. A diferença é ruído
+(40 quadros na janela, p95 tirado de 2 quadros).
+
+**4. Defeitos da metodologia antiga** (`RoteiroLuz.benchmark`):
+
+- **Ordem fixa** LOW → BALANCED → HIGH, cenários sempre na mesma ordem: o LOW recebe o JIT ainda frio, a fila de
+  compilação de shaders do driver e os chunks ainda assentando. Na rodada completa da 0.15, a parte funcional antes do
+  benchmark inclui `reloadResourcePacks()`, que recompila shaders e solta o atlas: o primeiro perfil medido paga isso.
+- **Aquecimento curto:** 2,5 s depois de montar o cenário e 10 ticks depois de trocar de perfil; as fogueiras (200
+  ticks, com envelope) e as demos (1 s de entrada) ainda estavam acendendo, e o bench recria instâncias que acabam
+  **durante** a janela (a carga oscila).
+- **Amostra curta e única:** 5 s, uma janela por perfil (40 a 100 quadros em llvmpipe); p95 de 2 a 5 quadros, sem
+  repetição, sem medida de dispersão.
+- **Carga lida uma vez:** luzes, passes, cookies e fallback eram lidos **no último quadro** depois da janela, não ao
+  longo dela.
+- **Cenário não reproduzível:** `chefe_furia` cria um chefe novo por perfil e mede uma luta (disparos a cada 60 ticks
+  em momentos diferentes).
+- **Montagem por perfil:** cada perfil montava e desmontava o cenário, então a carga não era idêntica entre perfis.
+- **Ambiente:** llvmpipe roda o shader na CPU, nos mesmos núcleos do servidor integrado (bench, IA, ticks), do GC e do
+  Xvfb; o custo de um passe de tela cheia escala com pixels × luzes de um jeito que não representa uma GPU. O A/B
+  intercalado 0.14 × 0.15 (acima) continua válido para "sem regressão" no mesmo ambiente, porque alterna as versões;
+  ele **não** serve para comparar perfis.
+
+**5. Metodologia nova** (`-Pluz.modo=bench`, só no roteiro de teste): aquecimento global de todos os cenários; cenário
+montado uma vez e medido nos três perfis sobre a mesma carga; ordem dos perfis girada a cada repetição e ordem dos
+cenários sorteada (semente fixa); aquecimento de 8 s depois de montar e 3 s depois de trocar de perfil; `System.gc()`
+fora da janela; amostra de 15 s gravada quadro a quadro com a carga de cada quadro (faixa min–max por janela); 5
+repetições; resumo com mediana das medianas, IQR, mediana dos p95 e p95/p99 de todos os quadros; cenário de chefe fora.
+Procedimento para a RTX 4060: [TESTE-REAL.md, Parte 11](TESTE-REAL.md#parte-11--benchmark-da-light-engine-0150-rtx-4060).
+A rodada curta de validação em llvmpipe (abaixo) só confere que o roteiro funciona; os números dela não são medida.
+
 ### Não medido
 
 Tempo isolado do passe de luzes (sem consulta de tempo da GPU na RimuLib; a diferença entre cenários serve de estimativa), GPU física, dois jogadores reais, shaderpacks, Sodium/Embeddium, o addon BossesTesting (não está neste repositório: os testes usam o Sentinela do vfx-sample e o chefe do mod de teste).

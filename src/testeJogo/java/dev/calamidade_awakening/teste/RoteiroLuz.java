@@ -85,6 +85,12 @@ final class RoteiroLuz implements Runnable {
                 .map(c -> c.getModInfo().getVersion().toString()).orElse("?"), true);
             render = noCliente(Thread::currentThread);
             preparar();
+            if ("bench".equals(System.getProperty("calamidade.luz.modo"))) {
+                // Metodologia de benchmark (0.15 auditoria): sem funcional nem capturas; veja benchmarkRigoroso().
+                benchmarkRigoroso();
+                escrever("FIM luz", true);
+                return;
+            }
             if (Files.exists(Path.of("rapido.txt"))) {
                 // A/B rápido: só cenários comuns às duas versões, BALANCED e HIGH (sem funcional nem capturas).
                 rapido = true;
@@ -206,6 +212,155 @@ final class RoteiroLuz implements Runnable {
     // ------------------------------------------------------------------------------------------------ benchmark
 
     record Cenario(String nome, List<String> comandos, boolean novo) {}
+
+    // ------------------------------------------------------------------------------------------------ benchmark rigoroso
+
+    /**
+     * Um quadro gravado: tempo (ms, de um RenderFrameEvent.Pre ao seguinte, tempo de parede do quadro inteiro) e a carga
+     * real daquele quadro: efeitos desenhados, luzes desenhadas, passes, cookies amostrados e fallbacks.
+     */
+    record Quadro(double ms, int efeitos, int luzes, int passes, int cookies, int fallback) {}
+
+    private static final List<Quadro> GRAVANDO = java.util.Collections.synchronizedList(new ArrayList<>());
+    private static volatile boolean gravar;
+    private static long ultimoQuadro;
+    private static java.lang.reflect.Field fEfeitos, fLuzes, fPasses;
+    private static java.lang.reflect.Method mDetalhe;
+
+    /** Ouvinte por quadro (registrado só no modo bench): grava tempo e carga do quadro anterior. */
+    static void ouvirQuadros() {
+        try {
+            fEfeitos = PerfOverlay.class.getDeclaredField("lastEffects");
+            fLuzes = PerfOverlay.class.getDeclaredField("lastLights");
+            fPasses = PerfOverlay.class.getDeclaredField("lastPasses");
+            for (var f : new java.lang.reflect.Field[] {fEfeitos, fLuzes, fPasses}) f.setAccessible(true);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+        try { mDetalhe = PerfOverlay.class.getMethod("lightDetail"); } catch (NoSuchMethodException e) { mDetalhe = null; }
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.RenderFrameEvent.Pre e) -> {
+            long agora = System.nanoTime();
+            if (gravar && ultimoQuadro != 0) {
+                try {
+                    // Os campos "last" do PerfOverlay mudam uma vez por quadro, no início dele; conforme a ordem dos
+                    // ouvintes, a carga lida é a do quadro medido ou a do anterior (defasagem de 1 quadro, irrelevante
+                    // com carga estável; a faixa min-max da janela mostra se ela não foi estável).
+                    int[] d = mDetalhe == null ? new int[10] : (int[]) mDetalhe.invoke(null);
+                    GRAVANDO.add(new Quadro((agora - ultimoQuadro) / 1e6, fEfeitos.getInt(null), fLuzes.getInt(null),
+                        fPasses.getInt(null), d[3], d[4]));
+                } catch (ReflectiveOperationException ex) {
+                    throw new IllegalStateException(ex);
+                }
+            }
+            ultimoQuadro = agora;
+        });
+    }
+
+    private static int prop(String nome, int padrao) {
+        try { return Integer.parseInt(System.getProperty(nome, "" + padrao)); } catch (NumberFormatException e) { return padrao; }
+    }
+
+    /**
+     * Benchmark para GPU real (e também roda em llvmpipe): cada cenário é montado uma vez por repetição e medido nos
+     * três perfis sobre a MESMA carga, em ordem girada a cada repetição (LOW-BAL-HIGH, BAL-HIGH-LOW, HIGH-LOW-BAL...);
+     * a ordem dos cenários é sorteada por repetição (semente fixa). Aquecimento global (todos os cenários, sem medir),
+     * aquecimento depois de montar o cenário e depois de cada troca de perfil, amostra longa, tempo e carga gravados
+     * quadro a quadro. Saída: linhas JANELA (por repetição) e RESUMO (mediana das medianas, IQR, p95 e p99 de todos os
+     * quadros, e a carga mínima e máxima vista). Parâmetros: -Dcalamidade.luz.reps (5), .aquecer (8 s), .trocar (3 s),
+     * .amostra (15 s).
+     */
+    private void benchmarkRigoroso() throws Exception {
+        ouvirQuadros();
+        int reps = prop("calamidade.luz.reps", 5), aquecer = prop("calamidade.luz.aquecer", 8),
+            trocar = prop("calamidade.luz.trocar", 3), amostra = prop("calamidade.luz.amostra", 15);
+        List<Cenario> cenarios = new ArrayList<>(List.of(
+            new Cenario("vazio", List.of(), false),
+            new Cenario("convencionais_8", List.of("calamidade bench 8 vfxsample:receita_fogueira"), false),
+            new Cenario("convencionais_24", List.of("calamidade bench 24 vfxsample:receita_fogueira"), false),
+            new Cenario("mistura_luz_feixe_shader", List.of("calamidade bench 4 vfxsample:receita_pilar",
+                "calamidade bench 4 vfxsample:receita_teia", "calamidade bench 2 vfxsample:receita_cubo",
+                "calamidade bench 4 vfxsample:receita_fogueira"), false),
+            new Cenario("cookie_1", List.of("calamidade bench 1 vfxsample:luz_runas"), true),
+            new Cenario("cookie_8_estaveis", List.of("calamidade bench 1 vfxsample:luz_estresse"), true),
+            new Cenario("cookie_estresse_32", List.of("calamidade bench 4 vfxsample:luz_estresse"), true)));
+        cenarios.removeIf(c -> c.novo() && !v015);
+        QualityMode[] perfis = {QualityMode.LOW, QualityMode.BALANCED, QualityMode.HIGH};
+        escrever(String.format(Locale.ROOT, "# bench: %d repetições, aquecer %d s, trocar %d s, amostra %d s, %s", reps, aquecer,
+            trocar, amostra, System.getProperty("java.vm.name") + " " + Runtime.version()), true);
+        escrever("# JANELA versão;rep;perfil;cenário;quadros;mediana ms;p95 ms;p99 ms;média ms;efeitos min-max;luzes min-max;passes min-max;cookies min-max;fallback min-max", true);
+        // Aquecimento global: JIT, shaders, atlas e chunks; nada é medido.
+        perfil(QualityMode.HIGH);
+        for (Cenario c : cenarios) {
+            montar(c);
+            Thread.sleep(aquecer * 1000L);
+            desmontar();
+        }
+        java.util.Map<String, List<double[]>> porChave = new java.util.LinkedHashMap<>();
+        java.util.Map<String, List<Double>> todos = new java.util.LinkedHashMap<>();
+        for (int r = 0; r < reps; r++) {
+            List<Cenario> ordem = new ArrayList<>(cenarios);
+            java.util.Collections.shuffle(ordem, new java.util.Random(1000 + r));
+            for (Cenario c : ordem) {
+                montar(c);
+                Thread.sleep(aquecer * 1000L);
+                for (int k = 0; k < perfis.length; k++) {
+                    QualityMode modo = perfis[(k + r) % perfis.length];
+                    perfil(modo);
+                    Thread.sleep(trocar * 1000L);
+                    System.gc();   // coleta fora da janela, não dentro dela
+                    Thread.sleep(500);
+                    GRAVANDO.clear();
+                    gravar = true;
+                    Thread.sleep(amostra * 1000L);
+                    gravar = false;
+                    List<Quadro> q;
+                    synchronized (GRAVANDO) { q = new ArrayList<>(GRAVANDO); }
+                    double[] t = q.stream().mapToDouble(Quadro::ms).sorted().toArray();
+                    String chave = modo.name() + ";" + c.nome();
+                    porChave.computeIfAbsent(chave, x -> new ArrayList<>()).add(new double[] {pct(t, .5), pct(t, .95)});
+                    var lista = todos.computeIfAbsent(chave, x -> new ArrayList<>());
+                    for (double v : t) lista.add(v);
+                    escrever(String.format(Locale.ROOT, "JANELA %s;%d;%s;%s;%d;%.2f;%.2f;%.2f;%.2f;%s;%s;%s;%s;%s", v015 ? "0.15.0" : "0.14.0", r,
+                        modo.name(), c.nome(), t.length, pct(t, .5), pct(t, .95), pct(t, .99), java.util.Arrays.stream(t).average().orElse(0),
+                        faixa(q, Quadro::efeitos), faixa(q, Quadro::luzes), faixa(q, Quadro::passes), faixa(q, Quadro::cookies),
+                        faixa(q, Quadro::fallback)), true);
+                }
+                desmontar();
+            }
+        }
+        escrever("# RESUMO versão;perfil;cenário;mediana das medianas ms;IQR das medianas ms;mediana p95 ms;p95 de todos os quadros ms;p99 de todos ms;quadros", true);
+        for (var e : porChave.entrySet()) {
+            double[] med = e.getValue().stream().mapToDouble(x -> x[0]).sorted().toArray();
+            double[] p95 = e.getValue().stream().mapToDouble(x -> x[1]).sorted().toArray();
+            double[] all = todos.get(e.getKey()).stream().mapToDouble(Double::doubleValue).sorted().toArray();
+            escrever(String.format(Locale.ROOT, "RESUMO %s;%s;%.2f;%.2f;%.2f;%.2f;%.2f;%d", v015 ? "0.15.0" : "0.14.0", e.getKey(),
+                pct(med, .5), pct(med, .75) - pct(med, .25), pct(p95, .5), pct(all, .95), pct(all, .99), all.length), true);
+        }
+        perfil(QualityMode.AUTO);
+    }
+
+    private void montar(Cenario c) throws Exception {
+        noServidor(() -> jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, 25));
+        ticks(5);
+        for (String linha : c.comandos()) comando(linha);
+    }
+
+    private void desmontar() throws Exception {
+        comando("calamidade bench stop");
+        ticks(20);
+    }
+
+    private static double pct(double[] ordenado, double p) {
+        if (ordenado.length == 0) return 0;
+        double i = p * (ordenado.length - 1);
+        int a = (int) Math.floor(i), b = (int) Math.ceil(i);
+        return ordenado[a] + (ordenado[b] - ordenado[a]) * (i - a);
+    }
+
+    private static String faixa(List<Quadro> q, java.util.function.ToIntFunction<Quadro> f) {
+        int min = q.stream().mapToInt(f).min().orElse(0), max = q.stream().mapToInt(f).max().orElse(0);
+        return min == max ? "" + min : min + "-" + max;
+    }
 
     private void benchmark() throws Exception {
         List<Cenario> cenarios = new ArrayList<>(List.of(
