@@ -289,5 +289,18 @@ conferência: `-Pluz.reps=2 -Pluz.amostra=8`.
   `build.gradle`); os cenários de cookie são pulados. Alterne as versões (0.14, 0.15, 0.14, 0.15) em vez de rodar uma
   versão inteira e depois a outra.
 
+**Fase 2 (EMISSIVE, OVERRIDE, nitidez, alta resolução):** o benchmark já inclui `modos_add_emissive_override` (os
+mesmos 3 projetores, só o modo muda), `override_5`, `alta_resolucao_3` (512 + 2048; 1024 no BALANCED) e
+`sobrepostas_5_modos`. Para só a fase 2 e o caminho convencional (~15 min com 5 repetições):
+
+```bash
+./gradlew testeLuz -Pluz.modo=bench -Pluz.reps=5 -Pluz.largura=1920 -Pluz.altura=1080 -Pluz.cenarios=vazio,convencionais_8,cookie_1,modos_add_emissive_override,override_5,alta_resolucao_3,sobrepostas_5_modos
+```
+
+Verificação funcional e capturas da fase 2 na GPU real (~8 min): `./gradlew testeLuz -Pluz.modo=fase2 -Pluz.largura=1920
+-Pluz.altura=1080`; as capturas `f2_*` em `run/teste-luz/screenshots/` mostram cada modo de dia e de noite. Nitidez em
+movimento não sai numa captura: depois, em `runClient`, rode `/vfxsample luz filtros` e `/vfxsample luz resolucoes`,
+ande e gire a câmera e confira que `SHARP` não cintila e que a mandala em ULTRA não tem moiré parado.
+
 **Limite:** o tempo medido é o do quadro inteiro na CPU (o jogo espera a GPU no `swap`), não o tempo do passe de luzes
 na GPU; para isolar o passe, compare um cenário com e sem as luzes. Envie o arquivo `calamidade-luz.txt` inteiro.

@@ -256,7 +256,7 @@ final class RoteiroLuz implements Runnable {
         // Capturas: noite e dia.
         String[][] noite = {{"modos", "0"}, {"neon", "0"}, {"filtros", "0"}, {"resolucoes", "0"}, {"transicao", "0"},
             {"superficies", "0"}, {"sobrepostas", "0"}, {"ataque", "0"}};
-        for (String[] demo : noite) demo(demo[0], "f2_" + demo[0] + "_noite", 18000, demo[0].equals("filtros") || demo[0].equals("resolucoes"));
+        for (String[] demo : noite) demo(demo[0], "f2_" + demo[0] + "_noite", 18000, demo[0].equals("resolucoes"));
         String[] dia = {"modos", "forcas", "dia", "ataque", "sobrepostas"};
         for (String demo : dia) demo(demo, "f2_" + demo + "_dia", 6000, false);
         noServidor(() -> overworld().setDayTime(18000));
@@ -273,14 +273,19 @@ final class RoteiroLuz implements Runnable {
         });
         ticks(5);
         comando("vfxsample luz " + nome);
-        if (perto) noServidor(() -> jogador().teleportTo(overworld(), X + .5, 5, Z + 3.5, 0, 62));
+        // Vista de cima, para os dois lados da comparação caberem e o detalhe aparecer.
+        if (perto) noServidor(() -> jogador().teleportTo(overworld(), X + .5, 10, Z + 7.5, 0, 89));
         ticks(nome.equals("resolucoes") ? 160 : 60);
         captura(captura);
         int[] d = detalhe();
         check("fase 2 demo " + nome + (hora == 6000 ? " (dia)" : " (noite)") + ": desenhada, sem cookie com falha",
             campo("lastLights") > 0 && d[8] == 0, Arrays.toString(d));
         comando("vfxsample luz parar");
-        if (nome.equals("superficies")) comando("fill ~-8 ~ ~-8 ~8 ~6 ~16 air replace minecraft:stone_bricks");
+        if (nome.equals("superficies")) {
+            for (String b : new String[] {"stone_bricks", "stone_brick_stairs", "moss_block"})
+                comando("fill ~-8 ~ ~-8 ~8 ~6 ~16 air replace minecraft:" + b);
+            comando("kill @e[type=minecraft:armor_stand]");
+        }
         ticks(10);
     }
 

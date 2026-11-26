@@ -270,15 +270,15 @@ public final class LaboratorioLuz {
         .color(0xffffffff).intensity(.6f).radius(9).attenuation(Light.Attenuation.CONSTANT).softness(.3f).blend(Light.Blend.SUBTRACT)
         .track(Light.Param.COOKIE_V, "rolar").track(Light.Param.WEIGHT, "entrada").build();
 
-    // 20. Retícula de ataque extremamente legível: OVERRIDE total vermelho (contraste 4, nítida) + núcleo EMISSIVE pulsando.
+    // 20. Retícula de ataque extremamente legível: OVERRIDE total vermelho (contraste 4, nítida) + EMISSIVE fraco (sem estourar).
     static final Demo ATAQUE_DEMO = demo("ataque", "retícula de ataque legível (OVERRIDE total + EMISSIVE)");
     static final Light ATAQUE_BASE = Light.projector(Point.center(0, 7, 0), 7, 7).cookie(Light.Cookie.of(ATAQUE).sharpness(1))
         .color(0xffff1020).intensity(1.1f).radius(10).attenuation(Light.Attenuation.CONSTANT).softness(.01f).contrast(4)
         .blend(Light.Blend.OVERRIDE).track(Light.Param.ROLL, "giro").track(Light.Param.WEIGHT, "entrada").build();
     static final Light ATAQUE_BRILHO = Light.projector(Point.center(0, 7, 0), 7, 7).cookie(Light.Cookie.of(ATAQUE).sharpness(1))
-        .color(0xffff6040).intensity(2).radius(10).attenuation(Light.Attenuation.CONSTANT).softness(.01f).contrast(4)
-        .blend(Light.Blend.EMISSIVE).track(Light.Param.ROLL, "giro").track(Light.Param.INTENSITY, "pulso")
-        .track(Light.Param.WEIGHT, "entrada").build();
+        .color(0xffff3020).intensity(.35f).radius(10).attenuation(Light.Attenuation.CONSTANT).softness(.01f).contrast(4)
+        .blend(Light.Blend.EMISSIVE).track(Light.Param.ROLL, "giro").track(Light.Param.WEIGHT, "entrada")
+        .build();
 
     private static List<Light> estresse() {
         List<Light> out = new ArrayList<>();
