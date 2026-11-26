@@ -43,6 +43,7 @@ final class RoteiroLuz implements Runnable {
     private final boolean v015 = existe("dev.calamidade_awakening.api.CookieAtlas");
     private int passou, falhou;
     private Thread render;
+    private boolean rapido;
 
     static void registrar() {
         // A dimensão do vfx-sample (datapack) faz o jogo perguntar sobre "ajustes experimentais": "Sei o que estou fazendo!".
@@ -84,6 +85,13 @@ final class RoteiroLuz implements Runnable {
                 .map(c -> c.getModInfo().getVersion().toString()).orElse("?"), true);
             render = noCliente(Thread::currentThread);
             preparar();
+            if (Files.exists(Path.of("rapido.txt"))) {
+                // A/B rápido: só cenários comuns às duas versões, BALANCED e HIGH (sem funcional nem capturas).
+                rapido = true;
+                benchmark();
+                escrever("FIM luz", true);
+                return;
+            }
             if (v015) funcional();
             benchmark();
             if (v015) capturas();
@@ -216,10 +224,13 @@ final class RoteiroLuz implements Runnable {
                 "calamidade bench 4 vfxsample:receita_teia", "calamidade bench 2 vfxsample:receita_cubo",
                 "calamidade bench 2 vfxsample:luz_agua", "calamidade bench 2 vfxsample:luz_runas"), true)));
         escrever("# MEDIDA versão;perfil;cenário;quadros;média ms;p95 ms;luzes;passes;KB alocados/quadro;pedidas;descartadas;cookies;fallback;MB atlas", true);
-        for (QualityMode modo : new QualityMode[] {QualityMode.LOW, QualityMode.BALANCED, QualityMode.HIGH}) {
+        QualityMode[] modos = rapido ? new QualityMode[] {QualityMode.BALANCED, QualityMode.HIGH}
+            : new QualityMode[] {QualityMode.LOW, QualityMode.BALANCED, QualityMode.HIGH};
+        for (QualityMode modo : modos) {
             perfil(modo);
             for (Cenario c : cenarios) {
-                if (c.novo() && !v015) continue;
+                if (c.novo() && (!v015 || rapido)) continue;
+                if (rapido && c.nome().equals("chefe_furia")) continue;
                 noServidor(() -> jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, 25));
                 for (String linha : c.comandos()) comando(linha);
                 if (c.nome().equals("chefe_furia")) furia();

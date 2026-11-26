@@ -114,9 +114,7 @@ void main() {
     }
     int count = int(CaLightInfo.x + 0.5);
     vec3 light = vec3(0.0), soft = vec3(0.0), dark = vec3(0.0);
-    // Vizinhos mais próximos (para as derivadas dos cookies, sem pular bordas de profundidade).
-    vec3 ddx = (dot(pr - p, pr - p) < dot(p - pl, p - pl)) ? pr - p : p - pl;
-    vec3 ddy = (dot(pu - p, pu - p) < dot(p - pd, p - pd)) ? pu - p : p - pd;
+    bool extended = false;
     for (int i = 0; i < 64; i++) {
         if (i >= count) break;
         vec4 t0 = lightTexel(0, i);
@@ -137,6 +135,10 @@ void main() {
             light += t2.rgb * k;
             continue;
         }
+        extended = true;
+        // Vizinhos mais próximos (para as derivadas dos cookies, sem pular bordas de profundidade).
+        vec3 ddx = (dot(pr - p, pr - p) < dot(p - pl, p - pl)) ? pr - p : p - pl;
+        vec3 ddy = (dot(pu - p, pu - p) < dot(p - pd, p - pd)) ? pu - p : p - pd;
         int shape = code & 7;
         int curve = (code >> 3) & 3;
         int blend = (code >> 5) & 3;
@@ -230,6 +232,11 @@ void main() {
         if (blend == 0) light += add;
         else if (blend == 1) soft += add;
         else dark += add;
+    }
+    if (!extended) {
+        // Só luzes da 0.9: a mesma conta final da 0.14.
+        fragColor = vec4(caLitColor(color, light * (1.0 - fog)), 1.0);
+        return;
     }
     vec3 total = light + (vec3(1.0) - exp(-soft));
     vec3 lit = caLitColor(color, total * (1.0 - fog));
