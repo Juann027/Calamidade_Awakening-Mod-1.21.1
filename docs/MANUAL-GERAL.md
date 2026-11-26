@@ -3296,6 +3296,55 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 
 ## 20. Validação, medições e limites
 
+### 0.15 Light Engine
+
+**Experimental, branch `claude/great-pascal-pq0xtj` (26/11/2026), não publicada.** Ambiente de todas as medidas: container Linux, **Mesa llvmpipe (LLVM 20.1.2, 256 bits), renderização por software**, Xvfb 1280 × 720, mundo plano do `testeJogo`, noite, mesmo ponto e mesma câmera, vfx-sample em `mods/`. **Nenhuma medida em GPU física**: os números abaixo servem para comparar versões no mesmo ambiente e ver tendências; não provam desempenho em hardware real (em GPU, um passe de tela cheia com 64 luzes custa uma fração de milissegundo; em llvmpipe, dezenas).
+
+#### Executado nesta sessão
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew build` (checkBudget com `LightCheck` novo: cookies, folhas, rampas, orientação, atlas; `checkShaders`, `checkApiCompat`, `checkApiDocs`, `checkRecipes`) | verde |
+| `node scripts/previa_passes.cjs` — formas da 0.9 no shader novo × shader da 0.14 (`fogueira`, `pilar`, `onda`, `onda_dia`, `laser`) | **idênticas pixel a pixel** (diferença máxima 0) |
+| Prévia das cenas novas (`cookie_runas`, `cookie_hex_muro`, `cookie_causticas`, `cookie_vitral`, `holofote`, `curvas`, `gradiente`, `subtrair_dia`) | projeção nítida sobre chão e muro, sem plano flutuante |
+| `./gradlew testeJogo` (0.14.0, base para os testes de cliente) | 82 verificações, 0 falhas |
+| `xvfb-run -a ./gradlew testeOrfaos` na **0.14.0** (6 casos: fúria, reabrir, kill, sobreposição, stop, `/kill @e` com respawn) | 6/6: o caminho direto do Sentinela **não** reproduz o órfão |
+| `xvfb-run -a ./gradlew testeOrfaos` na **0.15.0** (os 6 + dono encerrado com handle perdido, vigia, reconciliação `live_v1`, comandos `fx`/`world list`) | 10/10 |
+| `xvfb-run -a ./gradlew testeLuz` na 0.15.0 | 17/17: atlas 0 bytes antes do primeiro cookie, 21,3 MB depois, 1 upload por PNG (nenhum repetido em 100 ticks), PNG ausente → falha contada + fallback sem crash, LOW amostra no máximo 2 cookies, luz atrás da câmera descartada antes do teto, recarga solta o atlas, as 10 demos desenham sem falha |
+
+Capturas das demos (llvmpipe): [luz-previas/demos-0150.jpg](luz-previas/demos-0150.jpg).
+
+#### Regressão: 0.14.0 × 0.15.0 sem funcionalidades novas
+
+Mesmo roteiro (`RoteiroLuz`, modo A/B rápido) numa worktree da 0.14.0 (`68fa976`) e na 0.15.0, **intercalados 3 vezes** (0.14, 0.15, 0.14, ...). Janela de 5 s depois de 2,5 s de aquecimento; carga com `/calamidade bench` (as instâncias renascem). Média por rodada em ms:
+
+| Perfil | Cenário | 0.14.0 (3 rodadas) | 0.15.0 (3 rodadas) | Δ médio | Luzes desenhadas |
+|---|---|---|---|---|---|
+| BALANCED | vazio | 27,3 · 23,6 · 24,0 | 27,3 · 25,3 · 23,1 | +1,1% | 0 |
+| BALANCED | 8 fogueiras | 65,0 · 61,7 · 59,2 | 71,1 · 64,6 · 59,5 | +5,0% | 8 |
+| BALANCED | 24 fogueiras | 65,7 · 61,6 · 61,3 | 65,0 · 63,4 · 58,2 | −1,1% | 8 (teto) |
+| BALANCED | luzes + feixes + shaders | 56,2 · 54,7 · 52,3 | 55,3 · 58,4 · 53,4 | +2,4% | 4 |
+| HIGH | vazio | 23,8 · 22,2 · 22,9 | 22,2 · 24,3 · 21,5 | −1,3% | 0 |
+| HIGH | 8 fogueiras | 61,7 · 62,0 · 62,0 | 56,6 · 65,2 · 57,4 | −3,5% | 8 |
+| HIGH | 24 fogueiras | 67,8 · 68,2 · 68,0 | 68,1 · 78,9 · 66,5 | +4,7% | 16 |
+| HIGH | luzes + feixes + shaders | 54,3 · 52,6 · 54,3 | 52,4 · 61,3 · 55,9 | +5,2% | 4 |
+
+Os Δ têm sinais misturados e ficam dentro da dispersão entre rodadas da mesma versão (até ~±8%, por exemplo HIGH 24 fogueiras na 0.15: 66,5 a 78,9). **Conclusão: sem regressão material** no caminho sem luzes novas. Passes por quadro iguais (0 ou 1 de luzes); alocação na thread de render por quadro igual dentro do ruído (≈ 108–185 KB nas duas versões; o extra da 0.15 é a esfera de culling por luz). Uma primeira rodada isolada (não intercalada) mostrou +10% até no cenário vazio, sem passe de luzes: era variação entre execuções, e por isso a medida oficial é a intercalada. Mesmo assim, o shader passou a terminar com a conta exata da 0.14 quando não há luz estendida no quadro.
+
+#### Luzes novas (0.15.0, rodada completa, uma execução)
+
+| Perfil | vazio | cookie ×1 | cookies variados (2 a 4 desenhadas) | estresse 4 × 8 luzes (16 cookies) | mistura com cookies | Sentinela na fúria |
+|---|---|---|---|---|---|---|
+| LOW | 25,2 | 56,3 | 60,6 | 67,3 (8 desenhadas, 2 cookies, 2 fallback) | 63,0 | 79,6 |
+| BALANCED | 24,2 | 58,9 | 62,0 | 127,5 (32, 8 cookies, 8 fallback) | 56,5 | 75,5 |
+| HIGH | 24,5 | 49,6 | 52,9 | 106,9 (32, 16 cookies) | 51,0 | 69,6 |
+
+p95 e o resto das colunas (luzes, passes, KB alocados, pedidas, descartadas, cookies, fallback, MB do atlas) estão nas linhas `MEDIDA` de `run/teste-luz/calamidade-luz.txt`. Leitura: **uma luz com cookie custa o mesmo que uma convencional** no ruído do llvmpipe (o custo dominante é existir o passe); o estresse com 32 luzes por pixel é o pior caso de software e mostra por que o teto por perfil existe (LOW corta em 8 luzes e 2 cookies, sem passe extra). Memória do atlas: 21,3 MB fixos enquanto houver cookie em uso; uploads: 1 por imagem (22 ao fim do roteiro inteiro, com uma recarga de recursos no meio).
+
+#### Não medido
+
+Tempo isolado do passe de luzes (sem consulta de tempo da GPU na RimuLib; a diferença entre cenários serve de estimativa), GPU física, dois jogadores reais, shaderpacks, Sodium/Embeddium, o addon BossesTesting (não está neste repositório: os testes usam o Sentinela do vfx-sample e o chefe do mod de teste).
+
 ### Candidata ao release 0.14.0 (23/11/2026, não publicada)
 
 Metadados de release: `CalamidadeAwakening.BUILD = "release"` e descrição do `neoforge.mods.toml` sem o aviso de desenvolvimento (o workflow recusa "DEVELOPMENT BUILD"); notas em `.github/release-notes/v0.14.0.md`. Só o texto do log, da lista de mods e do F7 muda: refeitos `./gradlew build dist` e o build do vfx-sample; os testes em jogo da integração abaixo valem sem repetição.
