@@ -1,5 +1,43 @@
 # Validação, medições e limites
 
+## 0.15 Light Engine — fase 2: composição avançada e nitidez
+
+Mesma branch, mesmo ambiente (**Mesa llvmpipe, software; nenhuma medida em GPU física**).
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew build` (`LightCheck` com a fase 2: enums só crescem no fim, defaults, `pixelated()` = `PIXELATED`, faixas, trilhas `BLEND_STRENGTH`, potência de 2, orçamento de resolução, atlas grande, imagem 222×192 guardada 256×256 sem borda; `checkApiCompat`, `checkShaders`, `checkApiDocs`, `checkRecipes`) | verde |
+| Prévia, formas da 0.9 (`fogueira`, `pilar`, `onda`, `onda_dia`, `laser`) × shader da 0.14 | idênticas pixel a pixel |
+| Prévia, cenas de cookie da fase 1 (`cookie_*`, `holofote`, `curvas`, `gradiente`, `subtrair_dia`) × shader da fase 1 | idênticas pixel a pixel |
+| Prévia, `OVERRIDE` força 0 × cena sem luz | idênticas pixel a pixel (transparência e força 0 não mexem na superfície) |
+| Prévia, filtros ampliados | SMOOTH borra, SHARP com núcleo duro e ~1 px de borda, PIXELATED em degraus |
+| `xvfb-run -a ./gradlew testeLuz -Pluz.modo=fase2` | 19/19: cookie padrão não cria o atlas grande (21,3 MB); HIGH: a luz ULTRA usa 2048 e a STANDARD do mesmo PNG fica em 512 (42,7 MB); nenhum upload repetido; BALANCED refaz em 1024; LOW solta o atlas grande; as dez demos novas de noite e de dia sem falha; recarga solta os dois atlas |
+| `xvfb-run -a ./gradlew testeCeu` (regressão do céu depois das mudanças de ciclo de vida) | 20/20 |
+| Benchmark focado (`-Pluz.modo=bench -Pluz.reps=2 -Pluz.amostra=6`, 7 cenários) | abaixo |
+
+Capturas: [luz-previas/fase2-0150.jpg](luz-previas/fase2-0150.jpg).
+
+Benchmark focado (mediana das medianas, ms, 2 repetições curtas: **tendência, não medida**; carga constante em todas as
+janelas, conferida quadro a quadro):
+
+| Cenário | LOW | BALANCED | HIGH | Carga |
+|---|---|---|---|---|
+| vazio | 22,5 | 23,6 | 21,9 | sem passe |
+| 8 luzes convencionais | 55,9 | 59,1 | 59,2 | 3 / 8 / 8 luzes |
+| 1 cookie ADD | 66,2 | 60,9 | 59,3 | 1 luz |
+| 3 projetores ADD + EMISSIVE + OVERRIDE | 63,5 | 66,1 | 66,3 | 3 luzes (LOW: 2 cookies + 1 fallback) |
+| 5 OVERRIDE | 68,0 | 68,3 | 67,6 | 5 luzes (LOW: 2 + 3 fallback) |
+| 512 + 2048 (alta resolução) | 59,0 | 60,1 | 61,8 | 2 luzes, 1 em alta resolução (BALANCED 1024, LOW 512) |
+| 5 modos sobrepostos | 68,4 | 69,9 | 66,7 | 5 luzes |
+
+Leitura em software: uma luz no caminho estendido custa ~1,5–2 ms por luz em 1280×720 (o laço por pixel), com ou sem
+modo novo; EMISSIVE/OVERRIDE não custam mais que ADD; alta resolução não muda o custo por pixel (só a memória). O
+caminho convencional continua o da 0.14 (prévia idêntica). Medição definitiva: RTX 4060, [TESTE-REAL.md, Parte 11](TESTE-REAL.md#parte-11--benchmark-da-light-engine-0150-rtx-4060).
+
+**Não feito nesta fase (adiado):** bloom seletivo (precisaria de um buffer HDR; o motor oferece `post.bloom` nas camadas
+de addon); versões grandes de 1024 e 2048 da mesma imagem ao mesmo tempo (uma versão grande por PNG); nitidez em
+movimento verificada só por construção (faixa de 1 pixel, níveis limitados) e por captura parada: conferir na GPU real.
+
 ## 0.15 Light Engine
 
 **Experimental, branch `claude/great-pascal-pq0xtj` (26/11/2026), não publicada.** Ambiente de todas as medidas: container Linux, **Mesa llvmpipe (LLVM 20.1.2, 256 bits), renderização por software**, Xvfb 1280 × 720, mundo plano do `testeJogo`, noite, mesmo ponto e mesma câmera, vfx-sample em `mods/`. **Nenhuma medida em GPU física**: os números abaixo servem para comparar versões no mesmo ambiente e ver tendências; não provam desempenho em hardware real (em GPU, um passe de tela cheia com 64 luzes custa uma fração de milissegundo; em llvmpipe, dezenas).

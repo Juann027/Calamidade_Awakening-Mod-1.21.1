@@ -1224,8 +1224,99 @@ rolagens, um número inteiro de voltas (0 → 360 graus; 0 → 2 imagens).
 - `attenuation(...)`: `POWER` (padrão, `(1 − d/r)^falloff`, a curva da 0.9), `SMOOTH` (`(1 − (d/r)²)²`, ampla),
   `INVERSE_SQUARE` (núcleo quente, `k = 2 × falloff`, janela até 0 no alcance), `CONSTANT` (plana até 80%, depois some).
 - `blend(...)`: `ADD` (padrão), `SOFT` (a soma de todas as luzes SOFT do pixel passa por `1 − e^(−x)`: multidões de
-  luzes que não estouram), `SUBTRACT` (escurece até 95%: sombras projetadas, gobos, faixas de eclipse). Todos os modos
-  são independentes da ordem.
+  luzes que não estouram), `SUBTRACT` (escurece até 95%: sombras projetadas, gobos, faixas de eclipse), e desde a
+  fase 2 `EMISSIVE` e `OVERRIDE` (abaixo). Todos os modos são independentes da ordem.
+
+#### EMISSIVE e OVERRIDE (fase 2)
+
+`ADD`, `SOFT` e `SUBTRACT` iluminam **a cor da cena**: num chão escuro, até uma luz forte fica apagada, e de dia quase
+não aparece. Os dois modos novos tiram essa dependência. `MASK`/`COLOR` continuam dizendo **como ler a imagem**; o modo
+de composição diz **o que fazer com a luz**.
+
+| Modo | O que faz | Parâmetros (todos com trilha) |
+|---|---|---|
+| `EMISSIVE` | soma `cor × intensidade × cobertura × atenuação` **sem** multiplicar pela cor da superfície: cores intensas sobre chão escuro, neon, energia. O que passa do branco num canal transborda para os outros (núcleo branco). | `blendStrength` / `BLEND_STRENGTH` 0..1 (0 = exatamente ADD, 1 = totalmente emissiva, padrão): a transição convencional ↔ emissiva; `surfaceDetail` / `DETAIL` 0..1 (quanto da textura da superfície aparece na luz) |
+| `OVERRIDE` | **substitui** a cor visível dentro da máscara: `mix(cena, alvo, w)`, `alvo = cor × intensidade` (× cor da imagem em `COLOR`), `w = força × cobertura × atenuação × borda × peso da instância`, limitado a 0..1 | `blendStrength` = força da sobrescrita (0 nada, 0,5 domina e deixa a superfície aparecer, 1 substitui por completo onde a máscara é cheia); `surfaceDetail` |
+
+Regras que valem sempre: a máscara, o alfa, a atenuação, a orientação, a borda e o fade da instância continuam
+funcionando; **pixel transparente nunca muda a superfície** (força 0 é idêntica a sem luz, conferido pixel a pixel).
+Várias `OVERRIDE` no mesmo pixel: cobertura total `1 − Π(1 − wᵢ)` em direção à média dos alvos ponderada por `wᵢ`,
+sem depender da ordem. Ordem fixa do pixel: cena iluminada por ADD, SOFT e a parte não emissiva de EMISSIVE →
+escurecida por SUBTRACT → substituída por OVERRIDE → parte emissiva somada por cima.
+
+`contrast` / `CONTRAST` (0,1..8, padrão 1) muda a **resposta da máscara** em volta de meia cobertura com uma curva que
+preserva 0 e 1: 3 a 6 deixa as linhas de um cookie nítidas e quase binárias; abaixo de 1 lava a máscara.
+
+Com `OVERRIDE`, a atenuação conta na força: para "a cor projetada domina por completo", use
+`attenuation(Attenuation.CONSTANT)` (plana até 80% do alcance).
+
+#### Receitas sem GLSL
+
+```java
+// Realista ou suave: ADD, queda suave, borda larga.
+Light.spot(Point.center(0, 6, 0)).angle(50).softness(.6f).attenuation(Light.Attenuation.SMOOTH)
+    .color(0xffffe0b0).intensity(2.5f).radius(14).build();
+
+// Neon: EMISSIVE, contraste alto, nítido, cor saturada; pulsa pela trilha.
+Light.projector(Point.center(0, 6, 0), 9, 9).cookie(Light.Cookie.of("meumod:textures/lights/neon.png").sharpness(.8f))
+    .blend(Light.Blend.EMISSIVE).contrast(2.5f).color(0xffff30d0).intensity(4.5f)
+    .attenuation(Light.Attenuation.CONSTANT).track(Light.Param.INTENSITY, "pulso").build();
+
+// Projeção emissiva que acende aos poucos (convencional -> emissiva).
+... .blend(Light.Blend.EMISSIVE).track(Light.Param.BLEND_STRENGTH, "acender") ...
+
+// Sobrescrita: retícula de ataque legível de dia e de noite.
+Light.projector(Point.center(0, 7, 0), 7, 7).cookie(Light.Cookie.of("meumod:textures/lights/alvo.png").sharpness(1))
+    .blend(Light.Blend.OVERRIDE).blendStrength(1).contrast(4).color(0xffff1020).intensity(1.1f)
+    .attenuation(Light.Attenuation.CONSTANT).softness(.01f).build();
+
+// Vitral que domina a grama mas deixa 40% da textura.
+... .cookie(Light.Cookie.of("meumod:textures/lights/vitral.png").colored())
+    .blend(Light.Blend.OVERRIDE).blendStrength(.9f).surfaceDetail(.4f) ...
+
+// Alta resolução e nitidez: mandala de 2048 numa projeção grande.
+... .cookie(Light.Cookie.of("meumod:textures/lights/mandala.png").resolution(Light.Cookie.Resolution.ULTRA).sharpness(.5f)) ...
+```
+
+Combine modos em luzes diferentes do mesmo efeito (até 8): `OVERRIDE` para a forma legível + `EMISSIVE` para o brilho
+por cima é o padrão das retículas. Bloom: o motor **não** cria um buffer HDR para a luz (o quadro é de 8 bits; o
+núcleo branco do EMISSIVE é o "estouro" possível sem framebuffer novo). Para halo na tela, use `post.bloom(...)` da
+camada `AddonLayers.post` do seu efeito, que já respeita a intensidade dos efeitos de tela e "ocultar clarões".
+Acessibilidade: a cintilação (`flicker`) já cai com a intensidade dos efeitos de tela e com "ocultar clarões"; não
+anime `INTENSITY` ou `BLEND_STRENGTH` piscando acima de 3 vezes por segundo.
+
+#### Nitidez e filtragem (fase 2)
+
+| Opção | Efeito |
+|---|---|
+| `filter(SMOOTH)` (padrão) | trilinear com mipmaps: suave, sem cintilar |
+| `filter(SHARP)` ou `sharpness(0..1)` | de perto, cada texel tem núcleo duro e só a borda é misturada, numa faixa de ~1 pixel da tela (`sharpness` 1) a ~4 (0); de longe, mipmaps com até meio nível a mais de detalhe. Linhas finas nítidas sem degraus nem cintilação ao mover a câmera |
+| `filter(PIXELATED)` ou `pixelated()` | texel mais próximo, sem mipmaps (pixel art; cintila longe e pequeno) |
+| `lodBias(-1..4)` | viés de mipmap: positivo desfoca (gobo fora de foco), negativo guarda detalhe longe (mais cintilação); limitado para quadros de folha nunca se misturarem |
+| `softness` da luz | a borda **da projeção**, independente da nitidez da imagem |
+| `contrast` | a resposta da máscara (acima) |
+
+Sem vazamento: a leitura fica meio texel **do nível lido** para dentro do retângulo do quadro (nada da célula vizinha
+nem do quadro vizinho), e o nível máximo de mipmap mantém cada quadro com pelo menos 4 texels. Desde a fase 2, lados
+que não são potência de 2 são **reamostrados uma vez na carga** para a potência de 2 de cima (por exemplo 222 × 192 →
+256 × 256): antes, a borda transparente da célula escurecia o ladrilho (`REPEAT`) nos mipmaps de longe.
+
+#### Alta resolução (fase 2)
+
+`Cookie.resolution(STANDARD | HIGH | ULTRA)` = lado máximo guardado de 512 (padrão), 1024 ou 2048. A versão de 512
+sempre existe no atlas padrão; as maiores vão para um **segundo atlas** (2048 × 2048, mipmaps completos, ~21,3 MB) que
+só é criado quando uma luz pede alta resolução **e** o perfil permite:
+
+| Perfil | Lado máximo | VRAM de cookies (máx.) |
+|---|---|---|
+| LOW | 512 (sem atlas grande) | ~21,3 MB |
+| BALANCED | 1024 (até 4 imagens) | ~42,7 MB |
+| HIGH, ULTRA | 2048 (1 imagem de 2048 ou 4 de 1024) | ~42,7 MB |
+
+Enquanto a versão grande carrega, acima do orçamento, com o atlas grande cheio ou ao baixar o perfil, a luz usa a de
+512 (nunca some). O envio é em fatias de até 4 MB por quadro (uma imagem de 2048 leva ~6 quadros e só é usada
+completa). Cada PNG guarda **uma** versão grande, a do maior pedido; só as luzes que pediram alta resolução a usam. O
+atlas grande sai sozinho ao baixar para LOW, sem uso por ~1200 quadros, na recarga e ao sair do mundo.
 
 ### Desempenho e orçamento
 
@@ -1250,7 +1341,11 @@ rolagens, um número inteiro de voltas (0 → 360 graus; 0 → 2 imagens).
   caber em 512; maior é recusado); folha até 64 × 64 com 256 quadros.
 - **PNG ausente ou inválido:** registrado **uma vez** no log, contado no F7, a luz usa o fallback; nada trava.
 - **F7:** a linha das luzes ganhou um detalhe: pedidas, descartadas, acima do teto, cookies amostrados/teto, fallbacks,
-  imagens prontas/esperando/com falha, uploads e MB do atlas.
+  quantos em alta resolução, imagens prontas/esperando/com falha, versões grandes prontas e carregando, uploads e MB
+  dos dois atlas.
+- **Fase 2:** EMISSIVE, OVERRIDE e o detalhe só calculam no caminho estendido (o sombreamento da superfície é feito na
+  primeira luz estendida do pixel); sem luzes novas, nenhum texel, textura, passe ou conta a mais. Uma luz com modo
+  novo lê 13 texels em vez de 4.
 
 ### Light API ou GLSL próprio?
 
@@ -3340,12 +3435,63 @@ conferência: `-Pluz.reps=2 -Pluz.amostra=8`.
   `build.gradle`); os cenários de cookie são pulados. Alterne as versões (0.14, 0.15, 0.14, 0.15) em vez de rodar uma
   versão inteira e depois a outra.
 
+**Fase 2 (EMISSIVE, OVERRIDE, nitidez, alta resolução):** o benchmark já inclui `modos_add_emissive_override` (os
+mesmos 3 projetores, só o modo muda), `override_5`, `alta_resolucao_3` (512 + 2048; 1024 no BALANCED) e
+`sobrepostas_5_modos`. Para só a fase 2 e o caminho convencional (~15 min com 5 repetições):
+
+```bash
+./gradlew testeLuz -Pluz.modo=bench -Pluz.reps=5 -Pluz.largura=1920 -Pluz.altura=1080 -Pluz.cenarios=vazio,convencionais_8,cookie_1,modos_add_emissive_override,override_5,alta_resolucao_3,sobrepostas_5_modos
+```
+
+Verificação funcional e capturas da fase 2 na GPU real (~8 min): `./gradlew testeLuz -Pluz.modo=fase2 -Pluz.largura=1920
+-Pluz.altura=1080`; as capturas `f2_*` em `run/teste-luz/screenshots/` mostram cada modo de dia e de noite. Nitidez em
+movimento não sai numa captura: depois, em `runClient`, rode `/vfxsample luz filtros` e `/vfxsample luz resolucoes`,
+ande e gire a câmera e confira que `SHARP` não cintila e que a mandala em ULTRA não tem moiré parado.
+
 **Limite:** o tempo medido é o do quadro inteiro na CPU (o jogo espera a GPU no `swap`), não o tempo do passe de luzes
 na GPU; para isolar o passe, compare um cenário com e sem as luzes. Envie o arquivo `calamidade-luz.txt` inteiro.
 
 <a id="cap20"></a>
 
 ## 20. Validação, medições e limites
+
+### 0.15 Light Engine — fase 2: composição avançada e nitidez
+
+Mesma branch, mesmo ambiente (**Mesa llvmpipe, software; nenhuma medida em GPU física**).
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew build` (`LightCheck` com a fase 2: enums só crescem no fim, defaults, `pixelated()` = `PIXELATED`, faixas, trilhas `BLEND_STRENGTH`, potência de 2, orçamento de resolução, atlas grande, imagem 222×192 guardada 256×256 sem borda; `checkApiCompat`, `checkShaders`, `checkApiDocs`, `checkRecipes`) | verde |
+| Prévia, formas da 0.9 (`fogueira`, `pilar`, `onda`, `onda_dia`, `laser`) × shader da 0.14 | idênticas pixel a pixel |
+| Prévia, cenas de cookie da fase 1 (`cookie_*`, `holofote`, `curvas`, `gradiente`, `subtrair_dia`) × shader da fase 1 | idênticas pixel a pixel |
+| Prévia, `OVERRIDE` força 0 × cena sem luz | idênticas pixel a pixel (transparência e força 0 não mexem na superfície) |
+| Prévia, filtros ampliados | SMOOTH borra, SHARP com núcleo duro e ~1 px de borda, PIXELATED em degraus |
+| `xvfb-run -a ./gradlew testeLuz -Pluz.modo=fase2` | 19/19: cookie padrão não cria o atlas grande (21,3 MB); HIGH: a luz ULTRA usa 2048 e a STANDARD do mesmo PNG fica em 512 (42,7 MB); nenhum upload repetido; BALANCED refaz em 1024; LOW solta o atlas grande; as dez demos novas de noite e de dia sem falha; recarga solta os dois atlas |
+| `xvfb-run -a ./gradlew testeCeu` (regressão do céu depois das mudanças de ciclo de vida) | 20/20 |
+| Benchmark focado (`-Pluz.modo=bench -Pluz.reps=2 -Pluz.amostra=6`, 7 cenários) | abaixo |
+
+Capturas: [luz-previas/fase2-0150.jpg](luz-previas/fase2-0150.jpg).
+
+Benchmark focado (mediana das medianas, ms, 2 repetições curtas: **tendência, não medida**; carga constante em todas as
+janelas, conferida quadro a quadro):
+
+| Cenário | LOW | BALANCED | HIGH | Carga |
+|---|---|---|---|---|
+| vazio | 22,5 | 23,6 | 21,9 | sem passe |
+| 8 luzes convencionais | 55,9 | 59,1 | 59,2 | 3 / 8 / 8 luzes |
+| 1 cookie ADD | 66,2 | 60,9 | 59,3 | 1 luz |
+| 3 projetores ADD + EMISSIVE + OVERRIDE | 63,5 | 66,1 | 66,3 | 3 luzes (LOW: 2 cookies + 1 fallback) |
+| 5 OVERRIDE | 68,0 | 68,3 | 67,6 | 5 luzes (LOW: 2 + 3 fallback) |
+| 512 + 2048 (alta resolução) | 59,0 | 60,1 | 61,8 | 2 luzes, 1 em alta resolução (BALANCED 1024, LOW 512) |
+| 5 modos sobrepostos | 68,4 | 69,9 | 66,7 | 5 luzes |
+
+Leitura em software: uma luz no caminho estendido custa ~1,5–2 ms por luz em 1280×720 (o laço por pixel), com ou sem
+modo novo; EMISSIVE/OVERRIDE não custam mais que ADD; alta resolução não muda o custo por pixel (só a memória). O
+caminho convencional continua o da 0.14 (prévia idêntica). Medição definitiva: RTX 4060, [TESTE-REAL.md, Parte 11](TESTE-REAL.md#parte-11--benchmark-da-light-engine-0150-rtx-4060).
+
+**Não feito nesta fase (adiado):** bloom seletivo (precisaria de um buffer HDR; o motor oferece `post.bloom` nas camadas
+de addon); versões grandes de 1024 e 2048 da mesma imagem ao mesmo tempo (uma versão grande por PNG); nitidez em
+movimento verificada só por construção (faixa de 1 pixel, níveis limitados) e por captura parada: conferir na GPU real.
 
 ### 0.15 Light Engine
 
