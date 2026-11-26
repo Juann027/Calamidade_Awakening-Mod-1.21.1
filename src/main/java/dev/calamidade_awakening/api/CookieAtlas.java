@@ -34,48 +34,82 @@ public final class CookieAtlas {
 
     /** One allocated cell: top-left texel and side. */
     public record Cell(int x, int y, int size) {
-        /** Index of the big cell that holds this one. */
+        /** Index of the big cell that holds this one in the standard atlas. */
         public int big() { return (y / BIG) * PER_ROW + x / BIG; }
     }
 
+    /**
+     * (0.15.0, fase 2) Largest stored side allowed for high-resolution cookies by the lights cap of the profile: LOW (8
+     * lights) 512, i.e. no large atlas; BALANCED (32) 1024; HIGH and ULTRA (64) 2048. Pure.
+     */
+    public static int largeSide(int lights) { return lights <= 8 ? 512 : lights <= 32 ? 1024 : 2048; }
+
+    /** Next power of two at or above {@code n} (1 for n below 1). */
+    public static int pow2(int n) { return n <= 1 ? 1 : Integer.highestOneBit(n - 1) << 1; }
+
+    /**
+     * Stored size of an image of {@code w × h} for a largest side {@code max} (a power of two): halved while above it,
+     * then each side rounded up to a power of two (at most {@code max}), so mipmaps and tiling never see padding.
+     */
+    public static int[] fit(int w, int h, int max) {
+        while (w > max || h > max) { w = Math.max(1, w / 2); h = Math.max(1, h / 2); }
+        return new int[] {Math.min(pow2(w), max), Math.min(pow2(h), max)};
+    }
+
+    private final int bigSize, smallSize, perRow, cells;
     // 0 free, -1 split into small cells (see small[]), 1 used whole
-    private final int[] bigState = new int[BIG_CELLS];
-    private final boolean[][] small = new boolean[BIG_CELLS][4];
+    private final int[] bigState;
+    private final boolean[][] small;
+
+    /** The standard atlas: 16 cells of 512, each splittable into four of 256. */
+    public CookieAtlas() { this(BIG, SMALL); }
+
+    /**
+     * (0.15.0, fase 2) An atlas of {@link #SIDE} texels with cells of {@code bigSize}, each splittable into four of
+     * {@code smallSize} (the large atlas: one 2048 or four 1024).
+     */
+    public CookieAtlas(int bigSize, int smallSize) {
+        this.bigSize = bigSize; this.smallSize = smallSize;
+        perRow = SIDE / bigSize;
+        cells = perRow * perRow;
+        bigState = new int[cells];
+        small = new boolean[cells][4];
+    }
 
     /** Smallest cell side that holds an image of {@code w × h} texels (both at most {@link #BIG}). */
     public static int cellFor(int w, int h) { return w <= SMALL && h <= SMALL ? SMALL : BIG; }
 
     /** Allocates a cell for an image, or null when the atlas has no room of that size. */
     public Cell allocate(int w, int h) {
-        if (w < 1 || h < 1 || w > BIG || h > BIG) return null;
-        if (cellFor(w, h) == SMALL) {
+        if (w < 1 || h < 1 || w > bigSize || h > bigSize) return null;
+        if (w <= smallSize && h <= smallSize) {
             // First a free quarter of an already split cell, then split a free big cell.
-            for (int i = 0; i < BIG_CELLS; i++) if (bigState[i] == -1) {
+            for (int i = 0; i < cells; i++) if (bigState[i] == -1) {
                 for (int q = 0; q < 4; q++) if (!small[i][q]) { small[i][q] = true; return smallCell(i, q); }
             }
-            for (int i = 0; i < BIG_CELLS; i++) if (bigState[i] == 0) {
+            for (int i = 0; i < cells; i++) if (bigState[i] == 0) {
                 bigState[i] = -1;
                 small[i][0] = true;
                 return smallCell(i, 0);
             }
             return null;
         }
-        for (int i = 0; i < BIG_CELLS; i++) if (bigState[i] == 0) {
+        for (int i = 0; i < cells; i++) if (bigState[i] == 0) {
             bigState[i] = 1;
-            return new Cell((i % PER_ROW) * BIG, (i / PER_ROW) * BIG, BIG);
+            return new Cell((i % perRow) * bigSize, (i / perRow) * bigSize, bigSize);
         }
         return null;
     }
 
-    private static Cell smallCell(int big, int q) {
-        return new Cell((big % PER_ROW) * BIG + (q & 1) * SMALL, (big / PER_ROW) * BIG + (q >> 1) * SMALL, SMALL);
+    private Cell smallCell(int big, int q) {
+        return new Cell((big % perRow) * bigSize + (q & 1) * smallSize, (big / perRow) * bigSize + (q >> 1) * smallSize, smallSize);
     }
 
     /** Frees a cell returned by {@link #allocate}; a split big cell becomes free when its four quarters are. */
     public void free(Cell cell) {
-        int i = cell.big();
-        if (cell.size() == BIG) { bigState[i] = 0; return; }
-        int q = ((cell.x() % BIG) / SMALL) + 2 * ((cell.y() % BIG) / SMALL);
+        int i = (cell.y() / bigSize) * perRow + cell.x() / bigSize;
+        if (cell.size() == bigSize) { bigState[i] = 0; return; }
+        int q = ((cell.x() % bigSize) / smallSize) + 2 * ((cell.y() % bigSize) / smallSize);
         small[i][q] = false;
         if (!small[i][0] && !small[i][1] && !small[i][2] && !small[i][3]) bigState[i] = 0;
     }
@@ -89,7 +123,7 @@ public final class CookieAtlas {
     /** Cells in use, in small-cell units (a big cell counts 4). */
     public int usedQuarters() {
         int n = 0;
-        for (int i = 0; i < BIG_CELLS; i++) {
+        for (int i = 0; i < cells; i++) {
             if (bigState[i] == 1) n += 4;
             else if (bigState[i] == -1) for (boolean b : small[i]) if (b) n++;
         }

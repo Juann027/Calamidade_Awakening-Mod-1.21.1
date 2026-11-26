@@ -67,8 +67,10 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Light.Builder`](#lightbuilder)
 - [`Light.Cookie`](#lightcookie)
 - [`Light.Cookie.Fallback`](#lightcookiefallback)
+- [`Light.Cookie.Filter`](#lightcookiefilter)
 - [`Light.Cookie.Mode`](#lightcookiemode)
 - [`Light.Cookie.Play`](#lightcookieplay)
+- [`Light.Cookie.Resolution`](#lightcookieresolution)
 - [`Light.Cookie.Wrap`](#lightcookiewrap)
 - [`Light.Param`](#lightparam)
 - [`Light.Projection`](#lightprojection)
@@ -1207,6 +1209,10 @@ Immutable visual light of one effect (0.9.0): it brightens the blocks, entities 
 | `Light.Cookie cookie()` | (0.15.0) The light's cookie, or null. |
 | `Light.Attenuation attenuation()` | (0.15.0) Attenuation curve (`Attenuation.POWER` by default). |
 | `Light.Blend blend()` | (0.15.0) Composition mode (`Blend.ADD` by default). |
+| `float blendStrength()` | (0.15.0) Base blend strength, 0..1 (1 by default). |
+| `float surfaceDetail()` | (0.15.0) Base surface detail under EMISSIVE or OVERRIDE, 0..1 (0 by default). |
+| `float contrast()` | (0.15.0) Base cookie mask contrast, 0.1..8 (1 by default). |
+| `boolean projected()` | (0.15.0) True when the engine needs the per-instance `projection` of this light: oriented lights and the EMISSIVE and OVERRIDE modes. |
 | `float yaw()` | (0.15.0) Base yaw of a spot or projector in the instance frame, degrees. |
 | `float pitch()` | (0.15.0) Base pitch of a spot or projector, degrees (90 = down). |
 | `float roll()` | (0.15.0) Base roll of the projected image, degrees. |
@@ -1250,6 +1256,8 @@ Immutable visual light of one effect (0.9.0): it brightens the blocks, entities 
 | `ADD` | Adds light (the 0.9 behavior, default). |
 | `SOFT` | Adds light that saturates: the sum of every SOFT light of a pixel goes through `1 - e^(-x)` per channel, so many overlapping lights never blow the scene out (crowds of torches, stress scenes). |
 | `SUBTRACT` | Removes light: multiplies the scene by `1 - color × intensity × attenuation` (at most 95% darker). |
+| `EMISSIVE` | (0.15.0) Light that does not depend on the surface color: the contribution is `color × intensity × coverage × attenuation` added to the pixel, mixed with the ADD response by `Param.BLEND_STRENGTH` (0 = exactly ADD, 1 = fully emissive, the default). |
+| `OVERRIDE` | (0.15.0) Replaces the visible color of the surface inside the mask: `mix(scene, target, w)` with `target = color × intensity` (times the image color for a COLOR cookie) and `w = BLEND_STRENGTH × coverage × attenuation × edge × instance weight`, clamped to 0..1. |
 
 ## Light.Builder
 
@@ -1277,6 +1285,9 @@ Builder of a `Light`.
 | `Light.Builder cookie(Light.Cookie value)` | (0.15.0) Light cookie: the image that shapes the light (see `Cookie`). |
 | `Light.Builder cookie(String texture)` | (0.15.0) Shorthand for `cookie(Cookie.of(texture))`. |
 | `Light.Builder attenuation(Light.Attenuation value)` | (0.15.0) Attenuation curve (POWER by default, the 0.9 curve). |
+| `Light.Builder blendStrength(float value)` | (0.15.0) Strength of the blend mode, 0..1 (1 by default): EMISSIVE emission (0 behaves as ADD), OVERRIDE strength (0 none, 0.5 dominant, 1 full). |
+| `Light.Builder surfaceDetail(float value)` | (0.15.0) Surface detail kept under EMISSIVE or OVERRIDE, 0 (flat projected color, default) .. 1. |
+| `Light.Builder contrast(float value)` | (0.15.0) Contrast of the cookie mask around half coverage, 0.1..8 (1 by default; 3 to 6 for crisp lines). |
 | `Light.Builder blend(Light.Blend value)` | (0.15.0) Composition with the other lights (ADD by default). |
 | `Light.Builder colorRamp(int... argb)` | (0.15.0) Color animated over time: 2..4 ARGB stops, equally spaced, read at the `Param.COLOR` track (0..1; without the track, the first stop). |
 | `Light.Builder distanceGradient(int... argb)` | (0.15.0) Color that changes with distance: 2..4 ARGB stops from the source (0) to the reach (1), multiplied by the light color (keep it white for the exact stops). |
@@ -1306,7 +1317,11 @@ Builder of a `Light`.
 | `Light.Cookie scale(float copies)` | Base tiling, 0.01..64 (the `Param.COOKIE_SCALE` track replaces it). |
 | `Light.Cookie rotation(float degrees)` | Base rotation in image space, degrees (the `Param.COOKIE_ROTATION` track replaces it). |
 | `Light.Cookie offset(float u, float v)` | Base scroll in images (the `Param.COOKIE_U`/`Param.COOKIE_V` tracks replace it). |
-| `Light.Cookie pixelated()` | Nearest-texel sampling (pixel art) instead of smooth filtering with mipmaps. |
+| `Light.Cookie pixelated()` | Nearest-texel sampling (pixel art) instead of smooth filtering with mipmaps; same as `filter(PIXELATED)`. |
+| `Light.Cookie filter(Light.Cookie.Filter value)` | (0.15.0) Texture filtering (SMOOTH by default). |
+| `Light.Cookie sharpness(float value)` | (0.15.0) Sharpness, 0..1 (0 by default; turns the filter to SHARP when above 0): up close, how hard each texel's edge is (1 = about one screen pixel of blend); far away it also lowers the mipmap level by up to half a level (more detail, a little more shimmer). |
+| `Light.Cookie lodBias(float levels)` | (0.15.0) Mipmap bias, -1..4 levels (0 by default): positive blurs (soft gobos, out-of-focus slides), negative keeps more detail far away at the cost of shimmer; clamped so frames of a sheet never mix. |
+| `Light.Cookie resolution(Light.Cookie.Resolution value)` | (0.15.0) Largest stored side (STANDARD 512 by default); see `Resolution` for the per-profile budget. |
 | `String texture()` | PNG location, `ns:path.png`. |
 | `Light.Cookie.Mode mode()` | Channel semantics. |
 | `Light.Cookie.Wrap wrap()` | Outside-the-image behavior. |
@@ -1322,8 +1337,12 @@ Builder of a `Light`.
 | `float offsetV()` | Base scroll along y, images. |
 | `boolean blendFrames()` | True when two frames cross-fade. |
 | `boolean isPixelated()` | True for nearest-texel sampling. |
+| `Light.Cookie.Filter filter()` | (0.15.0) Texture filtering. |
+| `float sharpness()` | (0.15.0) Sharpness, 0..1. |
+| `float lodBias()` | (0.15.0) Mipmap bias, levels. |
+| `Light.Cookie.Resolution resolution()` | (0.15.0) Largest stored side. |
 | `float frameAt(double seconds, float track)` | Frame position at a moment, pure: `track` (a `Param.FRAME` value, or NaN for none) wins; else the clock (`seconds` × fps) with the playback mode. |
-| `boolean equals(Object o)` | Equal when every setting is equal (same image, mode, sheet, playback and base transform). |
+| `boolean equals(Object o)` | Equal when every setting is equal (same image, mode, sheet, playback, filtering and base transform). |
 | `int hashCode()` | Hash of the settings, consistent with `equals`. |
 | `String toString()` | Short description for logs. |
 
@@ -1337,6 +1356,18 @@ What a cookie light draws when its image is loading, missing, invalid or over th
 |---|---|
 | `AVERAGE` | Draws the light without the image, with the intensity scaled by the image's average coverage (0.5 when the image never loaded): the light keeps its size and roughly its energy (default). |
 | `NONE` | Draws nothing. |
+
+## Light.Cookie.Filter
+
+`dev.calamidade_awakening.api.v1.Light.Cookie.Filter` · enum
+
+(0.15.0) Texture filtering.
+
+| Membro | Descrição |
+|---|---|
+| `SMOOTH` | Trilinear with mipmaps (default). |
+| `SHARP` | Sharp magnification, mipmaps when minified. |
+| `PIXELATED` | Nearest texel, no mipmaps. |
 
 ## Light.Cookie.Mode
 
@@ -1360,6 +1391,19 @@ Sheet playback on the clock (ignored when the light has a `Param.FRAME` track).
 | `LOOP` | Loops (default). |
 | `ONCE` | Plays once and holds the last frame. |
 | `PING_PONG` | Forward then backward. |
+
+## Light.Cookie.Resolution
+
+`dev.calamidade_awakening.api.v1.Light.Cookie.Resolution` · enum
+
+(0.15.0) Largest stored side of the image.
+
+| Membro | Descrição |
+|---|---|
+| `STANDARD` | Up to 512 × 512 (default). |
+| `HIGH` | Up to 1024 × 1024. |
+| `ULTRA` | Up to 2048 × 2048. |
+| `int side` | Largest side, pixels. |
 
 ## Light.Cookie.Wrap
 
@@ -1404,6 +1448,9 @@ Numeric parameters that can be driven by a timeline track, each with the range u
 | `COOKIE_V` | (0.15.0) Cookie scroll along image y, in images, -10000..10000. |
 | `FRAME` | (0.15.0) Frame of a cookie sheet, 0..4095 (fractions blend two frames with `Cookie.blendFrames`). |
 | `COLOR` | (0.15.0) Position along the color ramp, 0..1. |
+| `BLEND_STRENGTH` | (0.15.0) Strength of the `Blend` mode, 0..1: for EMISSIVE how independent of the surface the light is (0 = ADD), for OVERRIDE the override strength (0 = none, 1 = full). |
+| `DETAIL` | (0.15.0) Surface detail kept under an EMISSIVE or OVERRIDE light, 0 (flat color) .. 1 (surface shading). |
+| `CONTRAST` | (0.15.0) Contrast of the cookie mask around half coverage, 0.1..8 (1 = the image as is, 4 = crisp, nearly binary edges, below 1 = washed out). |
 | `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
 | `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
 | `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
@@ -1416,7 +1463,7 @@ Numeric parameters that can be driven by a timeline track, each with the range u
 
 | Membro | Descrição |
 |---|---|
-| `new Projection(float yaw, float pitch, float roll, float angle, float softness, float sizeX, float sizeY, float scale, float rotation, float u, float v, float frame, float ramp)` | Canonical constructor: yaw, pitch, roll, angle, softness, sizeX, sizeY, scale, rotation, u, v, frame, ramp. |
+| `new Projection(float yaw, float pitch, float roll, float angle, float softness, float sizeX, float sizeY, float scale, float rotation, float u, float v, float frame, float ramp, float strength, float detail, float contrast)` | Canonical constructor: yaw, pitch, roll, angle, softness, sizeX, sizeY, scale, rotation, u, v, frame, ramp, strength, detail, contrast. |
 | `float yaw()` | Yaw in the instance frame, degrees (0 forward, 90 left). |
 | `float pitch()` | Pitch, degrees (90 straight down, the default). |
 | `float roll()` | Turn of the image around the light axis, degrees. |
@@ -1430,6 +1477,9 @@ Numeric parameters that can be driven by a timeline track, each with the range u
 | `float v()` | Cookie scroll along y, images. |
 | `float frame()` | Cookie sheet frame (fractional: blend), or -1 to follow the cookie clock. |
 | `float ramp()` | Position along the color ramp, 0..1. |
+| `float strength()` | Blend strength (EMISSIVE emission, OVERRIDE strength), 0..1. |
+| `float detail()` | Surface detail kept by EMISSIVE and OVERRIDE, 0..1. |
+| `float contrast()` | Cookie mask contrast, 0.1..8. |
 
 ## Light.Shape
 

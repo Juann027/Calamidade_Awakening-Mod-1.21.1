@@ -25,6 +25,54 @@ final class LightCheck {
         cookies();
         oriented();
         atlas();
+        fase2();
+    }
+
+    /** 0.15 fase 2: EMISSIVE, OVERRIDE, nitidez, resolução, potência de 2 e atlas grande. */
+    private static void fase2() {
+        require(Light.Blend.SUBTRACT.ordinal() == 2 && Light.Blend.EMISSIVE.ordinal() == 3 && Light.Blend.OVERRIDE.ordinal() == 4
+            && Light.Param.COLOR.ordinal() + 1 == Light.Param.BLEND_STRENGTH.ordinal(), "enums only grow at the end");
+        var c = Light.Cookie.of("ns:textures/lights/a.png");
+        require(c.filter() == Light.Cookie.Filter.SMOOTH && c.sharpness() == 0 && c.lodBias() == 0
+            && c.resolution() == Light.Cookie.Resolution.STANDARD, "cookie fase 2 defaults");
+        require(c.pixelated().filter() == Light.Cookie.Filter.PIXELATED && c.pixelated().isPixelated(), "pixelated() = PIXELATED");
+        require(c.filter(Light.Cookie.Filter.SHARP).sharpness() == .75f && c.sharpness(.4f).filter() == Light.Cookie.Filter.SHARP,
+            "sharpness turns SHARP on");
+        expectRejected(() -> c.lodBias(-2), "lod bias below -1");
+        expectRejected(() -> c.sharpness(1.5f), "sharpness above 1");
+        require(Light.Cookie.Resolution.ULTRA.side == 2048 && !c.equals(c.resolution(Light.Cookie.Resolution.HIGH)), "resolution");
+        var t = Timeline.builder(40).track("forca", keyframe(0, 0f), keyframe(40, 1f)).build();
+        var over = Light.projector(Point.center(0, 5, 0), 6, 6).cookie(c).blend(Light.Blend.OVERRIDE).blendStrength(.5f)
+            .surfaceDetail(.3f).contrast(3).track(Light.Param.BLEND_STRENGTH, "forca").build();
+        over.validate(t);
+        var pr = over.projection(t.at(20), 1);
+        require(Math.abs(pr.strength() - .5f) < 1e-4 && pr.detail() == .3f && pr.contrast() == 3, "strength from the track: " + pr.strength());
+        require(Light.point(Point.center()).blend(Light.Blend.EMISSIVE).build().projected()
+            && !Light.point(Point.center()).build().projected(), "EMISSIVE needs the projection, 0.9 lights do not");
+        expectRejected(() -> Light.point(Point.center()).contrast(0), "contrast 0");
+        // Potência de 2 e orçamento de resolução.
+        require(dev.calamidade_awakening.api.CookieAtlas.pow2(222) == 256 && dev.calamidade_awakening.api.CookieAtlas.pow2(256) == 256,
+            "pow2");
+        int[] f = dev.calamidade_awakening.api.CookieAtlas.fit(222, 192, 512);
+        require(f[0] == 256 && f[1] == 256, "222 x 192 stored as 256 x 256");
+        f = dev.calamidade_awakening.api.CookieAtlas.fit(3000, 1500, 1024);
+        require(f[0] == 1024 && f[1] == 512, "3000 x 1500 at 1024: " + f[0] + "x" + f[1]);
+        require(dev.calamidade_awakening.api.CookieAtlas.largeSide(8) == 512 && dev.calamidade_awakening.api.CookieAtlas.largeSide(32) == 1024
+            && dev.calamidade_awakening.api.CookieAtlas.largeSide(64) == 2048, "large budget LOW/BALANCED/HIGH");
+        var big = new dev.calamidade_awakening.api.CookieAtlas(2048, 1024);
+        var q1 = big.allocate(1024, 512);
+        var q2 = big.allocate(1024, 1024);
+        require(q1 != null && q2 != null && q1.size() == 1024 && big.allocate(2048, 2048) == null, "large atlas: quarters of 1024");
+        big.clear();
+        var whole = big.allocate(2048, 2048);
+        require(whole != null && whole.size() == 2048 && big.allocate(64, 64) == null, "large atlas: one 2048");
+        // Imagem fora de potência de 2: sem borda transparente na célula (o ladrilho não escurece nos mipmaps).
+        int[] px = new int[222 * 192];
+        java.util.Arrays.fill(px, 0xffffffff);
+        var d = dev.calamidade_awakening.client.LightCookiesAccess.chain(px, 222, 192, 512);
+        require(d[0] == 256 && d[1] == 256 && d[2] == 256 && d[3] == 0xffffffff, "non-POT resampled to fill 256 x 256: " + java.util.Arrays.toString(d));
+        d = dev.calamidade_awakening.client.LightCookiesAccess.chain(new int[4096 * 16], 4096, 16, 2048);
+        require(d[0] == 2048 && d[1] == 8 && d[2] == 2048, "very wide image at 2048: " + java.util.Arrays.toString(d));
     }
 
     /** 0.15.0: cookie validation, sheets and the frame clock. */

@@ -116,8 +116,30 @@ public final class Light {
          * Removes light: multiplies the scene by {@code 1 - color × intensity × attenuation} (at most 95% darker).
          * Shadows and gobos: a cookie with SUBTRACT projects darkness (a moving shadow, an eclipse band).
          */
-        SUBTRACT
+        SUBTRACT,
+        /**
+         * (0.15.0) Light that does not depend on the surface color: the contribution is {@code color × intensity ×
+         * coverage × attenuation} added to the pixel, mixed with the ADD response by {@link Param#BLEND_STRENGTH}
+         * (0 = exactly ADD, 1 = fully emissive, the default). Neon, energy, holograms on dark ground; strong enough to
+         * read in daylight. Where the sum passes white in one channel, the excess spills into the others (a hot white
+         * core). {@link Param#DETAIL} lets the surface texture show through (0 = flat color, 1 = surface shading).
+         */
+        EMISSIVE,
+        /**
+         * (0.15.0) Replaces the visible color of the surface inside the mask: {@code mix(scene, target, w)} with
+         * {@code target = color × intensity} (times the image color for a {@link Cookie.Mode#COLOR COLOR} cookie) and
+         * {@code w = BLEND_STRENGTH × coverage × attenuation × edge × instance weight}, clamped to 0..1. Strength 0 does
+         * nothing, 0.5 lets the projection dominate while the surface shows, 1 replaces it completely where the mask is
+         * full. Transparent pixels never change the surface. Several overrides combine order-independently: total
+         * coverage {@code 1 − Π(1 − wᵢ)} toward the {@code wᵢ}-weighted mean of their targets.
+         */
+        OVERRIDE
     }
+
+    /*
+     * Composition order of one pixel (0.15.0), fixed and independent of light order: the scene lit by ADD, SOFT and the
+     * non-emissive part of EMISSIVE lights; darkened by SUBTRACT; replaced by OVERRIDE; then the emissive part added.
+     */
 
     /** Numeric parameters that can be driven by a timeline track, each with the range used to clamp it. */
     public enum Param {
@@ -171,7 +193,19 @@ public final class Light {
         /** (0.15.0) Frame of a cookie sheet, 0..4095 (fractions blend two frames with {@link Cookie#blendFrames}). */
         FRAME(0, 4095),
         /** (0.15.0) Position along the {@link Builder#colorRamp color ramp}, 0..1. */
-        COLOR(0, 1);
+        COLOR(0, 1),
+        /**
+         * (0.15.0) Strength of the {@link Blend} mode, 0..1: for EMISSIVE how independent of the surface the light is
+         * (0 = ADD), for OVERRIDE the override strength (0 = none, 1 = full). Ignored by ADD, SOFT and SUBTRACT.
+         */
+        BLEND_STRENGTH(0, 1),
+        /** (0.15.0) Surface detail kept under an EMISSIVE or OVERRIDE light, 0 (flat color) .. 1 (surface shading). */
+        DETAIL(0, 1),
+        /**
+         * (0.15.0) Contrast of the cookie mask around half coverage, 0.1..8 (1 = the image as is, 4 = crisp, nearly
+         * binary edges, below 1 = washed out).
+         */
+        CONTRAST(.1f, 8);
 
         /** Smallest and largest value of the parameter; track values are clamped to this range. */
         public final float min, max;
@@ -224,9 +258,13 @@ public final class Light {
      * @param v         cookie scroll along y, images
      * @param frame     cookie sheet frame (fractional: blend), or -1 to follow the cookie clock
      * @param ramp      position along the color ramp, 0..1
+     * @param strength  blend strength (EMISSIVE emission, OVERRIDE strength), 0..1
+     * @param detail    surface detail kept by EMISSIVE and OVERRIDE, 0..1
+     * @param contrast  cookie mask contrast, 0.1..8
      */
     public record Projection(float yaw, float pitch, float roll, float angle, float softness, float sizeX, float sizeY,
-                             float scale, float rotation, float u, float v, float frame, float ramp) {}
+                             float scale, float rotation, float u, float v, float frame, float ramp, float strength,
+                             float detail, float contrast) {}
 
     /**
      * (0.15.0) Light cookie: an image (PNG from any resource pack, path {@code ns:textures/...png}) that shapes the
@@ -307,22 +345,60 @@ public final class Light {
             NONE
         }
 
-        private final String texture;
-        private final Mode mode;
-        private final Wrap wrap;
-        private final Play play;
-        private final Fallback fallback;
-        private final int columns, rows, frames;
-        private final float fps, scale, rotation, offsetU, offsetV;
-        private final boolean blend, pixelated;
+        /**
+         * (0.15.0) Texture filtering. {@link #SMOOTH}: trilinear with mipmaps (default). {@link #SHARP}: crisp edges up
+         * close (each texel keeps a hard core, only its border is blended over about one screen pixel, so lines stay
+         * sharp without stair-stepping) and the normal mipmaps far away, with {@link #sharpness}. {@link #PIXELATED}:
+         * nearest texel, no mipmaps (pixel art; may shimmer when far and small).
+         */
+        public enum Filter {
+            /** Trilinear with mipmaps (default). */
+            SMOOTH,
+            /** Sharp magnification, mipmaps when minified. */
+            SHARP,
+            /** Nearest texel, no mipmaps. */
+            PIXELATED
+        }
 
-        private Cookie(String texture, Mode mode, Wrap wrap, Play play, Fallback fallback, int columns, int rows,
-                       int frames, float fps, float scale, float rotation, float offsetU, float offsetV, boolean blend,
-                       boolean pixelated) {
-            this.texture = texture; this.mode = mode; this.wrap = wrap; this.play = play; this.fallback = fallback;
-            this.columns = columns; this.rows = rows; this.frames = frames; this.fps = fps; this.scale = scale;
-            this.rotation = rotation; this.offsetU = offsetU; this.offsetV = offsetV; this.blend = blend;
-            this.pixelated = pixelated;
+        /**
+         * (0.15.0) Largest stored side of the image. {@link #STANDARD} (512, the shared atlas) is the default; the others
+         * are stored in a second atlas created on demand, within the quality profile's budget: LOW keeps everything at
+         * 512, BALANCED allows up to 1024, HIGH and ULTRA up to 2048. Over the budget, or while the large version
+         * loads, the light uses the 512 version (never nothing).
+         */
+        public enum Resolution {
+            /** Up to 512 × 512 (default). */
+            STANDARD(512),
+            /** Up to 1024 × 1024. */
+            HIGH(1024),
+            /** Up to 2048 × 2048. */
+            ULTRA(2048);
+
+            /** Largest side, pixels. */
+            public final int side;
+
+            Resolution(int side) { this.side = side; }
+        }
+
+        private final String texture;
+        private Mode mode = Mode.MASK;
+        private Wrap wrap = Wrap.CLAMP;
+        private Play play = Play.LOOP;
+        private Fallback fallback = Fallback.AVERAGE;
+        private Filter filter = Filter.SMOOTH;
+        private Resolution resolution = Resolution.STANDARD;
+        private int columns = 1, rows = 1, frames = 1;
+        private float fps, scale = 1, rotation, offsetU, offsetV, sharpness, lodBias;
+        private boolean blend;
+
+        private Cookie(String texture) { this.texture = texture; }
+
+        private Cookie copy() {
+            Cookie c = new Cookie(texture);
+            c.mode = mode; c.wrap = wrap; c.play = play; c.fallback = fallback; c.filter = filter; c.resolution = resolution;
+            c.columns = columns; c.rows = rows; c.frames = frames; c.fps = fps; c.scale = scale; c.rotation = rotation;
+            c.offsetU = offsetU; c.offsetV = offsetV; c.sharpness = sharpness; c.lodBias = lodBias; c.blend = blend;
+            return c;
         }
 
         /**
@@ -332,18 +408,12 @@ public final class Light {
         public static Cookie of(String texture) {
             if (texture == null || !LOCATION.matcher(texture).matches())
                 throw new IllegalArgumentException("Cookie texture must be ns:path.png (lower case): " + texture);
-            return new Cookie(texture, Mode.MASK, Wrap.CLAMP, Play.LOOP, Fallback.AVERAGE, 1, 1, 1, 0, 1, 0, 0, 0, false, false);
-        }
-
-        private Cookie with(Mode m, Wrap w, Play p, Fallback f, int c, int r, int n, float fp, float sc, float ro,
-                            float u, float v, boolean b, boolean px) {
-            return new Cookie(texture, m, w, p, f, c, r, n, fp, sc, ro, u, v, b, px);
+            return new Cookie(texture);
         }
 
         /** Channel semantics (MASK by default). */
         public Cookie mode(Mode value) {
-            return with(Objects.requireNonNull(value, "mode"), wrap, play, fallback, columns, rows, frames, fps, scale,
-                rotation, offsetU, offsetV, blend, pixelated);
+            Cookie c = copy(); c.mode = Objects.requireNonNull(value, "mode"); return c;
         }
 
         /** Shorthand for {@code mode(Mode.COLOR)}: the image's colors tint the light. */
@@ -351,8 +421,7 @@ public final class Light {
 
         /** Outside-the-image behavior (CLAMP by default). */
         public Cookie wrap(Wrap value) {
-            return with(mode, Objects.requireNonNull(value, "wrap"), play, fallback, columns, rows, frames, fps, scale,
-                rotation, offsetU, offsetV, blend, pixelated);
+            Cookie c = copy(); c.wrap = Objects.requireNonNull(value, "wrap"); return c;
         }
 
         /** Shorthand for {@code wrap(Wrap.REPEAT)}. */
@@ -360,8 +429,7 @@ public final class Light {
 
         /** Fallback when the image is not available or over budget (AVERAGE by default). */
         public Cookie fallback(Fallback value) {
-            return with(mode, wrap, play, Objects.requireNonNull(value, "fallback"), columns, rows, frames, fps, scale,
-                rotation, offsetU, offsetV, blend, pixelated);
+            Cookie c = copy(); c.fallback = Objects.requireNonNull(value, "fallback"); return c;
         }
 
         /**
@@ -371,54 +439,85 @@ public final class Light {
         public Cookie sheet(int columns, int rows) {
             if (columns < 1 || columns > 64 || rows < 1 || rows > 64 || columns * rows > MAX_FRAMES)
                 throw new IllegalArgumentException("Cookie sheet must be 1..64 × 1..64 with at most " + MAX_FRAMES + " frames");
-            return with(mode, wrap, play, fallback, columns, rows, columns * rows, fps == 0 ? 12 : fps, scale, rotation,
-                offsetU, offsetV, blend, pixelated);
+            Cookie c = copy();
+            c.columns = columns; c.rows = rows; c.frames = columns * rows;
+            if (c.fps == 0) c.fps = 12;
+            return c;
         }
 
         /** Number of frames actually used, 1..columns × rows. */
         public Cookie frames(int count) {
             if (count < 1 || count > columns * rows) throw new IllegalArgumentException("Cookie frames must be 1.." + columns * rows);
-            return with(mode, wrap, play, fallback, columns, rows, count, fps, scale, rotation, offsetU, offsetV, blend, pixelated);
+            Cookie c = copy(); c.frames = count; return c;
         }
 
         /** Frames per second on the clock, 0..60 (12 by default for sheets; 0 holds frame 0). */
         public Cookie fps(float value) {
-            return with(mode, wrap, play, fallback, columns, rows, frames, Builder.range("cookie fps", value, 0, 60), scale,
-                rotation, offsetU, offsetV, blend, pixelated);
+            Cookie c = copy(); c.fps = Builder.range("cookie fps", value, 0, 60); return c;
         }
 
         /** Playback on the clock (LOOP by default). */
         public Cookie play(Play value) {
-            return with(mode, wrap, Objects.requireNonNull(value, "play"), fallback, columns, rows, frames, fps, scale,
-                rotation, offsetU, offsetV, blend, pixelated);
+            Cookie c = copy(); c.play = Objects.requireNonNull(value, "play"); return c;
         }
 
         /** Cross-fades the current and the next frame instead of cutting (no cost when the sheet has one frame). */
         public Cookie blendFrames(boolean value) {
-            return with(mode, wrap, play, fallback, columns, rows, frames, fps, scale, rotation, offsetU, offsetV, value, pixelated);
+            Cookie c = copy(); c.blend = value; return c;
         }
 
         /** Base tiling, 0.01..64 (the {@link Param#COOKIE_SCALE} track replaces it). */
         public Cookie scale(float copies) {
-            return with(mode, wrap, play, fallback, columns, rows, frames, fps, Builder.range("cookie scale", copies, .01f, 64),
-                rotation, offsetU, offsetV, blend, pixelated);
+            Cookie c = copy(); c.scale = Builder.range("cookie scale", copies, .01f, 64); return c;
         }
 
         /** Base rotation in image space, degrees (the {@link Param#COOKIE_ROTATION} track replaces it). */
         public Cookie rotation(float degrees) {
-            return with(mode, wrap, play, fallback, columns, rows, frames, fps, scale,
-                Builder.range("cookie rotation", degrees, -3600, 3600), offsetU, offsetV, blend, pixelated);
+            Cookie c = copy(); c.rotation = Builder.range("cookie rotation", degrees, -3600, 3600); return c;
         }
 
         /** Base scroll in images (the {@link Param#COOKIE_U}/{@link Param#COOKIE_V} tracks replace it). */
         public Cookie offset(float u, float v) {
-            return with(mode, wrap, play, fallback, columns, rows, frames, fps, scale, rotation,
-                Builder.range("cookie u", u, -10000, 10000), Builder.range("cookie v", v, -10000, 10000), blend, pixelated);
+            Cookie c = copy();
+            c.offsetU = Builder.range("cookie u", u, -10000, 10000);
+            c.offsetV = Builder.range("cookie v", v, -10000, 10000);
+            return c;
         }
 
-        /** Nearest-texel sampling (pixel art) instead of smooth filtering with mipmaps. */
-        public Cookie pixelated() {
-            return with(mode, wrap, play, fallback, columns, rows, frames, fps, scale, rotation, offsetU, offsetV, blend, true);
+        /** Nearest-texel sampling (pixel art) instead of smooth filtering with mipmaps; same as {@code filter(PIXELATED)}. */
+        public Cookie pixelated() { return filter(Filter.PIXELATED); }
+
+        /** (0.15.0) Texture filtering (SMOOTH by default). {@code SHARP} starts with sharpness 0.75. */
+        public Cookie filter(Filter value) {
+            Cookie c = copy();
+            c.filter = Objects.requireNonNull(value, "filter");
+            if (value == Filter.SHARP && c.sharpness == 0) c.sharpness = .75f;
+            return c;
+        }
+
+        /**
+         * (0.15.0) Sharpness, 0..1 (0 by default; turns the filter to SHARP when above 0): up close, how hard each
+         * texel's edge is (1 = about one screen pixel of blend); far away it also lowers the mipmap level by up to half
+         * a level (more detail, a little more shimmer). Never sharper than the stored image.
+         */
+        public Cookie sharpness(float value) {
+            Cookie c = copy();
+            c.sharpness = Builder.range("cookie sharpness", value, 0, 1);
+            if (c.sharpness > 0 && c.filter == Filter.SMOOTH) c.filter = Filter.SHARP;
+            return c;
+        }
+
+        /**
+         * (0.15.0) Mipmap bias, -1..4 levels (0 by default): positive blurs (soft gobos, out-of-focus slides), negative
+         * keeps more detail far away at the cost of shimmer; clamped so frames of a sheet never mix.
+         */
+        public Cookie lodBias(float levels) {
+            Cookie c = copy(); c.lodBias = Builder.range("cookie lod bias", levels, -1, 4); return c;
+        }
+
+        /** (0.15.0) Largest stored side (STANDARD 512 by default); see {@link Resolution} for the per-profile budget. */
+        public Cookie resolution(Resolution value) {
+            Cookie c = copy(); c.resolution = Objects.requireNonNull(value, "resolution"); return c;
         }
 
         /** PNG location, {@code ns:path.png}. */
@@ -450,7 +549,15 @@ public final class Light {
         /** True when two frames cross-fade. */
         public boolean blendFrames() { return blend; }
         /** True for nearest-texel sampling. */
-        public boolean isPixelated() { return pixelated; }
+        public boolean isPixelated() { return filter == Filter.PIXELATED; }
+        /** (0.15.0) Texture filtering. */
+        public Filter filter() { return filter; }
+        /** (0.15.0) Sharpness, 0..1. */
+        public float sharpness() { return sharpness; }
+        /** (0.15.0) Mipmap bias, levels. */
+        public float lodBias() { return lodBias; }
+        /** (0.15.0) Largest stored side. */
+        public Resolution resolution() { return resolution; }
 
         /**
          * Frame position at a moment, pure: {@code track} (a {@link Param#FRAME} value, or NaN for none) wins; else the
@@ -478,16 +585,17 @@ public final class Light {
             return (float) f;
         }
 
-        /** Equal when every setting is equal (same image, mode, sheet, playback and base transform). */
+        /** Equal when every setting is equal (same image, mode, sheet, playback, filtering and base transform). */
         @Override public boolean equals(Object o) {
             return o instanceof Cookie c && texture.equals(c.texture) && mode == c.mode && wrap == c.wrap && play == c.play
-                && fallback == c.fallback && columns == c.columns && rows == c.rows && frames == c.frames && fps == c.fps
-                && scale == c.scale && rotation == c.rotation && offsetU == c.offsetU && offsetV == c.offsetV
-                && blend == c.blend && pixelated == c.pixelated;
+                && fallback == c.fallback && filter == c.filter && resolution == c.resolution && columns == c.columns
+                && rows == c.rows && frames == c.frames && fps == c.fps && scale == c.scale && rotation == c.rotation
+                && offsetU == c.offsetU && offsetV == c.offsetV && sharpness == c.sharpness && lodBias == c.lodBias
+                && blend == c.blend;
         }
 
         /** Hash of the settings, consistent with {@link #equals}. */
-        @Override public int hashCode() { return Objects.hash(texture, mode, wrap, columns, rows, frames, fps, scale, blend, pixelated); }
+        @Override public int hashCode() { return Objects.hash(texture, mode, wrap, columns, rows, frames, fps, scale, blend, filter, resolution); }
 
         /** Short description for logs. */
         @Override public String toString() { return "Cookie[" + texture + " " + mode + " " + columns + "x" + rows + "]"; }
@@ -506,6 +614,7 @@ public final class Light {
     private final Cookie cookie;
     private final Attenuation attenuation;
     private final Blend blend;
+    private final float blendStrength, detail, contrast;
     private final float yaw, pitch, roll, angle, softness, sizeX, sizeY;
     private final int[] ramp, gradient;
 
@@ -516,6 +625,7 @@ public final class Light {
         tracks = Collections.unmodifiableMap(new EnumMap<>(b.tracks));
         weightPhase = b.weightPhase;
         target = b.target; cookie = b.cookie; attenuation = b.attenuation; blend = b.blend;
+        blendStrength = b.blendStrength; detail = b.detail; contrast = b.contrast;
         yaw = b.yaw; pitch = b.pitch; roll = b.roll; angle = b.angle; softness = b.softness; sizeX = b.sizeX; sizeY = b.sizeY;
         ramp = b.ramp; gradient = b.gradient;
     }
@@ -618,6 +728,17 @@ public final class Light {
     public Attenuation attenuation() { return attenuation; }
     /** (0.15.0) Composition mode ({@link Blend#ADD} by default). */
     public Blend blend() { return blend; }
+    /** (0.15.0) Base blend strength, 0..1 (1 by default). */
+    public float blendStrength() { return blendStrength; }
+    /** (0.15.0) Base surface detail under EMISSIVE or OVERRIDE, 0..1 (0 by default). */
+    public float surfaceDetail() { return detail; }
+    /** (0.15.0) Base cookie mask contrast, 0.1..8 (1 by default). */
+    public float contrast() { return contrast; }
+    /**
+     * (0.15.0) True when the engine needs the per-instance {@link #projection} of this light: oriented lights and the
+     * EMISSIVE and OVERRIDE modes. False for the 0.9 lights, which keep the fast path.
+     */
+    public boolean projected() { return oriented() || blend == Blend.EMISSIVE || blend == Blend.OVERRIDE; }
     /** (0.15.0) Base yaw of a spot or projector in the instance frame, degrees. */
     public float yaw() { return yaw; }
     /** (0.15.0) Base pitch of a spot or projector, degrees (90 = down). */
@@ -660,7 +781,9 @@ public final class Light {
             value(Param.COOKIE_SCALE, cookie == null ? 1 : cookie.scale(), timeline),
             value(Param.COOKIE_ROTATION, cookie == null ? 0 : cookie.rotation(), timeline),
             value(Param.COOKIE_U, cookie == null ? 0 : cookie.offsetU(), timeline),
-            value(Param.COOKIE_V, cookie == null ? 0 : cookie.offsetV(), timeline), frame, value(Param.COLOR, 0, timeline));
+            value(Param.COOKIE_V, cookie == null ? 0 : cookie.offsetV(), timeline), frame, value(Param.COLOR, 0, timeline),
+            value(Param.BLEND_STRENGTH, blendStrength, timeline), value(Param.DETAIL, detail, timeline),
+            value(Param.CONTRAST, contrast, timeline));
     }
 
     /**
@@ -761,6 +884,7 @@ public final class Light {
         private Cookie cookie;
         private Attenuation attenuation = Attenuation.POWER;
         private Blend blend = Blend.ADD;
+        private float blendStrength = 1, detail, contrast = 1;
         private float yaw, pitch = 90, roll, angle = 40, softness, sizeX, sizeY;
         private int[] ramp = new int[0], gradient = new int[0];
 
@@ -905,6 +1029,27 @@ public final class Light {
         /** (0.15.0) Attenuation curve (POWER by default, the 0.9 curve). */
         public Builder attenuation(Attenuation value) {
             attenuation = Objects.requireNonNull(value, "attenuation");
+            return this;
+        }
+
+        /**
+         * (0.15.0) Strength of the blend mode, 0..1 (1 by default): EMISSIVE emission (0 behaves as ADD), OVERRIDE
+         * strength (0 none, 0.5 dominant, 1 full). Animate it with {@link Param#BLEND_STRENGTH}.
+         */
+        public Builder blendStrength(float value) {
+            blendStrength = range("blend strength", value, 0, 1);
+            return this;
+        }
+
+        /** (0.15.0) Surface detail kept under EMISSIVE or OVERRIDE, 0 (flat projected color, default) .. 1. */
+        public Builder surfaceDetail(float value) {
+            detail = range("surface detail", value, 0, 1);
+            return this;
+        }
+
+        /** (0.15.0) Contrast of the cookie mask around half coverage, 0.1..8 (1 by default; 3 to 6 for crisp lines). */
+        public Builder contrast(float value) {
+            contrast = range("contrast", value, .1f, 8);
             return this;
         }
 

@@ -89,7 +89,7 @@ public final class PerfOverlay {
     static void beams(int drawn, dev.calamidade_awakening.api.EnginePasses.Pool pool) { beams = drawn; beamPool = pool; }
     // 0.15.0: lifecycle of resident instances and details of the lights pass (set every frame by their owners).
     private static int[] lifecycle = new int[3];
-    private static int[] lightDetail = new int[10];
+    private static int[] lightDetail = new int[13];
     private static long cookieBytes;
 
     /** Resident sustained instances in their loop, released ones, instances dropped by reconciliation (0.15.0). */
@@ -100,12 +100,16 @@ public final class PerfOverlay {
      * cookie cap; atlas images ready, waiting, failed and uploads; atlas bytes.
      */
     static void lightDetail(int requested, int culled, int capped, int textured, int fallback, int cookieCap, int[] atlas,
-                            long bytes) {
-        lightDetail = new int[] {requested, culled, capped, textured, fallback, cookieCap, atlas[0], atlas[1], atlas[2], atlas[3]};
+                            long bytes, int large) {
+        lightDetail = new int[] {requested, culled, capped, textured, fallback, cookieCap, atlas[0], atlas[1], atlas[2], atlas[3],
+            atlas[5], atlas[6], large};
         cookieBytes = bytes;
     }
 
-    /** Last light details (tests): requested, culled, capped, textured, fallback, cap, ready, waiting, failed, uploads. */
+    /**
+     * Last light details (tests): requested, culled, capped, textured, fallback, cap, ready, waiting, failed, uploads;
+     * since fase 2 also large versions resident, large versions loading, lights sampling a large version this frame.
+     */
     public static int[] lightDetail() { return lightDetail.clone(); }
 
     /** Bytes of the light cookie atlas (0 when not allocated), tests and F7. */
@@ -304,9 +308,10 @@ public final class PerfOverlay {
             lastLights, lastLimits.lights(), pool(lastLightPool)));
         if (lightDetail[0] > 0 || cookieBytes > 0)
             lines.add(Component.translatableWithFallback(PREFIX + "lights.detail",
-                "  %s requested · %s culled · %s over cap · cookies %s/%s (%s fallback) · atlas %s ready %s waiting %s failed · %s uploads · %s MB",
-                lightDetail[0], lightDetail[1], lightDetail[2], lightDetail[3], lightDetail[5], lightDetail[4], lightDetail[6],
-                lightDetail[7], lightDetail[8], lightDetail[9], format(cookieBytes / 1048576.0)));
+                "  %s requested · %s culled · %s over cap · cookies %s/%s (%s fallback, %s high-res) · atlas %s ready %s waiting %s failed, %s high-res (%s loading) · %s uploads · %s MB",
+                lightDetail[0], lightDetail[1], lightDetail[2], lightDetail[3], lightDetail[5], lightDetail[4], lightDetail[12],
+                lightDetail[6], lightDetail[7], lightDetail[8], lightDetail[10], lightDetail[11], lightDetail[9],
+                format(cookieBytes / 1048576.0)));
         lines.add(Component.translatableWithFallback(PREFIX + "terrain", "Terrain: %s hot zones · %s stand-ins · pass %s",
             lastTerrainZones, lastTerrainStandIns, pool(lastTerrainPool)));
         lines.add(Component.translatableWithFallback(PREFIX + "meshes", "Stand-in meshes: %s · %s vertices · last build %s ms",

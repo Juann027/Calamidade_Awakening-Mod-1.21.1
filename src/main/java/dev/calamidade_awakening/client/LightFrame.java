@@ -28,7 +28,7 @@ import java.util.List;
  */
 final class LightFrame {
     static final String PROGRAM = "calamidade_awakening:lights";
-    static final int TEXELS = 12, ROWS = 64;
+    static final int TEXELS = 13, ROWS = 64;
 
     /**
      * One resolved light: positions relative to the camera and its state (weight already includes a linked beam's).
@@ -48,7 +48,7 @@ final class LightFrame {
     private final LightCookies cookies = new LightCookies();
     private List<Resolved> lights = List.of();
     private boolean heroNeeds, normalNeeds;
-    private int requested, culled, textured, fallbacks, cookieCap;
+    private int requested, culled, textured, fallbacks, cookieCap, large;
     // Game terrain fog of the frame (RenderFog, recorded after every listener): the light fades with it.
     private float fogStart = 1e6f, fogEnd = 2e6f;
     private boolean fogCylinder;
@@ -73,7 +73,7 @@ final class LightFrame {
     void collect(StageScene.Plan plan, Vec3 camera, float partial, TerrainFrame terrain) {
         heroNeeds = normalNeeds = false;
         requested = culled = 0;
-        cookies.pump();
+        cookies.pump(CookieAtlas.largeSide(plan.limits().lights()));
         var mc = Minecraft.getInstance();
         boolean calm = mc.options.hideLightningFlash().get();
         float flickerScale = ClientConfig.screenEffects() * (calm ? .25f : 1f);
@@ -134,6 +134,10 @@ final class LightFrame {
                         frame = Basis.of(projection.yaw(), projection.pitch());
                         r = axes(light, a, b, state, weight, projection, frame, sample, camera);
                     }
+                } else if (light.projected()) {
+                    // 0.15 fase 2: EMISSIVE or OVERRIDE on a point, segment, disc or ring: strength, detail.
+                    r = new Resolved(light, a.subtract(camera), b.subtract(camera), state, weight,
+                        light.projection(sampler, seconds), null, null, null);
                 } else {
                     r = new Resolved(light, a.subtract(camera), b.subtract(camera), state, weight);
                 }
@@ -223,31 +227,33 @@ final class LightFrame {
     void report(boolean drawn) {
         int kept = Math.min(lights.size(), ROWS);
         PerfOverlay.lightDetail(requested, culled, Math.max(0, requested - culled - kept), drawn ? textured : 0,
-            drawn ? fallbacks : 0, cookieCap, cookies.counts(), cookies.bytes());
+            drawn ? fallbacks : 0, cookieCap, cookies.counts(), cookies.bytes(), drawn ? large : 0);
     }
 
     /** Uploads the lights and queues the pass. Call only when the pass was paid for, before the effect passes. */
     void queue(FxApi.Frame frame) {
         int count = Math.min(lights.size(), ROWS);
-        textured = fallbacks = 0;
+        textured = fallbacks = large = 0;
         int k = 0;
         for (int i = 0; i < count; i++) {
             Resolved r = lights.get(i);
             Light light = r.light();
             Light.State s = r.state();
-            float gain = s.intensity() * r.weight();
+            boolean override = light.blend() == Light.Blend.OVERRIDE;
+            // OVERRIDE: the color carries the intensity only; the instance weight goes into the strength (coverage).
+            float gain = override ? s.intensity() : s.intensity() * r.weight();
             int shape = light.shape().ordinal();
             int flags = 0;
             float cr = BeamFrame.red(s.color()), cg = BeamFrame.green(s.color()), cb = BeamFrame.blue(s.color());
             Light.Cookie cookie = light.cookie();
             LightCookies.Entry entry = null;
             if (cookie != null) {
-                entry = cookies.get(cookie.texture());
+                entry = cookies.get(cookie.texture(), cookie.resolution().side);
                 boolean budget = textured < cookieCap;
                 if (entry.ready() && budget) {
                     flags |= 1;
                     textured++;
-                } else if (entry.status == LightCookies.Status.PENDING && budget) {
+                } else if (entry.status() == LightCookies.Status.PENDING && budget) {
                     // First load: nothing yet (it shows within a few frames), instead of a fallback that pops.
                     gain = 0;
                 } else if (cookie.fallback() == Light.Cookie.Fallback.NONE) {
@@ -261,11 +267,13 @@ final class LightFrame {
                 }
                 if (cookie.mode() == Light.Cookie.Mode.COLOR) flags |= 2;
                 if (cookie.wrap() == Light.Cookie.Wrap.REPEAT) flags |= 4;
-                if (cookie.isPixelated()) flags |= 8;
-                flags |= 16;   // has a cookie: square aperture for a spot, even on the fallback
+                flags |= 8;    // has a cookie: square aperture for a spot, even on the fallback
+                if ((flags & 1) != 0 && entry.isLarge()) flags |= 16;
+                flags |= cookie.filter().ordinal() << 5;
             }
             int stops = light.gradientStops();
-            int code = shape | light.attenuation().ordinal() << 3 | light.blend().ordinal() << 5 | flags << 7 | stops << 12;
+            // Bits: 0-2 shape, 3-4 curve, 5-7 blend, 8-14 cookie flags, 15-17 gradient stops (all exact in a float).
+            int code = shape | light.attenuation().ordinal() << 3 | light.blend().ordinal() << 5 | flags << 8 | stops << 15;
             // t0, t1, t2: same layout as 0.9 for the conventional shapes.
             k = put(k, (float) r.a().x, (float) r.a().y, (float) r.a().z, s.radius());
             Vec3 second = r.dir() != null && light.shape() != Light.Shape.DISC ? r.dir() : r.b();
@@ -277,9 +285,9 @@ final class LightFrame {
             Light.Projection p = r.projection();
             float tanHalf = p == null ? 0 : (float) Math.tan(Math.toRadians(Math.clamp(p.angle(), 1, 170) * .5));
             k = put(k, s.width(), s.height(), tanHalf, p == null ? 0 : p.softness());
-            if (count > 0 && p == null && stops == 0) {
+            if (p == null && stops == 0) {
                 // Conventional light: the shader reads only t0..t3; the rest of the row stays as it was.
-                k += 8 * 4;
+                k += (TEXELS - 4) * 4;
                 continue;
             }
             Vec3 right = r.right() == null ? Vec3.ZERO : r.right(), up = r.up() == null ? Vec3.ZERO : r.up();
@@ -293,31 +301,39 @@ final class LightFrame {
                 int f0 = (int) Math.floor(f);
                 mix = f - f0;
                 int f1 = cookie.play() == Light.Cookie.Play.LOOP ? (f0 + 1) % cookie.frames() : Math.min(f0 + 1, cookie.frames() - 1);
-                CookieAtlas.frameRect(entry.cell, entry.width, entry.height, cookie.columns(), cookie.rows(), f0, rect);
+                LightCookies.Version v = entry.best();
+                CookieAtlas.frameRect(v.cell, v.width, v.height, cookie.columns(), cookie.rows(), f0, rect);
                 k = put(k, rect[0], rect[1], rect[2], rect[3]);
-                CookieAtlas.frameRect(entry.cell, entry.width, entry.height, cookie.columns(), cookie.rows(), f1, rect);
+                CookieAtlas.frameRect(v.cell, v.width, v.height, cookie.columns(), cookie.rows(), f1, rect);
                 k = put(k, rect[0], rect[1], rect[2], rect[3]);
-                maxLod = CookieAtlas.maxLod((float) entry.width / cookie.columns(), (float) entry.height / cookie.rows());
+                maxLod = CookieAtlas.maxLod((float) v.width / cookie.columns(), (float) v.height / cookie.rows());
+                if (v != entry.std) large++;
             } else {
                 k = put(k, 0, 0, 0, 0);
                 k = put(k, 0, 0, 0, 0);
             }
             for (int j = 1; j < 4; j++) {
-                float w = j == 1 ? mix : j == 2 ? maxLod : 0;
+                float w = j == 1 ? mix : j == 2 ? maxLod : cookie == null ? 0 : cookie.sharpness();
                 if (g != null && j < g.length) k = put(k, cr * gain * BeamFrame.red(g[j]), cg * gain * BeamFrame.green(g[j]),
                     cb * gain * BeamFrame.blue(g[j]), w);
                 else k = put(k, 0, 0, 0, w);
             }
+            // t12: blend strength (OVERRIDE: times the instance weight), surface detail, mask contrast, lod bias.
+            float strength = p == null ? 1 : p.strength();
+            k = put(k, override ? strength * r.weight() : strength, p == null ? 0 : p.detail(), p == null ? 1 : p.contrast(),
+                cookie == null ? 0 : cookie.lodBias());
         }
         int id = texture.upload(data, count);
-        int atlas = cookies.texture();
+        int atlas = cookies.texture(), largeAtlas = cookies.largeTexture();
         float start = fogStart, end = fogEnd, cylinder = fogCylinder ? 1 : 0;
         frame.pass(PROGRAM, u -> {
             u.glTexture("CaLightData", id);
             // Without the atlas the cookie sampler gets the data texture: it is never read then (no cookie flag set).
             u.glTexture("CaCookieAtlas", atlas != 0 ? atlas : id);
             u.f4("CaLightInfo", count, start, end, cylinder);
-            u.f4("CaCookieInfo", CookieAtlas.SIDE, atlas != 0 ? 1 : 0, 0, 0);
+            // 0.15 fase 2: the large atlas only exists while a high-resolution cookie is resident.
+            u.glTexture("CaCookieLarge", largeAtlas != 0 ? largeAtlas : atlas != 0 ? atlas : id);
+            u.f4("CaCookieInfo", CookieAtlas.SIDE, atlas != 0 ? 1 : 0, largeAtlas != 0 ? 1 : 0, 0);
         });
     }
 

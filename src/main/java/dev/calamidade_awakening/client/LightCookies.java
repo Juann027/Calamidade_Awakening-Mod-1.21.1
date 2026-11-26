@@ -21,188 +21,280 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * The light cookie atlas of this client (0.15.0): one RGBA8 texture of {@value CookieAtlas#SIDE} texels with
- * {@value CookieAtlas#LEVELS} mipmap levels that holds every cookie image, so the single lights pass reads all cookies
- * through one sampler. Created on the first cookie light, never before (no memory and no GL work while no cookie is
- * used); deleted again after {@value #KEEP_FRAMES} frames without cookie lights, on resource reload and when the player
+ * The light cookie atlases of this client (0.15.0). The <b>standard atlas</b> (RGBA8, {@value CookieAtlas#SIDE} texels,
+ * {@value CookieAtlas#LEVELS} mipmap levels) holds every cookie at up to 512 texels; it is created on the first cookie
+ * light, never before. The <b>large atlas</b> (fase 2, same side, full mipmap chain) holds the optional 1024 or 2048
+ * versions of cookies that ask for {@code Cookie.resolution(HIGH|ULTRA)}; it exists only while such a cookie is used
+ * and the profile allows it ({@link CookieAtlas#largeSide}: LOW none, BALANCED 1024, HIGH and ULTRA 2048). The 512
+ * version always exists too: it is what the light uses while the large one loads, when the budget is lower or the large
+ * atlas is full. Both atlases go after {@value #KEEP_FRAMES} frames without use, on resource reload and when the player
  * leaves the world.
  *
- * <p>Each PNG is read, halved to fit {@value CookieAtlas#BIG} texels, premultiplied and reduced to its mipmap chain on
- * a worker thread (2 × 2 box per level inside its own cell, so levels never mix cells); the render thread only uploads,
- * at most {@value #UPLOADS_PER_FRAME} image per frame. An image is uploaded once and shared by every light that uses it.
- * When the atlas is full, images unused for {@value #EVICT_FRAMES} frames are evicted; if none can go, the new image
- * waits (its lights use their fallback). Missing, unreadable or oversized images are logged once and counted for F7.
- * Render thread only, except the decoding jobs.
+ * <p>Each PNG is read, resized (halved while too big, then each side rounded up to a power of two, so mipmaps and tiling
+ * never see padding), premultiplied and reduced to its mipmap chain on a worker thread; the render thread only uploads,
+ * within {@value #UPLOAD_BYTES} bytes per frame (a 2048 image goes up in bands over several frames, and is used only
+ * once complete). An image is uploaded once and shared by every light that uses it. When an atlas is full, images unused
+ * for {@value #EVICT_FRAMES} frames are evicted; if none can go, the new image waits (its lights use their fallback).
+ * Missing, unreadable or oversized images are logged once and counted for F7. Render thread only, except the decoding
+ * jobs.
  */
 final class LightCookies {
     private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
-    /** Largest PNG side accepted before halving, pixels. */
+    /** Largest PNG side accepted, pixels. */
     static final int MAX_SOURCE = 4096;
-    static final int KEEP_FRAMES = 1200, EVICT_FRAMES = 60, UPLOADS_PER_FRAME = 1;
+    static final int KEEP_FRAMES = 1200, EVICT_FRAMES = 60;
+    /** Bytes uploaded per frame at most (one standard image always fits; large images go in bands). */
+    static final int UPLOAD_BYTES = 4 << 20;
+    /** Mipmap levels of the large atlas (2048 down to 1). */
+    static final int LARGE_LEVELS = 12;
 
     enum Status { PENDING, WAITING, READY, FAILED }
 
-    /** One cookie image: where it lives in the atlas and its average color (fallback). */
-    static final class Entry {
-        final String texture;
+    /** Decoded image: mip levels of the whole cell (ABGR ints, premultiplied), stored image size and average. */
+    record Decoded(int[][] levels, int cellSize, int width, int height, float r, float g, float b) {}
+
+    /** One stored version of an image (standard or large): cell, size and upload progress. */
+    static final class Version {
         Status status = Status.PENDING;
         CompletableFuture<Decoded> job;
         Decoded decoded;
         CookieAtlas.Cell cell;
-        int width, height, generation;
-        long lastUsed;
+        int width, height, side;
+        // Upload progress: level and next row of that level.
+        int level, row;
+
+        boolean ready() { return status == Status.READY; }
+    }
+
+    /** One cookie image. */
+    static final class Entry {
+        final String texture;
+        final Version std = new Version();
+        Version large;
+        int wanted = 512;
+        long lastUsed, lastLarge;
         /** Average premultiplied color of the image (rgb) and its luminance; 0.5 until it loaded. */
         float avgR = .5f, avgG = .5f, avgB = .5f, avgLuma = .5f;
 
         Entry(String texture) { this.texture = texture; }
 
-        boolean ready() { return status == Status.READY; }
+        boolean ready() { return std.ready(); }
+        /** The version to sample now: the large one when complete, else the standard one. */
+        Version best() { return large != null && large.ready() ? large : std; }
+        boolean isLarge() { return large != null && large.ready(); }
+        Status status() { return std.status; }
     }
-
-    /** Decoded image: mip levels of the whole cell (ABGR ints, premultiplied), image size and average. */
-    record Decoded(int[][] levels, int cellSize, int width, int height, float r, float g, float b) {}
 
     private final Map<String, Entry> entries = new HashMap<>();
     private final Set<String> reported = new HashSet<>();
     private final CookieAtlas atlas = new CookieAtlas();
-    private int texture;
-    private long frame, lastCookieFrame;
-    private int generation, uploadsThisFrame, uploadsTotal, failures;
+    private final CookieAtlas largeAtlas = new CookieAtlas(2048, 1024);
+    private int texture, largeTexture, allowedLarge = 512;
+    private long frame, lastCookieFrame, lastLargeFrame;
+    private int uploadedThisFrame, uploadsTotal, failures;
+    private long bytesTotal;
     private IntBuffer staging;
 
-    /** Entry of an image (starts loading it on first use), marked as used this frame. */
-    Entry get(String location) {
+    /**
+     * Entry of an image (starts loading it on first use), marked as used this frame; {@code side} is the resolution the
+     * light asks for (512, 1024 or 2048).
+     */
+    Entry get(String location, int side) {
         Entry e = entries.get(location);
         if (e == null) {
             e = new Entry(location);
-            e.generation = generation;
             entries.put(location, e);
-            String loc = location;
-            e.job = CompletableFuture.supplyAsync(() -> decode(loc), Util.backgroundExecutor());
+            start(e.std, location, 512);
         }
         e.lastUsed = frame;
         lastCookieFrame = frame;
+        if (side > 512) {
+            e.wanted = Math.max(e.wanted, side);
+            e.lastLarge = frame;
+            lastLargeFrame = frame;
+            int target = Math.min(e.wanted, allowedLarge);
+            if (target > 512 && (e.large == null || (e.large.side != target && e.large.status != Status.FAILED))) {
+                freeLarge(e);
+                e.large = new Version();
+                start(e.large, location, target);
+            }
+        }
         return e;
     }
 
-    /** Per frame, before the lights are queued: finishes decoding jobs, uploads (capped) and releases idle memory. */
-    void pump() {
+    private void start(Version v, String location, int side) {
+        v.side = side;
+        v.job = CompletableFuture.supplyAsync(() -> decode(location, side), Util.backgroundExecutor());
+    }
+
+    /**
+     * Per frame, before the lights are queued: the large budget of the profile, finished decoding jobs, uploads within
+     * the byte budget, and release of idle memory.
+     */
+    void pump(int largeSide) {
         frame++;
-        uploadsThisFrame = 0;
+        uploadedThisFrame = 0;
+        if (largeSide != allowedLarge) {
+            allowedLarge = largeSide;
+            // Lower budget: large versions above it go (their lights use the 512 version or ask again below).
+            for (Entry e : entries.values()) if (e.large != null && e.large.side > allowedLarge) freeLarge(e);
+            if (allowedLarge <= 512) deleteLarge();
+        }
         if (entries.isEmpty()) {
             if (texture != 0 && frame - lastCookieFrame > KEEP_FRAMES) deleteAtlas();
             return;
         }
         List<Entry> idle = null;
         for (Entry e : entries.values()) {
-            if (e.status == Status.PENDING && e.job != null && e.job.isDone()) {
-                try {
-                    e.decoded = e.job.join();
-                    e.status = Status.WAITING;
-                } catch (Exception failure) {
-                    fail(e, failure.getCause() != null ? failure.getCause().getMessage() : failure.getMessage());
-                }
-                e.job = null;
-            }
-            if (e.status == Status.WAITING && uploadsThisFrame < UPLOADS_PER_FRAME) place(e);
+            finishJob(e, e.std);
+            if (e.large != null) finishJob(e, e.large);
+            if (e.std.status == Status.WAITING) place(e, e.std, false);
+            if (e.large != null && e.large.status == Status.WAITING && e.std.ready()) place(e, e.large, true);
             if (frame - e.lastUsed > KEEP_FRAMES) (idle == null ? idle = new ArrayList<>() : idle).add(e);
+            else if (e.large != null && frame - e.lastLarge > KEEP_FRAMES) freeLarge(e);
         }
         if (idle != null) for (Entry e : idle) drop(e);
+        if (largeTexture != 0 && frame - lastLargeFrame > KEEP_FRAMES) deleteLarge();
         if (entries.isEmpty() && texture != 0 && frame - lastCookieFrame > KEEP_FRAMES) deleteAtlas();
     }
 
-    private void place(Entry e) {
-        Decoded d = e.decoded;
-        CookieAtlas.Cell cell = atlas.allocate(d.width(), d.height());
-        if (cell == null) {
-            // Full: evict the least recently used image idle for EVICT_FRAMES, then try once more.
-            Entry victim = null;
-            for (Entry o : entries.values())
-                if (o.ready() && frame - o.lastUsed > EVICT_FRAMES && (victim == null || o.lastUsed < victim.lastUsed)) victim = o;
-            if (victim != null) {
-                atlas.free(victim.cell);
-                victim.cell = null;
-                victim.status = Status.PENDING;   // decoded again if it comes back
-                victim.job = null;
-                entries.remove(victim.texture);
-                cell = atlas.allocate(d.width(), d.height());
+    private void finishJob(Entry e, Version v) {
+        if (v.status != Status.PENDING || v.job == null || !v.job.isDone()) return;
+        try {
+            v.decoded = v.job.join();
+            v.status = Status.WAITING;
+            if (v == e.std) {
+                e.avgR = v.decoded.r(); e.avgG = v.decoded.g(); e.avgB = v.decoded.b();
+                e.avgLuma = .2126f * e.avgR + .7152f * e.avgG + .0722f * e.avgB;
             }
-            if (cell == null) {
-                note(e.texture, "light cookie atlas full: " + e.texture + " waits (its lights use their fallback)");
-                return;
-            }
+        } catch (Exception failure) {
+            v.status = Status.FAILED;
+            failures++;
+            String message = failure.getCause() != null ? failure.getCause().getMessage() : failure.getMessage();
+            note(e.texture + v.side, "light cookie " + e.texture + " (" + v.side + ") skipped: " + message);
         }
-        if (texture == 0) createAtlas();
-        upload(cell, d);
-        e.cell = cell;
-        e.width = d.width();
-        e.height = d.height();
-        e.avgR = d.r(); e.avgG = d.g(); e.avgB = d.b();
-        e.avgLuma = .2126f * d.r() + .7152f * d.g() + .0722f * d.b();
-        e.decoded = null;
-        e.status = Status.READY;
-        uploadsThisFrame++;
-        uploadsTotal++;
+        v.job = null;
+    }
+
+    /** Allocates (evicting idle images if needed) and uploads a decoded version, within the frame's byte budget. */
+    private void place(Entry e, Version v, boolean large) {
+        Decoded d = v.decoded;
+        CookieAtlas target = large ? largeAtlas : atlas;
+        if (v.cell == null) {
+            CookieAtlas.Cell cell = target.allocate(d.width(), d.height());
+            if (cell == null) {
+                Entry victim = null;
+                for (Entry o : entries.values()) {
+                    Version ov = large ? o.large : o.std;
+                    long used = large ? o.lastLarge : o.lastUsed;
+                    if (o != e && ov != null && ov.cell != null && frame - used > EVICT_FRAMES && (victim == null
+                        || used < (large ? victim.lastLarge : victim.lastUsed))) victim = o;
+                }
+                if (victim != null) {
+                    if (large) freeLarge(victim); else drop(victim);
+                    cell = target.allocate(d.width(), d.height());
+                }
+                if (cell == null) {
+                    note(e.texture + (large ? "L" : "S"), "light cookie atlas" + (large ? " (large)" : "") + " full: "
+                        + e.texture + " waits (its lights use " + (large ? "the 512 version" : "their fallback") + ")");
+                    return;
+                }
+            }
+            v.cell = cell;
+            v.level = 0;
+            v.row = 0;
+            if (large) { if (largeTexture == 0) largeTexture = create(LARGE_LEVELS); }
+            else if (texture == 0) texture = create(CookieAtlas.LEVELS);
+        }
+        if (upload(large ? largeTexture : texture, v, d)) {
+            v.width = d.width();
+            v.height = d.height();
+            v.decoded = null;
+            v.status = Status.READY;
+            uploadsTotal++;
+        }
+    }
+
+    private void freeLarge(Entry e) {
+        if (e.large == null) return;
+        if (e.large.job != null) e.large.job.cancel(false);
+        if (e.large.cell != null) largeAtlas.free(e.large.cell);
+        e.large = null;
     }
 
     private void drop(Entry e) {
-        if (e.cell != null) atlas.free(e.cell);
-        if (e.job != null) e.job.cancel(false);
+        if (e.std.cell != null) atlas.free(e.std.cell);
+        if (e.std.job != null) e.std.job.cancel(false);
+        freeLarge(e);
         entries.remove(e.texture);
-    }
-
-    private void fail(Entry e, String message) {
-        e.status = Status.FAILED;
-        failures++;
-        note(e.texture, "light cookie " + e.texture + " skipped: " + message);
     }
 
     private void note(String key, String message) {
         if (reported.add(key + "|" + message)) LOGGER.warn(message);
     }
 
-    /** GL texture of the atlas, 0 when it does not exist. */
+    /** GL texture of the standard atlas, 0 when it does not exist. */
     int texture() { return texture; }
+
+    /** GL texture of the large atlas, 0 when it does not exist. */
+    int largeTexture() { return largeTexture; }
 
     /** Releases everything (resource reload, leaving the world); images load again on use. */
     void clear() {
-        for (Entry e : entries.values()) if (e.job != null) e.job.cancel(false);
+        for (Entry e : entries.values()) {
+            if (e.std.job != null) e.std.job.cancel(false);
+            if (e.large != null && e.large.job != null) e.large.job.cancel(false);
+        }
         entries.clear();
         reported.clear();
-        atlas.clear();
-        generation++;
+        deleteLarge();
         deleteAtlas();
     }
 
-    /** F7: images ready, waiting or loading, failed; atlas bytes (0 when not allocated); uploads since start. */
+    /**
+     * F7: images ready, waiting or loading, failed; uploads since start; quarters of the standard atlas in use; large
+     * versions ready; large versions loading or waiting.
+     */
     int[] counts() {
-        int ready = 0, waiting = 0, failed = 0;
+        int ready = 0, waiting = 0, failed = 0, large = 0, largeWaiting = 0;
         for (Entry e : entries.values()) {
             if (e.ready()) ready++;
-            else if (e.status == Status.FAILED) failed++;
+            else if (e.std.status == Status.FAILED) failed++;
             else waiting++;
+            if (e.large != null) { if (e.large.ready()) large++; else if (e.large.status != Status.FAILED) largeWaiting++; }
         }
-        return new int[] {ready, waiting, failed, uploadsTotal, atlas.usedQuarters()};
+        return new int[] {ready, waiting, failed, uploadsTotal, atlas.usedQuarters(), large, largeWaiting};
     }
 
-    long bytes() { return texture == 0 ? 0 : CookieAtlas.BYTES; }
+    /** Bytes of both atlases (0 when none exists). */
+    long bytes() { return (texture == 0 ? 0 : CookieAtlas.BYTES) + (largeTexture == 0 ? 0 : largeBytes()); }
+
+    /** Bytes uploaded since start. */
+    long uploadedBytes() { return bytesTotal; }
+
+    static long largeBytes() {
+        long total = 0;
+        for (int k = 0; k < LARGE_LEVELS; k++) total += (long) (CookieAtlas.SIDE >> k) * (CookieAtlas.SIDE >> k) * 4;
+        return total;
+    }
 
     // ---------------------------------------------------------------------------------------------- GL
 
-    private void createAtlas() {
+    private static int create(int levels) {
         int previous = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
         int unpackBuffer = GL11.glGetInteger(GL21.GL_PIXEL_UNPACK_BUFFER_BINDING);
+        int id;
         try {
             if (unpackBuffer != 0) GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER, 0);
-            texture = GL11.glGenTextures();
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
+            id = GL11.glGenTextures();
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR_MIPMAP_LINEAR);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_BASE_LEVEL, 0);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, CookieAtlas.LEVELS - 1);
-            for (int k = 0; k < CookieAtlas.LEVELS; k++) {
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, levels - 1);
+            for (int k = 0; k < levels; k++) {
                 int side = CookieAtlas.SIDE >> k;
                 GL11.glTexImage2D(GL11.GL_TEXTURE_2D, k, GL11.GL_RGBA8, side, side, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE,
                     (IntBuffer) null);
@@ -211,6 +303,7 @@ final class LightCookies {
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, previous);
             if (unpackBuffer != 0) GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER, unpackBuffer);
         }
+        return id;
     }
 
     private void deleteAtlas() {
@@ -219,13 +312,30 @@ final class LightCookies {
             texture = 0;
         }
         atlas.clear();
-        for (Entry e : entries.values()) if (e.ready()) { e.status = Status.PENDING; e.cell = null; }
-        // Entries without data load again on use.
-        entries.values().removeIf(e -> e.status == Status.PENDING && e.job == null);
-        staging = null;
+        for (Entry e : entries.values()) freeLarge(e);
+        for (Entry e : entries.values()) if (e.std.cell != null) {
+            // The data is gone with the texture: decode again on use.
+            e.std.cell = null;
+            e.std.status = Status.FAILED == e.std.status ? Status.FAILED : Status.PENDING;
+        }
+        entries.values().removeIf(e -> e.std.status == Status.PENDING && e.std.job == null);
+        if (largeTexture == 0) staging = null;
     }
 
-    private void upload(CookieAtlas.Cell cell, Decoded d) {
+    private void deleteLarge() {
+        for (Entry e : entries.values()) freeLarge(e);
+        if (largeTexture != 0) {
+            GL11.glDeleteTextures(largeTexture);
+            largeTexture = 0;
+        }
+        largeAtlas.clear();
+    }
+
+    /**
+     * Uploads what fits of a version in this frame's byte budget, from where it stopped; true when it is complete. A
+     * standard image always goes in one frame (at most ~1.4 MB with its mipmaps).
+     */
+    private boolean upload(int id, Version v, Decoded d) {
         int previous = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
         int unpackBuffer = GL11.glGetInteger(GL21.GL_PIXEL_UNPACK_BUFFER_BINDING);
         int rowLength = GL11.glGetInteger(GL11.GL_UNPACK_ROW_LENGTH);
@@ -238,16 +348,25 @@ final class LightCookies {
             GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_PIXELS, 0);
             GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_ROWS, 0);
             GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 4);
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
-            if (staging == null) staging = BufferUtils.createIntBuffer(CookieAtlas.BIG * CookieAtlas.BIG);
-            for (int k = 0; k < d.levels().length; k++) {
-                int side = d.cellSize() >> k;
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
+            if (staging == null) staging = BufferUtils.createIntBuffer(UPLOAD_BYTES / 4);
+            boolean small = d.cellSize() <= CookieAtlas.BIG;
+            while (v.level < d.levels().length) {
+                int side = d.cellSize() >> v.level;
+                int budgetRows = small ? side : Math.max(1, (UPLOAD_BYTES - uploadedThisFrame) / (side * 4));
+                if (!small && uploadedThisFrame >= UPLOAD_BYTES) return false;
+                int rows = Math.min(side - v.row, Math.min(budgetRows, staging.capacity() / side));
                 staging.clear();
-                staging.put(d.levels()[k], 0, side * side);
+                staging.put(d.levels()[v.level], v.row * side, rows * side);
                 staging.flip();
-                GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, k, cell.x() >> k, cell.y() >> k, side, side, GL11.GL_RGBA,
-                    GL11.GL_UNSIGNED_BYTE, staging);
+                GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, v.level, v.cell.x() >> v.level, (v.cell.y() >> v.level) + v.row,
+                    side, rows, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, staging);
+                uploadedThisFrame += rows * side * 4;
+                bytesTotal += rows * side * 4L;
+                v.row += rows;
+                if (v.row >= side) { v.level++; v.row = 0; }
             }
+            return true;
         } finally {
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, previous);
             GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, rowLength);
@@ -260,8 +379,8 @@ final class LightCookies {
 
     // ---------------------------------------------------------------------------------------------- worker
 
-    /** Worker: reads the PNG, halves it to fit a big cell, premultiplies and builds the mip chain of its cell. */
-    static Decoded decode(String location) {
+    /** Worker: reads the PNG, fits it to {@code side} (power-of-two sides), premultiplies and builds the mip chain. */
+    static Decoded decode(String location, int side) {
         ResourceLocation id = ResourceLocation.tryParse(location);
         if (id == null) throw new IllegalStateException("bad location");
         NativeImage image;
@@ -277,23 +396,34 @@ final class LightCookies {
             if (w > MAX_SOURCE || h > MAX_SOURCE) throw new IllegalStateException("PNG larger than " + MAX_SOURCE + " pixels");
             int[] px = new int[w * h];
             for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) px[y * w + x] = premultiply(image.getPixelRGBA(x, y));
-            return chain(px, w, h);
+            return chain(px, w, h, side);
         } finally {
             image.close();
         }
     }
 
-    /** Pure part of the decode (also used by the tests): halvings, cell, mip chain and average color. */
-    static Decoded chain(int[] px, int w, int h) {
-        int n = CookieAtlas.halvings(w, h);
-        for (int i = 0; i < n; i++) {
+    /** Pure part of the decode (also used by the tests): standard version (largest side 512). */
+    static Decoded chain(int[] px, int w, int h) { return chain(px, w, h, 512); }
+
+    /**
+     * Pure part of the decode: halves while above {@code side}, resamples each side up to its power of two (bilinear,
+     * premultiplied), places the image at the top-left of its cell and builds the cell's mip chain (2 × 2 box) and the
+     * average color.
+     */
+    static Decoded chain(int[] px, int w, int h, int side) {
+        while ((w > side || h > side) && w >= 2 && h >= 2) {
             int nw = Math.max(1, w / 2), nh = Math.max(1, h / 2);
             px = box(px, w, h, nw, nh);
             w = nw; h = nh;
         }
-        int cell = CookieAtlas.cellFor(w, h);
-        int levels = Math.min(CookieAtlas.LEVELS, Integer.numberOfTrailingZeros(cell) + 1);
-        int[][] chain = new int[levels][];
+        int[] fit = CookieAtlas.fit(w, h, side);
+        if (fit[0] != w || fit[1] != h) {
+            px = bilinear(px, w, h, fit[0], fit[1]);
+            w = fit[0]; h = fit[1];
+        }
+        int cell = side <= 512 ? CookieAtlas.cellFor(w, h) : (w <= 1024 && h <= 1024 ? 1024 : 2048);
+        int levels = Math.min(side <= 512 ? CookieAtlas.LEVELS : LARGE_LEVELS, Integer.numberOfTrailingZeros(cell) + 1);
+        int[][] out = new int[levels][];
         int[] level0 = new int[cell * cell];
         double r = 0, g = 0, b = 0;
         for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
@@ -301,13 +431,13 @@ final class LightCookies {
             level0[y * cell + x] = c;
             r += c & 255; g += (c >> 8) & 255; b += (c >> 16) & 255;
         }
-        chain[0] = level0;
+        out[0] = level0;
         for (int k = 1; k < levels; k++) {
-            int side = cell >> (k - 1);
-            chain[k] = box(chain[k - 1], side, side, side / 2, side / 2);
+            int s = cell >> (k - 1);
+            out[k] = box(out[k - 1], s, s, s / 2, s / 2);
         }
         double area = 255.0 * w * h;
-        return new Decoded(chain, cell, w, h, (float) (r / area), (float) (g / area), (float) (b / area));
+        return new Decoded(out, cell, w, h, (float) (r / area), (float) (g / area), (float) (b / area));
     }
 
     /** ABGR straight alpha to ABGR premultiplied. */
@@ -328,6 +458,30 @@ final class LightCookies {
                 sr += c & 255; sg += (c >> 8) & 255; sb += (c >> 16) & 255; sa += (c >>> 24) & 255;
             }
             out[y * nw + x] = ((sa + 2) / 4) << 24 | ((sb + 2) / 4) << 16 | ((sg + 2) / 4) << 8 | ((sr + 2) / 4);
+        }
+        return out;
+    }
+
+    /** Bilinear resample (texel centers, edges clamped) of a premultiplied image to {@code nw × nh}. */
+    static int[] bilinear(int[] src, int w, int h, int nw, int nh) {
+        int[] out = new int[nw * nh];
+        for (int y = 0; y < nh; y++) {
+            double sy = Math.clamp((y + .5) * h / nh - .5, 0, h - 1);
+            int y0 = (int) sy, y1 = Math.min(h - 1, y0 + 1);
+            double fy = sy - y0;
+            for (int x = 0; x < nw; x++) {
+                double sx = Math.clamp((x + .5) * w / nw - .5, 0, w - 1);
+                int x0 = (int) sx, x1 = Math.min(w - 1, x0 + 1);
+                double fx = sx - x0;
+                int c00 = src[y0 * w + x0], c10 = src[y0 * w + x1], c01 = src[y1 * w + x0], c11 = src[y1 * w + x1];
+                int v = 0;
+                for (int sh = 0; sh < 32; sh += 8) {
+                    double a = ((c00 >>> sh) & 255) * (1 - fx) + ((c10 >>> sh) & 255) * fx;
+                    double b = ((c01 >>> sh) & 255) * (1 - fx) + ((c11 >>> sh) & 255) * fx;
+                    v |= (int) Math.round(a * (1 - fy) + b * fy) << sh;
+                }
+                out[y * nw + x] = v;
+            }
         }
         return out;
     }

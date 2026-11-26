@@ -9,6 +9,10 @@ Saída em examples/vfx-sample/src/main/resources/assets/vfxsample/textures/light
   selo.png        512 x 256  folha 4 x 2: um selo que carrega de 0 a 100% (MASK, trilha FRAME)
   alvo.png        128 x 128  retícula tecnológica (MASK)
   persiana.png    128 x 128  sombra de persiana para SUBTRACT
+  neon.png        256 x 256  glifo de linhas finas com halo (fase 2: EMISSIVE, contraste)
+  ataque.png      256 x 256  retícula de ataque de alto contraste (fase 2: OVERRIDE)
+  pixel.png        32 x 32   ícone de pixel art (fase 2: filtros SMOOTH, SHARP, PIXELATED)
+  mandala.png    2048 x 2048 mandala de linhas finas (fase 2: resoluções 512, 1024 e 2048; requer numpy)
 Uso: python3 scripts/gerar_cookies_exemplo.py
 Requer Pillow. Cada imagem é desenhada por pixel (sem fontes nem antialias do sistema), por isso o resultado não
 depende da máquina.
@@ -217,6 +221,102 @@ def persiana():
     save('persiana.png', mask_image(128, 128, f))
 
 
+def neon():
+    def f(u, v):
+        x, y = u - .5, .5 - v
+        val = 0.0
+        tri = [(math.sin(k * 2 * math.pi / 3) * .38, math.cos(k * 2 * math.pi / 3) * .38) for k in range(3)]
+        hexa = [(math.sin(k * math.pi / 3) * .22, math.cos(k * math.pi / 3) * .22) for k in range(6)]
+        d = 9.0
+        for i in range(3):
+            d = min(d, line_dist(x, y, *tri[i], *tri[(i + 1) % 3]))
+        for i in range(6):
+            d = min(d, line_dist(x, y, *hexa[i], *hexa[(i + 1) % 6]))
+        d = min(d, abs(math.hypot(x, y) - .46))
+        core = 1 - d / .006
+        halo = .35 * math.exp(-d / .025)
+        return max(core, halo)
+    save('neon.png', mask_image(256, 256, f))
+
+
+def ataque():
+    def f(u, v):
+        x, y = u - .5, .5 - v
+        r = math.hypot(x, y)
+        a = (math.atan2(y, x) / (2 * math.pi)) % 1
+        val = 0.0
+        if .40 < r < .47 and (a * 4 + .125) % 1 < .75:
+            val = 1.0
+        if .16 < r < .21:
+            val = 1.0
+        for ax, ay in ((1, 0), (0, 1), (-1, 0), (0, -1)):
+            along = x * ax + y * ay
+            side = abs(x * ay - y * ax)
+            if .22 < along < .36 and side < .035 + (.36 - along) * .35:
+                val = 1.0
+        if r < .05:
+            val = 1.0
+        return val
+    save('ataque.png', mask_image(256, 256, f, ss=3))
+
+
+def pixel():
+    art = [
+        "................................",
+        "..........######......######....",
+        ".........#......#....#......#...",
+        "........#..####..#..#..####..#..",
+        "........#..#..#..#..#..#..#..#..",
+        "........#..####..####..####..#..",
+        ".........#.....#......#.....#...",
+        "..........#.....#....#.....#....",
+        "...........#.....#..#.....#.....",
+        "............#.....##.....#......",
+        ".............#..........#.......",
+        "..............#........#........",
+        "...............#......#.........",
+        "................#....#..........",
+        ".................#..#...........",
+        "..................##............",
+    ]
+    img = Image.new('RGBA', (32, 32))
+    px = img.load()
+    for y in range(32):
+        for x in range(32):
+            row = art[y // 2] if y // 2 < len(art) else ''
+            on = x < len(row) and row[x] == '#'
+            px[x, y] = (255, 255, 255, 255 if on else 0)
+    save('pixel.png', img)
+
+
+def mandala():
+    import numpy as np
+    n = 2048
+    yy, xx = np.mgrid[0:n, 0:n].astype(np.float64)
+    x = (xx + .5) / n - .5
+    y = .5 - (yy + .5) / n
+    r = np.hypot(x, y)
+    a = np.arctan2(y, x)
+    px = 1.0 / n
+    val = np.zeros_like(r)
+    # Anéis finos (1,5 px na imagem de 2048) e raios: detalhe que só aparece em resolução alta.
+    for k in range(6, 48):
+        rr = k * .0098
+        val = np.maximum(val, 1 - np.abs(r - rr) / (1.5 * px))
+    for k in range(96):
+        ang = k * 2 * np.pi / 96
+        d = np.abs(np.sin(a - ang)) * r
+        val = np.maximum(val, np.where((np.cos(a - ang) > 0) & (r > .06) & (r < .47), 1 - d / (1.2 * px), 0))
+    petals = np.abs(np.sin(6 * a)) * .18 + .2
+    val = np.maximum(val, 1 - np.abs(r - petals) / (2 * px))
+    val = np.clip(val, 0, 1) * (r < .49)
+    alpha = (val * 255).round().astype(np.uint8)
+    rgba = np.zeros((n, n, 4), np.uint8)
+    rgba[..., :3] = 255
+    rgba[..., 3] = alpha
+    save('mandala.png', Image.fromarray(rgba, 'RGBA'))
+
+
 if __name__ == '__main__':
     runas()
     hexagonos()
@@ -225,3 +325,7 @@ if __name__ == '__main__':
     selo()
     alvo()
     persiana()
+    neon()
+    ataque()
+    pixel()
+    mandala()

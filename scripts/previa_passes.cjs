@@ -151,7 +151,7 @@ function beamRow(a, b, core, halo, coreRgb, haloRgb, gain, reveal, pulses = 0, p
 // Linha de luz: posição (ou início/centro), alcance ou raio, fim, queda, cor × intensidade, forma, largura, altura.
 const SHAPE = { ponto: 0, segmento: 1, disco: 2, anel: 3 };
 function lightRow(shape, a, radius, rgb, gain, { b = a, falloff = 2, width = 0, height = 3 } = {}) {
-  return [...a, radius, ...b, falloff, ...rgb.map(v => v * gain), SHAPE[shape], width, height, 0, 0, ...Array(32).fill(0)];
+  return [...a, radius, ...b, falloff, ...rgb.map(v => v * gain), SHAPE[shape], width, height, 0, 0, ...Array(36).fill(0)];
 }
 
 // 0.15.0: luzes estendidas, no mesmo formato de 12 texels do LightFrame.queue. dir/right/up unitários; cookie
@@ -167,8 +167,10 @@ function extLight(shape, a, radius, rgb, gain, o = {}) {
   const c = o.cookie;
   const stops = o.gradient ? o.gradient.length : 0;
   let flags = 0;
-  if (c) flags |= 1 | 16 | (c.color ? 2 : 0) | (c.repeat ? 4 : 0) | (c.pixel ? 8 : 0);
-  const code = SHAPE15[shape] | (o.curve || 0) << 3 | (o.blend || 0) << 5 | flags << 7 | stops << 12;
+  const filter = c ? (c.pixel ? 2 : c.sharp ? 1 : 0) : 0;
+  if (c) flags |= 1 | 8 | (c.color ? 2 : 0) | (c.repeat ? 4 : 0) | filter << 5;
+  const code = SHAPE15[shape] | (o.curve || 0) << 3 | (o.blend || 0) << 5 | flags << 8 | stops << 15;
+  const override = o.blend === 4;
   const g0 = o.gradient ? o.gradient[0] : [1, 1, 1];
   const second = shape === 'holofote' || shape === 'projetor' ? dir : (o.b || a);
   const tanHalf = Math.tan((o.angle ?? 40) * Math.PI / 360);
@@ -185,10 +187,12 @@ function extLight(shape, a, radius, rgb, gain, o = {}) {
   row.push(...(c ? rectOf(c.frame || 0) : [0, 0, 0, 0]), ...(c ? rectOf((c.frame || 0) + 1) : [0, 0, 0, 0]));
   const maxLod = c ? Math.max(0, Math.min(8, Math.log2(Math.min(c.w / (c.cols || 1), c.h / (c.rows || 1))) - 1)) : 0;
   for (let j = 1; j < 4; j++) {
-    const w = j === 1 ? (c ? c.mix || 0 : 0) : j === 2 ? maxLod : 0;
+    const w = j === 1 ? (c ? c.mix || 0 : 0) : j === 2 ? maxLod : (c ? c.sharp || 0 : 0);
     const st = o.gradient && j < o.gradient.length ? o.gradient[j] : null;
     row.push(...(st ? rgb.map((v, k) => v * gain * st[k]) : [0, 0, 0]), w);
   }
+  // t12: força (OVERRIDE: × peso, aqui 1), detalhe, contraste, viés.
+  row.push(o.strength ?? 1, o.detail ?? 0, o.contrast ?? 1, c ? c.bias || 0 : 0);
   return row;
 }
 function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
@@ -343,7 +347,19 @@ const CENAS = {
     lights: [extLight('projetor', [0, 6, 13], 10, [1, 1, 1], 0.85, { sizeX: 11, sizeY: 11, falloff: 0.1, softness: 0.05,
       blend: 2, cookie: { cell: 0, w: 256, h: 256 } })],
   },
-  // Controle: as quatro formas da 0.9 no caminho novo (12 texels) devem ser idênticas às da 0.14.
+  // Fase 2: o mesmo cookie de runas em ADD, EMISSIVE e OVERRIDE, de noite e de dia; forças de OVERRIDE; filtros.
+  ...Object.fromEntries([['add', 0], ['emissive', 3], ['override', 4]].flatMap(([n, b]) => [true, false].map(night =>
+    ['modo_' + n + (night ? '' : '_dia'), { night, pitch: -20, cookies: true,
+      lights: [extLight('projetor', [0, 6, 13], 10, [0.3, 0.8, 1], b === 4 ? 1.4 : 3.2, { sizeX: 11, sizeY: 11, falloff: 0.6,
+        softness: 0.05, blend: b, contrast: 2, cookie: { cell: 0, w: 256, h: 256 } })] }]))),
+  ...Object.fromEntries([0, 0.25, 0.5, 0.75, 1].map(f => ['override_' + Math.round(f * 100), { night: false, pitch: -20,
+    cookies: true, lights: [extLight('projetor', [0, 6, 13], 10, [1, 0.2, 0.6], 1.2, { sizeX: 11, sizeY: 11, falloff: 0.25,
+      softness: 0.05, blend: 4, strength: f, cookie: { cell: 0, w: 256, h: 256 } })] }])),
+  ...Object.fromEntries([['suave', {}], ['nitido', { sharp: 1 }], ['pixelado', { pixel: true }]].map(([n, fl]) =>
+    ['filtro_' + n, { night: true, pitch: -32, cookies: true, lights: [extLight('projetor', [0, 3, 3.2], 8, [1, 0.9, 0.4], 3.5,
+      { sizeX: 3, sizeY: 3, falloff: 0.4, softness: 0.02, blend: 3, cookie: { cell: 0, w: 256, h: 256, scale: 0.12, repeat: true, ...fl } })] }])),
+  dia_vazio: { night: false, pitch: -20, lights: [] },
+  // Controle: as quatro formas da 0.9 no caminho novo (13 texels) devem ser idênticas às da 0.14.
   // Feixe nascendo (revelação 0,45) e feixe ondulado com ruído.
   nascendo: {
     night: true, pitch: 6,
@@ -1050,7 +1066,7 @@ function assemble(program, source) {
 // Passes de feixes e luzes no formato genérico.
 function effectPasses(cena) {
   const passes = [];
-  if (cena.lights) passes.push({ program: 'lights', data: { name: 'CaLightData', texels: 12, rows: cena.lights },
+  if (cena.lights) passes.push({ program: 'lights', data: { name: 'CaLightData', texels: 13, rows: cena.lights },
     f4: { CaLightInfo: [cena.lights.length, ...(cena.lightExtra || [0, 0, 0, 0]).slice(1)],
       CaCookieInfo: [ATLAS_SIDE, cena.cookies ? 1 : 0, 0, 0] },
     textures: cena.cookies ? { CaCookieAtlas: 'cookies' } : {} });

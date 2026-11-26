@@ -74,6 +74,11 @@ public final class LaboratorioLuz {
     static final String SELO = "vfxsample:textures/lights/selo.png";
     static final String ALVO = "vfxsample:textures/lights/alvo.png";
     static final String PERSIANA = "vfxsample:textures/lights/persiana.png";
+    // Fase 2 (composição e nitidez).
+    static final String NEON = "vfxsample:textures/lights/neon.png";
+    static final String ATAQUE = "vfxsample:textures/lights/ataque.png";
+    static final String PIXEL = "vfxsample:textures/lights/pixel.png";
+    static final String MANDALA = "vfxsample:textures/lights/mandala.png";
 
     /**
      * Laço de 160 ticks (8 s) entre 20 e 180: trilhas com o mesmo valor nas bordas do laço, entrada e saída de 1 s.
@@ -191,6 +196,120 @@ public final class LaboratorioLuz {
     static final Demo ESTRESSE = demo("estresse", "8 luzes por instância (4 com cookie)");
     static final List<Light> ESTRESSE_LUZES = estresse();
 
+    // ---------------------------------------------------------------- fase 2: composição, sobrescrita e nitidez
+    // As comparações lado a lado usam Point.center(x, ...): x positivo é a esquerda de quem olha (o efeito começa virado
+    // como o jogador), então a ordem na tela é da esquerda para a direita. Atenuação CONSTANT para a distância não
+    // mudar a comparação.
+
+    /** Projetor de comparação: mesmo cookie, mesma intensidade e tamanho, só o modo muda. */
+    private static Light.Builder lado(double x, String cookie, float tamanho) {
+        return Light.projector(Point.center(x, 5, 0), tamanho, tamanho).cookie(Light.Cookie.of(cookie).sharpness(.6f))
+            .radius(8).attenuation(Light.Attenuation.CONSTANT).softness(.04f).track(Light.Param.WEIGHT, "entrada");
+    }
+
+    // 11. ADD × EMISSIVE × OVERRIDE com o mesmo cookie, cor e intensidade.
+    static final Demo MODOS = demo("modos", "ADD | EMISSIVE | OVERRIDE com o mesmo cookie e a mesma intensidade");
+    static final Light MODO_ADD = lado(6, NEON, 5).color(0xff40e0ff).intensity(2.5f).contrast(2).build();
+    static final Light MODO_EMISSIVE = lado(0, NEON, 5).color(0xff40e0ff).intensity(2.5f).contrast(2).blend(Light.Blend.EMISSIVE).build();
+    static final Light MODO_OVERRIDE = lado(-6, NEON, 5).color(0xff40e0ff).intensity(2.5f).contrast(2).blend(Light.Blend.OVERRIDE).build();
+
+    // 12. OVERRIDE nas forças 0, 0,25, 0,5, 0,75 e 1.
+    static final Demo FORCAS = demo("forcas", "OVERRIDE nas forças 0 | 0,25 | 0,5 | 0,75 | 1");
+    static final Light[] FORCAS_LUZES = forcas();
+
+    private static Light[] forcas() {
+        float[] f = {0, .25f, .5f, .75f, 1};
+        Light[] out = new Light[f.length];
+        for (int i = 0; i < f.length; i++)
+            out[i] = lado(8 - i * 4, ATAQUE, 3.5f).color(0xffff3050).intensity(1.2f).contrast(3).blend(Light.Blend.OVERRIDE)
+                .blendStrength(f[i]).build();
+        return out;
+    }
+
+    // 13. Filtros: o mesmo pixel art 32 x 32 ampliado em SMOOTH, SHARP e PIXELATED.
+    static final Demo FILTROS = demo("filtros", "pixel art 32x32: SMOOTH | SHARP | PIXELATED");
+    static final Light FILTRO_SUAVE = filtro(5, Light.Cookie.of(PIXEL));
+    static final Light FILTRO_NITIDO = filtro(0, Light.Cookie.of(PIXEL).filter(Light.Cookie.Filter.SHARP).sharpness(1));
+    static final Light FILTRO_PIXEL = filtro(-5, Light.Cookie.of(PIXEL).pixelated());
+
+    private static Light filtro(double x, Light.Cookie cookie) {
+        return Light.projector(Point.center(x, 5, 0), 4, 4).cookie(cookie).color(0xffffd060).intensity(2.6f).radius(8)
+            .attenuation(Light.Attenuation.CONSTANT).softness(.02f).blend(Light.Blend.EMISSIVE).track(Light.Param.WEIGHT, "entrada").build();
+    }
+
+    // 14. A mesma mandala de 2048 guardada em 512, 1024 e 2048 (o perfil limita: LOW 512, BALANCED 1024, HIGH 2048).
+    static final Demo RESOLUCOES = demo("resolucoes", "mandala 2048: STANDARD 512 | HIGH 1024 | ULTRA 2048");
+    static final Light RES_512 = resolucao(7, Light.Cookie.Resolution.STANDARD);
+    static final Light RES_1024 = resolucao(0, Light.Cookie.Resolution.HIGH);
+    static final Light RES_2048 = resolucao(-7, Light.Cookie.Resolution.ULTRA);
+
+    private static Light resolucao(double x, Light.Cookie.Resolution res) {
+        return Light.projector(Point.center(x, 5, 0), 6.5f, 6.5f).cookie(Light.Cookie.of(MANDALA).resolution(res).sharpness(.5f))
+            .color(0xffffffff).intensity(2.8f).radius(8).attenuation(Light.Attenuation.CONSTANT).softness(.02f)
+            .blend(Light.Blend.EMISSIVE).track(Light.Param.WEIGHT, "entrada").build();
+    }
+
+    // 15. Neon intenso: EMISSIVE com contraste alto, núcleo que estoura em branco e um disco emissivo fraco embaixo.
+    static final Demo NEON_DEMO = demo("neon", "projeção neon intensa (EMISSIVE, contraste, núcleo branco)");
+    static final Light NEON_LUZ = Light.projector(Point.center(0, 6, 0), 9, 9).cookie(Light.Cookie.of(NEON).sharpness(.8f))
+        .color(0xffff30d0).intensity(4.5f).radius(9).attenuation(Light.Attenuation.CONSTANT).softness(.03f).contrast(2.5f)
+        .blend(Light.Blend.EMISSIVE).track(Light.Param.ROLL, "giro").track(Light.Param.INTENSITY, "pulso")
+        .track(Light.Param.WEIGHT, "entrada").build();
+    static final Light NEON_BRILHO = Light.disc(Point.center(), 5).color(0xff6010a0).intensity(.8f).blend(Light.Blend.EMISSIVE)
+        .blendStrength(.6f).track(Light.Param.WEIGHT, "entrada").build();
+
+    // 16. Multicolorido de dia: vitral COLOR em OVERRIDE (domina a grama, guarda 40% da textura) + um pouco de EMISSIVE.
+    static final Demo DIA = demo("dia", "vitral RGB forte de dia (OVERRIDE com detalhe + EMISSIVE)");
+    static final Light DIA_OVERRIDE = Light.projector(Point.center(0, 6, 0), 9, 9).cookie(Light.Cookie.of(VITRAL).colored())
+        .color(0xffffffff).intensity(1.1f).radius(9).attenuation(Light.Attenuation.CONSTANT).softness(.03f)
+        .blend(Light.Blend.OVERRIDE).blendStrength(.9f).surfaceDetail(.4f).track(Light.Param.WEIGHT, "entrada").build();
+    static final Light DIA_BRILHO = Light.projector(Point.center(0, 6, 0), 9, 9).cookie(Light.Cookie.of(VITRAL).colored())
+        .color(0xffffffff).intensity(.5f).radius(9).attenuation(Light.Attenuation.CONSTANT).softness(.03f)
+        .blend(Light.Blend.EMISSIVE).track(Light.Param.WEIGHT, "entrada").build();
+
+    // 17. Transição: a mesma luz vai de convencional (BLEND_STRENGTH 0 = ADD) a emissiva (1) e volta, pela Timeline.
+    static final Demo TRANSICAO = demo("transicao", "convencional -> emissiva -> convencional (trilha BLEND_STRENGTH)");
+    static final Light TRANSICAO_LUZ = Light.projector(Point.center(0, 6, 0), 9, 9).cookie(NEON).color(0xff60ff90).intensity(3)
+        .radius(9).attenuation(Light.Attenuation.CONSTANT).softness(.04f).contrast(2).blend(Light.Blend.EMISSIVE)
+        .track(Light.Param.BLEND_STRENGTH, "cor").track(Light.Param.WEIGHT, "entrada").build();
+
+    // 18. Superfícies: o comando monta uma escada, um muro, chão irregular e um suporte de armadura; a projeção cobre
+    //     tudo (grade OVERRIDE parcial + retícula EMISSIVE) e segue o relevo e a entidade.
+    static final Demo SUPERFICIES = demo("superficies", "paredes, escada, relevo e entidade (monta a pista de teste)");
+    static final Light SUP_GRADE = Light.projector(Point.center(0, 8, 0), 11, 11).cookie(Light.Cookie.of(HEX).repeat().scale(3))
+        .color(0xff40ffd0).intensity(1).radius(12).attenuation(Light.Attenuation.CONSTANT).softness(.15f)
+        .blend(Light.Blend.OVERRIDE).blendStrength(.55f).surfaceDetail(.5f).track(Light.Param.WEIGHT, "entrada").build();
+    static final Light SUP_ALVO = Light.spot(Point.center(0, 8, 4)).direction(0, 62).angle(44).cookie(Light.Cookie.of(ATAQUE).sharpness(.8f))
+        .color(0xffff4040).intensity(3).radius(16).attenuation(Light.Attenuation.CONSTANT).softness(.02f).contrast(3)
+        .blend(Light.Blend.EMISSIVE).track(Light.Param.ROLL, "giro").track(Light.Param.WEIGHT, "entrada").build();
+
+    // 19. Sobrepostas: ADD, SOFT, EMISSIVE, OVERRIDE e SUBTRACT parcialmente sobrepostos (resultado não depende da ordem).
+    static final Demo SOBREPOSTAS = demo("sobrepostas", "ADD + SOFT + EMISSIVE + OVERRIDE + SUBTRACT sobrepostos");
+    static final Light SOB_ADD = Light.projector(Point.center(2.5, 6, 1), 7, 7).cookie(RUNAS).color(0xffffa040).intensity(2.5f)
+        .radius(9).attenuation(Light.Attenuation.CONSTANT).track(Light.Param.WEIGHT, "entrada").build();
+    static final Light SOB_SOFT = Light.projector(Point.center(-2.5, 6, 1), 7, 7)
+        .cookie(Light.Cookie.of(CAUSTICAS).sheet(4, 4).fps(9).blendFrames(true).repeat().scale(2)).color(0xff40a0ff).intensity(2.5f)
+        .radius(9).attenuation(Light.Attenuation.CONSTANT).blend(Light.Blend.SOFT).track(Light.Param.WEIGHT, "entrada").build();
+    static final Light SOB_EMISSIVE = Light.projector(Point.center(0, 6, -1.5), 6, 6).cookie(NEON).color(0xffff40ff).intensity(3)
+        .radius(9).attenuation(Light.Attenuation.CONSTANT).contrast(2).blend(Light.Blend.EMISSIVE).track(Light.Param.ROLL, "giro")
+        .track(Light.Param.WEIGHT, "entrada").build();
+    static final Light SOB_OVERRIDE = Light.projector(Point.center(0, 6, 2.5), 8, 4).cookie(Light.Cookie.of(HEX).repeat().scale(2))
+        .color(0xff30ff80).intensity(1).radius(9).attenuation(Light.Attenuation.CONSTANT).blend(Light.Blend.OVERRIDE)
+        .blendStrength(.6f).track(Light.Param.WEIGHT, "entrada").build();
+    static final Light SOB_SUBTRACT = Light.projector(Point.center(0, 6, 0), 10, 10).cookie(Light.Cookie.of(PERSIANA).repeat().scale(2))
+        .color(0xffffffff).intensity(.6f).radius(9).attenuation(Light.Attenuation.CONSTANT).softness(.3f).blend(Light.Blend.SUBTRACT)
+        .track(Light.Param.COOKIE_V, "rolar").track(Light.Param.WEIGHT, "entrada").build();
+
+    // 20. Retícula de ataque extremamente legível: OVERRIDE total vermelho (contraste 4, nítida) + núcleo EMISSIVE pulsando.
+    static final Demo ATAQUE_DEMO = demo("ataque", "retícula de ataque legível (OVERRIDE total + EMISSIVE)");
+    static final Light ATAQUE_BASE = Light.projector(Point.center(0, 7, 0), 7, 7).cookie(Light.Cookie.of(ATAQUE).sharpness(1))
+        .color(0xffff1020).intensity(1.1f).radius(10).attenuation(Light.Attenuation.CONSTANT).softness(.01f).contrast(4)
+        .blend(Light.Blend.OVERRIDE).track(Light.Param.ROLL, "giro").track(Light.Param.WEIGHT, "entrada").build();
+    static final Light ATAQUE_BRILHO = Light.projector(Point.center(0, 7, 0), 7, 7).cookie(Light.Cookie.of(ATAQUE).sharpness(1))
+        .color(0xffff6040).intensity(2).radius(10).attenuation(Light.Attenuation.CONSTANT).softness(.01f).contrast(4)
+        .blend(Light.Blend.EMISSIVE).track(Light.Param.ROLL, "giro").track(Light.Param.INTENSITY, "pulso")
+        .track(Light.Param.WEIGHT, "entrada").build();
+
     private static List<Light> estresse() {
         List<Light> out = new ArrayList<>();
         String[] cookies = {RUNAS, HEX, ALVO, VITRAL};
@@ -223,6 +342,17 @@ public final class LaboratorioLuz {
         registrar(SEGUIR, 10, LACO, SEGUIR_ALVO, SEGUIR_LANTERNA);
         registrar(COMBINADA, 7, LACO, COMB_FOGO, COMB_ANEL, COMB_RUNAS, COMB_SOMBRA);
         registrar(ESTRESSE, 6, LACO, ESTRESSE_LUZES.toArray(Light[]::new));
+        // Fase 2.
+        registrar(MODOS, 10, LACO, MODO_ADD, MODO_EMISSIVE, MODO_OVERRIDE);
+        registrar(FORCAS, 11, LACO, FORCAS_LUZES);
+        registrar(FILTROS, 8, LACO, FILTRO_SUAVE, FILTRO_NITIDO, FILTRO_PIXEL);
+        registrar(RESOLUCOES, 11, LACO, RES_512, RES_1024, RES_2048);
+        registrar(NEON_DEMO, 7, LACO, NEON_LUZ, NEON_BRILHO);
+        registrar(DIA, 7, LACO, DIA_OVERRIDE, DIA_BRILHO);
+        registrar(TRANSICAO, 7, LACO, TRANSICAO_LUZ);
+        registrar(SUPERFICIES, 9, LACO, SUP_GRADE, SUP_ALVO);
+        registrar(SOBREPOSTAS, 8, LACO, SOB_ADD, SOB_SOFT, SOB_EMISSIVE, SOB_OVERRIDE, SOB_SUBTRACT);
+        registrar(ATAQUE_DEMO, 7, LACO, ATAQUE_BASE, ATAQUE_BRILHO);
     }
 
     private static void registrar(Demo demo, double raio, Timeline timeline, Light... luzes) {
@@ -259,6 +389,7 @@ public final class LaboratorioLuz {
         var lista = VIVAS.computeIfAbsent(player.getUUID(), k -> new HashMap<>()).computeIfAbsent(demo.nome(), k -> new ArrayList<>());
         int ok = 0;
         for (int i = 0; i < vezes; i++) {
+            if (demo == SUPERFICIES && i == 0) pista(player, posicao(player, lado, 0, 1).position());
             var handle = demo == SEGUIR
                 ? Effects.follow(demo.id(), player, Vec3.ZERO)
                 : Effects.start(demo.id(), player.serverLevel(), posicao(player, lado, i, vezes));
@@ -318,6 +449,29 @@ public final class LaboratorioLuz {
         for (Demo d : DEMOS.values())
             source.sendSuccess(() -> Component.literal("/vfxsample luz " + d.nome() + " — " + d.descricao()), false);
         return DEMOS.size();
+    }
+
+    /**
+     * Pista de superfícies da demo "superficies" (só no comando, nunca num cue): escada, muro, chão irregular e um
+     * suporte de armadura em volta do centro, para ver a projeção seguir o relevo e a entidade. Blocos do vanilla; a
+     * pista fica no mundo (é um cenário de teste).
+     */
+    private static void pista(ServerPlayer player, Vec3 centro) {
+        var level = player.serverLevel();
+        var base = net.minecraft.core.BlockPos.containing(centro);
+        var pedra = net.minecraft.world.level.block.Blocks.STONE_BRICKS.defaultBlockState();
+        var escada = net.minecraft.world.level.block.Blocks.STONE_BRICK_STAIRS.defaultBlockState();
+        for (int i = 0; i < 4; i++) for (int z = -2; z <= 2; z++) {
+            // Escada subindo para leste, a 2 blocos do centro.
+            for (int y = 0; y < i; y++) level.setBlockAndUpdate(base.offset(2 + i, y, z), pedra);
+            level.setBlockAndUpdate(base.offset(2 + i, i, z), escada.setValue(
+                net.minecraft.world.level.block.StairBlock.FACING, net.minecraft.core.Direction.EAST));
+        }
+        for (int y = 0; y < 4; y++) for (int z = -3; z <= 3; z++) level.setBlockAndUpdate(base.offset(-4, y, z), pedra);
+        int[][] relevo = {{-1, -2}, {0, -2}, {-2, 1}, {-1, 1}, {0, 2}, {1, -1}};
+        for (int[] r : relevo) level.setBlockAndUpdate(base.offset(r[0], 0, r[1]), net.minecraft.world.level.block.Blocks.MOSS_BLOCK.defaultBlockState());
+        var suporte = new net.minecraft.world.entity.decoration.ArmorStand(level, centro.x + .5, base.getY(), centro.z - 1.5);
+        level.addFreshEntity(suporte);
     }
 
     /** Encerra todas as demos de um jogador (também ao sair do jogo). */
