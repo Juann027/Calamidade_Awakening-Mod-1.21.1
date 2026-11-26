@@ -85,6 +85,11 @@ final class RoteiroLuz implements Runnable {
                 .map(c -> c.getModInfo().getVersion().toString()).orElse("?"), true);
             render = noCliente(Thread::currentThread);
             preparar();
+            if ("fase2".equals(System.getProperty("calamidade.luz.modo"))) {
+                fase2();
+                escrever("FIM luz", true);
+                return;
+            }
             if ("bench".equals(System.getProperty("calamidade.luz.modo"))) {
                 // Metodologia de benchmark (0.15 auditoria): sem funcional nem capturas; veja benchmarkRigoroso().
                 benchmarkRigoroso();
@@ -213,6 +218,72 @@ final class RoteiroLuz implements Runnable {
 
     record Cenario(String nome, List<String> comandos, boolean novo) {}
 
+    // ------------------------------------------------------------------------------------------------ fase 2
+
+    /**
+     * Fase 2 (composição e nitidez): o atlas grande só existe com um cookie de alta resolução, respeita o perfil (LOW
+     * nenhum, BALANCED 1024, HIGH 2048) e cai para a versão de 512; nada é reenviado por quadro; recarga libera tudo;
+     * capturas comparativas das demos novas de noite e de dia.
+     */
+    private void fase2() throws Exception {
+        long padrao = 22369536L;
+        perfil(QualityMode.HIGH);
+        comando("vfxsample luz runas");
+        aguardar(() -> detalheSE()[3] >= 1, 300);
+        ticks(20);
+        check("fase 2: cookie padrão não cria o atlas grande", atlasBytes() == padrao, atlasBytes() + " bytes");
+        comando("vfxsample luz parar");
+        comando("vfxsample luz resolucoes");
+        boolean grande = aguardar(() -> detalheSE()[10] == 1 && detalheSE()[12] == 1 && detalheSE()[3] == 2, 600);
+        int[] d = detalhe();
+        long bytesAlta = atlasBytes();
+        check("fase 2 HIGH: a luz ULTRA usa a versão de 2048 do atlas grande e a STANDARD a de 512; memória = padrão + grande", grande && bytesAlta > padrao * 2 - 1000,
+            Arrays.toString(d) + " · " + bytesAlta + " bytes");
+        int uploads = detalhe()[9];
+        ticks(100);
+        check("fase 2: nenhum upload repetido com as imagens grandes prontas", detalhe()[9] == uploads, uploads + " -> " + detalhe()[9]);
+        captura("f2_resolucoes_high");
+        perfil(QualityMode.BALANCED);
+        boolean balanced = aguardar(() -> detalheSE()[10] == 1 && detalheSE()[12] == 1, 600);
+        check("fase 2 BALANCED: o ULTRA é refeito em 1024 e amostrado", balanced, Arrays.toString(detalhe()) + " · " + atlasBytes() + " bytes");
+        perfil(QualityMode.LOW);
+        ticks(30);
+        int[] low = detalhe();
+        check("fase 2 LOW: atlas grande solto, cookies na versão de 512", atlasBytes() == padrao && low[12] == 0 && low[3] >= 1,
+            Arrays.toString(low) + " · " + atlasBytes() + " bytes");
+        perfil(QualityMode.HIGH);
+        comando("vfxsample luz parar");
+        // Capturas: noite e dia.
+        String[][] noite = {{"modos", "0"}, {"neon", "0"}, {"filtros", "0"}, {"resolucoes", "0"}, {"transicao", "0"},
+            {"superficies", "0"}, {"sobrepostas", "0"}, {"ataque", "0"}};
+        for (String[] demo : noite) demo(demo[0], "f2_" + demo[0] + "_noite", 18000, demo[0].equals("filtros") || demo[0].equals("resolucoes"));
+        String[] dia = {"modos", "forcas", "dia", "ataque", "sobrepostas"};
+        for (String demo : dia) demo(demo, "f2_" + demo + "_dia", 6000, false);
+        noServidor(() -> overworld().setDayTime(18000));
+        noCliente(() -> { mc.reloadResourcePacks(); return null; });
+        aguardar(() -> noClienteSemErro(() -> mc.getOverlay() == null), 2400);
+        ticks(20);
+        check("fase 2: recarga de recursos solta os dois atlas", atlasBytes() == 0, atlasBytes() + " bytes");
+    }
+
+    private void demo(String nome, String captura, int hora, boolean perto) throws Exception {
+        noServidor(() -> {
+            overworld().setDayTime(hora);
+            jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, perto ? 50 : 32);
+        });
+        ticks(5);
+        comando("vfxsample luz " + nome);
+        if (perto) noServidor(() -> jogador().teleportTo(overworld(), X + .5, 5, Z + 3.5, 0, 62));
+        ticks(nome.equals("resolucoes") ? 160 : 60);
+        captura(captura);
+        int[] d = detalhe();
+        check("fase 2 demo " + nome + (hora == 6000 ? " (dia)" : " (noite)") + ": desenhada, sem cookie com falha",
+            campo("lastLights") > 0 && d[8] == 0, Arrays.toString(d));
+        comando("vfxsample luz parar");
+        if (nome.equals("superficies")) comando("fill ~-8 ~ ~-8 ~8 ~6 ~16 air replace minecraft:stone_bricks");
+        ticks(10);
+    }
+
     // ------------------------------------------------------------------------------------------------ benchmark rigoroso
 
     /**
@@ -282,8 +353,18 @@ final class RoteiroLuz implements Runnable {
                 "calamidade bench 4 vfxsample:receita_fogueira"), false),
             new Cenario("cookie_1", List.of("calamidade bench 1 vfxsample:luz_runas"), true),
             new Cenario("cookie_8_estaveis", List.of("calamidade bench 1 vfxsample:luz_estresse"), true),
-            new Cenario("cookie_estresse_32", List.of("calamidade bench 4 vfxsample:luz_estresse"), true)));
+            new Cenario("cookie_estresse_32", List.of("calamidade bench 4 vfxsample:luz_estresse"), true),
+            // Fase 2: os mesmos 3 projetores (mesmo cookie) em ADD, EMISSIVE e OVERRIDE; 5 OVERRIDE; 3 resoluções.
+            new Cenario("modos_add_emissive_override", List.of("calamidade bench 1 vfxsample:luz_modos"), true),
+            new Cenario("override_5", List.of("calamidade bench 1 vfxsample:luz_forcas"), true),
+            new Cenario("alta_resolucao_3", List.of("calamidade bench 1 vfxsample:luz_resolucoes"), true),
+            new Cenario("sobrepostas_5_modos", List.of("calamidade bench 1 vfxsample:luz_sobrepostas"), true)));
         cenarios.removeIf(c -> c.novo() && !v015);
+        String so = System.getProperty("calamidade.luz.cenarios", "");
+        if (!so.isBlank()) {
+            var nomes = java.util.Set.of(so.split(","));
+            cenarios.removeIf(c -> !nomes.contains(c.nome()));
+        }
         QualityMode[] perfis = {QualityMode.LOW, QualityMode.BALANCED, QualityMode.HIGH};
         escrever(String.format(Locale.ROOT, "# bench: %d repetições, aquecer %d s, trocar %d s, amostra %d s, %s", reps, aquecer,
             trocar, amostra, System.getProperty("java.vm.name") + " " + Runtime.version()), true);

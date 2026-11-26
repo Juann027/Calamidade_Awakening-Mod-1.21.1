@@ -207,14 +207,14 @@ public final class LaboratorioLuz {
             .attenuation(Light.Attenuation.CONSTANT).softness(.02f).blend(Light.Blend.EMISSIVE).track(Light.Param.WEIGHT, "entrada").build();
     }
 
-    // 14. A mesma mandala de 2048 guardada em 512, 1024 e 2048 (o perfil limita: LOW 512, BALANCED 1024, HIGH 2048).
-    static final Demo RESOLUCOES = demo("resolucoes", "mandala 2048: STANDARD 512 | HIGH 1024 | ULTRA 2048");
-    static final Light RES_512 = resolucao(7, Light.Cookie.Resolution.STANDARD);
-    static final Light RES_1024 = resolucao(0, Light.Cookie.Resolution.HIGH);
-    static final Light RES_2048 = resolucao(-7, Light.Cookie.Resolution.ULTRA);
+    // 14. A mesma mandala de 2048 em 512 (STANDARD) e em alta resolução (ULTRA: 2048 em HIGH/ULTRA, 1024 em BALANCED,
+    //     512 em LOW; troque o perfil com F8). Uma imagem guarda uma versão grande só, a do maior pedido.
+    static final Demo RESOLUCOES = demo("resolucoes", "mandala 2048: STANDARD 512 | ULTRA (2048 no HIGH, 1024 no BALANCED)");
+    static final Light RES_512 = resolucao(4, Light.Cookie.Resolution.STANDARD);
+    static final Light RES_ALTA = resolucao(-4, Light.Cookie.Resolution.ULTRA);
 
     private static Light resolucao(double x, Light.Cookie.Resolution res) {
-        return Light.projector(Point.center(x, 5, 0), 6.5f, 6.5f).cookie(Light.Cookie.of(MANDALA).resolution(res).sharpness(.5f))
+        return Light.projector(Point.center(x, 5, 0), 7.5f, 7.5f).cookie(Light.Cookie.of(MANDALA).resolution(res).sharpness(.5f))
             .color(0xffffffff).intensity(2.8f).radius(8).attenuation(Light.Attenuation.CONSTANT).softness(.02f)
             .blend(Light.Blend.EMISSIVE).track(Light.Param.WEIGHT, "entrada").build();
     }
@@ -316,7 +316,7 @@ public final class LaboratorioLuz {
         registrar(MODOS, 10, LACO, MODO_ADD, MODO_EMISSIVE, MODO_OVERRIDE);
         registrar(FORCAS, 11, LACO, FORCAS_LUZES);
         registrar(FILTROS, 8, LACO, FILTRO_SUAVE, FILTRO_NITIDO, FILTRO_PIXEL);
-        registrar(RESOLUCOES, 11, LACO, RES_512, RES_1024, RES_2048);
+        registrar(RESOLUCOES, 9, LACO, RES_512, RES_ALTA);
         registrar(NEON_DEMO, 7, LACO, NEON_LUZ, NEON_BRILHO);
         registrar(DIA, 7, LACO, DIA_OVERRIDE, DIA_BRILHO);
         registrar(TRANSICAO, 7, LACO, TRANSICAO_LUZ);

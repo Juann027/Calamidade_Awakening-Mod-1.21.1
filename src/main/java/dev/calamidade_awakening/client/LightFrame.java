@@ -268,7 +268,8 @@ final class LightFrame {
                 if (cookie.mode() == Light.Cookie.Mode.COLOR) flags |= 2;
                 if (cookie.wrap() == Light.Cookie.Wrap.REPEAT) flags |= 4;
                 flags |= 8;    // has a cookie: square aperture for a spot, even on the fallback
-                if ((flags & 1) != 0 && entry.isLarge()) flags |= 16;
+                // Só a luz que pediu alta resolução usa a versão grande (uma luz STANDARD do mesmo PNG fica no 512).
+                if ((flags & 1) != 0 && cookie.resolution().side > 512 && entry.isLarge()) flags |= 16;
                 flags |= cookie.filter().ordinal() << 5;
             }
             int stops = light.gradientStops();
@@ -301,7 +302,7 @@ final class LightFrame {
                 int f0 = (int) Math.floor(f);
                 mix = f - f0;
                 int f1 = cookie.play() == Light.Cookie.Play.LOOP ? (f0 + 1) % cookie.frames() : Math.min(f0 + 1, cookie.frames() - 1);
-                LightCookies.Version v = entry.best();
+                LightCookies.Version v = (flags & 16) != 0 ? entry.best() : entry.std;
                 CookieAtlas.frameRect(v.cell, v.width, v.height, cookie.columns(), cookie.rows(), f0, rect);
                 k = put(k, rect[0], rect[1], rect[2], rect[3]);
                 CookieAtlas.frameRect(v.cell, v.width, v.height, cookie.columns(), cookie.rows(), f1, rect);

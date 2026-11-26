@@ -127,7 +127,7 @@ neoForge {
             // Benchmark rigoroso (GPU real): -Pluz.modo=bench [-Pluz.reps=5 -Pluz.aquecer=8 -Pluz.trocar=3 -Pluz.amostra=15
             // -Pluz.largura=1920 -Pluz.altura=1080]. Sem -Pluz.modo: o roteiro funcional + capturas + medida curta.
             systemProperty 'calamidade.luz.modo', providers.gradleProperty('luz.modo').getOrElse('completo')
-            ['reps', 'aquecer', 'trocar', 'amostra'].each { k ->
+            ['reps', 'aquecer', 'trocar', 'amostra', 'cenarios'].each { k ->
                 systemProperty "calamidade.luz.${k}", providers.gradleProperty("luz.${k}").getOrElse('')
             }
             programArgument '--quickPlaySingleplayer'; programArgument 'teste'
