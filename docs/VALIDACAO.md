@@ -105,7 +105,11 @@ cenários sorteada (semente fixa); aquecimento de 8 s depois de montar e 3 s dep
 fora da janela; amostra de 15 s gravada quadro a quadro com a carga de cada quadro (faixa min–max por janela); 5
 repetições; resumo com mediana das medianas, IQR, mediana dos p95 e p95/p99 de todos os quadros; cenário de chefe fora.
 Procedimento para a RTX 4060: [TESTE-REAL.md, Parte 11](TESTE-REAL.md#parte-11--benchmark-da-light-engine-0150-rtx-4060).
-A rodada curta de validação em llvmpipe (abaixo) só confere que o roteiro funciona; os números dela não são medida.
+Rodada curta de validação em llvmpipe (`-Pluz.reps=1 -Pluz.aquecer=2 -Pluz.trocar=1 -Pluz.amostra=3`; confere o
+roteiro, **não é medida**): com a mesma carga nos três perfis, a ordem fica coerente — `convencionais_24` 53,8 / 58,7 /
+71,5 ms (3 / 8 / 16 luzes), `cookie_estresse_32` BALANCED 109,6 (8 amostrados + 8 fallback) ≈ HIGH 109,1 (16
+amostrados), `vazio` 21,1 / 21,6 / 22,2; a carga de cada janela ficou constante (faixa min–max de um valor só). O
+empate no estresse indica que, em software, o custo é o laço por luz e por pixel, não a amostragem do cookie.
 
 ### Não medido
 
