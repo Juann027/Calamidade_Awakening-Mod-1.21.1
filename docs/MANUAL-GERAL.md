@@ -3311,6 +3311,9 @@ Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (
 | `xvfb-run -a ./gradlew testeOrfaos` na **0.14.0** (6 casos: fúria, reabrir, kill, sobreposição, stop, `/kill @e` com respawn) | 6/6: o caminho direto do Sentinela **não** reproduz o órfão |
 | `xvfb-run -a ./gradlew testeOrfaos` na **0.15.0** (os 6 + dono encerrado com handle perdido, vigia, reconciliação `live_v1`, comandos `fx`/`world list`) | 10/10 |
 | `xvfb-run -a ./gradlew testeLuz` na 0.15.0 | 17/17: atlas 0 bytes antes do primeiro cookie, 21,3 MB depois, 1 upload por PNG (nenhum repetido em 100 ticks), PNG ausente → falha contada + fallback sem crash, LOW amostra no máximo 2 cookies, luz atrás da câmera descartada antes do teto, recarga solta o atlas, as 10 demos desenham sem falha |
+| Rodada final na 0.15.0 (mudou servidor, rede e chefes): `./gradlew build dist`, `./gradlew -p examples/vfx-sample build`, `./gradlew testeJogo`, `xvfb-run -a ./gradlew testeChefe` | verde; `testeJogo` 82/82, `testeChefe` 15/15 |
+
+Não executados nesta etapa (o código que exercitam não mudou): `checkCeuReferencia`, `testeCeu`, `testeBackdrop`, `testeEstrelas`, `testeImagens`, `testeAtlas`, `testeMedicao`, `testeCliente`.
 
 Capturas das demos (llvmpipe): [luz-previas/demos-0150.jpg](luz-previas/demos-0150.jpg).
 
