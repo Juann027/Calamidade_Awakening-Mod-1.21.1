@@ -15,6 +15,7 @@ import dev.calamidade_awakening.api.v1.Placement;
 import dev.calamidade_awakening.api.v1.WorldEvents;
 import dev.calamidade_awakening.config.ServerConfig;
 import dev.calamidade_awakening.net.BossSync;
+import dev.calamidade_awakening.net.StageNetwork;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerBossEvent;
@@ -278,7 +279,12 @@ public final class BossServer {
                 for (ServerPlayer player : bar.getPlayers()) sync(player);
             }
             if (fresh) for (ResourceLocation effect : phase.enter()) start(effect);
-            if (phase.sustain() != null) sustain = start(phase.sustain()).orElse(null);
+            // 0.15.0: never overwrite a held handle: an instance whose handle is dropped has nobody to release it.
+            releaseHeld();
+            if (phase.sustain() != null) {
+                sustain = start(phase.sustain()).orElse(null);
+                if (sustain != null) StageNetwork.tag(sustain, null, "boss " + boss.id() + " · sustain de " + phase.name());
+            }
             if (phase.worldEvent() != null) startWorld(phase);
             if (fresh && phase.onEnter() != null) call("onEnter", () -> phase.onEnter().run(this));
         }
@@ -296,6 +302,7 @@ public final class BossServer {
             if (phase.worldScope() == WorldEvents.Scope.AREA) {
                 // Arena event: an ordinary instance at the boss's position, counted toward maxPerBoss.
                 area = start(phase.worldEvent(), Placement.at(entity.position())).orElse(null);
+                if (area != null) StageNetwork.tag(area, "AREA", "boss " + boss.id() + " · evento de área de " + phase.name());
             } else {
                 world = WorldEvents.start(phase.worldEvent(), phase.worldScope(), level,
                     WorldEvents.Options.defaults().at(entity.position())).orElse(null);
@@ -342,6 +349,10 @@ public final class BossServer {
             attached = false;
             stopSequence();
             releaseHeld();
+            // 0.15.0: the controller owns every sustained instance it started (EffectSource.boss), held or not.
+            int extra = StageNetwork.releaseOwned(entity.getUUID());
+            if (extra > 0) LOGGER.debug("Boss {} ({}) ended: released {} more sustained instance(s) it owned", boss.id(),
+                entity.getUUID(), extra);
             if (bar != null) {
                 for (ServerPlayer player : List.copyOf(bar.getPlayers())) send(player, BossSync.removal(bar.getId()));
                 bar.removeAllPlayers();

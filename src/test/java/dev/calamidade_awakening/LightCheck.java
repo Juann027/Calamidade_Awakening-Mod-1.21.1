@@ -22,6 +22,102 @@ final class LightCheck {
         flicker();
         registration();
         caps();
+        cookies();
+        oriented();
+        atlas();
+    }
+
+    /** 0.15.0: cookie validation, sheets and the frame clock. */
+    private static void cookies() {
+        var c = Light.Cookie.of("meumod:textures/lights/energia.png");
+        require(c.mode() == Light.Cookie.Mode.MASK && c.wrap() == Light.Cookie.Wrap.CLAMP && c.frames() == 1
+            && c.fallback() == Light.Cookie.Fallback.AVERAGE && c.scale() == 1 && !c.isPixelated(), "cookie defaults");
+        expectRejected(() -> Light.Cookie.of("textures/x.png"), "cookie without namespace");
+        expectRejected(() -> Light.Cookie.of("ns:x.jpg"), "cookie not png");
+        expectRejected(() -> Light.Cookie.of("NS:x.png"), "cookie upper case");
+        expectRejected(() -> c.sheet(0, 1), "sheet 0 columns");
+        expectRejected(() -> c.sheet(64, 64), "sheet too many frames");
+        expectRejected(() -> c.sheet(4, 4).frames(17), "frames above the grid");
+        expectRejected(() -> c.scale(0), "cookie scale 0");
+        var sheet = c.sheet(4, 2).fps(10);
+        require(sheet.frames() == 8 && sheet.frameAt(0, Float.NaN) == 0 && sheet.frameAt(.25, Float.NaN) == 2
+            && sheet.frameAt(.85, Float.NaN) == 0, "sheet loops on the clock: " + sheet.frameAt(.85, Float.NaN));
+        var once = sheet.play(Light.Cookie.Play.ONCE);
+        require(once.frameAt(100, Float.NaN) == 7, "ONCE holds the last frame");
+        var pong = sheet.play(Light.Cookie.Play.PING_PONG);
+        require(pong.frameAt(.7, Float.NaN) == 7 && pong.frameAt(1.0, Float.NaN) == 4, "PING_PONG: " + pong.frameAt(1.0, Float.NaN));
+        require(sheet.frameAt(0, 5.6f) == 5 && sheet.blendFrames(true).frameAt(0, 5.6f) > 5.5f, "FRAME track wins; blend keeps the fraction");
+        require(c.frameAt(10, Float.NaN) == 0, "one frame");
+        require(c.equals(Light.Cookie.of("meumod:textures/lights/energia.png")) && !c.equals(c.colored()), "cookie equality");
+    }
+
+    /** 0.15.0: spots, projectors, ramps, curves and blends. */
+    private static void oriented() {
+        var spot = Light.spot(Point.center(0, 4, 0)).build();
+        require(spot.shape() == Light.Shape.SPOT && spot.oriented() && spot.pitch() == 90 && spot.angle() == 40
+            && spot.softness() == .25f && spot.radius() == 12 && spot.cookie() == null, "spot defaults");
+        var proj = Light.projector(Point.center(0, 6, 0), 10, 6).cookie("ns:textures/lights/r.png").roll(30).build();
+        require(proj.shape() == Light.Shape.PROJECTOR && proj.sizeX() == 10 && proj.sizeY() == 6 && proj.cookie() != null
+            && proj.roll() == 30 && proj.falloff() == 1, "projector");
+        expectRejected(() -> Light.point(Point.center()).cookie("ns:x.png"), "cookie on a point");
+        expectRejected(() -> Light.point(Point.center()).direction(0, 45), "direction on a point");
+        expectRejected(() -> Light.projector(Point.center(), 4, 4).angle(30), "angle on a projector");
+        expectRejected(() -> Light.spot(Point.center()).angle(175), "angle too wide");
+        expectRejected(() -> Light.spot(Point.center()).direction(0, 95), "pitch out of range");
+        expectRejected(() -> Light.point(Point.center()).colorRamp(0xffffffff), "ramp of one color");
+        var disc = Light.disc(Point.center(), 5).cookie("ns:textures/lights/r.png").build();
+        require(disc.oriented() && !Light.disc(Point.center(), 5).build().oriented(), "disc oriented only with a cookie");
+        require(Light.rampColor(new int[] {0xff000000, 0xffffffff}, .5f) == 0xff808080, "ramp midpoint");
+        require(Light.rampColor(new int[] {0xffff0000, 0xff00ff00, 0xff0000ff}, 1) == 0xff0000ff, "ramp end");
+        var timeline = Timeline.builder(40).track("cor", keyframe(0, 0f), keyframe(40, 1f)).track("giro", keyframe(0, 0f), keyframe(40, 90f)).build();
+        var ramp = Light.spot(Point.center()).colorRamp(0xffff0000, 0xff0000ff).track(Light.Param.COLOR, "cor")
+            .track(Light.Param.YAW, "giro").direction(10, 45).build();
+        ramp.validate(timeline);
+        var state = ramp.sample(timeline.at(40), 1, 2, 0, 1);
+        require(state.color() == 0xff0000ff, "ramp read by the COLOR track: " + Integer.toHexString(state.color()));
+        var pr = ramp.projection(timeline.at(40), 2);
+        require(pr.yaw() == 100 && pr.pitch() == 45 && pr.frame() == -1, "yaw track adds to the base yaw: " + pr.yaw());
+        var plain = Light.point(Point.center()).build();
+        require(plain.attenuation() == Light.Attenuation.POWER && plain.blend() == Light.Blend.ADD
+            && plain.gradientStops() == 0 && !plain.oriented(), "0.9 defaults keep the fast path");
+        var grad = Light.point(Point.center()).distanceGradient(0xffffffff, 0xffff0000, 0xff000000).blend(Light.Blend.SOFT)
+            .attenuation(Light.Attenuation.SMOOTH).build();
+        require(grad.gradientStops() == 3 && grad.gradientStop(1) == 0xffff0000, "distance gradient stops");
+        // Enums only grow at the end (binary compatibility of addons compiled against 0.14).
+        require(Light.Shape.RING.ordinal() == 3 && Light.Shape.SPOT.ordinal() == 4 && Light.Param.WEIGHT.ordinal() == 10,
+            "enum order kept");
+    }
+
+    /** 0.15.0: atlas cells never overlap, frames stay inside their image, textured caps by profile. */
+    private static void atlas() {
+        var a = new dev.calamidade_awakening.api.CookieAtlas();
+        java.util.List<dev.calamidade_awakening.api.CookieAtlas.Cell> cells = new java.util.ArrayList<>();
+        for (int i = 0; i < 8; i++) cells.add(a.allocate(512, 300));
+        for (int i = 0; i < 32; i++) cells.add(a.allocate(200, 256));
+        require(cells.stream().allMatch(java.util.Objects::nonNull) && a.usedQuarters() == 64, "8 big + 32 small fill the atlas");
+        require(a.allocate(10, 10) == null && a.allocate(512, 512) == null, "full atlas refuses");
+        for (int i = 0; i < cells.size(); i++) for (int j = i + 1; j < cells.size(); j++) {
+            var p = cells.get(i); var q = cells.get(j);
+            boolean apart = p.x() + p.size() <= q.x() || q.x() + q.size() <= p.x() || p.y() + p.size() <= q.y() || q.y() + q.size() <= p.y();
+            require(apart, "cells overlap: " + p + " " + q);
+        }
+        for (var cell : cells) require(cell.x() % cell.size() == 0 && cell.y() % cell.size() == 0, "cells aligned to their size");
+        a.free(cells.get(8)); a.free(cells.get(9)); a.free(cells.get(10)); a.free(cells.get(11));
+        var big = a.allocate(400, 400);
+        require(big != null && big.size() == 512, "four freed quarters make a big cell again");
+        float[] r = dev.calamidade_awakening.api.CookieAtlas.frameRect(new dev.calamidade_awakening.api.CookieAtlas.Cell(512, 0, 512),
+            512, 256, 4, 2, 5, new float[4]);
+        require(Math.abs(r[0] - (512 + 128) / 2048f) < 1e-6 && Math.abs(r[1] - 128 / 2048f) < 1e-6 && Math.abs(r[2] - 128 / 2048f) < 1e-6,
+            "frame 5 of a 4 x 2 sheet");
+        require(dev.calamidade_awakening.api.CookieAtlas.halvings(4096, 1024) == 3 && dev.calamidade_awakening.api.CookieAtlas.halvings(512, 512) == 0,
+            "halvings");
+        require(dev.calamidade_awakening.api.CookieAtlas.textured(8) == 2 && dev.calamidade_awakening.api.CookieAtlas.textured(32) == 8
+            && dev.calamidade_awakening.api.CookieAtlas.textured(64) == 16 && dev.calamidade_awakening.api.CookieAtlas.textured(0) == 0,
+            "textured lights per profile");
+        require(dev.calamidade_awakening.api.CookieAtlas.maxLod(128, 128) == 6 && dev.calamidade_awakening.api.CookieAtlas.maxLod(512, 512) == 8,
+            "max lod keeps frames apart");
+        require(dev.calamidade_awakening.api.CookieAtlas.BYTES > 22_000_000L && dev.calamidade_awakening.api.CookieAtlas.BYTES < 23_000_000L,
+            "atlas memory about 22 MB: " + dev.calamidade_awakening.api.CookieAtlas.BYTES);
     }
 
     private static void builder() {

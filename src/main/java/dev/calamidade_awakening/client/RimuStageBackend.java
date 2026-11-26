@@ -66,6 +66,7 @@ public final class RimuStageBackend {
         terrain.collect(plan, camera, frame.partial());
         lights.collect(plan, camera, frame.partial(), terrain);
         if (!plan.effects().isEmpty() || orbit > .001f) drawEffects(frame, plan, orbit);
+        else lights.report(false);
         // 0.8.0: one engine pass for the mixed atmosphere, last, so exposure and tint cover the whole scene.
         // Not charged to the addon budget and independent of the frustum (the sky stays when you turn away).
         boolean queued = atmosphere.draw(frame, camera, frame.partial());
@@ -153,6 +154,7 @@ public final class RimuStageBackend {
         }
         PerfOverlay.beams(beamPool.drawn() ? Math.min(beams.beams().size(), BeamFrame.ROWS) : 0, beamPool);
         PerfOverlay.lights(lightPool.drawn() ? Math.min(lights.lights().size(), LightFrame.ROWS) : 0, lightPool);
+        lights.report(lightPool.drawn());
         PerfOverlay.heroes(heroes, budget.used(true));
         PerfOverlay.passes(passes);
         PerfOverlay.passCut(budget.refused() > 0);

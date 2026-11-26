@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'dev.calamidade_awakening'
-version = '0.14.0'
+version = '0.15.0'
 base { archivesName = 'calamidade_awakening' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
@@ -114,6 +114,16 @@ neoForge {
             sourceSet = sourceSets.testeJogo
             gameDirectory = layout.projectDirectory.dir('run/teste-chefe').asFile
             systemProperty 'calamidade.teste', 'chefe'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
+        // 0.15.0: regressão de efeitos órfãos (eclipse do Sentinela, reabrir o mundo, kill, respawn), com o vfx-sample.
+        testeOrfaos {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = layout.projectDirectory.dir('run/teste-orfaos').asFile
+            systemProperty 'calamidade.teste', 'orfaos'
             programArgument '--quickPlaySingleplayer'; programArgument 'teste'
             programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
@@ -841,5 +851,45 @@ tasks.register('testeChefe') {
         if (!lines.contains('FIM chefe')) failed << "FAIL roteiro incompleto (falta 'FIM chefe')"
         logger.lifecycle("testeChefe: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeChefe:\n' + failed.join('\n'))
+    }
+}
+
+// 0.15.0: regressão do eclipse órfão (xvfb-run -a ./gradlew testeOrfaos): o Sentinela do vfx-sample na fúria, o mundo
+// fechado e reaberto com o chefe carregado, kill do golem, sobreposição intencional e /kill @e com respawn. Mundo do
+// testeJogo; relatório em run/teste-orfaos/calamidade-orfaos.txt.
+def testeOrfaosDir = layout.projectDirectory.dir('run/teste-orfaos').asFile
+def prepararTesteOrfaos = tasks.register('prepararTesteOrfaos') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo e o JAR do vfx-sample para run/teste-orfaos.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteOrfaos: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        def sample = fileTree('examples/vfx-sample/build/libs') { include 'vfx-sample-*.jar'; exclude '*-sources.jar' }
+        if (sample.isEmpty()) throw new GradleException('prepararTesteOrfaos: rode ./gradlew -p examples/vfx-sample build antes')
+        ['saves', 'mods', 'screenshots', 'logs', 'config'].each { project.delete(new File(testeOrfaosDir, it)) }
+        project.delete(new File(testeOrfaosDir, 'calamidade-orfaos.txt'))
+        project.copy { from world; into new File(testeOrfaosDir, 'saves/teste'); exclude 'session.lock'; exclude 'data/calamidade_awakening_*' }
+        project.copy { from sample; into new File(testeOrfaosDir, 'mods') }
+        new File(testeOrfaosDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:6', 'simulationDistance:6', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'lang:pt_br',
+            'maxFps:120', 'enableVsync:false'].join('\n') + '\n'
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteOrfaos') task.dependsOn prepararTesteOrfaos }
+tasks.register('testeOrfaos') {
+    group = 'verification'
+    description = 'Regressão de efeitos órfãos no cliente (precisa de tela: xvfb-run) e falha se algum caso falhar.'
+    dependsOn 'runTesteOrfaos'
+    doLast {
+        def report = new File(testeOrfaosDir, 'calamidade-orfaos.txt')
+        if (!report.exists()) throw new GradleException('testeOrfaos: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM orfaos')) failed << "FAIL roteiro incompleto (falta 'FIM orfaos')"
+        lines.findAll { it.startsWith('INFO') }.each { logger.lifecycle(it) }
+        logger.lifecycle("testeOrfaos: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeOrfaos:\n' + failed.join('\n'))
     }
 }

@@ -37,7 +37,10 @@ public final class WorldEventCommand {
     }
 
     private static int list(CommandContext<CommandSourceStack> ctx) {
-        var lines = WorldEventServer.describe();
+        var lines = new java.util.ArrayList<>(WorldEventServer.describe());
+        // 0.15.0: area events are ordinary instances; list them too, so "no global event" never hides an eclipse.
+        for (var i : dev.calamidade_awakening.net.StageNetwork.describe())
+            if (i.scope().equals("AREA")) lines.add(dev.calamidade_awakening.net.FxCommand.line(i) + "  (/calamidade fx stop|release " + i.order() + ")");
         if (lines.isEmpty())
             ctx.getSource().sendSuccess(() -> Component.translatableWithFallback(PREFIX + "empty", "No global event"), false);
         for (String line : lines) ctx.getSource().sendSuccess(() -> Component.literal(line), false);
@@ -47,6 +50,15 @@ public final class WorldEventCommand {
     private static int act(CommandContext<CommandSourceStack> ctx, boolean stop) {
         String target = StringArgumentType.getString(ctx, "id").trim();
         var events = WorldEventServer.matching(target);
+        // 0.15.0: an effect id also matches the AREA instances of that effect.
+        int area = 0;
+        for (var i : dev.calamidade_awakening.net.StageNetwork.describe())
+            if (i.scope().equals("AREA") && i.effect().equals(target) && dev.calamidade_awakening.net.StageNetwork.act(i.order(), stop)) area++;
+        if (events.isEmpty() && area > 0) {
+            int n = area;
+            ctx.getSource().sendSuccess(() -> Component.literal((stop ? "Stopped " : "Released ") + n + " AREA instance(s)"), true);
+            return area;
+        }
         if (events.isEmpty()) {
             ctx.getSource().sendFailure(Component.translatableWithFallback(PREFIX + "none", "No global event %s", target));
             return 0;

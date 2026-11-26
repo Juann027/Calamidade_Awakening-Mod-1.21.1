@@ -72,6 +72,7 @@ public final class CalamidadeTeste {
         // 0.14 (fase 4): imagens, flipbooks e impostors (registrados em registrarImagens).
         if (FMLEnvironment.dist == Dist.CLIENT && "imagens".equals(System.getProperty("calamidade.teste"))) RoteiroImagens.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "chefe".equals(System.getProperty("calamidade.teste"))) RoteiroChefe.registrar();
+        if (FMLEnvironment.dist == Dist.CLIENT && "orfaos".equals(System.getProperty("calamidade.teste"))) RoteiroOrfaos.registrar();
     }
 
     private static ResourceLocation id(String path) { return ResourceLocation.fromNamespaceAndPath(ID, path); }
@@ -297,7 +298,7 @@ public final class CalamidadeTeste {
     private static void started(ServerStartedEvent event) {
         String fase = System.getProperty("calamidade.teste");
         if (fase == null || fase.isBlank() || fase.equals("cliente") || fase.equals("medicao") || fase.equals("atlas")
-            || fase.equals("ceu") || fase.equals("chefe") || fase.equals("backdrop") || fase.equals("estrelas") || fase.equals("imagens")) return;
+            || fase.equals("ceu") || fase.equals("chefe") || fase.equals("orfaos") || fase.equals("backdrop") || fase.equals("estrelas") || fase.equals("imagens")) return;
         Thread thread = new Thread(new Roteiro(event.getServer(), fase), "Calamidade teste em jogo");
         thread.setDaemon(true);
         thread.start();

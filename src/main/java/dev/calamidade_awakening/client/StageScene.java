@@ -65,6 +65,35 @@ public final class StageScene {
         released.remove(order);
     }
 
+    /** Instances dropped by the server's live lists since the client started (0.15.0, F7). */
+    private int reconciled;
+
+    /**
+     * 0.15.0: the server's list of the instances this client should show; any other resident instance lost its end
+     * packet and is dropped. Returns the dropped orders.
+     */
+    public java.util.List<Long> reconcile(long[] orders) {
+        java.util.Set<Long> keep = new java.util.HashSet<>();
+        for (long o : orders) keep.add(o);
+        java.util.List<Long> gone = new java.util.ArrayList<>();
+        for (long order : active.keySet()) if (!keep.contains(order)) gone.add(order);
+        for (long order : gone) remove(order);
+        reconciled += gone.size();
+        return gone;
+    }
+
+    /** Instances dropped by reconciliation so far (F7). */
+    public int reconciled() { return reconciled; }
+
+    /** Resident sustained instances and how many of them are released (F7, 0.15.0). */
+    public int[] sustained() {
+        int held = 0, out = 0;
+        for (StageEvent e : active.values()) if (VisualKind.byId(e.visual()).sustained()) {
+            if (released.containsKey(e.order())) out++; else held++;
+        }
+        return new int[] {held, out};
+    }
+
     /** Release of a sustained instance, sent by the server (also to late arrivals right after the start). */
     public void release(long order, long age) {
         if (active.containsKey(order)) released.put(order, age);

@@ -200,7 +200,11 @@ public final class WorldEventServer {
         if (kind == null) throw new IllegalArgumentException("Unknown effect " + id);
         Vec3 position = options.position() != null ? options.position() : origin.getSharedSpawnPos().getCenter();
         if (scope == WorldEvents.Scope.AREA)
-            return Effects.start(id, origin, Placement.at(position)).map(handle -> new AreaHandle(handle, id, options.priority()));
+            return Effects.start(id, origin, Placement.at(position)).map(handle -> {
+                // 0.15.0: area events show up in /calamidade world list and /calamidade fx list with their scope.
+                dev.calamidade_awakening.net.StageNetwork.tag(handle, "AREA", "WorldEvents.start(AREA)");
+                return new AreaHandle(handle, id, options.priority());
+            });
         var decision = WorldEventRules.admit(ACTIVE.stream()
             .map(g -> new WorldEventRules.Active(g.kind.networkKey(), g.priority, g.key)).toList(),
             kind.networkKey(), options.priority(), ServerConfig.worldEventsMax());
@@ -245,6 +249,9 @@ public final class WorldEventServer {
         for (Global g : ACTIVE) { out.add(g.id.toString()); out.add("#" + g.key); }
         return out;
     }
+
+    /** 0.15.0: same lines, public, for {@code /calamidade fx list}. */
+    public static List<String> describeAll() { return describe(); }
 
     /** Lines of {@code /calamidade world list}. */
     static List<String> describe() { return ACTIVE.stream().map(Global::describe).toList(); }

@@ -3,11 +3,11 @@ loaderVersion="[4,)"
 license="MIT"
 [[mods]]
 modId="calamidade_awakening"
-version="0.14.0"
+version="0.15.0"
 displayName="Calamidade_Awakening"
 description="Modular procedural visual effects for Minecraft, powered by the RimuLib API."
 # Must match version in build.gradle (checkModVersion fails the build otherwise).
-# Network protocol of 0.14.0 (same channels as 0.13.0; event_v2 carries orientation and source; terrain_v1 terrain edits; world_event_v1 and world_end_v1 global events, new in 0.12.0; boss_v1 boss bar state, new in 0.13.0): run the same engine version on the server and on every client.
+# Network protocol of 0.15.0 (live_v1 is new: periodic list of live instances for reconciliation; event_v2 carries orientation and source; terrain_v1 terrain edits; world_event_v1 and world_end_v1 global events, new in 0.12.0; boss_v1 boss bar state, new in 0.13.0): run the same engine version on the server and on every client.
 [[dependencies.calamidade_awakening]]
 modId="minecraft"
 type="required"

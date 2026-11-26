@@ -1,4 +1,4 @@
-# Referência da API pública (api.v1) — Calamidade_Awakening 0.14.0
+# Referência da API pública (api.v1) — Calamidade_Awakening 0.15.0
 
 > Gerado por `scripts/ApiReferencia.java` a partir do `javap -public` do JAR compilado e do Javadoc dos fontes. Não edite à mão: rode `./gradlew apiDocs`. O build (`checkApiDocs`) falha se este arquivo estiver desatualizado ou se um membro público ficar sem Javadoc.
 
@@ -62,8 +62,16 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Effects.Priority`](#effectspriority)
 - [`Effects.Shape`](#effectsshape)
 - [`Light`](#light)
+- [`Light.Attenuation`](#lightattenuation)
+- [`Light.Blend`](#lightblend)
 - [`Light.Builder`](#lightbuilder)
+- [`Light.Cookie`](#lightcookie)
+- [`Light.Cookie.Fallback`](#lightcookiefallback)
+- [`Light.Cookie.Mode`](#lightcookiemode)
+- [`Light.Cookie.Play`](#lightcookieplay)
+- [`Light.Cookie.Wrap`](#lightcookiewrap)
 - [`Light.Param`](#lightparam)
+- [`Light.Projection`](#lightprojection)
 - [`Light.Shape`](#lightshape)
 - [`Light.State`](#lightstate)
 - [`Nebula`](#nebula)
@@ -1178,6 +1186,8 @@ Immutable visual light of one effect (0.9.0): it brightens the blocks, entities 
 | `static Light.Builder along(Beam beam)` | Light along a beam of the same effect (register the beams before the lights): its ends, reveal and weight, and its halo color unless `Builder.color` is called. |
 | `static Light.Builder disc(Point center, float radius)` | Disc of light on the ground: `radius` blocks (0..`MAX_RADIUS`) around `center`; soft edge 25% of it. |
 | `static Light.Builder ring(Point center, float radius, float width)` | Ring of light on the ground: a band `width` blocks wide (0..64) at `radius` blocks from `center`. |
+| `static Light.Builder spot(Point at)` | (0.15.0) Spotlight at `at`, pointing straight down by default (`Builder.direction`, `Builder.toward`). |
+| `static Light.Builder projector(Point at, float width, float height)` | (0.15.0) Planar projector at `at`: a `width × height` block rectangle (0..`MAX_RADIUS`) pushed `radius` blocks along its direction (straight down by default). |
 | `Light.Shape shape()` | Shape of the source. |
 | `Point from()` | Position (point), start (segment) or center (disc, ring). |
 | `Point to()` | End of a segment, or null for the other shapes. |
@@ -1193,10 +1203,53 @@ Immutable visual light of one effect (0.9.0): it brightens the blocks, entities 
 | `String track(Light.Param param)` | Track bound to a parameter, or null when the parameter is constant. |
 | `Map<Light.Param, String> tracks()` | Every track binding, in `Param` order. |
 | `String weightPhase()` | Phase whose weight multiplies the light weight, or null. |
+| `Point target()` | (0.15.0) Point a spot or projector aims at every frame, or null to use `yaw()`/`pitch()`. |
+| `Light.Cookie cookie()` | (0.15.0) The light's cookie, or null. |
+| `Light.Attenuation attenuation()` | (0.15.0) Attenuation curve (`Attenuation.POWER` by default). |
+| `Light.Blend blend()` | (0.15.0) Composition mode (`Blend.ADD` by default). |
+| `float yaw()` | (0.15.0) Base yaw of a spot or projector in the instance frame, degrees. |
+| `float pitch()` | (0.15.0) Base pitch of a spot or projector, degrees (90 = down). |
+| `float roll()` | (0.15.0) Base roll of the projected image, degrees. |
+| `float angle()` | (0.15.0) Full aperture of a spot, degrees. |
+| `float softness()` | (0.15.0) Edge softness, 0..1. |
+| `float sizeX()` | (0.15.0) Projector width, blocks. |
+| `float sizeY()` | (0.15.0) Projector height, blocks. |
+| `int[] colorRamp()` | (0.15.0) Color ramp stops (ARGB, 2..4) read by `Param.COLOR`, or an empty array. |
+| `int[] distanceGradient()` | (0.15.0) Spatial gradient stops (ARGB, 2..4) from the source to the reach, or an empty array. |
+| `int gradientStops()` | (0.15.0) Number of spatial gradient stops (0 without a gradient). |
+| `int gradientStop(int i)` | (0.15.0) Spatial gradient stop `i` (ARGB). |
+| `boolean oriented()` | (0.15.0) True when the light needs an orientation (spot, projector, or a disc with a cookie). |
+| `Light.Projection projection(Timeline.Sampler timeline, double seconds)` | (0.15.0) Orientation and projection at one moment: base values plus tracks (clamped). |
+| `static int rampColor(int[] stops, float t)` | (0.15.0) Color of a ramp of ARGB stops (equally spaced) at `t` (0..1), linear per channel, opaque. |
 | `boolean animated()` | True when some parameter, the weight or the phase depends on the timeline. |
 | `void validate(Timeline timeline)` | Checks that every track and the phase this light reads exist in `timeline`, which may be null only when nothing is animated. |
 | `Light.State sample(Timeline.Sampler timeline, float envelope, double seconds, float seed, float flickerScale)` | Resolves this light at one moment. |
 | `static float flickerFactor(float amount, float speed, double seconds, float seed)` | Flicker multiplier of the intensity, pure: `1 - amount * n`, with `n` a smooth value noise in 0..1 that changes about `speed` times per second, offset by `seed`. 1 when amount or speed is 0; always within `[1 - amount, 1]`. |
+
+## Light.Attenuation
+
+`dev.calamidade_awakening.api.v1.Light.Attenuation` · enum
+
+(0.15.0) Distance attenuation curve; the default `POWER` is the 0.9 curve.
+
+| Membro | Descrição |
+|---|---|
+| `POWER` | `(1 - d / radius) ^ falloff`: the 0.9 curve (default). |
+| `SMOOTH` | `(1 - (d / radius)²)²`: bright and wide, smooth to 0 at the edge (no falloff exponent). |
+| `INVERSE_SQUARE` | Windowed inverse square, `1 / (1 + (k·d/radius)²) × (1 - (d/radius)²)²`, `k = 2 × falloff`: a hot core. |
+| `CONSTANT` | Flat up to 80% of the reach, then a smooth fade to 0: a uniform pool of light. |
+
+## Light.Blend
+
+`dev.calamidade_awakening.api.v1.Light.Blend` · enum
+
+(0.15.0) How a light composes with the others in the single lights pass.
+
+| Membro | Descrição |
+|---|---|
+| `ADD` | Adds light (the 0.9 behavior, default). |
+| `SOFT` | Adds light that saturates: the sum of every SOFT light of a pixel goes through `1 - e^(-x)` per channel, so many overlapping lights never blow the scene out (crowds of torches, stress scenes). |
+| `SUBTRACT` | Removes light: multiplies the scene by `1 - color × intensity × attenuation` (at most 95% darker). |
 
 ## Light.Builder
 
@@ -1215,7 +1268,109 @@ Builder of a `Light`.
 | `Light.Builder flicker(float amount, float speed)` | Flicker: `amount` 0..1 of the intensity, about `speed` changes per second (0..20). |
 | `Light.Builder track(Light.Param param, String track)` | Takes `param` from a track of the effect's timeline instead of the constant (clamped to the parameter range). |
 | `Light.Builder weightPhase(String phase)` | Multiplies the light weight by the weight of a timeline phase (0 outside it). |
+| `Light.Builder direction(float yaw, float pitch)` | (0.15.0) Direction of a spot or projector in the instance frame: `yaw` degrees (0 = the instance's forward, 90 = its left) and `pitch` degrees (-90 up .. 90 down, 90 by default). |
+| `Light.Builder toward(Point point)` | (0.15.0) Aims a spot or projector at a point every frame (an entity, its eyes, a socket, a world position); the yaw and pitch tracks still add to the aim. |
+| `Light.Builder roll(float degrees)` | (0.15.0) Turn of the projected image around the light axis, degrees (spot, projector, disc cookie). |
+| `Light.Builder angle(float degrees)` | (0.15.0) Full aperture of a spot, degrees (1..170, 40 by default). |
+| `Light.Builder softness(float value)` | (0.15.0) Edge softness of a spot or projector, 0..1 (0.25 spot, 0.1 projector). |
+| `Light.Builder size(float width, float height)` | (0.15.0) Width and height of a projector, blocks (0..`MAX_RADIUS`). |
+| `Light.Builder cookie(Light.Cookie value)` | (0.15.0) Light cookie: the image that shapes the light (see `Cookie`). |
+| `Light.Builder cookie(String texture)` | (0.15.0) Shorthand for `cookie(Cookie.of(texture))`. |
+| `Light.Builder attenuation(Light.Attenuation value)` | (0.15.0) Attenuation curve (POWER by default, the 0.9 curve). |
+| `Light.Builder blend(Light.Blend value)` | (0.15.0) Composition with the other lights (ADD by default). |
+| `Light.Builder colorRamp(int... argb)` | (0.15.0) Color animated over time: 2..4 ARGB stops, equally spaced, read at the `Param.COLOR` track (0..1; without the track, the first stop). |
+| `Light.Builder distanceGradient(int... argb)` | (0.15.0) Color that changes with distance: 2..4 ARGB stops from the source (0) to the reach (1), multiplied by the light color (keep it white for the exact stops). |
 | `Light build()` | Immutable light. |
+
+## Light.Cookie
+
+`dev.calamidade_awakening.api.v1.Light.Cookie` · class
+
+(0.15.0) Light cookie: an image (PNG from any resource pack, path `ns:textures/...png`) that shapes the light a `Shape.SPOT`, `Shape.PROJECTOR` or `Shape.DISC` throws on the surfaces it reaches.
+
+| Membro | Descrição |
+|---|---|
+| `static int MAX_SIDE` | Largest stored side of a cookie image (or of a whole sheet), pixels. |
+| `static int MAX_FRAMES` | Most frames of a sheet. |
+| `static Light.Cookie of(String texture)` | Cookie from a PNG, `namespace:textures/path.png` (any resource pack, usually your mod's `assets/<ns>/textures/lights/`). |
+| `Light.Cookie mode(Light.Cookie.Mode value)` | Channel semantics (MASK by default). |
+| `Light.Cookie colored()` | Shorthand for `mode(Mode.COLOR)`: the image's colors tint the light. |
+| `Light.Cookie wrap(Light.Cookie.Wrap value)` | Outside-the-image behavior (CLAMP by default). |
+| `Light.Cookie repeat()` | Shorthand for `wrap(Wrap.REPEAT)`. |
+| `Light.Cookie fallback(Light.Cookie.Fallback value)` | Fallback when the image is not available or over budget (AVERAGE by default). |
+| `Light.Cookie sheet(int columns, int rows)` | Splits the image into `columns × rows` frames (1..64 each, left to right then top to bottom, no margin); all of them are played unless `frames` says fewer. |
+| `Light.Cookie frames(int count)` | Number of frames actually used, 1..columns × rows. |
+| `Light.Cookie fps(float value)` | Frames per second on the clock, 0..60 (12 by default for sheets; 0 holds frame 0). |
+| `Light.Cookie play(Light.Cookie.Play value)` | Playback on the clock (LOOP by default). |
+| `Light.Cookie blendFrames(boolean value)` | Cross-fades the current and the next frame instead of cutting (no cost when the sheet has one frame). |
+| `Light.Cookie scale(float copies)` | Base tiling, 0.01..64 (the `Param.COOKIE_SCALE` track replaces it). |
+| `Light.Cookie rotation(float degrees)` | Base rotation in image space, degrees (the `Param.COOKIE_ROTATION` track replaces it). |
+| `Light.Cookie offset(float u, float v)` | Base scroll in images (the `Param.COOKIE_U`/`Param.COOKIE_V` tracks replace it). |
+| `Light.Cookie pixelated()` | Nearest-texel sampling (pixel art) instead of smooth filtering with mipmaps. |
+| `String texture()` | PNG location, `ns:path.png`. |
+| `Light.Cookie.Mode mode()` | Channel semantics. |
+| `Light.Cookie.Wrap wrap()` | Outside-the-image behavior. |
+| `Light.Cookie.Play play()` | Clock playback of a sheet. |
+| `Light.Cookie.Fallback fallback()` | Fallback without the image. |
+| `int columns()` | Sheet columns (1 without a sheet). |
+| `int rows()` | Sheet rows (1 without a sheet). |
+| `int frames()` | Frames played (1 without a sheet). |
+| `float fps()` | Frames per second on the clock. |
+| `float scale()` | Base tiling. |
+| `float rotation()` | Base rotation, degrees. |
+| `float offsetU()` | Base scroll along x, images. |
+| `float offsetV()` | Base scroll along y, images. |
+| `boolean blendFrames()` | True when two frames cross-fade. |
+| `boolean isPixelated()` | True for nearest-texel sampling. |
+| `float frameAt(double seconds, float track)` | Frame position at a moment, pure: `track` (a `Param.FRAME` value, or NaN for none) wins; else the clock (`seconds` × fps) with the playback mode. |
+| `boolean equals(Object o)` | Equal when every setting is equal (same image, mode, sheet, playback and base transform). |
+| `int hashCode()` | Hash of the settings, consistent with `equals`. |
+| `String toString()` | Short description for logs. |
+
+## Light.Cookie.Fallback
+
+`dev.calamidade_awakening.api.v1.Light.Cookie.Fallback` · enum
+
+What a cookie light draws when its image is loading, missing, invalid or over the frame's cookie budget.
+
+| Membro | Descrição |
+|---|---|
+| `AVERAGE` | Draws the light without the image, with the intensity scaled by the image's average coverage (0.5 when the image never loaded): the light keeps its size and roughly its energy (default). |
+| `NONE` | Draws nothing. |
+
+## Light.Cookie.Mode
+
+`dev.calamidade_awakening.api.v1.Light.Cookie.Mode` · enum
+
+How the image modulates the light.
+
+| Membro | Descrição |
+|---|---|
+| `MASK` | Monochrome: luminance of `rgb × a` times the light color (default). |
+| `COLOR` | Multicolor: `rgb × a` per channel times the light color. |
+
+## Light.Cookie.Play
+
+`dev.calamidade_awakening.api.v1.Light.Cookie.Play` · enum
+
+Sheet playback on the clock (ignored when the light has a `Param.FRAME` track).
+
+| Membro | Descrição |
+|---|---|
+| `LOOP` | Loops (default). |
+| `ONCE` | Plays once and holds the last frame. |
+| `PING_PONG` | Forward then backward. |
+
+## Light.Cookie.Wrap
+
+`dev.calamidade_awakening.api.v1.Light.Cookie.Wrap` · enum
+
+What a projection reads outside the image (after scale, rotation and offset).
+
+| Membro | Descrição |
+|---|---|
+| `CLAMP` | No light outside the image (default). |
+| `REPEAT` | The image tiles. |
 
 ## Light.Param
 
@@ -1236,9 +1391,45 @@ Numeric parameters that can be driven by a timeline track, each with the range u
 | `Y` | Offset added to the position, y (up), blocks. |
 | `Z` | Offset added to the position, z (forward in the instance frame), blocks. |
 | `WEIGHT` | Extra multiplier of the light weight, 0..1 (the envelope and the phase still apply). |
+| `YAW` | (0.15.0) Degrees added to the yaw of a spot or projector (instance frame; 0 = forward), -3600..3600. |
+| `PITCH` | (0.15.0) Degrees added to the pitch of a spot or projector (positive looks down), -180..180. |
+| `ROLL` | (0.15.0) Degrees the projected image turns around the light axis (spot, projector, disc cookie), -3600..3600. |
+| `ANGLE` | (0.15.0) Full aperture of a spot, degrees, 1..170. |
+| `SOFTNESS` | (0.15.0) Edge softness of a spot or projector, 0 (hard) .. 1 (the whole aperture fades). |
+| `SIZE_X` | (0.15.0) Width of a projector (image x), blocks. |
+| `SIZE_Y` | (0.15.0) Height of a projector (image y), blocks. |
+| `COOKIE_SCALE` | (0.15.0) Cookie tiling: how many copies of the image fit across the projection, 0.01..64 (1 = once). |
+| `COOKIE_ROTATION` | (0.15.0) Cookie rotation inside the projection, degrees, -3600..3600 (same as ROLL but in image space). |
+| `COOKIE_U` | (0.15.0) Cookie scroll along image x, in images (1 = one whole image), -10000..10000. |
+| `COOKIE_V` | (0.15.0) Cookie scroll along image y, in images, -10000..10000. |
+| `FRAME` | (0.15.0) Frame of a cookie sheet, 0..4095 (fractions blend two frames with `Cookie.blendFrames`). |
+| `COLOR` | (0.15.0) Position along the color ramp, 0..1. |
 | `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
 | `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
 | `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
+
+## Light.Projection
+
+`dev.calamidade_awakening.api.v1.Light.Projection` · record
+
+(0.15.0) Orientation and projection of a `Shape.SPOT`, `Shape.PROJECTOR` or of the cookie of a `Shape.DISC` at one moment: base values plus tracks, clamped.
+
+| Membro | Descrição |
+|---|---|
+| `new Projection(float yaw, float pitch, float roll, float angle, float softness, float sizeX, float sizeY, float scale, float rotation, float u, float v, float frame, float ramp)` | Canonical constructor: yaw, pitch, roll, angle, softness, sizeX, sizeY, scale, rotation, u, v, frame, ramp. |
+| `float yaw()` | Yaw in the instance frame, degrees (0 forward, 90 left). |
+| `float pitch()` | Pitch, degrees (90 straight down, the default). |
+| `float roll()` | Turn of the image around the light axis, degrees. |
+| `float angle()` | Full aperture of a spot, degrees. |
+| `float softness()` | Edge softness, 0..1. |
+| `float sizeX()` | Projector width, blocks. |
+| `float sizeY()` | Projector height, blocks. |
+| `float scale()` | Cookie tiling (1 = the image once). |
+| `float rotation()` | Cookie rotation in image space, degrees. |
+| `float u()` | Cookie scroll along x, images. |
+| `float v()` | Cookie scroll along y, images. |
+| `float frame()` | Cookie sheet frame (fractional: blend), or -1 to follow the cookie clock. |
+| `float ramp()` | Position along the color ramp, 0..1. |
 
 ## Light.Shape
 
@@ -1252,6 +1443,8 @@ Shape of the light source.
 | `SEGMENT` | A segment (or a beam): lights from its nearest point within `radius`. |
 | `DISC` | A disc on the ground: `radius` wide with a soft edge `width` blocks wide. |
 | `RING` | A ring on the ground: a band `width` blocks wide at `radius` from the center. |
+| `SPOT` | (0.15.0) A spotlight: a cone from `Light.from()` along its direction, `radius` blocks long, with a full aperture of `Param.ANGLE` degrees and a soft edge (`Param.SOFTNESS`). |
+| `PROJECTOR` | (0.15.0) A planar projector: a box `Param.SIZE_X` × `Param.SIZE_Y` blocks wide that starts at `Light.from()` and runs `radius` blocks along its direction. |
 
 ## Light.State
 

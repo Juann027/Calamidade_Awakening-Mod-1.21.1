@@ -101,6 +101,19 @@ public final class ClientHooks {
                     FILMS.end(packet.order());
                     COORDINATOR.invalidate();
                 }));
+            // 0.15.0: periodic live list from the server; residents missing from it lost their end and are dropped.
+            NetClientApi.receive(dev.calamidade_awakening.net.LiveList.PACKET, (packet, context) ->
+                Minecraft.getInstance().execute(() -> {
+                    var gone = SCENE.reconcile(packet.orders());
+                    for (long order : gone) {
+                        TERRAIN.forget(order);
+                        FILMS.end(order);
+                    }
+                    if (!gone.isEmpty()) {
+                        LOGGER.warn("Dropped {} effect instance(s) the server no longer has: {}", gone.size(), gone);
+                        COORDINATOR.invalidate();
+                    }
+                }));
             NetClientApi.receive(dev.calamidade_awakening.net.TerrainSync.PACKET, (packet, context) ->
                 Minecraft.getInstance().execute(() -> TERRAIN.receive(packet)));
             NetClientApi.receive(dev.calamidade_awakening.net.ReleaseEffect.PACKET, (packet, context) ->
@@ -156,6 +169,8 @@ public final class ClientHooks {
                 LOGGER.debug("Resource reload: releasing sky background textures and sky object meshes");
                 BACKDROP.clear();
                 SKY_OBJECTS.clear();
+                // 0.15.0: cookie images may have changed with the resource packs; they load again on use.
+                Minecraft.getInstance().execute(() -> LIGHTS.cookies().clear());
             });
         }
 
@@ -247,6 +262,8 @@ public final class ClientHooks {
     @SubscribeEvent
     public static void frame(RenderFrameEvent.Pre event) {
         PerfOverlay.frameStart(SCENE.size(), SCENE.sizeBySource(), COORDINATOR.limits());
+        int[] sustained = SCENE.sustained();
+        PerfOverlay.lifecycle(sustained[0], sustained[1], SCENE.reconciled());
         if (PerfOverlay.lastFrameMs() > 0)
             COORDINATOR.frame(System.currentTimeMillis(), PerfOverlay.lastFrameMs(), PerfOverlay.lastPassCut());
         COORDINATOR.invalidate();
@@ -321,6 +338,9 @@ public final class ClientHooks {
         PROFILES.clear();
         BACKDROP.clear();
         SKY_OBJECTS.clear();
+        // 0.15.0: resident instances and light cookies go with the world (the next level clears the scene anyway).
+        SCENE.updateLevel(null);
+        LIGHTS.cookies().clear();
     }
 
     /**

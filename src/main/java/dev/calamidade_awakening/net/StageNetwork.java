@@ -59,6 +59,18 @@ public final class StageNetwork {
         long releasedAt = -1;
         /** Set once the instance is stopped or expired; no cue may run afterwards, even later in the same tick. */
         boolean ended;
+        /**
+         * 0.15.0: lifecycle owner, distinct from the source (who started it) and the anchor (where it is): the boss
+         * controller (entity UUID) of an {@code EffectSource.boss} start, or null. A sustained instance is released
+         * when its owner's controller ends, even if the handle that held it was lost.
+         */
+        UUID owner;
+        /** 0.15.0: how it was started, for diagnostics: INSTANCE, or AREA for an area world event. */
+        String scope = "INSTANCE";
+        /** 0.15.0: who holds it, for diagnostics (boss phase, area event...). */
+        String note = "";
+        /** 0.15.0: set when the watchdog released it because its owner was gone. */
+        boolean orphanReleased;
 
         Live(ServerLevel level, StageEvent event, VisualKind kind, Entity anchor, EffectSource source, BlockEntity block) {
             this.level = level; this.event = event; this.kind = kind; this.anchor = anchor; this.source = source; this.block = block;
@@ -169,6 +181,19 @@ public final class StageNetwork {
             if (NetApi.canSend(player, EndEffect.PACKET)) NetApi.send(player, new EndEffect(event.order()));
         }
 
+        Info info() {
+            String src = source.kind().name().toLowerCase(java.util.Locale.ROOT) + (source.uuid() != null ? " " + shortName(source.uuid()) : "");
+            String own = owner == null ? "-" : "boss " + shortName(owner) + (dev.calamidade_awakening.boss.BossServer.isBoss(owner) ? "" : " (encerrado)");
+            String anc = anchor == null ? "fixo" : anchor.getType().toShortString() + " " + shortName(anchor.getUUID());
+            long a = age();
+            String st = !kind.sustained() ? "efêmero " + a + "/" + kind.duration
+                : releasedAt >= 0 ? "saindo (solto em " + releasedAt + ")" + (orphanReleased ? " · órfão" : "")
+                : kind.timeline().localAge(a, -1) >= kind.timeline().sustainStart() ? "laço" : "entrada";
+            boolean orphan = owner != null && kind.sustained() && !dev.calamidade_awakening.boss.BossServer.isBoss(owner);
+            return new Info(event.order(), kind.networkKey(), scope, level.dimension().location().toString(), src, own, anc,
+                st + " · " + a / 20 + " s", center(), note, orphan);
+        }
+
         void end() {
             ended = true;
             dev.calamidade_awakening.terrain.TerrainWorks.ended(event.order());
@@ -266,6 +291,7 @@ public final class StageNetwork {
             anchor == null ? -1 : anchor.getId(), anchor == null ? null : anchor.getUUID(), anchor == null ? Vec3.ZERO : position,
             spawn.yaw(), spawn.pitch(), follow, source.kind());
         Live live = new Live(level, event, kind, anchor, source, block);
+        if (source.bossController()) live.owner = source.uuid();
         if (spawn.cooldown() > 0) COOLDOWNS.start(source, kind.id, now, spawn.cooldown());
         var serverRef = new java.lang.ref.WeakReference<>(level.getServer());
         live.handle = new LiveHandle(order) {
@@ -304,6 +330,62 @@ public final class StageNetwork {
 
     /** Order of the instance behind a handle from {@link #start}, or -1 for other handles (0.11.0). */
     public static long orderOf(Effects.Handle handle) { return handle instanceof LiveHandle live ? live.order : -1; }
+
+    /** 0.15.0: marks how an instance was started (diagnostics): scope label and a note (holder). */
+    public static void tag(Effects.Handle handle, String scope, String note) {
+        long order = orderOf(handle);
+        for (Live live : ACTIVE) if (live.event.order() == order) {
+            if (scope != null) live.scope = scope;
+            if (note != null) live.note = note;
+        }
+    }
+
+    /**
+     * 0.15.0: releases (cinematic exit) every sustained, not yet released instance owned by this boss controller and
+     * stops nothing else: one-shot instances it started play out on their own, as intended. Called when a controller
+     * ends (death, removal, unload, detach, failures). Returns how many were released.
+     */
+    public static int releaseOwned(UUID owner) {
+        int n = 0;
+        for (Live live : List.copyOf(ACTIVE)) {
+            if (live.ended || !owner.equals(live.owner) || !live.kind.sustained() || live.releasedAt >= 0) continue;
+            live.release();
+            n++;
+        }
+        return n;
+    }
+
+    /** 0.15.0: one live instance as seen by the diagnostics commands. */
+    public record Info(long order, String effect, String scope, String dimension, String source, String owner,
+                       String anchor, String state, Vec3 center, String note, boolean orphan) {}
+
+    /** 0.15.0: every live instance (server thread), for {@code /calamidade fx list}. */
+    public static List<Info> describe() {
+        List<Info> out = new ArrayList<>();
+        for (Live live : ACTIVE) if (!live.ended) out.add(live.info());
+        return out;
+    }
+
+    /** 0.15.0: stops ({@code stop}) or releases one instance by order; false when there is none or it cannot release. */
+    public static boolean act(long order, boolean stop) {
+        for (Live live : List.copyOf(ACTIVE)) {
+            if (live.event.order() != order || live.ended) continue;
+            if (stop) {
+                ACTIVE.remove(live);
+                live.end();
+                return true;
+            }
+            if (!live.kind.sustained() || live.releasedAt >= 0) return false;
+            live.release();
+            return true;
+        }
+        return false;
+    }
+
+    /** 0.15.0: instances released by the orphan watchdog since the server started (diagnostics, tests). */
+    public static int orphansReleased() { return orphans; }
+
+    private static int orphans;
 
     /** Players that received a live instance, empty when it is gone (0.11.0, terrain state broadcasts). */
     public static java.util.Collection<ServerPlayer> recipients(long order) {
@@ -377,6 +459,8 @@ public final class StageNetwork {
         NetApi.toClient(SkyProfileSync.PACKET);
         // 0.13.0: boss bar state beyond the vanilla bar.
         NetApi.toClient(BossSync.PACKET);
+        // 0.15.0: periodic list of the instances a player should show (reconciliation of missed ends).
+        NetApi.toClient(LiveList.PACKET);
         NetApi.receive(CastRequest.PACKET, (request, ctx) -> ctx.server().execute(() -> {
             if (ctx.player() != null) AwakeningSkills.cast(ctx.player(), request.visual(), request.power());
         }));
@@ -412,11 +496,48 @@ public final class StageNetwork {
             return true;
         });
         for (Live live : ACTIVE) live.dispatch();
-        COOLDOWNS.prune(event.getServer().overworld().getGameTime());
+        long now = event.getServer().overworld().getGameTime();
+        COOLDOWNS.prune(now);
+        // 0.15.0: a sustained instance whose owner controller is gone is released (once, with its exit), whatever held
+        // its handle; a short grace covers a controller being resumed on the next tick.
+        if (now % 20 == 0) for (Live live : List.copyOf(ACTIVE)) {
+            if (live.ended || live.owner == null || !live.kind.sustained() || live.releasedAt >= 0 || live.age() < 40) continue;
+            if (dev.calamidade_awakening.boss.BossServer.isBoss(live.owner)) continue;
+            LOGGER.warn("Instance {} of {} outlived its boss controller {}: released (orphan)", live.event.order(),
+                live.kind.networkKey(), live.owner);
+            live.orphanReleased = true;
+            live.release();
+            orphans++;
+        }
+        // 0.15.0: every 5 s each player gets the list of instances it should show; the client drops any other one
+        // (a missed end). Only players that have, or just had, an instance.
+        if (now % RECONCILE_PERIOD == 0) reconcile(event.getServer());
     }
+
+    /** Ticks between two live lists sent to each player (0.15.0). */
+    static final int RECONCILE_PERIOD = 100;
+    private static final Set<UUID> RECONCILED = new HashSet<>();
+
+    private static void reconcile(net.minecraft.server.MinecraftServer server) {
+        Map<ServerPlayer, List<Long>> lists = new HashMap<>();
+        for (Live live : ACTIVE) if (!live.ended)
+            for (ServerPlayer p : live.recipients) lists.computeIfAbsent(p, k -> new ArrayList<>()).add(live.event.order());
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            List<Long> orders = lists.getOrDefault(player, List.of());
+            boolean had = RECONCILED.contains(player.getUUID());
+            if (orders.isEmpty() && !had) continue;
+            if (!NetApi.canSend(player, LiveList.PACKET)) continue;
+            NetApi.send(player, new LiveList(orders.stream().mapToLong(Long::longValue).toArray()));
+            if (orders.isEmpty()) RECONCILED.remove(player.getUUID()); else RECONCILED.add(player.getUUID());
+        }
+    }
+
+    private static String shortName(UUID uuid) { return uuid.toString().substring(0, 8); }
 
     @SubscribeEvent
     public static void stop(ServerStoppedEvent event) {
+        RECONCILED.clear();
+        orphans = 0;
         ACTIVE.clear();
         COOLDOWNS.clear();
         java.util.Arrays.fill(REFUSED, 0);

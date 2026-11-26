@@ -151,7 +151,114 @@ function beamRow(a, b, core, halo, coreRgb, haloRgb, gain, reveal, pulses = 0, p
 // Linha de luz: posição (ou início/centro), alcance ou raio, fim, queda, cor × intensidade, forma, largura, altura.
 const SHAPE = { ponto: 0, segmento: 1, disco: 2, anel: 3 };
 function lightRow(shape, a, radius, rgb, gain, { b = a, falloff = 2, width = 0, height = 3 } = {}) {
-  return [...a, radius, ...b, falloff, ...rgb.map(v => v * gain), SHAPE[shape], width, height, 0, 0];
+  return [...a, radius, ...b, falloff, ...rgb.map(v => v * gain), SHAPE[shape], width, height, 0, 0, ...Array(32).fill(0)];
+}
+
+// 0.15.0: luzes estendidas, no mesmo formato de 12 texels do LightFrame.queue. dir/right/up unitários; cookie
+// { cell: índice 0..3 do atlas de prévia (512, células de 256), w, h, cols, rows, frame, mix, color, repeat, pixel,
+// scale, rot (graus), u, v }; curve 0..3 (POWER, SMOOTH, INVERSE_SQUARE, CONSTANT); blend 0..2 (ADD, SOFT, SUBTRACT).
+const ATLAS_SIDE = 512, ATLAS_CELL = 256;
+const SHAPE15 = { ponto: 0, segmento: 1, disco: 2, anel: 3, holofote: 4, projetor: 5 };
+function extLight(shape, a, radius, rgb, gain, o = {}) {
+  const dir = o.dir ? norm(o.dir) : [0, -1, 0];
+  let up = o.up || [0, 0, 1];
+  up = norm(sub(up, dir.map(v => v * dot(up, dir))));
+  const right = cross(up, dir).map(v => -v);
+  const c = o.cookie;
+  const stops = o.gradient ? o.gradient.length : 0;
+  let flags = 0;
+  if (c) flags |= 1 | 16 | (c.color ? 2 : 0) | (c.repeat ? 4 : 0) | (c.pixel ? 8 : 0);
+  const code = SHAPE15[shape] | (o.curve || 0) << 3 | (o.blend || 0) << 5 | flags << 7 | stops << 12;
+  const g0 = o.gradient ? o.gradient[0] : [1, 1, 1];
+  const second = shape === 'holofote' || shape === 'projetor' ? dir : (o.b || a);
+  const tanHalf = Math.tan((o.angle ?? 40) * Math.PI / 360);
+  const row = [...a, radius, ...second, o.falloff ?? 2, ...rgb.map((v, k) => v * gain * g0[k]), code,
+    o.width ?? 0, o.height ?? 3, tanHalf, o.softness ?? 0.2,
+    ...right, (o.sizeX ?? 0) / 2, ...up, (o.sizeY ?? 0) / 2];
+  const sc = c ? (c.scale ?? 1) : 1, rot = c ? (c.rot ?? 0) * Math.PI / 180 : 0;
+  row.push(Math.cos(rot) * sc, Math.sin(rot) * sc, c ? c.u ?? 0 : 0, c ? c.v ?? 0 : 0);
+  const rectOf = f => {
+    const cols = c.cols || 1, rows = c.rows || 1, fw = c.w / cols, fh = c.h / rows;
+    const cx = (c.cell % 2) * ATLAS_CELL, cy = Math.floor(c.cell / 2) * ATLAS_CELL;
+    return [(cx + (f % cols) * fw) / ATLAS_SIDE, (cy + Math.floor(f / cols) * fh) / ATLAS_SIDE, fw / ATLAS_SIDE, fh / ATLAS_SIDE];
+  };
+  row.push(...(c ? rectOf(c.frame || 0) : [0, 0, 0, 0]), ...(c ? rectOf((c.frame || 0) + 1) : [0, 0, 0, 0]));
+  const maxLod = c ? Math.max(0, Math.min(8, Math.log2(Math.min(c.w / (c.cols || 1), c.h / (c.rows || 1))) - 1)) : 0;
+  for (let j = 1; j < 4; j++) {
+    const w = j === 1 ? (c ? c.mix || 0 : 0) : j === 2 ? maxLod : 0;
+    const st = o.gradient && j < o.gradient.length ? o.gradient[j] : null;
+    row.push(...(st ? rgb.map((v, k) => v * gain * st[k]) : [0, 0, 0]), w);
+  }
+  return row;
+}
+function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+
+// Cookies procedurais da prévia (256 × 256, alfa direto), um por célula do atlas.
+function cookieImage(kind) {
+  const N = 256, out = new Uint8Array(N * N * 4);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const u = (x + 0.5) / N - 0.5, v = 0.5 - (y + 0.5) / N;
+    let r = 1, g = 1, b = 1, a = 0;
+    if (kind === 'runas') {
+      const rr = Math.hypot(u, v), ang = Math.atan2(v, u);
+      const ring = Math.max(0, 1 - Math.abs(rr - 0.44) / 0.012) + Math.max(0, 1 - Math.abs(rr - 0.30) / 0.008);
+      const k = Math.floor((ang / (Math.PI * 2) + 0.5) * 12);
+      const glyph = rr > 0.32 && rr < 0.42 && (((k * 7 + Math.floor(rr * 60)) % 3 === 0) || Math.abs(((ang / (Math.PI * 2) + 0.5) * 12 % 1) - 0.5) < 0.06) ? 1 : 0;
+      const star = Math.abs(Math.cos(ang * 2.5)) * rr < 0.012 && rr < 0.3 ? 1 : 0;
+      a = Math.min(1, ring + glyph + star);
+    } else if (kind === 'hex') {
+      const s = 8, qx = u * s, qy = v * s;
+      const hx = [qx, qy * 2 / Math.sqrt(3)];
+      const cell = [Math.round(hx[0] - 0.5 * Math.round(hx[1])) + 0.5 * Math.round(hx[1]), Math.round(hx[1])];
+      const cxp = cell[0], cyp = cell[1] * Math.sqrt(3) / 2;
+      const dx = Math.abs(qx - cxp), dy = Math.abs(qy - cyp);
+      const d = Math.max(dx * 0.866 + dy * 0.5, dy);
+      a = d > 0.38 ? 1 : 0.08;
+      g = 0.9;
+    } else if (kind === 'causticas') {
+      let t = 0, px = u * 6, py = v * 6;
+      for (let i = 0; i < 4; i++) {
+        const nx = px + Math.sin(py * 1.7 + i * 1.3) * 0.6, ny = py + Math.cos(px * 1.9 - i) * 0.6;
+        px = nx; py = ny;
+        t += Math.pow(Math.max(0, 1 - Math.abs(Math.sin(px * Math.PI) * Math.sin(py * Math.PI)) * 3), 4);
+      }
+      a = Math.min(1, t * 0.6 + 0.08);
+    } else {
+      // vitral: quatro cores com chumbo preto.
+      const lead = Math.abs(u) < 0.02 || Math.abs(v) < 0.02 || Math.abs(Math.hypot(u, v) - 0.3) < 0.015;
+      const q = (u > 0 ? 1 : 0) + (v > 0 ? 2 : 0);
+      [r, g, b] = [[1, 0.15, 0.1], [0.1, 0.4, 1], [1, 0.85, 0.1], [0.15, 1, 0.3]][q];
+      a = lead || Math.hypot(u, v) > 0.49 ? 0 : 1;
+    }
+    out.set([r * 255, g * 255, b * 255, a * 255].map(Math.round), (y * N + x) * 4);
+  }
+  return out;
+}
+
+// Atlas de prévia com os níveis por caixa 2 × 2 (como o LightCookies), pré-multiplicado.
+function cookieAtlas() {
+  const kinds = ['runas', 'hex', 'causticas', 'vitral'];
+  const S = ATLAS_SIDE, base = new Uint8Array(S * S * 4);
+  kinds.forEach((k, i) => {
+    const img = cookieImage(k), cx = (i % 2) * ATLAS_CELL, cy = Math.floor(i / 2) * ATLAS_CELL;
+    for (let y = 0; y < ATLAS_CELL; y++) for (let x = 0; x < ATLAS_CELL; x++) {
+      const s0 = (y * ATLAS_CELL + x) * 4, d = ((cy + y) * S + cx + x) * 4, a = img[s0 + 3] / 255;
+      base[d] = Math.round(img[s0] * a); base[d + 1] = Math.round(img[s0 + 1] * a); base[d + 2] = Math.round(img[s0 + 2] * a); base[d + 3] = img[s0 + 3];
+    }
+  });
+  const levels = [{ w: S, h: S, u8: Array.from(base) }];
+  let prev = base, side = S;
+  for (let k = 1; k <= 8; k++) {
+    const n = side / 2, next = new Uint8Array(n * n * 4);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) for (let c = 0; c < 4; c++) {
+      let t = 0;
+      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) t += prev[((y * 2 + dy) * side + x * 2 + dx) * 4 + c];
+      next[(y * n + x) * 4 + c] = Math.round(t / 4);
+    }
+    levels.push({ w: n, h: n, u8: Array.from(next) });
+    prev = next; side = n;
+  }
+  return { cookies: { w: S, h: S, u8: levels[0].u8, smooth: true, levels } };
 }
 
 const CENAS = {
@@ -197,6 +304,46 @@ const CENAS = {
       }),
     ],
   },
+  // 0.15.0: Light Cookies e luzes novas.
+  cookie_runas: {
+    night: true, pitch: -20, cookies: true,
+    lights: [extLight('projetor', [0, 6, 13], 10, [0.45, 0.75, 1], 3.2, { sizeX: 11, sizeY: 11, falloff: 0.6, softness: 0.05,
+      cookie: { cell: 0, w: 256, h: 256 } })],
+  },
+  cookie_hex_muro: {
+    night: true, pitch: 2, cookies: true,
+    lights: [extLight('projetor', [-5.5, 1.2, 18], 12, [0.2, 1, 0.7], 2.6, { dir: [0, 0, 1], up: [0, 1, 0], sizeX: 8, sizeY: 6,
+      falloff: 0.5, softness: 0.08, cookie: { cell: 1, w: 256, h: 256, repeat: true, scale: 1.5 } })],
+  },
+  cookie_causticas: {
+    night: true, pitch: -22, cookies: true,
+    lights: [extLight('projetor', [0, 8, 13], 14, [0.3, 0.8, 1], 2.4, { sizeX: 16, sizeY: 16, falloff: 0.4, softness: 0.25,
+      blend: 1, cookie: { cell: 2, w: 256, h: 256, repeat: true, scale: 2.5, rot: 12 } })],
+  },
+  cookie_vitral: {
+    night: true, pitch: -18, cookies: true,
+    lights: [extLight('holofote', [-2, 7, 9], 16, [1, 1, 1], 4, { dir: [0.1, -1, 0.35], angle: 46, falloff: 1,
+      softness: 0.05, cookie: { cell: 3, w: 256, h: 256, color: true } })],
+  },
+  holofote: {
+    night: true, pitch: -16,
+    lights: [extLight('holofote', [3, 6, 8], 16, [1, 0.85, 0.6], 4, { dir: [-0.15, -1, 0.5], angle: 34, falloff: 1, softness: 0.35 }),
+      extLight('holofote', [-6, 5, 22], 18, [0.4, 0.6, 1], 3, { dir: [0.5, -0.4, 1], angle: 22, falloff: 1, softness: 0.2 })],
+  },
+  curvas: {
+    night: true, pitch: -18,
+    lights: [0, 1, 2, 3].map(k => extLight('ponto', [-6 + k * 4, -1.0, 12], 5, [1, 0.7, 0.4], 2.5, { curve: k, falloff: 2 })),
+  },
+  gradiente: {
+    night: true, pitch: -16,
+    lights: [extLight('ponto', [0, -1.0, 12], 9, [1, 1, 1], 3, { gradient: [[1, 1, 0.8], [1, 0.35, 0.1], [0.4, 0.05, 0.6]], falloff: 1 })],
+  },
+  subtrair_dia: {
+    night: false, pitch: -20, cookies: true,
+    lights: [extLight('projetor', [0, 6, 13], 10, [1, 1, 1], 0.85, { sizeX: 11, sizeY: 11, falloff: 0.1, softness: 0.05,
+      blend: 2, cookie: { cell: 0, w: 256, h: 256 } })],
+  },
+  // Controle: as quatro formas da 0.9 no caminho novo (12 texels) devem ser idênticas às da 0.14.
   // Feixe nascendo (revelação 0,45) e feixe ondulado com ruído.
   nascendo: {
     night: true, pitch: 6,
@@ -903,8 +1050,10 @@ function assemble(program, source) {
 // Passes de feixes e luzes no formato genérico.
 function effectPasses(cena) {
   const passes = [];
-  if (cena.lights) passes.push({ program: 'lights', data: { name: 'CaLightData', texels: 4, rows: cena.lights },
-    f4: { CaLightInfo: [cena.lights.length, ...(cena.lightExtra || [0, 0, 0, 0]).slice(1)] } });
+  if (cena.lights) passes.push({ program: 'lights', data: { name: 'CaLightData', texels: 12, rows: cena.lights },
+    f4: { CaLightInfo: [cena.lights.length, ...(cena.lightExtra || [0, 0, 0, 0]).slice(1)],
+      CaCookieInfo: [ATLAS_SIDE, cena.cookies ? 1 : 0, 0, 0] },
+    textures: cena.cookies ? { CaCookieAtlas: 'cookies' } : {} });
   if (cena.beams) passes.push({ program: 'beams', data: { name: 'CaBeamData', texels: BEAM_TEXELS, rows: cena.beams },
     f4: { CaBeamInfo: [cena.beams.length, 0, 0, 0] } });
   return passes;
@@ -1097,7 +1246,7 @@ async function render(page, name, cena) {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     return canvas.toDataURL('image/png');
   }, { W, H, depth: Array.from(depth), color: Array.from(color), invProj: invert(proj), invView: invert(view),
-       viewProj, passes, shaders, images: sky ? { sun: sunTexture(), ...backdropImages(cena), ...spriteImages(cena) } : {}, objects });
+       viewProj, passes, shaders, images: sky ? { sun: sunTexture(), ...backdropImages(cena), ...spriteImages(cena) } : cena.cookies ? cookieAtlas() : {}, objects });
   const file = path.join(OUT, name + '.png');
   fs.writeFileSync(file, Buffer.from(png.split(',')[1], 'base64'));
   return file;
