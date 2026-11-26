@@ -31,6 +31,7 @@ Cada receita é um efeito real do exemplo `examples/vfx-sample`, registrado em `
 | 25 | [Eclipse global](25-eclipse-global.md) | `/vfxsample evento eclipse start\|release\|stop` | `WorldEvents` no escopo SERVER, persistente; `ECLIPSE` com escurecimento, raios ao longe, atmosfera |
 | 26 | [Dimensão de teste](26-dimensao-teste.md) | `/vfxsample dimensao`, `/vfxsample ceu <estado>` | `SkyProfile` com três estados, `ProfileSkyEffects`, dimensão por datapack |
 | 27 | [Chefe Sentinela do Eclipse](27-chefe-sentinela.md) | `/vfxsample chefe`, `/vfxsample chefe cratera on\|off` | Boss API (0.13.0): fases, barra segmentada, `Point.socket`, `Effects.anchorSocket`, `AnchorCapture` numa `RenderLayer`, eclipse em área |
+| 28 | [Laboratório de luz](28-laboratorio-luz.md) | `/vfxsample luz <demo>`, `comparar`, `estresse`, `parar` | Light Engine (0.15.0, experimental): Light Cookies (MASK, COLOR, ladrilho, folhas animadas), holofote, projetor, rampas, gradientes, `SOFT` e `SUBTRACT`; exemplos técnicos, não estilos |
 
 As receitas 18 a 21 são **casos de uso** da Terrain API e todas usam `burn` por intenção do efeito; não são a configuração padrão de uma destruição. Antes de copiar uma delas, veja [Escolher a operação](../../TERRENO-0.11.md#escolher-a-operação) (tabela de decisão, exemplos comparáveis e custos).
 

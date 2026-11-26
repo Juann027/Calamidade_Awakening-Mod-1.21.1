@@ -1,4 +1,4 @@
-# Manual geral do Calamidade_Awakening 0.13.0
+# Manual geral do Calamidade_Awakening 0.15.0
 
 Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 
@@ -31,16 +31,17 @@ Minecraft Java 1.21.1 · NeoForge 21.1.267 · Java 21 · RimuLib 1.3.0
 8. [Atmosphere: céu, névoa, exposição e tinta](#cap8)
 9. [Beam: feixes de luz](#cap9)
 10. [Light: luz visual sobre o mundo](#cap10)
-11. [Prioridade protagonista e orçamento por quadro](#cap11)
-12. [Integração com outros mods: orientação, fontes, limites e gatilhos](#cap12)
-13. [Terrain API: destruição, crateras e objetos que viram blocos reais](#cap13)
-14. [Céu fantástico, eventos globais e céu por dimensão](#cap14)
-15. [Chefes: Boss API, BossBar e Rig Anchors](#cap15)
-16. [Arquitetura do motor](#cap16)
-17. [Criar habilidades dentro do motor](#cap17)
-18. [Testes em GPU real e multiplayer](#cap18)
-19. [Validação, medições e limites](#cap19)
-20. [Histórico e evolução prevista](#cap20)
+11. [Light Engine: cookies, holofotes, projetores e ciclo de vida (experimental)](#cap11)
+12. [Prioridade protagonista e orçamento por quadro](#cap12)
+13. [Integração com outros mods: orientação, fontes, limites e gatilhos](#cap13)
+14. [Terrain API: destruição, crateras e objetos que viram blocos reais](#cap14)
+15. [Céu fantástico, eventos globais e céu por dimensão](#cap15)
+16. [Chefes: Boss API, BossBar e Rig Anchors](#cap16)
+17. [Arquitetura do motor](#cap17)
+18. [Criar habilidades dentro do motor](#cap18)
+19. [Testes em GPU real e multiplayer](#cap19)
+20. [Validação, medições e limites](#cap20)
+21. [Histórico e evolução prevista](#cap21)
 
 Leitura complementar, fora do manual: [estudo técnico da integração da SA Series](ESTUDO-SA-SERIES.md).
 
@@ -955,6 +956,8 @@ O F7 ganha a linha **"Feixes: N desenhados (máx. M) · passe HERO/comum/não"**
 
 ## 10. Light: luz visual sobre o mundo
 
+> **0.15 (experimental):** holofotes, projetores, Light Cookies (imagens próprias como padrão de luz), curvas, composição e gradientes estão em [LUZ-0.15.md](LUZ-0.15.md). Tudo o que está aqui continua igual.
+
 Um fogo, um pilar de energia ou uma onda de choque que não ilumina nada em volta parece colado na tela. Até a 0.8, o motor não tinha como clarear o terreno em volta de um efeito; um addon precisaria de um shader próprio que reconstruísse a cena. A 0.9 traz a **Light**: luzes que clareiam os blocos, as entidades e o terreno que a câmera vê, desenhadas pelo motor num passe único por quadro.
 
 > **É luz visual.** A Light muda só a imagem. Ela **não** altera o nível de luz do jogo: mobs continuam nascendo no escuro em volta de uma fogueira da Light, plantas não crescem por causa dela, e o servidor não sabe que ela existe. Ela também não faz sombra e não ilumina o que está fora da tela.
@@ -1102,7 +1105,234 @@ O F7 ganha a linha **"Luzes: N desenhadas (máx. M) · passe HERO/comum/não"**.
 
 <a id="cap11"></a>
 
-## 11. Prioridade protagonista e orçamento por quadro
+## 11. Light Engine: cookies, holofotes, projetores e ciclo de vida (experimental)
+
+> **Versão experimental.** A 0.15.0 está no branch de desenvolvimento e não é um release. A API (`api.v1`) só cresceu:
+> todo addon compilado para a 0.14 continua carregando. O protocolo de rede ganhou o canal `live_v1`: servidor e
+> clientes precisam da mesma versão.
+
+A 0.9 trouxe a [Light](LUZ-0.9.md): pontos, segmentos, discos e anéis que clareiam o que a câmera vê. A 0.15 deixa
+o addon decidir **a forma** da luz: uma imagem própria (um *light cookie*) projetada sobre o terreno, as paredes e as
+entidades, um holofote orientável, um projetor de raios paralelos, curvas de atenuação, modos de composição e cores
+que mudam no tempo ou com a distância. Tudo continua no **mesmo passe único** de luzes por quadro.
+
+O [VFXSample](ai/receitas/28-laboratorio-luz.md) traz dez demonstrações técnicas (`/vfxsample luz lista`). Elas são
+**exemplos de uso da API, não um catálogo de estilos**: cada uma usa imagens próprias para provar que o visual vem do
+addon. Copie a técnica, não a aparência.
+
+### Em uma tela
+
+```java
+// Runas girando no chão: projetor planar 6 blocos acima do centro, apontado para baixo (padrão).
+static final Light RUNAS = Light.projector(Point.center(0, 6, 0), 10, 10)   // 10 x 10 blocos
+    .cookie("meumod:textures/lights/runas.png")                             // assets/meumod/textures/lights/runas.png
+    .color(0xff8ab4ff).intensity(3).radius(9).falloff(.6f)                  // radius = profundidade do projetor
+    .track(Light.Param.ROLL, "giro")                                        // gira a imagem
+    .build();
+
+// Holofote que varre de um lado a outro.
+static final Light BUSCA = Light.spot(Point.center(0, 6, -3)).direction(0, 38).angle(26).softness(.3f)
+    .color(0xfffff0c0).intensity(4.5f).radius(22)
+    .track(Light.Param.YAW, "varrer").build();
+
+Effects.lights(ID, RUNAS, BUSCA);   // construtor do mod, depois de register e timeline (até 8 luzes por efeito)
+```
+
+### Formas
+
+| Forma | Fábrica | O que faz | Cookie |
+|---|---|---|---|
+| Ponto, segmento, feixe, disco, anel | `point`, `segment`, `along`, `disc`, `ring` (0.9) | como antes | só o **disco** (imagem no quadrado `2 × raio`) |
+| **Holofote** | `Light.spot(ponto)` | cone de `angle` graus (1..170, padrão 40), comprimento `radius`, borda `softness` | sim: o cone vira uma pirâmide de base quadrada com a imagem inteira (projetor de slides) |
+| **Projetor** | `Light.projector(ponto, largura, altura)` | caixa de raios **paralelos**: `largura × altura` blocos, profundidade `radius` | sim: a imagem tem o mesmo tamanho em qualquer distância |
+
+**Orientação** (holofote e projetor): `direction(yaw, pitch)` no referencial da instância — yaw 0 é a frente da
+instância, 90 a esquerda; pitch 90 (padrão) aponta para baixo, -90 para cima — ou `toward(ponto)`, que mira um `Point`
+a cada quadro (o olho de uma entidade, um socket, `anchorAim`, uma posição do mundo). As trilhas `YAW` e `PITCH` somam
+graus em cima das duas. `roll(graus)` e a trilha `ROLL` giram a imagem em volta do eixo da luz. Um disco com cookie fica
+sempre horizontal; o topo da imagem segue a frente da instância.
+
+**Associação.** As posições são `Point` (centro, mundo, âncora, olhos, mira, conjurador, socket). Uma luz presa a uma
+entidade: `Effects.follow(id, entidade, offset)` ou `Placement.on(entidade)` com `Point.anchor(...)`; a um osso de
+chefe: `Point.socket("boca", ...)` e `toward(Point.socketAim("boca", 20))`. Sem a entidade carregada no cliente, a luz
+não é desenhada (como os feixes).
+
+### Light Cookies
+
+Um cookie é um PNG de **qualquer** pacote de recursos, normalmente `assets/<seu_ns>/textures/lights/*.png`:
+
+```java
+Light.Cookie.of("meumod:textures/lights/energia.png")        // MASK, CLAMP, 1 quadro, filtro suave
+    .colored()                  // COLOR: as cores da imagem tingem a luz
+    .repeat().scale(3)          // ladrilho: 3 cópias na largura da projeção
+    .rotation(15).offset(.5f, 0)// giro e deslocamento no espaço da imagem (em imagens)
+    .sheet(4, 4).fps(9).blendFrames(true)   // folha animada, quadros misturados
+    .pixelated()                // texel mais próximo (pixel art), sem mipmaps
+    .fallback(Light.Cookie.Fallback.NONE);  // sem a imagem, não desenha nada
+```
+
+#### Semântica dos canais
+
+O motor lê o PNG com **alfa direto** e pré-multiplica ao carregar (`rgb × a`).
+
+| Modo | Fator sobre a luz | Use para |
+|---|---|---|
+| `MASK` (padrão) | **luminância** de `rgb × a` (escalar) × cor da luz | máscaras monocromáticas: branco = luz total, preto ou transparente = nada. Um PNG branco sobre transparente e um PNG em tons de cinza sem alfa funcionam igual. |
+| `COLOR` | `rgb × a` por canal × cor da luz | vitrais, hologramas multicoloridos. Deixe a cor da luz **branca** para as cores exatas da imagem. |
+
+O cookie **modula** a luz: nunca deixa a luz mais forte que `cor × intensidade` e nunca aparece como um plano
+flutuante. Superfícies fora do alcance não recebem nada; superfícies iluminadas mantêm a própria textura por baixo.
+
+#### Coordenadas e bordas
+
+- Olhando **ao longo** da luz, x da imagem vai para a direita e y para cima. Para uma luz que aponta para baixo, o
+  **topo da imagem aponta para a frente da instância** (com `Placement.at(pos, yawDoJogador, 0)`, para longe do
+  jogador: runas ficam legíveis).
+- A imagem cobre a abertura inteira do holofote, o retângulo `largura × altura` do projetor ou o quadrado `2 × raio`
+  do disco. A proporção é a da projeção, não a do PNG: para uma imagem 2:1, use um projetor 2:1.
+- `scale` (trilha `COOKIE_SCALE`) repete a imagem, `rotation` (`COOKIE_ROTATION`) gira, `offset` (`COOKIE_U`,
+  `COOKIE_V`) desloca, nessa ordem e em unidades de imagem.
+- **Fora da imagem:** `CLAMP` (padrão) não dá luz (transparente); `REPEAT` ladrilha. A borda da **projeção** sempre
+  esmaece com `softness` (0 duro, 1 a abertura toda), independente do modo.
+
+#### Folhas animadas
+
+`sheet(colunas, linhas)` divide a imagem em quadros da esquerda para a direita e de cima para baixo, **sem margem**.
+`frames(n)` usa só os primeiros n. No relógio da instância: `fps` (padrão 12) e `play(LOOP | ONCE | PING_PONG)`. Pela
+Timeline: a trilha `Light.Param.FRAME` escolhe o quadro (0..n-1) e vence o relógio; a parte fracionária mistura dois
+quadros com `blendFrames(true)`. A folha inteira precisa caber em 512 × 512 depois de reduzida (veja limites).
+
+#### Animação pela Timeline
+
+| Trilha (`Light.Param`) | Efeito |
+|---|---|
+| `INTENSITY`, `RADIUS`, `FALLOFF`, `WEIGHT`, `X/Y/Z` | como na 0.9 |
+| `YAW`, `PITCH`, `ROLL` | graus somados à orientação |
+| `ANGLE`, `SOFTNESS`, `SIZE_X`, `SIZE_Y` | abertura do holofote, borda, tamanho do projetor |
+| `COOKIE_SCALE`, `COOKIE_ROTATION`, `COOKIE_U`, `COOKIE_V` | transformação da imagem (rolagem contínua: trilha linear) |
+| `FRAME` | quadro da folha |
+| `COLOR` | posição na `colorRamp` |
+
+Para laços (sustain) sem salto, a trilha precisa ter o mesmo valor nas duas bordas do laço — ou, para giros e
+rolagens, um número inteiro de voltas (0 → 360 graus; 0 → 2 imagens).
+
+### Cor, atenuação e composição
+
+- `colorRamp(c0, c1[, c2, c3])` + trilha `COLOR` (0..1): **cor animada** no tempo; substitui `color`.
+- `distanceGradient(c0, c1[, c2, c3])`: **gradiente multicolorido no espaço**, da fonte (0) ao alcance (1); multiplica
+  a cor da luz (deixe-a branca). Distância do ponto ou segmento, ao longo do eixo do projetor, do centro do disco.
+- `attenuation(...)`: `POWER` (padrão, `(1 − d/r)^falloff`, a curva da 0.9), `SMOOTH` (`(1 − (d/r)²)²`, ampla),
+  `INVERSE_SQUARE` (núcleo quente, `k = 2 × falloff`, janela até 0 no alcance), `CONSTANT` (plana até 80%, depois some).
+- `blend(...)`: `ADD` (padrão), `SOFT` (a soma de todas as luzes SOFT do pixel passa por `1 − e^(−x)`: multidões de
+  luzes que não estouram), `SUBTRACT` (escurece até 95%: sombras projetadas, gobos, faixas de eclipse). Todos os modos
+  são independentes da ordem.
+
+### Desempenho e orçamento
+
+- **Um passe** para todas as luzes, como na 0.9, cobrado do orçamento HERO quando algum efeito HERO desenhado tem
+  luzes, senão do comum. Nenhuma luz ou textura cria passe próprio.
+- **Caminho rápido.** Pontos, segmentos, discos e anéis com a curva e a composição padrão usam exatamente o shader da
+  0.14 (prévia idêntica pixel a pixel) e não leem textura nenhuma.
+- **Atlas único.** Todo cookie vai para uma textura de 2048 × 2048 RGBA8 com 9 níveis de mipmap (~21,4 MB de VRAM),
+  células de 512 (16) ou 256 (64); cada PNG é lido, reduzido e pré-multiplicado **uma vez** numa thread de trabalho, e
+  o envio à GPU é de no máximo **uma imagem por quadro**. O atlas só existe depois do primeiro cookie usado: sem
+  cookies, nenhum byte e nenhum custo. Ele é solto depois de ~1200 quadros sem cookies, na recarga de recursos e ao
+  sair do mundo. Imagens sem uso por 60 quadros podem ser despejadas quando o atlas enche.
+- **Teto de cookies por quadro:** um quarto do teto de luzes, de 2 a 16 (LOW 2, BALANCED 8, HIGH e ULTRA 16). As
+  outras luzes com cookie usam o **fallback**.
+- **Fallback previsível:** `AVERAGE` (padrão) desenha a luz sem a imagem, com a intensidade multiplicada pela cobertura
+  média da imagem (0,5 se ela nunca carregou), mantendo tamanho e energia; `NONE` não desenha. Durante a **primeira**
+  carga a luz não aparece (alguns quadros), para não piscar do fallback para a imagem.
+- **Culling conservador:** cada luz tem uma esfera envolvente (alcance; projetor: a caixa inteira) testada contra o
+  frustum da câmera e contra a distância em que a névoa do jogo já cobre tudo, **antes** do teto de luzes. Uma luz
+  descartada não ilumina nenhuma superfície visível.
+- **Limites:** 8 luzes por efeito; até 64 por quadro (teto do perfil); PNG até 4096 de lado (reduzido à metade até
+  caber em 512; maior é recusado); folha até 64 × 64 com 256 quadros.
+- **PNG ausente ou inválido:** registrado **uma vez** no log, contado no F7, a luz usa o fallback; nada trava.
+- **F7:** a linha das luzes ganhou um detalhe: pedidas, descartadas, acima do teto, cookies amostrados/teto, fallbacks,
+  imagens prontas/esperando/com falha, uploads e MB do atlas.
+
+### Light API ou GLSL próprio?
+
+| Quero... | Use |
+|---|---|
+| clarear o mundo em volta de um efeito, com uma forma (círculo de runas, grade, vitral, cáusticas, persiana) | **Light** (+ cookie) — sem shader, no passe único, com orçamento e acessibilidade do motor |
+| a luz acompanhar um feixe | `Light.along(feixe)` |
+| desenhar algo **no ar** (aura, raio, bolha, holograma flutuante) | partículas, `AddonLayers.world` (malha) ou um passe `post` com GLSL |
+| distorcer, recolorir a tela, refração, raymarch | GLSL próprio (`AddonLayers.post`, `calamidade_fx.glsl`) |
+| sombras reais, iluminação global, PBR | fora do escopo do motor (a Light não faz sombra; use `SUBTRACT` com cookie para sombras desenhadas) |
+
+**Combinando:** a luz é desenhada antes dos passes de efeito e da atmosfera. Um holograma = malha ou shader para o
+objeto + projetor com cookie para a luz que ele joga no chão + partículas para a poeira. Um modelo de chefe = a pose do
+osso via `AnchorCapture` + `Light.spot(Point.socket(...)).toward(Point.socketAim(...))`. Partículas não recebem a
+Light (só o que está no buffer de profundidade).
+
+### Ciclo de vida: fonte, âncora e dono (0.15)
+
+Toda instância tem três papéis distintos:
+
+| Papel | O que é | Exemplo |
+|---|---|---|
+| **Fonte** (`EffectSource`) | quem iniciou; conta nos limites por fonte | o chefe (`EffectSource.boss`) |
+| **Âncora** | o que a instância segue; posição fixa se não houver | `Placement.at(pos)` = fixa |
+| **Dono** (0.15) | de quem a vida da instância depende | o **controlador** do chefe, quando a fonte é `EffectSource.boss` |
+
+Regras desde a 0.15:
+
+1. Quando um controlador de chefe acaba (morte, remoção, descarregamento, `detach`, falhas), **toda instância
+   sustentada que ele possuía é solta** (com a saída cinematográfica), mesmo que o handle tenha se perdido —
+   inclusive as iniciadas por callbacks (`ctx.start(...)`) que o addon esqueceu de soltar. Instâncias **efêmeras**
+   (sem sustain) terminam sozinhas, como sempre: um golpe que sobrevive à morte do chefe continua.
+2. Um **vigia** no servidor solta (uma vez, com saída) instâncias sustentadas cuja fonte é um chefe sem controlador
+   vivo (log `outlived its boss controller`).
+3. Para uma instância **sobreviver de propósito** ao chefe, inicie-a com outra fonte:
+   `Placement.at(pos).withSource(EffectSource.script())` ou `WorldEvents.start(...)` no escopo SERVER/DIMENSION.
+4. O cliente recebe a cada 5 s (canal `live_v1`) a lista das instâncias que deve mostrar e descarta as outras: um fim
+   perdido não deixa mais um céu ou uma luz presos na tela.
+5. Várias instâncias do mesmo efeito continuam permitidas (sobreposições, transições): o ID **não** é exclusivo.
+
+#### Diagnóstico de efeitos órfãos
+
+| Comando (operador) | Mostra / faz |
+|---|---|
+| `/calamidade fx list` | toda instância e todo evento global: número, efeito, escopo (`INSTANCE`, `AREA`), dimensão, **fonte**, **dono** (e se o controlador já acabou), **âncora**, estado (`entrada`, `laço`, `saindo`, `efêmero`), posição e quem a segura (fase do chefe) |
+| `/calamidade fx orphans` | só as sustentadas cujo dono acabou |
+| `/calamidade fx release <n>` | soltura cinematográfica: a instância toca a saída e acaba |
+| `/calamidade fx stop <n>` | encerramento imediato, sem saída |
+| `/calamidade fx stopall` | encerra todas as instâncias (não os eventos globais) |
+| `/calamidade world list` | eventos globais **e** os eventos de área (`Scope.AREA`), que antes não apareciam |
+| F7 | `Sustentados: N em laço · N saindo · N descartados (listas do servidor)` |
+
+Roteiro: `F7` mostra instâncias de mob? → `/calamidade fx list` → veja **dono** e **estado** → `fx release` para a
+saída, `fx stop` para cortar. Um dono `(encerrado)` com estado `laço` só existe por alguns segundos (o vigia solta).
+
+#### O caso do eclipse da 0.14
+
+O relato: um eclipse continuou depois de fechar e reabrir o mundo, os comandos globais diziam que não havia eclipse, um
+segundo eclipse começou por cima, e nem `/kill @e` apagou o céu. A reprodução automatizada (`testeOrfaos`, Sentinela na
+fúria, sair e reabrir, kill, sobreposição, `/kill @e` com respawn) **passou na 0.14.0**: o caminho direto do Sentinela
+não deixa órfão. O que a investigação encontrou, e a 0.15 corrige:
+
+- O eclipse do Sentinela é um evento **`Scope.AREA`**, isto é, uma instância comum com fonte de mob; `/calamidade world
+  list` só listava eventos SERVER/DIMENSION, por isso dizia "nenhum evento" com o eclipse na tela, e um eclipse global
+  podia começar por cima. Com alcance 1024, o eclipse de um chefe **fora de vista** (o controlador volta com o mundo)
+  cobre o céu de longe.
+- Uma instância sustentada iniciada com a fonte do chefe por qualquer caminho que **não** fosse o handle da fase
+  (callbacks, addons como o BossesTesting) nunca era solta: com posição fixa, ela só acabava quando o chunk
+  descarregava. O teste novo prova o conserto (soltura pelo dono e pelo vigia).
+- O cliente não tinha como se recuperar de um fim perdido; agora a lista `live_v1` corrige em até 5 s.
+
+### Referência rápida
+
+`Light.spot`, `Light.projector`, `Builder.direction/toward/roll/angle/softness/size/cookie/attenuation/blend/
+colorRamp/distanceGradient`, `Light.Cookie.of(...).mode/colored/wrap/repeat/sheet/frames/fps/play/blendFrames/scale/
+rotation/offset/pixelated/fallback`, `Light.Projection`, `Light.rampColor`. Assinaturas exatas:
+[API-REFERENCIA.md](ai/API-REFERENCIA.md). Receita: [28 — laboratório de luz](ai/receitas/28-laboratorio-luz.md).
+Medições: [VALIDACAO.md](VALIDACAO.md#015-light-engine).
+
+<a id="cap12"></a>
+
+## 12. Prioridade protagonista e orçamento por quadro
 
 Num servidor cheio, dezenas de efeitos disputam a mesma tela. O motor sempre limitou quanto desenha por quadro, e isso protege o FPS. Mas o limite não sabia qual efeito era o principal da cena: o golpe final de um chefe podia perder o lugar para seis faíscas mais perto da câmera. A 0.9 deixa o addon dizer **"este efeito é o protagonista"**.
 
@@ -1190,9 +1420,9 @@ O F7 ganha a linha **"Protagonistas (HERO): N desenhadas · X/Y passes"**: quant
 
 Coberto por testes puros no `checkBudget` (`PriorityCheck`: HERO nunca cortado, teto de 2, orçamento separado e seleção NORMAL idêntica à da 0.8 quando não há HERO; `BeamCheck`: pagamento dos passes compartilhados).
 
-<a id="cap12"></a>
+<a id="cap13"></a>
 
-## 12. Integração com outros mods: orientação, fontes, limites e gatilhos
+## 13. Integração com outros mods: orientação, fontes, limites e gatilhos
 
 A 0.10.0 prepara o Calamidade para ser usado por outros mods: o **RespectCraft** (Finisher Engine: finalizações entre dois participantes, com rigs GeckoLib, câmera própria e eventos por tick como `EVENT_HIT` de força 1 a 3 e `EVENT_FALL`), itens, blocos e ataques de mobs. Quatro peças novas, todas na API pública `dev.calamidade_awakening.api.v1`:
 
@@ -1459,9 +1689,9 @@ Orientação não custa nada a mais por quadro: é uma rotação por ponto no cl
 - `./gradlew build`: `OrientationCheck` (eixos, igual a `Vec3.directionFromRotation`, ortonormal, ida e volta, `Placement`, `Context`), `StageEventCheck` (o pacote `event_v2` leva orientação e fonte), `SourceCheck` (fontes, admissão, simulação aleatória, recarga), `TriggerCheck` (modos de bloco e validação dos gatilhos).
 - No jogo: receitas 14 a 17, F7 ("Fontes"), `/calamidade status`. Roteiro completo em [TESTE-REAL.md](TESTE-REAL.md), parte 5.
 
-<a id="cap13"></a>
+<a id="cap14"></a>
 
-## 13. Terrain API: destruição, crateras e objetos que viram blocos reais
+## 14. Terrain API: destruição, crateras e objetos que viram blocos reais
 
 Até a 0.10, o motor era cosmético: um meteoro do Calamidade caía, explodia em luz e deixava o chão intacto. Para cavar uma cratera, um addon teria de chamar `level.setBlock` milhares de vezes num cue (caro e sem desfazer) ou acender TNT (ainda mais caro: raios, drops, física, entidades e luz bloco a bloco, e nenhuma forma controlada). A 0.11 traz a **Terrain API**: o efeito declara uma escavação, uma borda queimada e o que fica no lugar, e o motor troca os blocos em massa, direto nas seções dos chunks, **dentro do impact frame**, como um `/fill` com ar, enquanto o clarão esconde o instante em que os blocos somem e as seções são reenviadas. Depois, um calor desenhado pelo cliente cobre a área por alguns segundos e esfria.
 
@@ -2099,9 +2329,9 @@ Dentro da área escrita nada é atualizado: tudo ali foi escrito pela edição, 
 
 Casos de uso, não configurações obrigatórias ([o papel de cada uma](#o-papel-das-receitas-18-a-21)): [18 — raio que abre uma trincheira](ai/receitas/18-raio-trincheira.md), [19 — meteoro que vira bloco real](ai/receitas/19-meteoro.md), [20 — cratera simples](ai/receitas/20-cratera-simples.md), [21 — torre que cai e fica](ai/receitas/21-torre-caindo.md). Testes: `TerrainCheck` no `checkBudget` (volumes, determinismo pela seed, vedação da casca, orientação da trincheira, ordem estável dos lotes, paleta, preenchimento, estrutura girada, registro) e os casos 63 a 74 de TESTE-REAL.md.
 
-<a id="cap14"></a>
+<a id="cap15"></a>
 
-## 14. Céu fantástico, eventos globais e céu por dimensão
+## 15. Céu fantástico, eventos globais e céu por dimensão
 
 Até a 0.11, o céu de um efeito era o gradiente da Atmosphere: cor, névoa, estrelas. Um buraco negro, um portal ou um eclipse exigiam um shader próprio de tela inteira, que gastava uma vaga do orçamento de addons, só valia para quem estava no alcance da instância e não sabia esconder o sol do jogo. A 0.12 traz três peças:
 
@@ -2247,9 +2477,11 @@ Sem o passo 3, `vanillaSun(false)` e `vanillaMoon(false)` funcionam em qualquer 
 - No Nether, o teto esconde o céu: um eclipse global aparece acima dele e, debaixo, só o escurecimento.
 - Coberto por `SkyCheck`, `WorldEventCheck`, `WorldEventSyncCheck` e `SkyProfileCheck` no `checkBudget`, 34 casos no `testar_glsl.cjs`, a prévia (`node scripts/previa_passes.cjs ceu`) e os testes em jogo `testeJogo` (eventos e perfis no servidor dedicado, com reinício) e `testeCeu` (cliente). Roteiro manual: TESTE-REAL.md, parte 10.
 
-<a id="cap15"></a>
+<a id="cap16"></a>
 
-## 15. Chefes: Boss API, BossBar e Rig Anchors
+## 16. Chefes: Boss API, BossBar e Rig Anchors
+
+> **0.15 (experimental):** instâncias sustentadas com fonte `EffectSource.boss` pertencem ao controlador e são soltas quando ele acaba, mesmo sem handle; diagnóstico com `/calamidade fx list`. Veja [LUZ-0.15.md, Ciclo de vida](LUZ-0.15.md#ciclo-de-vida-fonte-âncora-e-dono-015).
 
 > **Estado:** implementada no branch `claude/bosses-0.13` (criado em `8cfd93a`, o `origin/main` do release v0.12.0
 > mais dois commits só de `VALIDACAO.md`); **publicada** (release v0.13.0, tag no commit `2c90f60`). O JAR é `0.13.0` sem o aviso de build de desenvolvimento. A 0.13 **não** contém nada da 0.14 (Custom Sky Engine, branch
@@ -2632,9 +2864,9 @@ providers (`api.v1.client`, nunca carregadas no servidor dedicado). Servidor e c
 | Chefe que troca de dimensão (portal, `tp` entre dimensões) | revisão estática (NeoForge 21.1.267): o estado vai com a entidade (`restoreFrom` copia o attachment); a cópia antiga sai com `CHANGED_DIMENSION`; ao entrar a nova, o controlador antigo é encerrado (sustain, evento de fase e sequência soltos, barra removida para quem via) e um novo é retomado na nova dimensão, só para jogadores dela. Sequência em andamento termina na chegada. Handle antigo deixa de valer. **Sem teste automatizado** (roteiro manual: TESTE-REAL.md, caso 109) |
 | Jogador que troca de dimensão ou renasce | a barra é revista a cada 10 ticks: no outro mundo ela pode continuar visível (e receber atualização de progresso) por até 0,5 s antes de sumir; ao renascer perto, pode faltar por até 0,5 s. Limitação conhecida, não bloqueante |
 
-<a id="cap16"></a>
+<a id="cap17"></a>
 
-## 16. Arquitetura do motor
+## 17. Arquitetura do motor
 
 ```mermaid
 flowchart TD
@@ -2734,9 +2966,9 @@ O Atlas interpola coordenadas locais na abertura e usa a mesma função de posi�
 
 PerfOverlay (tecla F7) mostra o renderizador OpenGL, FPS, mediana e percentil 95 dos últimos 240 quadros, perfil de qualidade, sequências residentes, efeitos e volumes desenhados, vértices emitidos e passes de pós-processamento. Os renderizadores escrevem os contadores durante o quadro e o painel publica os valores no início do quadro seguinte, então ele sempre mostra o último quadro completo. `/calamidade_client record <segundos>` grava os mesmos dados por quadro em `calamidade_bench/frames-*.csv` na pasta do jogo. No servidor, `/calamidade bench <n> [efeito]` cria uma carga reproduzível e `/calamidade status` informa as instâncias ativas. O roteiro de uso está em [TESTE-REAL.md](TESTE-REAL.md).
 
-<a id="cap17"></a>
+<a id="cap18"></a>
 
-## 17. Criar habilidades dentro do motor
+## 18. Criar habilidades dentro do motor
 
 Para publicar uma habilidade em um JAR separado, use o [tutorial de criação de addons 0.4](ADDONS-0.4.md).
 
@@ -2815,9 +3047,9 @@ Para consumidores da 0.3.x, comece pelo [guia da API pública](API-0.3.md) e pel
 
 Ao documentar uma nova camada, inclua o registro completo, o evento que a inicia, as unidades e os limites dos parâmetros, o comportamento para observadores e um comando para reproduzir o resultado. Para eventos luminosos, descreva também o resultado com a redução de clarões ligada. Faça o exemplo compilar contra o JAR que será distribuído.
 
-<a id="cap18"></a>
+<a id="cap19"></a>
 
-## 18. Testes em GPU real e multiplayer
+## 19. Testes em GPU real e multiplayer
 
 Até a 0.4.0, toda a validação gráfica usou Mesa llvmpipe (renderização por software) com servidor integrado. Este roteiro cobre o que faltava: desempenho em placa de vídeo física e sincronização entre dois clientes. Ele usa as ferramentas da 0.5.0 e leva cerca de 40 minutos.
 
@@ -3060,9 +3292,47 @@ Servidor **dedicado** com motor 0.13.0 e vfx-sample 1.10.0, dois clientes (A e B
 
 Copie para VALIDACAO.md, na seção da versão testada: modelo da GPU e driver (linha GPU do F7), resolução, a tabela de mediana e p95 por perfil e carga, o resultado de cada caso da parte 2 e o SHA-256 dos JARs testados (`sha256sum dist/*.jar` no Linux, `Get-FileHash` no PowerShell). Guarde os CSVs junto com o relatório.
 
-<a id="cap19"></a>
+<a id="cap20"></a>
 
-## 19. Validação, medições e limites
+## 20. Validação, medições e limites
+
+### Candidata ao release 0.14.0 (23/11/2026, não publicada)
+
+Metadados de release: `CalamidadeAwakening.BUILD = "release"` e descrição do `neoforge.mods.toml` sem o aviso de desenvolvimento (o workflow recusa "DEVELOPMENT BUILD"); notas em `.github/release-notes/v0.14.0.md`. Só o texto do log, da lista de mods e do F7 muda: refeitos `./gradlew build dist` e o build do vfx-sample; os testes em jogo da integração abaixo valem sem repetição.
+
+**Correção documental:** a fase 4 registrou `testeImagens` 27/27; o roteiro (`RoteiroImagens.java`, igual nas duas branches) tem 25 verificações, e a integração deu 25/25. O "27/27" foi erro de transcrição (o relatório original não foi guardado); as linhas históricas abaixo e no MANUAL-GERAL foram anotadas.
+
+**Não testado** (nenhuma compatibilidade afirmada): GPU física, dois jogadores reais num servidor dedicado, shaderpacks (Iris/Oculus), renderizadores alternativos (Sodium/Embeddium), mod real com GeckoLib.
+
+### Integração 0.13 + 0.14, branch `claude/integracao-0.13-0.14-u8nraa` (23/11/2026)
+
+Merge comum de `origin/main` (`0fa6bc0`, 0.13.0 publicada) sobre `claude/ceu-personalizado` (`ab2a97d`, 0.14 fases 0–4). Motor **0.14.0** no build (não publicada; JAR de desenvolvimento), vfx-sample **1.11.0** (`[0.14.0,0.15.0)`). Nenhum canal de rede novo: os da 0.13.0, com `boss_v1`. Nova base de compatibilidade `scripts/api-base/api-v1-0.13.0.txt`, gerada do JAR do release v0.13.0 (SHA-256 conferido com o `SHA256SUMS.txt` do release).
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew build dist` | verde: `checkApiCompat` contra 0.12.0 e 0.13.0, `checkApiDocs`, `checkBudget`, `checkFrustum`, `checkModVersion`, `checkRecipes`; `checkShaders` só avisou (sem glslang nesta máquina) |
+| `./gradlew -p examples/vfx-sample build` | verde (`vfx-sample-1.11.0.jar`) |
+| `./gradlew compileTesteJogoJava` | verde |
+
+#### Validação funcional da integração (executada nesta etapa, 23/11/2026, sobre `14e418f`)
+
+Cliente sob Xvfb (Mesa llvmpipe, por software), vfx-sample 1.11.0; um teste por vez, nenhum em paralelo.
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew testeJogo` (servidor dedicado, duas fases) | 82/82 |
+| `xvfb-run -a ./gradlew testeChefe` | 15/15 |
+| `xvfb-run -a ./gradlew testeBackdrop` | 34/34 |
+| `xvfb-run -a ./gradlew testeEstrelas` | 20/20 |
+| `xvfb-run -a ./gradlew testeImagens` | 25/25 |
+| `xvfb-run -a ./gradlew testeCeu` | 20/20 |
+| `./gradlew checkShaders` (glslangValidator 11:15.1.0, instalado nesta etapa) | 21 shaders compilados, sem erro |
+
+Nenhuma falha; nenhuma correção foi necessária.
+
+**Reaproveitados das branches de origem (não executados nesta etapa; o merge não mexeu em shaders, passes, escritor de terreno, perfis de qualidade nem Atlas):** `checkCeuReferencia`, `node scripts/testar_glsl.cjs`, `node scripts/previa_passes.cjs`, `testeCliente`, `testeMedicao`, `testeAtlas`.
+
+**Pendentes:** GPU física, Iris/Oculus e Sodium/Embeddium, dois jogadores reais num servidor dedicado (herdados da 0.12, 0.13 e 0.14).
 
 ### 0.14 (Custom Sky) — fase 4: imagens, flipbooks e impostors, branch `claude/ceu-personalizado` (23/11/2026)
 
@@ -4233,9 +4503,9 @@ As outras quatro habilidades foram acionadas pelas teclas padrão U, I, V e Y. F
 
 O cliente usou Mesa llvmpipe com OpenGL 4.5. O teste cobriu um jogador em servidor integrado. Continuam pendentes multiplayer com dois clientes e medições de desempenho em GPU física.
 
-<a id="cap20"></a>
+<a id="cap21"></a>
 
-## 20. Histórico e evolução prevista
+## 21. Histórico e evolução prevista
 
 ### Versões publicadas
 
@@ -4382,16 +4652,33 @@ Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **p
 - **BossBar:** barra vanilla mais estilos de cliente (`BossBars`), barra segmentada com nome da fase, fantasma de dano e clarão; acessibilidade de tamanho, contraste, rótulos e "forçar vanilla"; canal `boss_v1`.
 - Chefe de exemplo: o Sentinela do Eclipse (receita 27), que dispara o eclipse da 0.12 em área na fase final.
 
-#### 0.14 — Custom Sky (proposta aprovada; em desenvolvimento no branch `claude/ceu-personalizado`)
+#### 0.14 — Custom Sky (candidata ao release v0.14.0, integrada sobre a 0.13.0; não publicada)
+
+Fases 0 a 4 implementadas no branch `claude/ceu-personalizado` e integradas à Boss Engine da 0.13 em `claude/integracao-0.13-0.14-u8nraa`. **Entrou:** Backdrop (cubemap, panorama, gradiente), estrelas, constelações e nebulosas procedurais, imagens, flipbooks e impostors, `customSkies`. **Adiado** (sem versão definida, ou 0.15 quando indicado): domo procedural, nebulosas e fundos por PNG animado, perfis de céu em JSON de datapack, camadas de noite sobre o sol, nuvens próprias, receita de céu no vfx-sample. **Não testado:** GPU física, dois jogadores reais, shaderpacks e renderizadores alternativos.
 
 Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 continuam como estão, e nada novo aparece sem um addon pedir. Arquitetura e verificações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
+
+**Entregue na 0.14.0** (candidata):
+
+- **Backdrop:** cubemap 3 × 2, panorama equirretangular e gradiente, substituição parcial ou completa, sol e lua do jogo redesenhados a pedido (fase 2).
+- **Estrelas, constelações e nebulosas procedurais:** campo por semente, catálogo manual com constelações, composição `SkyBlend` NORMAL, LUMINOUS e COVER, `SkyDarkening` (fase 3).
+- **Imagens no céu, flipbooks e impostors:** `SkyImage`, `SkyImpostor`, `layer(FRONT)`, cache `SkyTextures` com orçamento por perfil, ferramenta `gerar_impostor.cjs` (fase 4).
+- Config de cliente `customSkies`; integração com a Boss Engine da 0.13 sem mudança de rede.
+
+**Adiado (não está na 0.14.0; sem versão definida, em "Depois da 0.14"):** domo procedural de Backdrop; nebulosas, galáxias e fundos por PNG animado (além dos flipbooks de `SkyImage`); perfis de céu em JSON de datapack; camadas desenhadas de noite sobre o sol; nuvens próprias; receita de céu no vfx-sample; limites definidos por medição em GPU física.
+
+**Proposta aprovada (histórico, antes da implementação):**
 
 - **Backdrop:** fundo de céu por cubemap de 6 faces, panorama equirretangular, gradiente ou domo procedural; substituição parcial (com transparência) ou completa (cobrindo o céu do jogo e redesenhando só o que o addon pedir: gradiente, sol, lua, estrelas); em dimensões próprias, `ProfileSkyEffects` continua dono do céu inteiro.
 - **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho. **Feito na fase 3** (com nebulosas procedurais e a composição híbrida por objeto: `SkyBlend` NORMAL, LUMINOUS e COVER).
 - **Nebulosas e galáxias:** procedurais e por PNG; fundos animados.
 - **Imagens no céu e impostors:** PNG com transparência, tamanho angular, rotação, cor, brilho, por trilha da Timeline; folhas de sprites, flipbooks, vários ângulos. **Feito na fase 4** (`SkyImage`, `SkyImpostor`, `layer(FRONT)`, cache `SkyTextures` com orçamento por perfil, ferramenta `gerar_impostor.cjs`; modelos 3D reais continuam na 0.15).
-- Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias**.
+- Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias** — os três adiados, não entregues na 0.14.0.
 - Limites e custos definidos por medição (nenhum limite da proposta é definitivo sem benchmark).
+
+#### 0.15.0 experimental — Light Engine (branch `claude/great-pascal-pq0xtj`, não publicada)
+
+Pedido de foco antes de Sky Objects: Light Cookies (imagens próprias como padrão de luz), holofote, projetor planar, curvas de atenuação, composição `ADD`/`SOFT`/`SUBTRACT`, rampas de cor e gradientes de distância no mesmo passe único; correção do ciclo de vida das instâncias (dono, vigia de órfãs, reconciliação `live_v1`, comandos `fx`). Capítulo: [LUZ-0.15.md](LUZ-0.15.md). **Adiado:** cookie em luz pontual (cubemap) e em segmento, oclusão/sombras reais, materiais. A numeração da proposta abaixo passa para a versão seguinte quando a Light Engine for publicada.
 
 #### 0.15 — Sky Objects & Cinematics (proposta aprovada)
 
@@ -4401,10 +4688,19 @@ Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 con
 - **Integração opcional com entidades** (o addon cuida de IA, vida, dano e spawn), sem duplicar a Boss API da 0.13.
 - Itens desta lista que vieram de "Depois da 0.13" e de "Evolução da API": **lentes que entortam feixes e efeitos de addons** e **cache de malhas estáticas e LOD adaptativo**.
 
+#### Depois da 0.14
+
+Adiados da 0.14 (planejados para ela, não entregues na 0.14.0; versão a definir):
+
+- Perfis de céu em JSON de datapack (codec, `/reload`, envio do perfil inteiro).
+- Camadas desenhadas também de noite sobre o sol; nuvens próprias.
+- Domo procedural de Backdrop; nebulosas, galáxias e fundos por PNG animado.
+- Receita de céu personalizado no vfx-sample; limites de memória e envio medidos em GPU física.
+
 #### Depois da 0.13
 
-- ~~Perfis de céu em JSON de datapack~~ → 0.14.
-- Sky API: ~~camadas desenhadas também de noite sobre o sol~~ e ~~nuvens próprias~~ → 0.14; ~~lentes que entortam feixes e efeitos de addons~~ → 0.15.
+- Perfis de céu em JSON de datapack → planejado para a 0.14, adiado (veja "Depois da 0.14").
+- Sky API: camadas desenhadas também de noite sobre o sol e nuvens próprias → planejadas para a 0.14, adiadas; ~~lentes que entortam feixes e efeitos de addons~~ → 0.15.
 - Trail API (rastros e marcas): fitas com histórico de posições para entidades, projéteis e pontas de feixe; marcas que ficam no chão por um tempo.
 - Títulos e HUD cinematográficos sincronizados à Timeline.
 - Ramificações de feixes (raios que se dividem) e feixes curvos.

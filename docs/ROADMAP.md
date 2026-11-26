@@ -169,6 +169,10 @@ Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 con
 - Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias** — os três adiados, não entregues na 0.14.0.
 - Limites e custos definidos por medição (nenhum limite da proposta é definitivo sem benchmark).
 
+### 0.15.0 experimental — Light Engine (branch `claude/great-pascal-pq0xtj`, não publicada)
+
+Pedido de foco antes de Sky Objects: Light Cookies (imagens próprias como padrão de luz), holofote, projetor planar, curvas de atenuação, composição `ADD`/`SOFT`/`SUBTRACT`, rampas de cor e gradientes de distância no mesmo passe único; correção do ciclo de vida das instâncias (dono, vigia de órfãs, reconciliação `live_v1`, comandos `fx`). Capítulo: [LUZ-0.15.md](LUZ-0.15.md). **Adiado:** cookie em luz pontual (cubemap) e em segmento, oclusão/sombras reais, materiais. A numeração da proposta abaixo passa para a versão seguinte quando a Light Engine for publicada.
+
 ### 0.15 — Sky Objects & Cinematics (proposta aprovada)
 
 - **Modelos 3D reais do Blockbench:** formato principal Bedrock `.geo.json` com um subconjunto documentado de animação, validado contra exportações reais; alternativas Java (`ModelPart`), OBJ/JSON de bloco e renderizadores externos (sem dependência do GeckoLib).

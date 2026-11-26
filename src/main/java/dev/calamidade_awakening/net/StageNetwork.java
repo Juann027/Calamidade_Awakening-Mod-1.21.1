@@ -382,6 +382,19 @@ public final class StageNetwork {
         return false;
     }
 
+    /**
+     * 0.15.0, tests only: drops an instance on the server WITHOUT telling its players, as if its end packet were lost.
+     * The client must drop it at the next live list.
+     */
+    public static boolean forgetSilently(long order) {
+        return ACTIVE.removeIf(live -> {
+            if (live.event.order() != order) return false;
+            live.ended = true;
+            live.recipients.clear();
+            return true;
+        });
+    }
+
     /** 0.15.0: instances released by the orphan watchdog since the server started (diagnostics, tests). */
     public static int orphansReleased() { return orphans; }
 

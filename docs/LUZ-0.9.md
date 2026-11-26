@@ -1,5 +1,7 @@
 # Light: luz visual sobre o mundo (0.9)
 
+> **0.15 (experimental):** holofotes, projetores, Light Cookies (imagens próprias como padrão de luz), curvas, composição e gradientes estão em [LUZ-0.15.md](LUZ-0.15.md). Tudo o que está aqui continua igual.
+
 Um fogo, um pilar de energia ou uma onda de choque que não ilumina nada em volta parece colado na tela. Até a 0.8, o motor não tinha como clarear o terreno em volta de um efeito; um addon precisaria de um shader próprio que reconstruísse a cena. A 0.9 traz a **Light**: luzes que clareiam os blocos, as entidades e o terreno que a câmera vê, desenhadas pelo motor num passe único por quadro.
 
 > **É luz visual.** A Light muda só a imagem. Ela **não** altera o nível de luz do jogo: mobs continuam nascendo no escuro em volta de uma fogueira da Light, plantas não crescem por causa dela, e o servidor não sabe que ela existe. Ela também não faz sombra e não ilumina o que está fora da tela.

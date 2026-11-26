@@ -118,6 +118,16 @@ neoForge {
             programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
             loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
         }
+        // 0.15.0: laboratório de luz em jogo e benchmark comparável com a 0.14.0, com o vfx-sample.
+        testeLuz {
+            client()
+            sourceSet = sourceSets.testeJogo
+            gameDirectory = layout.projectDirectory.dir('run/teste-luz').asFile
+            systemProperty 'calamidade.teste', 'luz'
+            programArgument '--quickPlaySingleplayer'; programArgument 'teste'
+            programArgument '--width'; programArgument '1280'; programArgument '--height'; programArgument '720'
+            loadedMods = [mods.calamidade_awakening, mods.calamidade_teste]
+        }
         // 0.15.0: regressão de efeitos órfãos (eclipse do Sentinela, reabrir o mundo, kill, respawn), com o vfx-sample.
         testeOrfaos {
             client()
@@ -891,5 +901,45 @@ tasks.register('testeOrfaos') {
         lines.findAll { it.startsWith('INFO') }.each { logger.lifecycle(it) }
         logger.lifecycle("testeOrfaos: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
         if (!failed.isEmpty()) throw new GradleException('testeOrfaos:\n' + failed.join('\n'))
+    }
+}
+
+// 0.15.0: laboratório de luz e benchmark (xvfb-run -a ./gradlew testeLuz): cookies (atlas sob demanda, uploads, PNG
+// ausente, orçamento LOW, culling, recarga), tabela de quadros por perfil e cenário (linhas MEDIDA, comparáveis com a
+// 0.14.0 no mesmo ambiente) e capturas das dez demos. Relatório em run/teste-luz/calamidade-luz.txt.
+def testeLuzDir = layout.projectDirectory.dir('run/teste-luz').asFile
+def prepararTesteLuz = tasks.register('prepararTesteLuz') {
+    group = 'verification'
+    description = 'Copia o mundo do testeJogo e o JAR do vfx-sample para run/teste-luz.'
+    mustRunAfter 'testeJogo'
+    doLast {
+        def world = new File(testeJogoDir, 'world')
+        if (!world.isDirectory()) throw new GradleException('prepararTesteLuz: rode ./gradlew testeJogo antes (falta run/teste-jogo/world)')
+        def sample = fileTree('examples/vfx-sample/build/libs') { include 'vfx-sample-*.jar'; exclude '*-sources.jar' }
+        if (sample.isEmpty()) throw new GradleException('prepararTesteLuz: rode ./gradlew -p examples/vfx-sample build antes')
+        ['saves', 'mods', 'screenshots', 'logs', 'config'].each { project.delete(new File(testeLuzDir, it)) }
+        project.delete(new File(testeLuzDir, 'calamidade-luz.txt'))
+        project.copy { from world; into new File(testeLuzDir, 'saves/teste'); exclude 'session.lock'; exclude 'data/calamidade_awakening_*' }
+        project.copy { from sample; into new File(testeLuzDir, 'mods') }
+        new File(testeLuzDir, 'options.txt').text = ['onboardAccessibility:false', 'pauseOnLostFocus:false',
+            'renderDistance:8', 'simulationDistance:8', 'guiScale:2', 'tutorialStep:none', 'skipMultiplayerWarning:true',
+            'narrator:0', 'soundCategory_master:0.0', 'renderClouds:"false"', 'joinedFirstServer:true', 'lang:pt_br',
+            'maxFps:260', 'enableVsync:false'].join('\n') + '\n'
+    }
+}
+tasks.configureEach { task -> if (task.name == 'runTesteLuz') task.dependsOn prepararTesteLuz }
+tasks.register('testeLuz') {
+    group = 'verification'
+    description = 'Laboratório de luz e benchmark no cliente (precisa de tela: xvfb-run) e falha se algum caso falhar.'
+    dependsOn 'runTesteLuz'
+    doLast {
+        def report = new File(testeLuzDir, 'calamidade-luz.txt')
+        if (!report.exists()) throw new GradleException('testeLuz: relatório não foi gravado')
+        def lines = report.readLines('UTF-8')
+        def failed = lines.findAll { it.startsWith('FAIL') }
+        if (!lines.contains('FIM luz')) failed << "FAIL roteiro incompleto (falta 'FIM luz')"
+        lines.findAll { it.startsWith('MEDIDA') }.each { logger.lifecycle(it) }
+        logger.lifecycle("testeLuz: ${lines.count { it.startsWith('PASS') }} verificações passaram, ${failed.size()} falharam (${report})")
+        if (!failed.isEmpty()) throw new GradleException('testeLuz:\n' + failed.join('\n'))
     }
 }

@@ -34,5 +34,10 @@
   "command.vfxsample.evento.refused": "Eclipse não iniciado: já está rodando ou o limite de eventos globais está cheio",
   "command.vfxsample.evento.released": "Eclipse liberado: o sol volta em 16 s",
   "command.vfxsample.evento.stopped": "Eclipse encerrado",
-  "command.vfxsample.evento.none": "Nenhum eclipse rodando"
+  "command.vfxsample.evento.none": "Nenhum eclipse rodando",
+  "command.vfxsample.luz.started": "Laboratório de luz: %s — %s",
+  "command.vfxsample.luz.failed": "Não foi possível iniciar %s (limite de instâncias?)",
+  "command.vfxsample.luz.stopped": "Laboratório de luz: %s parado (%s)",
+  "command.vfxsample.luz.released": "Laboratório de luz: %s solto (%s), saindo",
+  "command.vfxsample.luz.unknown": "Demo desconhecida: %s"
 }

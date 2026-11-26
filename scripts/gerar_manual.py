@@ -23,6 +23,7 @@ CHAPTERS = [
     ("ATMOSFERA-0.8.md", "Atmosphere: céu, névoa, exposição e tinta"),
     ("FEIXES-0.9.md", "Beam: feixes de luz"),
     ("LUZ-0.9.md", "Light: luz visual sobre o mundo"),
+    ("LUZ-0.15.md", "Light Engine: cookies, holofotes, projetores e ciclo de vida (experimental)"),
     ("PRIORIDADE-0.9.md", "Prioridade protagonista e orçamento por quadro"),
     ("INTEGRACAO-0.10.md", "Integração com outros mods: orientação, fontes, limites e gatilhos"),
     ("TERRENO-0.11.md", "Terrain API: destruição, crateras e objetos que viram blocos reais"),

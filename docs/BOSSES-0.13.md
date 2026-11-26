@@ -1,5 +1,7 @@
 # Bosses (0.13) — Boss API, BossBar API e Rig Anchors
 
+> **0.15 (experimental):** instâncias sustentadas com fonte `EffectSource.boss` pertencem ao controlador e são soltas quando ele acaba, mesmo sem handle; diagnóstico com `/calamidade fx list`. Veja [LUZ-0.15.md, Ciclo de vida](LUZ-0.15.md#ciclo-de-vida-fonte-âncora-e-dono-015).
+
 > **Estado:** implementada no branch `claude/bosses-0.13` (criado em `8cfd93a`, o `origin/main` do release v0.12.0
 > mais dois commits só de `VALIDACAO.md`); **publicada** (release v0.13.0, tag no commit `2c90f60`). O JAR é `0.13.0` sem o aviso de build de desenvolvimento. A 0.13 **não** contém nada da 0.14 (Custom Sky Engine, branch
 > `claude/ceu-personalizado`, intocado). As seções 1 a 6 são o plano aprovado (Etapa 0); a seção 7 diz o que foi feito,

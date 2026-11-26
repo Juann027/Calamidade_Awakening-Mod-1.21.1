@@ -65,6 +65,9 @@ final class RoteiroOrfaos implements Runnable {
             fluxoDoUsuario();
             sobreposicaoIntencional();
             killTudoComRespawn();
+            donoEncerrado();
+            reconciliacao();
+            comandos();
             escrever("FIM orfaos", true);
         } catch (Throwable failure) {
             check("roteiro dos órfãos sem exceção", false, failure.toString());
@@ -183,6 +186,91 @@ final class RoteiroOrfaos implements Runnable {
         boolean limpo = aguardar(() -> noServidorSemErro(() -> StageNetwork.liveBySource()[1] == 0)
             && noClienteSemErro(() -> PerfOverlay.skyLayers() == 0), 520);
         check("kill @e com respawn: nada fica no servidor nem no cliente", f && limpo, estado("depois de kill @e e respawn"));
+    }
+
+    /**
+     * 0.15.0: uma instância sustentada iniciada com a fonte do chefe por fora do controlador (handle perdido de
+     * propósito) é solta quando o controlador acaba; e uma com fonte de chefe sem controlador nenhum é solta pelo
+     * vigia. Efêmeras do chefe continuam até o fim.
+     */
+    private void donoEncerrado() throws Exception {
+        boolean f = furia();
+        var h = sentinela();
+        if (!f || h.isEmpty()) { check("dono: Sentinela na fúria", false, ""); return; }
+        var golem = h.get().entity();
+        var eclipse = ResourceLocation.fromNamespaceAndPath("vfxsample", "evento_eclipse");
+        var perdido = noServidor(() -> dev.calamidade_awakening.api.v1.Effects.start(eclipse, overworld(),
+            dev.calamidade_awakening.api.v1.Placement.at(new net.minecraft.world.phys.Vec3(X + .5, 2, Z + 12.5))
+                .withSource(dev.calamidade_awakening.api.v1.EffectSource.boss(golem))));
+        long order = perdido.map(StageNetwork::orderOf).orElse(-1L);
+        estado("fúria + eclipse com a fonte do chefe e handle perdido (" + order + ")");
+        comando("kill @e[type=minecraft:iron_golem]");
+        boolean soltoNaMorte = aguardar(() -> noServidorSemErro(() -> StageNetwork.describe().stream()
+            .anyMatch(i -> i.order() == order && i.state().startsWith("saindo"))), 60);
+        boolean acabou = aguardar(() -> noServidorSemErro(() -> StageNetwork.describe().stream().noneMatch(i -> i.order() == order)), 520);
+        check("dono: sustentada da fonte do chefe, sem handle, é solta quando o controlador acaba e termina",
+            perdido.isPresent() && soltoNaMorte && acabou, estado("depois da morte"));
+        // Sem controlador nenhum: o vigia solta (fonte de chefe numa entidade que nunca foi chefe).
+        var vaca = noServidor(() -> {
+            var c = new net.minecraft.world.entity.animal.Cow(net.minecraft.world.entity.EntityType.COW, overworld());
+            c.moveTo(X + 3.5, 1, Z + 6.5, 0, 0);
+            c.setNoAi(true);
+            overworld().addFreshEntity(c);
+            return c;
+        });
+        int antes = noServidor(StageNetwork::orphansReleased);
+        var orfa = noServidor(() -> dev.calamidade_awakening.api.v1.Effects.start(eclipse, overworld(),
+            dev.calamidade_awakening.api.v1.Placement.at(new net.minecraft.world.phys.Vec3(X + .5, 2, Z + 12.5))
+                .withSource(dev.calamidade_awakening.api.v1.EffectSource.boss(vaca))));
+        boolean vigiada = aguardar(() -> noServidorSemErro(() -> StageNetwork.orphansReleased() > antes), 120);
+        boolean fim = aguardar(() -> noServidorSemErro(() -> StageNetwork.liveBySource()[1] == 0)
+            && noClienteSemErro(() -> PerfOverlay.skyLayers() == 0), 520);
+        check("vigia: sustentada com fonte de chefe sem controlador é solta (com saída) e o céu volta", orfa.isPresent() && vigiada && fim,
+            estado("depois do vigia"));
+        noServidor(vaca::discard);
+    }
+
+    /** 0.15.0: o servidor esquece uma instância sem avisar (fim perdido); a lista periódica limpa o cliente. */
+    private void reconciliacao() throws Exception {
+        var eclipse = ResourceLocation.fromNamespaceAndPath("vfxsample", "evento_eclipse");
+        var h = noServidor(() -> dev.calamidade_awakening.api.v1.Effects.start(eclipse, overworld(),
+            dev.calamidade_awakening.api.v1.Placement.at(new net.minecraft.world.phys.Vec3(X + .5, 2, Z + 12.5))));
+        boolean apareceu = aguardar(() -> noClienteSemErro(() -> PerfOverlay.skyLayers() > 0), 200);
+        long order = h.map(StageNetwork::orderOf).orElse(-1L);
+        noServidor(() -> StageNetwork.forgetSilently(order));
+        ticks(10);
+        boolean presoAntes = noCliente(() -> PerfOverlay.skyLayers() > 0);
+        boolean limpo = aguardar(() -> noClienteSemErro(() -> PerfOverlay.skyLayers() == 0), 140);
+        check("reconciliação: fim perdido fica preso só até a próxima lista (5 s) e some do cliente",
+            apareceu && presoAntes && limpo, estado("depois da lista"));
+    }
+
+    /** 0.15.0: /calamidade fx list mostra escopo, fonte e dono; world list mostra o evento AREA; release e stop. */
+    private void comandos() throws Exception {
+        boolean f = furia();
+        java.util.List<String> saida = new java.util.concurrent.CopyOnWriteArrayList<>();
+        noServidor(() -> server().getCommands().performPrefixedCommand(saidaDe(saida), "calamidade fx list"));
+        noServidor(() -> server().getCommands().performPrefixedCommand(saidaDe(saida), "calamidade world list"));
+        boolean area = saida.stream().anyMatch(l -> l.contains("vfxsample:evento_eclipse") && l.contains("AREA") && l.contains("dono boss"));
+        long ordem = noServidor(() -> StageNetwork.describe().stream().filter(i -> i.scope().equals("AREA")).mapToLong(StageNetwork.Info::order)
+            .findFirst().orElse(-1));
+        noServidor(() -> server().getCommands().performPrefixedCommand(saidaDe(saida), "calamidade fx release " + ordem));
+        boolean saindo = noServidor(() -> StageNetwork.describe().stream().anyMatch(i -> i.order() == ordem && i.state().startsWith("saindo")));
+        noServidor(() -> server().getCommands().performPrefixedCommand(saidaDe(saida), "calamidade fx stop " + ordem));
+        boolean parado = noServidor(() -> StageNetwork.describe().stream().noneMatch(i -> i.order() == ordem));
+        check("comandos: fx list e world list mostram o eclipse AREA com dono; fx release solta, fx stop encerra",
+            f && area && saindo && parado, saida.stream().filter(l -> l.contains("evento_eclipse")).findFirst().orElse(saida.toString()));
+        comando("kill @e[type=minecraft:iron_golem]");
+        aguardar(() -> noServidorSemErro(() -> StageNetwork.liveBySource()[1] == 0), 520);
+    }
+
+    private net.minecraft.commands.CommandSourceStack saidaDe(java.util.List<String> saida) {
+        return server().createCommandSourceStack().withPermission(4).withSource(new net.minecraft.commands.CommandSource() {
+            public void sendSystemMessage(Component c) { saida.add(c.getString()); }
+            public boolean acceptsSuccess() { return true; }
+            public boolean acceptsFailure() { return true; }
+            public boolean shouldInformAdmins() { return false; }
+        });
     }
 
     private void sairEReabrir() throws Exception {

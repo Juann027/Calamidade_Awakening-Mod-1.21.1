@@ -112,6 +112,8 @@ public final class Receitas {
         DimensaoTeste.register();
         // 1.10.0 — Boss API do motor 0.13.0: o Sentinela do Eclipse (/vfxsample chefe).
         SentinelaEclipse.register();
+        // 1.12.0 — laboratório de luz do motor 0.15.0 (Light Cookies, holofotes, projetores): /vfxsample luz.
+        LaboratorioLuz.register();
         bus.addListener(Receitas::abas);
     }
 
@@ -189,12 +191,16 @@ public final class Receitas {
 
     /** Encerra a última receita do jogador; usado também ao sair do jogo. */
     public static boolean parar(UUID player) {
+        LaboratorioLuz.parar(player);
         var handle = ULTIMA.remove(player);
         return handle != null && handle.stop();
     }
 
     /** Servidor parou: esquece os handles. */
-    public static void limpar() { ULTIMA.clear(); }
+    public static void limpar() {
+        ULTIMA.clear();
+        LaboratorioLuz.limpar();
+    }
 
     /** Ponto no chão (altura dos pés), {@code distancia} blocos à frente na horizontal. */
     static Vec3 chao(ServerPlayer player, double distancia) {

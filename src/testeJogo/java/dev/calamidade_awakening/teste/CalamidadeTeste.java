@@ -58,6 +58,12 @@ public final class CalamidadeTeste {
         registrarEstrelas();
         registrarImagens();
         ChefesTeste.registrar();  // 0.13.0
+        // 0.15.0: luz com cookie cujo PNG não existe (falha registrada, sem crash, fallback AVERAGE).
+        Effects.register(ResourceLocation.fromNamespaceAndPath(ID, "cookie_ausente"), new Effects.Definition(200, 6, 0xffffffff,
+            Effects.Shape.NONE, Effects.Material.NONE, null, null));
+        Effects.lights(ResourceLocation.fromNamespaceAndPath(ID, "cookie_ausente"), dev.calamidade_awakening.api.v1.Light
+            .projector(dev.calamidade_awakening.api.v1.Point.center(0, 5, 0), 8, 8)
+            .cookie("calamidade_teste:textures/lights/nao_existe.png").intensity(2).radius(8).build());
         NeoForge.EVENT_BUS.register(Protecao.class);
         NeoForge.EVENT_BUS.addListener((ChunkDataEvent.Save event) -> SALVOS.add(event.getChunk().getPos().toLong()));
         NeoForge.EVENT_BUS.addListener(CalamidadeTeste::started);
@@ -73,6 +79,7 @@ public final class CalamidadeTeste {
         if (FMLEnvironment.dist == Dist.CLIENT && "imagens".equals(System.getProperty("calamidade.teste"))) RoteiroImagens.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "chefe".equals(System.getProperty("calamidade.teste"))) RoteiroChefe.registrar();
         if (FMLEnvironment.dist == Dist.CLIENT && "orfaos".equals(System.getProperty("calamidade.teste"))) RoteiroOrfaos.registrar();
+        if (FMLEnvironment.dist == Dist.CLIENT && "luz".equals(System.getProperty("calamidade.teste"))) RoteiroLuz.registrar();
     }
 
     private static ResourceLocation id(String path) { return ResourceLocation.fromNamespaceAndPath(ID, path); }
@@ -298,7 +305,7 @@ public final class CalamidadeTeste {
     private static void started(ServerStartedEvent event) {
         String fase = System.getProperty("calamidade.teste");
         if (fase == null || fase.isBlank() || fase.equals("cliente") || fase.equals("medicao") || fase.equals("atlas")
-            || fase.equals("ceu") || fase.equals("chefe") || fase.equals("orfaos") || fase.equals("backdrop") || fase.equals("estrelas") || fase.equals("imagens")) return;
+            || fase.equals("ceu") || fase.equals("chefe") || fase.equals("orfaos") || fase.equals("luz") || fase.equals("backdrop") || fase.equals("estrelas") || fase.equals("imagens")) return;
         Thread thread = new Thread(new Roteiro(event.getServer(), fase), "Calamidade teste em jogo");
         thread.setDaemon(true);
         thread.start();

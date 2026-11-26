@@ -2,7 +2,7 @@
 
 A modular visual effects engine for Minecraft 1.21.1, NeoForge 21.1.x and Java 21, using RimuLib 1.3.0.
 
-**Status:** the latest published release is **v0.13.0** (Bosses). This branch holds the **0.14.0 release candidate** (Custom Sky integrated with the 0.13 Boss Engine), which is **not published yet**: there is no v0.14.0 tag or GitHub release, and a JAR built from it is not an official download until that release exists.
+**Status:** the latest published release is **v0.13.0** (Bosses). The experimental **0.15.0 Light Engine** (light cookies, spotlights, projectors, instance lifecycle fixes; `docs/LUZ-0.15.md`) lives on branch `claude/great-pascal-pq0xtj` and is not a release. This branch holds the **0.14.0 release candidate** (Custom Sky integrated with the 0.13 Boss Engine), which is **not published yet**: there is no v0.14.0 tag or GitHub release, and a JAR built from it is not an official download until that release exists.
 
  The five built-in abilities are cosmetic; addons add gameplay through server cues and, since 0.11.0, terrain edits (craters, trenches, falling structures) through the Terrain API. Since 0.12.0 addons also paint the sky (black holes with gravitational lensing, galaxy portals, eclipses, rifts, giant moons, auroras, distant lightning), start global events seen by a whole dimension or server (persistent across restarts) and give each dimension its own sky with named states. Since 0.13.0 addons turn their own entities into bosses (phases, transitions, boss bars, effects bound to rig anchors such as eyes or mouth). The 0.14.0 candidate adds custom skies: backdrops (cubemap, panorama, gradient), star fields, constellations and nebulae, and PNG images, flipbooks and impostors in the sky.
 

@@ -151,6 +151,7 @@ public final class Sample {
                 .then(Commands.literal("stop").executes(ctx -> beaconStop(ctx.getSource()))))
             .then(example.vfxsample.receitas.Receitas.comando())
             .then(example.vfxsample.receitas.Receitas.comandoZumbi())
+            .then(example.vfxsample.receitas.LaboratorioLuz.comando())
             // 1.9.0 — céu da dimensão de teste.
             .then(example.vfxsample.receitas.DimensaoTeste.comandoCeu())
             .then(example.vfxsample.receitas.DimensaoTeste.comandoDimensao())

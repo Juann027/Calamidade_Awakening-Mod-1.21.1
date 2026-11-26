@@ -34,5 +34,10 @@
   "command.vfxsample.evento.refused": "Eclipse not started: already running, or the global event limit is full",
   "command.vfxsample.evento.released": "Eclipse released: the sun comes back in 16 s",
   "command.vfxsample.evento.stopped": "Eclipse stopped",
-  "command.vfxsample.evento.none": "No eclipse running"
+  "command.vfxsample.evento.none": "No eclipse running",
+  "command.vfxsample.luz.started": "Light lab: %s — %s",
+  "command.vfxsample.luz.failed": "Could not start %s (instance limit?)",
+  "command.vfxsample.luz.stopped": "Light lab: %s stopped (%s)",
+  "command.vfxsample.luz.released": "Light lab: %s released (%s), fading out",
+  "command.vfxsample.luz.unknown": "Unknown demo: %s"
 }
