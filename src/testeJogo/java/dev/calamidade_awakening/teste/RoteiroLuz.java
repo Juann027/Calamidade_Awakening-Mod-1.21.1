@@ -45,6 +45,15 @@ final class RoteiroLuz implements Runnable {
     private Thread render;
 
     static void registrar() {
+        // A dimensão do vfx-sample (datapack) faz o jogo perguntar sobre "ajustes experimentais": "Sei o que estou fazendo!".
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.Init.Post event) -> {
+            String pular = Component.translatable("selectWorld.backupJoinSkipButton").getString();
+            for (var item : event.getListenersList())
+                if (item instanceof net.minecraft.client.gui.components.Button botao && botao.getMessage().getString().equals(pular)) {
+                    Minecraft.getInstance().execute(botao::onPress);
+                    return;
+                }
+        });
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> {
             Minecraft mc = Minecraft.getInstance();
             if (iniciado || mc.player == null || mc.level == null || mc.getSingleplayerServer() == null) return;
