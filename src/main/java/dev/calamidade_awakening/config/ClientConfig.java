@@ -34,6 +34,8 @@ public final class ClientConfig {
      * any other value is kept. Set to 2 after that check.
      */
     private static final ModConfigSpec.IntValue LIGHT_CAPS_VERSION;
+    /** (0.15.0, fase 4) Coverage first: lights of instances over the effect cap, engine lights pass, density admission. */
+    private static final ModConfigSpec.BooleanValue COVERAGE;
     private static boolean migrated;
 
     static {
@@ -91,9 +93,13 @@ public final class ClientConfig {
             builder.pop();
         }
         LIGHT_CAPS_VERSION = builder
-            .comment("Internal: version of the light caps (0.15.0). Do not edit; 0 moves untouched pre-0.15 light caps to the new defaults once.")
+            .comment("Internal: version of the caps (0.15.0). Do not edit; below 3 moves caps still equal to an earlier default of their profile (0.11.2 to 0.15 fase 3) to the current default once. Values you chose stay.")
             .translation("calamidade_awakening.configuration.lightCapsVersion")
-            .defineInRange("lightCapsVersion", 0, 0, 2);
+            .defineInRange("lightCapsVersion", 0, 0, 3);
+        COVERAGE = builder
+            .comment("Coverage first (0.15.0): every effect in range keeps its lights even when the drawn-effects cap leaves the rest of it out; the lights pass has its own caps and keeps more lights where the screen region still has room. Off: the 0.15 phase 3 behavior (only drawn effects light the world).")
+            .translation("calamidade_awakening.configuration.coverage")
+            .define("coverage", true);
         builder.pop();
         // 0.13.0: boss bars of addons (Boss API).
         builder.comment("Boss bars (0.13.0) drawn with a custom style by addons that use the Boss API.")
@@ -196,17 +202,38 @@ public final class ClientConfig {
      */
     private static void migrate() {
         if (migrated) return;
-        if (LIGHT_CAPS_VERSION.get() < 2) {
+        if (LIGHT_CAPS_VERSION.get() < 3) {
+            // Fase 4: every earlier default (not only the lights of fase 3): BALANCED 24 lights and 6 drawn of the
+            // provisional 0.11.2 profiles stayed in some files. Values the player chose are not earlier defaults.
             for (var profile : dev.calamidade_awakening.api.QualityProfile.values()) {
-                var lights = CAPS.get(profile)[5];
-                if (lights.get() == dev.calamidade_awakening.api.QualityProfile.LEGACY_LIGHTS[profile.ordinal()])
-                    lights.set(profile.defaults.lights());
+                int[] current = profile.defaultValues();
+                var entries = CAPS.get(profile);
+                for (int i = 0; i < 6; i++)
+                    if (entries[i].get() != current[i] && profile.legacy(i, entries[i].get())) entries[i].set(current[i]);
             }
-            LIGHT_CAPS_VERSION.set(2);
+            LIGHT_CAPS_VERSION.set(3);
             LIGHT_CAPS_VERSION.save();
         }
         migrated = true;
     }
+
+    /** (fase 4) The caps of one profile back to the current defaults; every other setting stays. */
+    public static void restoreDefaults(dev.calamidade_awakening.api.QualityProfile profile) {
+        int[] d = profile.defaultValues();
+        for (int i = 0; i < d.length; i++) cap(profile, i, d[i]);
+    }
+
+    /** (fase 4) Coverage first; true until the config file is loaded. */
+    public static boolean coverage() {
+        try {
+            return COVERAGE.get();
+        } catch (IllegalStateException notLoaded) {
+            return true;
+        }
+    }
+
+    /** (fase 4) Turns coverage first on or off and saves. */
+    public static void coverage(boolean value) { store(COVERAGE, value); }
 
     /** Changes one cap of a profile ({@code index} in {@link #CAP_NAMES}) and saves; ignored before loading. */
     public static void cap(dev.calamidade_awakening.api.QualityProfile profile, int index, int value) {

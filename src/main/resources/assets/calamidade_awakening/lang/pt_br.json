@@ -246,5 +246,20 @@
   "calamidade_awakening.configuration.worldEventsMax": "Máximo de eventos globais",
   "calamidade_awakening.configuration.worldEventsMax.tooltip": "Eventos globais ao mesmo tempo; um início acima disso troca o evento de menor prioridade quando a prioridade do novo é maior, senão é recusado.",
   "perf.calamidade_awakening.world": "Eventos globais: %s",
-  "perf.calamidade_awakening.skystate": "Céu da dimensão: %s"
+  "perf.calamidade_awakening.skystate": "Céu da dimensão: %s",
+  "perf.calamidade_awakening.pool.engine": "motor",
+  "perf.calamidade_awakening.page": "Página %s/%s (%s: próxima) · %s",
+  "perf.calamidade_awakening.page.1": "geral",
+  "perf.calamidade_awakening.page.2": "cobertura e luzes",
+  "perf.calamidade_awakening.page.3": "céu e terreno",
+  "perf.calamidade_awakening.coverage.instances": "Cobertura primeiro %s · instâncias: %s residentes · %s elegíveis · %s desenhadas (teto %s) · %s só luz · %s excluídas",
+  "perf.calamidade_awakening.coverage.declared": "  luzes declaradas %s: %s nas desenhadas · %s nas só luz · %s nas excluídas (alcance, fade, âncora) · %s em instâncias fora da tela",
+  "perf.calamidade_awakening.coverage.pass": "  passe: %s candidatas (%s de instâncias só luz, %s acima do teto de CPU) · %s fora da visão · %s sem contribuição · %s pelo teto + %s pela densidade (%s/tile) · %s acima do teto · %s desenhadas",
+  "perf.calamidade_awakening.coverage.cookies": "  cookies: %s pelo orçamento + %s pela densidade · %s em fallback · distribuição: %s de %s células do mundo mantidas · alívio do AUTO %s",
+  "perf.calamidade_awakening.coverage.limits": "  limites %s: desenhados %s · luzes %s · cookies %s · feixes %s · passes %s (padrões %s/%s/%s/%s/%s)%s",
+  "perf.calamidade_awakening.quality.relief": "Qualidade: AUTO → %s · alívio há %s s: densidade e quadros de folha desligados (p95 %s ms > %s ms)",
+  "perf.calamidade_awakening.quality.restore": "Qualidade: AUTO → %s · alívio retirado há %s s (p95 %s ms < %s ms)",
+  "perf.calamidade_awakening.defaults": "Calamidade_Awakening: limites de %s de volta aos padrões atuais (demais configurações mantidas)",
+  "perf.calamidade_awakening.coverage.set": "Cobertura primeiro: %s (F7: página de cobertura)",
+  "calamidade_awakening.configuration.coverage": "Cobertura primeiro (luzes de todos os efeitos)"
 }

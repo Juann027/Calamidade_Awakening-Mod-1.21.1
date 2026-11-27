@@ -85,7 +85,14 @@ final class RoteiroLuz implements Runnable {
                 .map(c -> c.getModInfo().getVersion().toString()).orElse("?"), true);
             render = noCliente(Thread::currentThread);
             preparar();
+            if ("fase4".equals(System.getProperty("calamidade.luz.modo"))) {
+                fase4();
+                escrever("FIM luz", true);
+                return;
+            }
             if ("fase3".equals(System.getProperty("calamidade.luz.modo"))) {
+                // Fase 4: a regressão da fase 3 roda com "coverage first" desligado (o caminho da fase 3, intacto).
+                coverage(false);
                 fase3();
                 escrever("FIM luz", true);
                 return;
@@ -281,6 +288,251 @@ final class RoteiroLuz implements Runnable {
      * dentro do orçamento, prioridade CRITICAL no LOW, tiles idênticos ao laço completo (captura A/B), pressão do atlas
      * com redução de resolução estável (sem trocas nem uploads repetidos), memória fixa do atlas padrão e recarga.
      */
+    // ------------------------------------------------------------------------------------------------ fase 4
+
+    // Extras da fase 4 por reflexão: o mesmo arquivo compila na cópia da 0.14.0 (linha de base do benchmark).
+    private static Object chamar(String classe, String metodo, Class<?>[] tipos, Object... args) {
+        try {
+            return Class.forName(classe).getMethod(metodo, tipos).invoke(null, args);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(classe + "." + metodo, e);
+        }
+    }
+
+    private static final String CONFIG = "dev.calamidade_awakening.config.ClientConfig", F7 = "dev.calamidade_awakening.client.PerfOverlay";
+
+    private int[] cobertura() throws Exception { return noCliente(() -> (int[]) chamar(F7, "coverageCounters", new Class<?>[0])); }
+
+    /** Instâncias do último quadro: residentes, elegíveis, desenhadas, só luz, excluídas, luzes declaradas. */
+    private int[] instancias() throws Exception {
+        return noCliente(() -> {
+            Object c = chamar(F7, "coverage", new Class<?>[0]);
+            int[] out = new int[6];
+            String[] nomes = {"resident", "eligible", "drawn", "lightOnly", "excluded", "declared"};
+            try {
+                for (int i = 0; i < nomes.length; i++) out[i] = (int) c.getClass().getMethod(nomes[i]).invoke(c);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+            return out;
+        });
+    }
+
+    private int[] instanciasSE() { try { return instancias(); } catch (Exception e) { return new int[6]; } }
+
+    private void coverage(boolean on) throws Exception {
+        noCliente(() -> { chamar(CONFIG, "coverage", new Class<?>[] {boolean.class}, on); ClientHooks.coordinator().invalidate(); return null; });
+        ticks(2);
+    }
+
+    /** Arena vista de cima, sempre do mesmo ponto e com o mesmo olhar. */
+    private void cameraArena() throws Exception {
+        // Voando de novo a cada vez: ao tocar o chão (montar a cena) o modo criativo desliga o voo e a câmera cairia.
+        noServidor(() -> {
+            jogador().getAbilities().flying = true;
+            jogador().onUpdateAbilities();
+            jogador().teleportTo(overworld(), X + .5, 34, Z - 12.5, 0, 52);
+        });
+        ticks(2);
+    }
+
+    /** Monta uma cena do laboratório a partir do chão (o comando usa a posição e o olhar do jogador). */
+    private void cena(String comando) throws Exception {
+        comando("vfxsample cobertura parar");
+        ticks(5);
+        noServidor(() -> jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, 20));
+        ticks(3);
+        comando("vfxsample cobertura " + comando);
+        cameraArena();
+    }
+
+    /**
+     * 0.15.0 fase 4 (coverage first): a mesma arena nos quatro perfis, com e sem coverage; o caso real do LOW com 1
+     * efeito desenhado; retículas CRITICAL; evento com componentes caros; estabilidade; memória; sobrecarga; ciclo de vida.
+     * Métricas em linhas MEDIDA fase4 (llvmpipe: tendência, não valor absoluto).
+     */
+    private void fase4() throws Exception {
+        ouvirQuadros();
+        noServidor(() -> { jogador().getAbilities().flying = true; jogador().onUpdateAbilities(); });
+        QualityMode[] perfis = {QualityMode.LOW, QualityMode.BALANCED, QualityMode.HIGH, QualityMode.ULTRA};
+        coverage(true);
+        cena("arena");
+        aguardar(() -> instanciasSE()[5] >= 192, 200);
+        ticks(60);
+        int[][] porPerfil = new int[4][];
+        int[] celulasFase3 = new int[4];
+        // Arena: cada perfil com coverage (fase 4) e sem (fase 3), capturas da mesma câmera.
+        for (int i = 0; i < perfis.length; i++) {
+            for (boolean on : new boolean[] {false, true}) {
+                coverage(on);
+                perfil(perfis[i]);
+                ticks(60);
+                int[] c = instancias(), k = cobertura(), d = detalhe();
+                int luzes = campo("lastLights");
+                String tag = (on ? "f4_" : "f3_") + "arena_" + perfis[i].name().toLowerCase(Locale.ROOT);
+                captura(tag);
+                escrever(String.format(Locale.ROOT,
+                    "MEDIDA fase4 arena;%s;coverage %s;instâncias %d residentes %d elegíveis %d desenhadas %d só luz;luzes declaradas %d candidatas %d desenhadas %d (%.0f%%);cookies %d de %d (%.0f%%);células %d de %d (%.0f%%);densidade %d +%d luzes +%d cookies;antes do passe %d",
+                    perfis[i].name(), on ? "on" : "off", c[0], c[1], c[2], c[3], c[5], d[0],
+                    luzes, 100.0 * luzes / Math.max(1, c[5]), d[3], 84, 100.0 * d[3] / 84, k[7], k[6],
+                    100.0 * k[7] / Math.max(1, k[6]), k[5], k[3], k[4], c[5] - d[0]), true);
+                if (on) porPerfil[i] = new int[] {luzes, d[3], k[7], k[6], c[2] + c[3]};
+                else celulasFase3[i] = k[7];
+                if (on) check("fase 4 arena " + perfis[i] + ": as 12 instâncias contribuem luz (desenhadas + só luz = 12) e as 192 são candidatas",
+                    c[2] + c[3] == 12 && d[0] == 192, Arrays.toString(c) + " candidatas " + d[0]);
+                else check("fase 4 arena " + perfis[i] + " sem coverage: só as instâncias desenhadas iluminam (o comportamento da fase 3)",
+                    c[3] == 0 && d[0] == c[2] * 16, Arrays.toString(c) + " candidatas " + d[0]);
+            }
+        }
+        // LOW: a cena continua reconhecível; a distribuição espacial se mantém.
+        check("fase 4 LOW: a arena cobre pelo menos 1,5 × as células da fase 3 e 2/3 das células visíveis da cena",
+            porPerfil[0][2] * 2 >= celulasFase3[0] * 3 && porPerfil[0][2] * 3 >= porPerfil[0][3] * 2,
+            porPerfil[0][2] + " de " + porPerfil[0][3] + " (fase 3: " + celulasFase3[0] + ")");
+        check("fase 4 BALANCED: luzes em todas as células visíveis da arena", porPerfil[1][2] == porPerfil[1][3],
+            porPerfil[1][2] + " de " + porPerfil[1][3] + " (fase 3: " + celulasFase3[1] + ")");
+        check("fase 4: perfis em ordem de fidelidade (luzes e cookies não diminuem de LOW a ULTRA)",
+            porPerfil[0][0] <= porPerfil[1][0] && porPerfil[1][0] <= porPerfil[2][0] && porPerfil[2][0] <= porPerfil[3][0]
+                && porPerfil[0][1] <= porPerfil[3][1],
+            Arrays.deepToString(porPerfil));
+        // O caso real (RTX 4060): LOW com 1 efeito desenhado no config. Antes: 16 candidatas de 192.
+        perfil(QualityMode.LOW);
+        noCliente(() -> { chamar(CONFIG, "cap", new Class<?>[] {dev.calamidade_awakening.api.QualityProfile.class, int.class, int.class},
+            dev.calamidade_awakening.api.QualityProfile.LOW, 0, 1); ClientHooks.coordinator().invalidate(); return null; });
+        coverage(false);
+        ticks(30);
+        int antes = detalhe()[0];
+        captura("f3_arena_low_1efeito");
+        coverage(true);
+        ticks(60);
+        int depois = detalhe()[0], desenhadas = campo("lastLights");
+        captura("f4_arena_low_1efeito");
+        check("fase 4 LOW com 1 efeito desenhado (config do teste real): 16 candidatas antes, 192 agora, sem passar do teto por tile",
+            antes == 16 && depois == 192 && orcamento()[7] <= Math.max(24, cobertura()[5]),
+            "antes " + antes + " depois " + depois + " desenhadas " + desenhadas + " máx/tile " + orcamento()[7]);
+        noCliente(() -> { chamar(CONFIG, "restoreDefaults", new Class<?>[] {dev.calamidade_awakening.api.QualityProfile.class},
+            dev.calamidade_awakening.api.QualityProfile.LOW); ClientHooks.coordinator().invalidate(); return null; });
+        ticks(5);
+        check("fase 4: restaurar os padrões do LOW volta a 3 efeitos desenhados (outras configurações intactas)",
+            noCliente(() -> ClientHooks.coordinator().limits().effects()) == 3
+                && (boolean) noCliente(() -> chamar(CONFIG, "coverage", new Class<?>[0])),
+            "efeitos " + noCliente(() -> ClientHooks.coordinator().limits().effects()));
+        // Estabilidade: câmera parada → nenhuma luz entra ou sai; câmera girando → poucas trocas por quadro.
+        perfil(QualityMode.LOW);
+        ticks(40);
+        int trocas = 0;
+        for (int t = 0; t < 60; t++) { trocas += cobertura()[10]; ticks(1); }
+        check("fase 4 estabilidade (LOW, câmera parada): nenhuma luz entra ou sai em 60 ticks", trocas == 0, trocas + " entradas");
+        // A mesma rotação com e sem coverage: entradas que vêm do frustum (luzes que entram na visão) existem nas duas.
+        int[] giro = new int[2], luzesGiro = new int[2];
+        for (int modo = 0; modo < 2; modo++) {
+            coverage(modo == 1);
+            cameraArena();
+            ticks(40);
+            for (int t = 0; t < 80; t++) {
+                float yaw = (float) (Math.sin(t / 80.0 * Math.PI * 2) * 25);
+                noServidor(() -> { jogador().getAbilities().flying = true; jogador().teleportTo(overworld(), X + .5, 34, Z - 12.5, yaw, 52); });
+                giro[modo] += cobertura()[10];
+                luzesGiro[modo] = Math.max(luzesGiro[modo], campo("lastLights"));
+                ticks(1);
+            }
+            escrever("MEDIDA fase4 estabilidade;LOW;coverage " + (modo == 1 ? "on" : "off") + ";câmera girando ±25°;" + giro[modo]
+                + " entradas no conjunto em 80 ticks (" + String.format(Locale.ROOT, "%.2f", giro[modo] / 80.0) + " por tick, de "
+                + campo("lastLights") + " luzes)", true);
+        }
+        double taxa3 = giro[0] / (double) Math.max(1, luzesGiro[0]), taxa4 = giro[1] / (double) Math.max(1, luzesGiro[1]);
+        check("fase 4 estabilidade girando (LOW): entradas por luz desenhada no máximo 1,5 × as da fase 3 (+0,25)",
+            taxa4 <= taxa3 * 1.5 + .25, String.format(Locale.ROOT, "fase 3 %d em %d luzes (%.2f) · fase 4 %d em %d luzes (%.2f)",
+                giro[0], luzesGiro[0], taxa3, giro[1], luzesGiro[1], taxa4));
+        cameraArena();
+        ticks(10);
+        // Memória e uploads: o mesmo atlas, sem upload repetido depois de assentar.
+        long bytes = atlasBytes();
+        int up = detalhe()[9];
+        ticks(100);
+        check("fase 4 memória: atlas fixo e nenhum upload em 100 ticks com 84 cookies da arena", atlasBytes() == bytes && detalhe()[9] == up
+            && bytes <= 22369536L * 2, bytes + " bytes, uploads " + up + " -> " + detalhe()[9]);
+        // Frametime por perfil (2 repetições intercaladas).
+        for (int r = 0; r < 2; r++) for (int i = 0; i < perfis.length; i++) {
+            QualityMode m = perfis[(i + r) % perfis.length];
+            perfil(m);
+            ticks(20);
+            double[] t = janela(4000).clone();
+            Arrays.sort(t);
+            escrever(String.format(Locale.ROOT, "MEDIDA fase4 quadro;%s;rep %d;%d quadros;mediana %.2f ms;p95 %.2f ms;p99 %.2f ms;luzes %d",
+                m.name(), r, t.length, pct(t, .5), pct(t, .95), pct(t, .99), campo("lastLights")), true);
+        }
+        // Combate: retículas CRITICAL entre 64 decorativas, no LOW.
+        perfil(QualityMode.LOW);
+        cena("combate");
+        aguardar(() -> orcamentoSE()[25] >= 4, 300);
+        int estaveis = 0;
+        for (int t = 0; t < 60; t++) { int[] b = orcamento(); if (b[24] == 4 && b[25] == 4) estaveis++; ticks(1); }
+        captura("f4_combate_low");
+        check("fase 4 combate (LOW): as 4 luzes CRITICAL das 2 retículas texturizadas em 60/60 ticks", estaveis == 60,
+            estaveis + "/60 · " + Arrays.toString(orcamento()));
+        perfil(QualityMode.ULTRA);
+        ticks(30);
+        captura("f4_combate_ultra");
+        // Iluminação mista.
+        for (QualityMode m : new QualityMode[] {QualityMode.LOW, QualityMode.ULTRA}) {
+            perfil(m);
+            cena("mista");
+            ticks(80);
+            captura("f4_mista_" + m.name().toLowerCase(Locale.ROOT));
+            check("fase 4 mista " + m + ": luzes desenhadas sem falha de cookie", campo("lastLights") > 0 && detalhe()[8] == 0,
+                Arrays.toString(detalhe()));
+        }
+        // Evento cinematográfico: no LOW, 3 instâncias com volume e feixes, as outras 5 só com luz.
+        perfil(QualityMode.LOW);
+        cena("cinema");
+        ticks(80);
+        int[] c = instancias();
+        int[] k = cobertura();
+        int feixes = campo("lastBeams");
+        captura("f4_cinema_low");
+        check("fase 4 cinema (LOW): instâncias fora do limite de efeitos perdem volume e feixes, não a luz",
+            c[2] == 3 && c[3] == 5 && k[0] > 0 && feixes <= 2 * c[2],
+            Arrays.toString(c) + " luzes só-luz " + k[0] + " feixes " + feixes);
+        perfil(QualityMode.ULTRA);
+        ticks(30);
+        captura("f4_cinema_ultra");
+        // Estresse e sobrecarga extrema: 192 aglomeradas no LOW (pior caso por tile).
+        perfil(QualityMode.LOW);
+        for (String dist : new String[] {"grade", "anel", "aglomerado"}) {
+            cena("estresse 192 " + dist);
+            ticks(60);
+            int[] b = orcamento(), kk = cobertura();
+            double[] t = janela(3000).clone();
+            Arrays.sort(t);
+            escrever(String.format(Locale.ROOT, "MEDIDA fase4 estresse;LOW;192 %s;luzes %d;por cap %d;densidade +%d;máx/tile %d;média/tile %.1f;mediana %.2f ms;p95 %.2f ms",
+                dist, campo("lastLights"), kk[2], kk[3], b[7], b[6] / 10.0, pct(t, .5), pct(t, .95)), true);
+            captura("f4_estresse_low_" + dist);
+            if (dist.equals("aglomerado"))
+                check("fase 4 sobrecarga (LOW, 192 aglomeradas): o custo por tile não passa do teto do perfil",
+                    b[7] <= Math.max(24, kk[5]) + 1, "máx/tile " + b[7] + " densidade " + kk[5]);
+        }
+        // Ciclo de vida: parar a cena zera instâncias e luzes.
+        comando("vfxsample cobertura parar");
+        boolean zerou = aguardar(() -> instanciasSE()[0] == 0, 100);
+        ticks(5);
+        check("fase 4 ciclo de vida: parar encerra todas as instâncias e o passe de luzes", zerou && campo("lastLights") == 0,
+            "residentes " + instancias()[0] + " luzes " + campo("lastLights"));
+        // F7 legível: página de cobertura com as linhas novas, nenhuma linha mais larga que a tela depois da quebra.
+        noCliente(() -> { chamar(F7, "show", new Class<?>[] {int.class}, 2); mc.options.hideGui = false; return null; });
+        cena("arena");
+        ticks(60);
+        captura("f4_f7_cobertura");
+        @SuppressWarnings("unchecked")
+        List<String> f7 = noCliente(() -> ((List<Component>) chamar(F7, "lines", new Class<?>[] {int.class}, 2)).stream()
+            .map(Component::getString).toList());
+        check("fase 4 F7: página 2 explica instâncias, luzes declaradas, passe e limites",
+            f7.stream().anyMatch(l -> l.contains("light-only") || l.contains("só luz"))
+                && f7.stream().anyMatch(l -> l.contains("by density") || l.contains("pela densidade")),
+            String.join(" | ", f7.subList(0, Math.min(6, f7.size()))));
+        noCliente(() -> { mc.options.hideGui = true; PerfOverlay.hide(); return null; });
+        comando("vfxsample cobertura parar");
+    }
+
     private void fase3() throws Exception {
         long padrao = 22369536L;
         ouvirQuadros();
@@ -370,23 +622,32 @@ final class RoteiroLuz implements Runnable {
             aguardar(() -> detalheSE()[3] >= 32, 300);
             // Assentar: entrada das instâncias e do orçamento de efeitos antes do A/B.
             ticks(200);
-            tiles(true);
-            int[] on = orcamento();
-            captura("f3_tiles_on_" + modo);
-            double msOn = mediaQuadro(3);
-            tiles(false);
-            int[] off = orcamento();
-            captura("f3_tiles_off_" + modo);
-            double msOff = mediaQuadro(3);
-            captura("f3_tiles_off2_" + modo);
-            tiles(true);
-            int diff = diferenca("f3_tiles_on_" + modo, "f3_tiles_off_" + modo);
-            captura("f3_tiles_on2_" + modo);
-            int controle = Math.max(diferenca("f3_tiles_off_" + modo, "f3_tiles_off2_" + modo),
-                diferenca("f3_tiles_on_" + modo, "f3_tiles_on2_" + modo));
-            // Com a cena ainda variando, compara as capturas vizinhas no tempo (on2 x off2).
-            if (controle > 0) diff = Math.min(diff, diferenca("f3_tiles_on2_" + modo, "f3_tiles_off2_" + modo));
-            escrever("CONTROLE tiles " + modo + ": off x off diferença máx " + controle, true);
+            int[] on = null, off = null;
+            int diff = 0, controle = 0;
+            double msOn = 0, msOff = 0;
+            // Fase 4: com o controle acusando cena em movimento (chunk, entidade), a comparação não vale; repete até 3 vezes.
+            for (int tentativa = 0; tentativa < 3; tentativa++) {
+                tiles(true);
+                on = orcamento();
+                captura("f3_tiles_on_" + modo);
+                msOn = mediaQuadro(3);
+                tiles(false);
+                off = orcamento();
+                captura("f3_tiles_off_" + modo);
+                msOff = mediaQuadro(3);
+                captura("f3_tiles_off2_" + modo);
+                tiles(true);
+                diff = diferenca("f3_tiles_on_" + modo, "f3_tiles_off_" + modo);
+                captura("f3_tiles_on2_" + modo);
+                controle = Math.max(diferenca("f3_tiles_off_" + modo, "f3_tiles_off2_" + modo),
+                    diferenca("f3_tiles_on_" + modo, "f3_tiles_on2_" + modo));
+                // Com a cena ainda variando, compara as capturas vizinhas no tempo (on2 x off2).
+                if (controle > 0) diff = Math.min(diff, diferenca("f3_tiles_on2_" + modo, "f3_tiles_off2_" + modo));
+                escrever("CONTROLE tiles " + modo + " (tentativa " + (tentativa + 1) + "): off x off diferença máx " + controle
+                    + ", on x off " + diff, true);
+                if (controle == 0) break;
+                ticks(100);
+            }
             check("fase 3 tiles (" + modo + ", 64 luzes): com e sem máscaras por tile, capturas idênticas",
                 on[5] == 1 && off[5] == 0 && diff == 0, "diferença máx " + diff + ", luzes/tile média " + on[6] / 10.0 + " máx " + on[7]
                     + String.format(Locale.ROOT, " · mediana de quadro llvmpipe: tiles %.1f ms, sem %.1f ms (tendência)", msOn, msOff));
@@ -590,7 +851,14 @@ final class RoteiroLuz implements Runnable {
             new Cenario("f3_sobreposta_64", List.of("vfxsample luz carga 64 mista sobreposto"), true),
             new Cenario("f3_sobreposta_64_sem_tiles", List.of("#tiles off", "vfxsample luz carga 64 mista sobreposto"), true),
             new Cenario("f3_adaptativa_32_png", List.of("vfxsample luz adaptativa"), true),
-            new Cenario("f3_prioridade_30", List.of("vfxsample luz prioridade"), true)));
+            new Cenario("f3_prioridade_30", List.of("vfxsample luz prioridade"), true),
+            // Fase 4 (coverage first): a arena de 192 luzes com e sem coverage (o custo da cena inteira no LOW), o pior
+            // caso por tile (aglomerado) e a mesma carga espalhada. "#coverage off" é do roteiro.
+            new Cenario("f4_arena", List.of("vfxsample cobertura arena"), true),
+            new Cenario("f4_arena_sem_coverage", List.of("#coverage off", "vfxsample cobertura arena"), true),
+            new Cenario("f4_estresse_192_grade", List.of("vfxsample cobertura estresse 192 grade"), true),
+            new Cenario("f4_estresse_192_aglomerado", List.of("vfxsample cobertura estresse 192 aglomerado"), true),
+            new Cenario("f4_cinema", List.of("vfxsample cobertura cinema"), true)));
         cenarios.removeIf(c -> c.novo() && !v015);
         String so = System.getProperty("calamidade.luz.cenarios", "");
         if (!so.isBlank()) {
@@ -660,7 +928,13 @@ final class RoteiroLuz implements Runnable {
         ticks(5);
         for (String linha : c.comandos()) {
             if (linha.equals("#tiles off")) tiles(false);
+            else if (linha.equals("#coverage off")) coverage(false);
             else comando(linha);
+        }
+        // Fase 4: as cenas de cobertura, sempre da mesma câmera.
+        if (c.nome().startsWith("f4_")) {
+            noServidor(() -> { jogador().getAbilities().flying = true; jogador().onUpdateAbilities(); });
+            cameraArena();
         }
         // Fase 3: as cargas do laboratório ficam à frente; a câmera sobe (voando) para ver a grade inteira.
         if (c.nome().startsWith("f3_carga")) {
@@ -672,6 +946,10 @@ final class RoteiroLuz implements Runnable {
     private void desmontar() throws Exception {
         comando("calamidade bench stop");
         comando("vfxsample luz parar");
+        if (v015) {
+            comando("vfxsample cobertura parar");
+            coverage(true);
+        }
         tiles(true);
         ticks(20);
     }

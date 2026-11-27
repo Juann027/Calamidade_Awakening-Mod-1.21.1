@@ -30,7 +30,29 @@ public final class PerfOverlay {
     private static final int WINDOW = 240;
 
     private static boolean visible;
+    /** Fase 4: F7 page (1 general, 2 coverage and lights, 3 sky and terrain); F7 cycles hidden, 1, 2, 3. */
+    private static int page = 1;
+    static final int PAGES = 3;
     private static String renderer;
+    // Fase 4: where the scene went (instances and declared lights) and the coverage counters of the lights pass.
+    private static StageScene.Coverage coverage = StageScene.Coverage.NONE;
+    private static int[] coverageCounters = new int[11];
+
+    /** Fase 4: coverage of the frame (set every frame by the backend). */
+    static void coverage(StageScene.Coverage c, int[] counters) { coverage = c; coverageCounters = counters; }
+
+    /** Fase 4 (tests): instance coverage of the last frame. */
+    public static StageScene.Coverage coverage() { return coverage; }
+
+    /**
+     * Fase 4 (tests): lights from light-only instances, not resolved, kept by cap, added by density, cookies added by
+     * density, density per tile, cells of the candidates, cells kept, coverage on, AUTO relief on, lights that entered the
+     * kept set in the frame (churn).
+     */
+    public static int[] coverageCounters() { return coverageCounters.clone(); }
+
+    /** Fase 4: the last frame used extras AUTO relief can turn off (density admission or sampled cookies). */
+    static boolean lastRelievable() { return coverageCounters[3] > 0 || coverageCounters[4] > 0 || lightDetail[3] > 0; }
 
     // Written during the frame being rendered.
     private static int effects, volumes, vertices, passes, atmospheres, heroes, heroPasses;
@@ -225,14 +247,25 @@ public final class PerfOverlay {
         }
     }
 
-    /** Shows the panel (measurements). */
-    public static void show() { visible = true; }
+    /** Shows the panel (measurements), first page. */
+    public static void show() { show(1); }
+
+    /** Fase 4: shows one page of the panel (1 general, 2 coverage and lights, 3 sky and terrain). */
+    public static void show(int which) {
+        visible = true;
+        page = Math.clamp(which, 1, PAGES);
+    }
 
     /** Hides the panel (0.12.0: tests take screenshots with and without it). */
     public static void hide() { visible = false; }
 
     static void tick() {
-        while (TOGGLE.consumeClick()) visible = !visible;
+        // Fase 4: F7 cycles hidden → general → coverage and lights → sky and terrain → hidden.
+        while (TOGGLE.consumeClick()) {
+            if (!visible) { visible = true; page = 1; }
+            else if (page < PAGES) page++;
+            else visible = false;
+        }
     }
 
     /** Starts a CSV recording of frame times; returns false if one is already running. */
@@ -290,13 +323,41 @@ public final class PerfOverlay {
         if (mc.player != null) mc.player.displayClientMessage(message, false);
     }
 
-    /** The F7 lines (0.11.2: also shown live in the Atlas diagnostics tab). */
-    public static List<Component> lines() {
+    /** The F7 lines of every page (0.11.2: also shown live in the Atlas diagnostics tab). */
+    public static List<Component> lines() { return lines(0); }
+
+    /**
+     * Fase 4: the lines of one page (0 = all): 1 general (frame, quality, instances, passes, totals), 2 coverage and
+     * lights (where the scene went, limits, cookies, resolution, tiles), 3 sky and terrain.
+     */
+    public static List<Component> lines(int which) {
+        var all = sections();
+        var out = new ArrayList<Component>();
+        for (var e : all) if (which == 0 || e.getKey() == 0 || e.getKey() == which) out.add(e.getValue());
+        return out;
+    }
+
+    /** Fase 4: lines tagged with the page they belong to (0 = every page). */
+    private static final class Sectioned extends ArrayList<Component> {
+        final List<java.util.Map.Entry<Integer, Component>> tagged = new ArrayList<>();
+        int section;
+        @Override public boolean add(Component c) {
+            tagged.add(java.util.Map.entry(section, c));
+            return super.add(c);
+        }
+    }
+
+    private static List<java.util.Map.Entry<Integer, Component>> sections() {
+        var lines = new Sectioned();
+        sectionsInto(lines);
+        return lines.tagged;
+    }
+
+    private static void sectionsInto(Sectioned lines) {
         Minecraft mc = Minecraft.getInstance();
         double[] window = new double[frameCount];
         for (int i = 0; i < frameCount; i++) window[i] = frames[i] / 1e6;
         Arrays.sort(window);
-        var lines = new ArrayList<Component>();
         lines.add(Component.translatableWithFallback(PREFIX + "title", "Calamidade_Awakening · diagnostics (%s)",
             TOGGLE.getTranslatedKeyMessage()));
         lines.add(Component.translatableWithFallback(PREFIX + "gpu", "GPU: %s", renderer()));
@@ -304,6 +365,7 @@ public final class PerfOverlay {
             mc.getFps(), format(percentile(window, .5)), format(percentile(window, .95)), lastLimits.label()));
         Component quality = qualityLine.get();
         if (quality != null) lines.add(quality);
+        section(lines, 1);
         Component boss = bossLine.get();
         if (boss != null) lines.add(boss);
         lines.add(Component.translatableWithFallback(PREFIX + "scene", "Events: %s resident · %s drawn · %s volumes",
@@ -320,6 +382,8 @@ public final class PerfOverlay {
             lastBeams, lastLimits.beams(), pool(lastBeamPool)));
         lines.add(Component.translatableWithFallback(PREFIX + "lights", "Lights: %s drawn (max %s) · pass %s",
             lastLights, lastLimits.lights(), pool(lastLightPool)));
+        section(lines, 2);
+        coverageLines(lines);
         if (lightDetail[0] > 0 || cookieBytes > 0)
             lines.add(Component.translatableWithFallback(PREFIX + "lights.detail",
                 "  %s requested · %s culled · %s over cap · cookies %s/%s (%s fallback, %s high-res) · atlas %s ready %s waiting %s failed, %s high-res (%s loading) · %s uploads · %s MB",
@@ -340,6 +404,7 @@ public final class PerfOverlay {
                 "  per pixel: tiles %s · %s lights/tile average · %s max · %s cookies max in one tile",
                 b[5] == 1 ? "on" : "off", format(b[6] / 10.0), b[7], b[8]));
         }
+        section(lines, 3);
         lines.add(Component.translatableWithFallback(PREFIX + "terrain", "Terrain: %s hot zones · %s stand-ins · pass %s",
             lastTerrainZones, lastTerrainStandIns, pool(lastTerrainPool)));
         lines.add(Component.translatableWithFallback(PREFIX + "meshes", "Stand-in meshes: %s · %s vertices · last build %s ms",
@@ -374,6 +439,7 @@ public final class PerfOverlay {
             if (!spProblem.isEmpty()) lines.add(Component.literal(spProblem.length() > 110 ? spProblem.substring(0, 110) + "…" : spProblem));
         }
         lines.add(Component.translatableWithFallback(PREFIX + "world", "Global events: %s", worldEvents));
+        section(lines, 1);
         if (!"release".equals(dev.calamidade_awakening.CalamidadeAwakening.BUILD))
             lines.add(Component.literal("Build: " + dev.calamidade_awakening.CalamidadeAwakening.BUILD));
         if (skyState != null)
@@ -381,19 +447,64 @@ public final class PerfOverlay {
         if (CostProbe.running()) lines.add(Component.literal(CostProbe.status()));
         if (recording != null) lines.add(Component.translatableWithFallback(PREFIX + "recording", "Recording: %s s left",
             Math.max(0, (recordingEnds - System.currentTimeMillis() + 999) / 1000)));
-        return lines;
+    }
+
+    /** Switches the section the next lines belong to (the anonymous list of {@link #sections}). */
+    private static void section(Sectioned lines, int section) { lines.section = section; }
+
+    /**
+     * Fase 4: where each part of the scene went, from the resident instances to the drawn lights, with the limits that
+     * applied (configured, default, custom) and the reason of every loss.
+     */
+    private static void coverageLines(Sectioned lines) {
+        var c = coverage;
+        int[] k = coverageCounters;
+        boolean on = k[8] == 1;
+        lines.add(Component.translatableWithFallback(PREFIX + "coverage.instances",
+            "Coverage first %s · instances: %s resident · %s eligible · %s drawn (cap %s) · %s light-only · %s excluded",
+            on ? "on" : "off", c.resident(), c.eligible(), c.drawn(), lastLimits.effects(), c.lightOnly(), c.excluded()));
+        lines.add(Component.translatableWithFallback(PREFIX + "coverage.declared",
+            "  lights declared %s: %s in drawn · %s in light-only · %s in excluded (range, fade, anchor) · %s in culled instances",
+            c.declared(), c.declaredDrawn(), c.declaredLightOnly(), c.declaredExcluded(),
+            Math.max(0, c.declared() - c.declaredDrawn() - c.declaredLightOnly() - c.declaredExcluded())));
+        lines.add(Component.translatableWithFallback(PREFIX + "coverage.pass",
+            "  pass: %s candidates (%s from light-only, %s over the CPU ceiling) · %s culled · %s dark · %s by cap + %s by density (%s/tile) · %s over cap · %s drawn",
+            lightDetail[0], k[0], k[1], lightDetail[1], lightBudget[0], k[2], k[3], k[5], lightDetail[2], lastLights));
+        lines.add(Component.translatableWithFallback(PREFIX + "coverage.cookies",
+            "  cookies: %s by budget + %s by density · %s fallback · distribution: %s of %s world cells kept · AUTO relief %s",
+            Math.max(0, lightDetail[3] - k[4]), k[4], lightDetail[4], k[7], k[6], k[9] == 1 ? "on" : "off"));
+        dev.calamidade_awakening.api.QualityProfile profile = null;
+        for (var each : dev.calamidade_awakening.api.QualityProfile.values()) if (each.name().equals(lastLimits.name())) profile = each;
+        if (profile != null) {
+            var d = profile.defaults;
+            lines.add(Component.translatableWithFallback(PREFIX + "coverage.limits",
+                "  limits %s: drawn %s · lights %s · cookies %s · beams %s · passes %s (defaults %s/%s/%s/%s/%s)%s",
+                profile.name(), lastLimits.effects(), lastLimits.lights(), lastLimits.cookies(), lastLimits.beams(), lastLimits.marks(),
+                d.effects(), d.lights(), Math.min(d.cookies(), d.lights()), d.beams(), d.passes(),
+                lastLimits.effects() != d.effects() || lastLimits.lights() != d.lights() || lastLimits.beams() != d.beams()
+                    || lastLimits.marks() != d.passes() ? " · CUSTOM (/calamidade_client quality defaults)" : ""));
+        }
     }
 
     static void draw(GuiGraphics graphics) {
         if (!visible) return;
         Minecraft mc = Minecraft.getInstance();
-        var lines = lines();
+        var lines = new ArrayList<Component>(lines(page));
+        lines.add(1, Component.translatableWithFallback(PREFIX + "page", "Page %s/%s (%s: next) · %s",
+            page, PAGES, TOGGLE.getTranslatedKeyMessage(), Component.translatableWithFallback(PREFIX + "page." + page,
+                page == 1 ? "general" : page == 2 ? "coverage and lights" : "sky and terrain")));
+        // Fase 4: long lines wrap at the GUI width instead of leaving the screen; nothing is drawn below its bottom.
+        int max = Math.max(120, graphics.guiWidth() - 12);
+        var rows = new ArrayList<net.minecraft.util.FormattedCharSequence>();
+        for (Component line : lines) rows.addAll(mc.font.split(line, max));
+        int fit = Math.max(1, (graphics.guiHeight() - 8) / 10);
+        if (rows.size() > fit) rows = new ArrayList<>(rows.subList(0, fit));
         int width = 0;
-        for (Component line : lines) width = Math.max(width, mc.font.width(line));
+        for (var row : rows) width = Math.max(width, mc.font.width(row));
         int x = 4, y = 4;
-        graphics.fill(x - 2, y - 2, x + width + 2, y + lines.size() * 10, 0xc0101820);
-        for (Component line : lines) {
-            graphics.drawString(mc.font, line, x, y, 0xffd2e9f4, false);
+        graphics.fill(x - 2, y - 2, x + width + 2, y + rows.size() * 10, 0xc0101820);
+        for (var row : rows) {
+            graphics.drawString(mc.font, row, x, y, 0xffd2e9f4, false);
             y += 10;
         }
     }
@@ -402,6 +513,7 @@ public final class PerfOverlay {
         return switch (pool) {
             case HERO -> Component.translatableWithFallback(PREFIX + "pool.hero", "HERO");
             case COMMON -> Component.translatableWithFallback(PREFIX + "pool.common", "common");
+            case ENGINE -> Component.translatableWithFallback(PREFIX + "pool.engine", "engine");
             case NONE -> Component.translatableWithFallback(PREFIX + "no", "no");
         };
     }

@@ -27,6 +27,31 @@ public enum QualityProfile {
     /** Lights and cookies caps of each profile before fase 3 (config migration of untouched values). */
     public static final int[] LEGACY_LIGHTS = {8, 32, 64, 64};
 
+    /**
+     * (fase 4) Every earlier default of the caps, by profile and cap (drawn, passes, heroPasses, heroes, beams, lights),
+     * from the provisional 0.11.2 profiles (BALANCED 6/2/48/24, HIGH 12/4, ULTRA 24/8) to fase 3. A config value equal
+     * to one of these was never chosen by the player and moves to the current default once (config migration 3).
+     */
+    public static final int[][][] LEGACY = {
+        {{}, {}, {}, {}, {}, {8}},
+        {{6}, {2}, {}, {}, {48}, {24, 32}},
+        {{12}, {4}, {}, {}, {}, {64}},
+        {{24}, {8}, {}, {}, {}, {64}},
+    };
+
+    /** (fase 4) True when {@code value} is an earlier default of cap {@code index} of this profile (not the current one). */
+    public boolean legacy(int index, int value) {
+        if (index < 0 || index >= LEGACY[ordinal()].length) return false;
+        for (int v : LEGACY[ordinal()][index]) if (v == value) return true;
+        return false;
+    }
+
+    /** (fase 4) The defaults in the order of the client config entries (drawn ... cookies). */
+    public int[] defaultValues() {
+        var d = defaults;
+        return new int[] {d.effects(), d.passes(), d.heroPasses(), d.heroes(), d.beams(), d.lights(), d.cookies()};
+    }
+
     /** Shader detail tier shown to addons and used for steps, segments and terrain stand-ins. */
     public final Quality tier;
     /** Default caps of the profile. */

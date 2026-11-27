@@ -15,7 +15,12 @@ public final class EnginePasses {
         /** The common addon budget (a NORMAL effect needs the pass). */
         COMMON,
         /** The HERO budget (a HERO effect needs the pass). */
-        HERO;
+        HERO,
+        /**
+         * (0.15.0, fase 4) Paid by the engine, outside the addon budgets, like the sky and atmosphere passes: the lights
+         * pass under coverage first. Its cost is bounded by its own caps (lights per frame and per screen tile).
+         */
+        ENGINE;
 
         /** True when the pass is drawn. */
         public boolean drawn() { return this != NONE; }

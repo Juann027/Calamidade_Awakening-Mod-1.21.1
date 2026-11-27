@@ -64,9 +64,16 @@ public final class RimuStageBackend {
         PerfOverlay.sky(skyQueued ? Math.min(sky.layers().size(), SkyFrame.ROWS) : 0, sky.candidates(), skyQueued);
         beams.collect(plan, camera, frame.partial());
         terrain.collect(plan, camera, frame.partial());
-        lights.collect(plan, camera, frame.partial(), terrain);
+        lights.collect(plan, camera, frame.partial(), terrain, coordinator.coverage(), coordinator.relief());
         if (!plan.effects().isEmpty() || orbit > .001f) drawEffects(frame, plan, orbit);
-        else lights.report(false);
+        else {
+            // Fase 4: light-only instances light the world even when no instance is drawn (the engine pays the pass).
+            var pool = lights.pay(new dev.calamidade_awakening.api.PassBudget(0, 0));
+            if (pool.drawn()) lights.queue(frame);
+            PerfOverlay.lights(pool.drawn() ? Math.min(lights.lights().size(), LightFrame.ROWS) : 0, pool);
+            lights.report(pool.drawn());
+        }
+        PerfOverlay.coverage(plan.coverage(), lights.coverageCounters());
         // 0.8.0: one engine pass for the mixed atmosphere, last, so exposure and tint cover the whole scene.
         // Not charged to the addon budget and independent of the frustum (the sky stays when you turn away).
         boolean queued = atmosphere.draw(frame, camera, frame.partial());

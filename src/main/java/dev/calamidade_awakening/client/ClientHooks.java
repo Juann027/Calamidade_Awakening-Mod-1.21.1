@@ -316,6 +316,17 @@ public final class ClientHooks {
                 .then(net.minecraft.commands.Commands.literal("lighttiles")
                     .then(net.minecraft.commands.Commands.literal("on").executes(ctx -> lightTiles(true)))
                     .then(net.minecraft.commands.Commands.literal("off").executes(ctx -> lightTiles(false))))
+            // 0.15.0 fase 4: restore the caps of one profile (or all) without touching the other settings; coverage A/B.
+            .then(net.minecraft.commands.Commands.literal("quality")
+                .then(net.minecraft.commands.Commands.literal("defaults")
+                    .then(net.minecraft.commands.Commands.argument("profile", com.mojang.brigadier.arguments.StringArgumentType.word())
+                        .suggests((ctx, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+                            java.util.List.of("low", "balanced", "high", "ultra", "all"), b))
+                        .executes(ctx -> qualityDefaults(com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "profile")
+                            .toLowerCase(java.util.Locale.ROOT))))))
+            .then(net.minecraft.commands.Commands.literal("coverage")
+                .then(net.minecraft.commands.Commands.literal("on").executes(ctx -> coverage(true)))
+                .then(net.minecraft.commands.Commands.literal("off").executes(ctx -> coverage(false))))
             .then(net.minecraft.commands.Commands.literal("record")
                 .then(net.minecraft.commands.Commands.argument("seconds",
                         com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 300))
@@ -463,7 +474,40 @@ public final class ClientHooks {
                 "Quality: AUTO → %s · up from %s %s s ago (p95 %s ms < %s ms, effects cut)", auto.current().name(),
                 r.from().name(), ago, String.format(java.util.Locale.ROOT, "%.1f", r.p95()),
                 String.format(java.util.Locale.ROOT, "%.1f", r.thresholdMs()));
+            // Fase 4: fidelity before content.
+            case RELIEF -> Component.translatableWithFallback(p + "relief",
+                "Quality: AUTO → %s · relief %s s ago: density and sheet frames off (p95 %s ms > %s ms)", auto.current().name(),
+                ago, String.format(java.util.Locale.ROOT, "%.1f", r.p95()), String.format(java.util.Locale.ROOT, "%.1f", r.thresholdMs()));
+            case RESTORE -> Component.translatableWithFallback(p + "restore",
+                "Quality: AUTO → %s · relief lifted %s s ago (p95 %s ms < %s ms)", auto.current().name(), ago,
+                String.format(java.util.Locale.ROOT, "%.1f", r.p95()), String.format(java.util.Locale.ROOT, "%.1f", r.thresholdMs()));
         };
+    }
+
+    /** Fase 4: /calamidade_client quality defaults <profile|all>: the caps of the profile back to the current defaults. */
+    private static int qualityDefaults(String which) {
+        int n = 0;
+        for (var profile : dev.calamidade_awakening.api.QualityProfile.values())
+            if (which.equals("all") || profile.name().equalsIgnoreCase(which)) {
+                dev.calamidade_awakening.config.ClientConfig.restoreDefaults(profile);
+                n++;
+            }
+        COORDINATOR.invalidate();
+        var player = Minecraft.getInstance().player;
+        if (player != null) player.displayClientMessage(n == 0 ? Component.literal("Unknown profile: " + which)
+            : Component.translatableWithFallback("perf.calamidade_awakening.defaults",
+                "Calamidade_Awakening: caps of %s back to the current defaults (other settings kept)", which.toUpperCase(java.util.Locale.ROOT)), false);
+        return n;
+    }
+
+    /** Fase 4: /calamidade_client coverage on|off (saved in the client config). */
+    private static int coverage(boolean on) {
+        dev.calamidade_awakening.config.ClientConfig.coverage(on);
+        COORDINATOR.invalidate();
+        var player = Minecraft.getInstance().player;
+        if (player != null) player.displayClientMessage(Component.translatableWithFallback("perf.calamidade_awakening.coverage.set",
+            "Coverage first: %s (F7: coverage page)", on ? "on" : "off"), false);
+        return 1;
     }
 
     private static int unlimited(dev.calamidade_awakening.api.FrameLimits limits) {

@@ -3,6 +3,7 @@ package dev.calamidade_awakening.client;
 import cyou.rimuru.rimulib.mc1211.client.api.FxApi;
 import dev.calamidade_awakening.api.Basis;
 import dev.calamidade_awakening.api.CookieAtlas;
+import dev.calamidade_awakening.api.CoverageBudget;
 import dev.calamidade_awakening.api.EnginePasses;
 import dev.calamidade_awakening.api.FrameLimits;
 import dev.calamidade_awakening.api.LightBudget;
@@ -54,8 +55,12 @@ final class LightFrame {
         }
     }
 
-    /** Fase 3: selection data of one resolved light (identity across frames, tier, score, bounding sphere). */
-    private record Pick(Resolved r, long key, int tier, float score, double cx, double cy, double cz, double radius) {}
+    /**
+     * Fase 3: selection data of one resolved light (identity across frames, tier, score, bounding sphere). Fase 4: its
+     * world cell (spatial spread) and its screen tile rectangle (null = every tile), filled before the selection.
+     */
+    private record Pick(Resolved r, long key, int tier, float score, double cx, double cy, double cz, double radius,
+                        long cell, int[] rect) {}
 
     private final StageScene scene;
     private final DataTexture texture = new DataTexture(TEXELS, ROWS);
@@ -83,6 +88,14 @@ final class LightFrame {
     private static float projY = 1.4281f;
     private int criticalCookies, criticalSampled;
     private int dark, cookieRequests, overBudget, notReady, blendsDropped, tiled, tileAvg10, tileMax, tileCookieMax;
+    // Fase 4 (coverage first): flags of the frame, lights from light-only instances, lights not resolved (CPU ceiling),
+    // lights kept by the cap and added by the density admission, cookies added the same way, world cells.
+    private boolean coverage, relief;
+    private int fromLightOnly, unresolved, keptByCap, addedByDensity, cookiesByDensity, cellsAll, cellsKept, density, churn;
+    private java.util.Set<Long> admittedBefore = new java.util.HashSet<>(), cookieAdmittedBefore = new java.util.HashSet<>();
+    private final int[] densityTiles = new int[LightBudget.TILES];
+    // Fase 4: frames in a row each candidate fitted the density (temporal hysteresis of the admission).
+    private java.util.Map<Long, Integer> streaks = new java.util.HashMap<>(), cookieStreaks = new java.util.HashMap<>();
     // Game terrain fog of the frame (RenderFog, recorded after every listener): the light fades with it.
     private float fogStart = 1e6f, fogEnd = 2e6f;
     private boolean fogCylinder;
@@ -115,18 +128,39 @@ final class LightFrame {
      * every stand-in, counted with the lights of their instance (caps and pass payment).
      */
     void collect(StageScene.Plan plan, Vec3 camera, float partial, TerrainFrame terrain) {
+        collect(plan, camera, partial, terrain, false, false);
+    }
+
+    /**
+     * Fase 4: {@code coverage} walks the light lane of the plan ({@link StageScene.Plan#lit}: drawn instances, then the
+     * light-only ones), spreads the selection over world cells and admits lights over the cap by screen-tile density
+     * ({@link CoverageBudget}); the pass is then paid by the engine. {@code relief} (AUTO under pressure) keeps the lane
+     * and the spread but turns the density admission off and reads one sheet frame for NORMAL and DECORATIVE cookies.
+     */
+    void collect(StageScene.Plan plan, Vec3 camera, float partial, TerrainFrame terrain, boolean coverage, boolean relief) {
         heroNeeds = normalNeeds = false;
         requested = culled = dark = 0;
+        this.coverage = coverage;
+        this.relief = relief;
+        fromLightOnly = unresolved = keptByCap = addedByDensity = cellsAll = cellsKept = 0;
+        java.util.Set<Long> drawnOrders = new java.util.HashSet<>();
+        for (StageScene.Sample s0 : plan.effects()) drawnOrders.add(s0.event().order());
         cookies.pump(CookieAtlas.largeSide(plan.limits().tier()));
         var mc = Minecraft.getInstance();
         boolean calm = mc.options.hideLightningFlash().get();
         float flickerScale = ClientConfig.screenEffects() * (calm ? .25f : 1f);
         var frustum = mc.levelRenderer.getFrustum();
         List<Pick> all = new ArrayList<>();
-        for (StageScene.Sample sample : plan.effects()) {
+        for (StageScene.Sample sample : coverage ? plan.lit() : plan.effects()) {
             var list = sample.kind().lights();
             var extra = terrain == null ? null : terrain.lights(sample.event().order());
             if (list.isEmpty() && extra == null) continue;
+            boolean lightOnly = !drawnOrders.contains(sample.event().order());
+            // Fase 4: CPU ceiling of the resolution; the lane is in priority order, so the least important go.
+            if (all.size() >= CoverageBudget.MAX_RESOLVED) {
+                unresolved += list.size();
+                continue;
+            }
             Vec3 center = camera.add(sample.relative());
             var sampler = sample.time().timeline();
             double seconds = sample.age() / 20.0;
@@ -161,6 +195,7 @@ final class LightFrame {
                 b = b.add(offset);
                 if (weight <= Light.ACTIVE_WEIGHT) continue;
                 requested++;
+                if (lightOnly) fromLightOnly++;
                 Resolved r;
                 if (light.oriented()) {
                     Light.Projection projection = light.projection(sampler, seconds);
@@ -204,20 +239,53 @@ final class LightFrame {
         int n = all.size(), max = plan.limits().lights();
         int[] tiers = new int[n];
         float[] scores = new float[n];
-        boolean[] was = new boolean[n];
+        boolean[] was = new boolean[n], wasAdmitted = new boolean[n];
+        long[] cells = new long[n];
         for (int i = 0; i < n; i++) {
             Pick p = all.get(i);
             tiers[i] = p.tier(); scores[i] = p.score(); was[i] = keptBefore.contains(p.key());
+            wasAdmitted[i] = admittedBefore.contains(p.key());
+            cells[i] = p.cell();
         }
-        boolean[] keep = LightBudget.select(n, tiers, scores, was, max);
-        List<Pick> kept = new ArrayList<>(Math.min(n, max));
-        List<Resolved> out = new ArrayList<>(Math.min(n, max));
+        // Fase 4: the cap keeps the most important lights spread over world cells (fase 3 without coverage).
+        boolean[] keep = coverage ? CoverageBudget.select(n, tiers, scores, was, cells, max)
+            : LightBudget.select(n, tiers, scores, was, max);
+        keptByCap = Math.min(n, max);
+        // Fase 4: density admission over the cap, only where the tiled pass bounds the per-pixel cost.
+        java.util.Set<Long> admittedKeys = new java.util.HashSet<>();
+        density = CoverageBudget.tileLights(max);
+        if (coverage && !relief && n > max && max > 0 && viewProjValid && tilesAllowed) {
+            int[][] rects = new int[n][];
+            for (int i = 0; i < n; i++) rects[i] = all.get(i).rect();
+            boolean[] before = keep.clone();
+            int[] streak = new int[n];
+            for (int i = 0; i < n; i++) streak[i] = streaks.getOrDefault(all.get(i).key(), 0);
+            addedByDensity = CoverageBudget.admit(n, keep, tiers, scores, wasAdmitted, rects, density, ROWS, densityTiles,
+                streak, CoverageBudget.SETTLE);
+            java.util.Map<Long, Integer> next = new java.util.HashMap<>();
+            for (int i = 0; i < n; i++) if (streak[i] > 0 && !keep[i]) next.put(all.get(i).key(), streak[i]);
+            streaks = next;
+            if (keptByCap + addedByDensity < LightBudget.TILED_FROM) {
+                // Below the tiled pass every pixel would loop over every light: no admission.
+                keep = before;
+                addedByDensity = 0;
+            } else for (int i = 0; i < n; i++) if (keep[i] && !before[i]) admittedKeys.add(all.get(i).key());
+        }
+        admittedBefore = admittedKeys;
+        // Spatial spread of the frame (F7, tests), also without coverage (fase 3 comparison).
+        cellsAll = CoverageBudget.cells(cells, null);
+        cellsKept = CoverageBudget.cells(cells, keep);
+        List<Pick> kept = new ArrayList<>(Math.min(n, ROWS));
+        List<Resolved> out = new ArrayList<>(Math.min(n, ROWS));
         java.util.Set<Long> keys = new java.util.HashSet<>();
-        for (int i = 0; i < n; i++) if (keep[i]) {
+        for (int i = 0; i < n; i++) if (keep[i] && kept.size() < ROWS) {
             kept.add(all.get(i));
             out.add(all.get(i).r());
             keys.add(all.get(i).key());
         }
+        // Fase 4 (stability): lights that entered the kept set this frame.
+        churn = 0;
+        for (Long key : keys) if (!keptBefore.contains(key)) churn++;
         keptBefore = keys;
         picks = kept;
         lights = out;
@@ -248,7 +316,12 @@ final class LightFrame {
             return null;
         }
         double distance = Math.sqrt(sphere[0] * sphere[0] + sphere[1] * sphere[1] + sphere[2] * sphere[2]);
-        return new Pick(r, key, tier, LightBudget.score(gain, sphere[3], distance), sphere[0], sphere[1], sphere[2], sphere[3]);
+        // Fase 4: world cell of the light (fixed in the world: the camera moving does not reshuffle it) and its tiles.
+        long cell = CoverageBudget.cell(sphere[0] + camera.x, sphere[1] + camera.y, sphere[2] + camera.z);
+        int[] rect = null;
+        if (viewProjValid && LightBudget.tiles(VIEW_PROJ, sphere[0], sphere[1], sphere[2], sphere[3], tileRect)) rect = tileRect.clone();
+        return new Pick(r, key, tier, LightBudget.score(gain, sphere[3], distance), sphere[0], sphere[1], sphere[2], sphere[3],
+            cell, rect);
     }
 
     /** World axes of an oriented light; {@code sample} non-null turns a local frame by the instance frame. */
@@ -322,7 +395,20 @@ final class LightFrame {
 
     /** Pays for this frame's pass from the right pool. */
     EnginePasses.Pool pay(dev.calamidade_awakening.api.PassBudget budget) {
-        return lights.isEmpty() ? EnginePasses.Pool.NONE : EnginePasses.pay(budget, heroNeeds, normalNeeds);
+        if (lights.isEmpty()) return EnginePasses.Pool.NONE;
+        // Fase 4: under coverage first the lights pass is the engine's, outside the addon budgets (its cost is bounded by
+        // its own caps); without it, the pools of 0.9.
+        return coverage ? EnginePasses.Pool.ENGINE : EnginePasses.pay(budget, heroNeeds, normalNeeds);
+    }
+
+    /**
+     * Fase 4 counters of the frame (F7, tests): lights from light-only instances, lights not resolved (CPU ceiling),
+     * kept by the cap, added by density, cookies added by density, density per tile, world cells of the candidates and
+     * of the kept lights, coverage and relief flags, lights that entered the kept set this frame.
+     */
+    int[] coverageCounters() {
+        return new int[] {fromLightOnly, unresolved, keptByCap, addedByDensity, cookiesByDensity, density, cellsAll, cellsKept,
+            coverage ? 1 : 0, relief ? 1 : 0, churn};
     }
 
     /** F7 details of the frame (also when the pass was not paid for). */
@@ -350,12 +436,35 @@ final class LightFrame {
             for (int i = 0; i < count; i++) if (lights.get(i).light().cookie() != null) idx[m++] = i;
             int[] tiers = new int[m];
             float[] scores = new float[m];
-            boolean[] was = new boolean[m];
+            boolean[] was = new boolean[m], wasAdmitted = new boolean[m];
+            long[] cells = new long[m];
+            int[][] rects = new int[m][];
             for (int j = 0; j < m; j++) {
                 Pick p = picks.get(idx[j]);
-                tiers[j] = p.tier(); scores[j] = p.score(); was[j] = texturedBefore.contains(p.key());
+                tiers[j] = p.tier(); was[j] = texturedBefore.contains(p.key());
+                wasAdmitted[j] = cookieAdmittedBefore.contains(p.key());
+                // Fase 4: a light whose fallback is NONE disappears without its image: it goes first within its tier.
+                scores[j] = p.score() * (coverage && lights.get(idx[j]).light().cookie().fallback() == Light.Cookie.Fallback.NONE ? 2 : 1);
+                cells[j] = p.cell();
+                rects[j] = p.rect();
             }
-            boolean[] ok = LightBudget.select(m, tiers, scores, was, cookieCap);
+            boolean[] ok = coverage ? CoverageBudget.select(m, tiers, scores, was, cells, cookieCap)
+                : LightBudget.select(m, tiers, scores, was, cookieCap);
+            cookiesByDensity = 0;
+            java.util.Set<Long> admitted = new java.util.HashSet<>();
+            if (coverage && !relief && m > cookieCap && count >= LightBudget.TILED_FROM && viewProjValid && tilesAllowed) {
+                // Fase 4: cookies over the budget keep their image where the tile still has room (the shape survives).
+                boolean[] before = ok.clone();
+                int[] streak = new int[m];
+                for (int j = 0; j < m; j++) streak[j] = cookieStreaks.getOrDefault(picks.get(idx[j]).key(), 0);
+                cookiesByDensity = CoverageBudget.admit(m, ok, tiers, scores, wasAdmitted, rects,
+                    CoverageBudget.tileCookies(cookieCap), m, densityTiles, streak, CoverageBudget.SETTLE);
+                java.util.Map<Long, Integer> next = new java.util.HashMap<>();
+                for (int j = 0; j < m; j++) if (streak[j] > 0 && !ok[j]) next.put(picks.get(idx[j]).key(), streak[j]);
+                cookieStreaks = next;
+                for (int j = 0; j < m; j++) if (ok[j] && !before[j]) admitted.add(picks.get(idx[j]).key());
+            }
+            cookieAdmittedBefore = admitted;
             java.util.Set<Long> keys = new java.util.HashSet<>();
             for (int j = 0; j < m; j++) if (ok[j]) {
                 sampleOk[idx[j]] = true;
@@ -366,7 +475,8 @@ final class LightFrame {
         }
         boolean tiles = count >= LightBudget.TILED_FROM && viewProjValid && tilesAllowed;
         tileStats(count, sampleOk, tiles);
-        boolean dropBlend = tileCookieMax > LightBudget.PIXEL_PRESSURE;
+        // Fase 4: AUTO relief reads one sheet frame for NORMAL and DECORATIVE cookies before any profile change.
+        boolean dropBlend = tileCookieMax > LightBudget.PIXEL_PRESSURE || relief;
         var window = Minecraft.getInstance().getWindow();
         int screenH = Math.max(1, window.getHeight());
         double fov = Math.toDegrees(2 * Math.atan(1 / projY));
@@ -514,7 +624,8 @@ final class LightFrame {
         if (on) java.util.Arrays.fill(masks, 0);
         for (int i = 0; i < count; i++) {
             Pick p = picks.get(i);
-            if (!viewProjValid || !LightBudget.tiles(VIEW_PROJ, p.cx(), p.cy(), p.cz(), p.radius(), tileRect)) {
+            if (p.rect() != null) System.arraycopy(p.rect(), 0, tileRect, 0, 4);
+            else if (!viewProjValid || !LightBudget.tiles(VIEW_PROJ, p.cx(), p.cy(), p.cz(), p.radius(), tileRect)) {
                 tileRect[0] = 0; tileRect[1] = 0; tileRect[2] = LightBudget.TILES_X - 1; tileRect[3] = LightBudget.TILES_Y - 1;
             }
             if (on) LightBudget.mark(masks, tileRect, i);

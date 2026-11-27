@@ -246,5 +246,20 @@
   "calamidade_awakening.configuration.worldEventsMax": "Most global events",
   "calamidade_awakening.configuration.worldEventsMax.tooltip": "Global events at once; a start above it replaces the event with the lowest priority when its own priority is higher, otherwise it is refused.",
   "perf.calamidade_awakening.world": "Global events: %s",
-  "perf.calamidade_awakening.skystate": "Dimension sky: %s"
+  "perf.calamidade_awakening.skystate": "Dimension sky: %s",
+  "perf.calamidade_awakening.pool.engine": "engine",
+  "perf.calamidade_awakening.page": "Page %s/%s (%s: next) · %s",
+  "perf.calamidade_awakening.page.1": "general",
+  "perf.calamidade_awakening.page.2": "coverage and lights",
+  "perf.calamidade_awakening.page.3": "sky and terrain",
+  "perf.calamidade_awakening.coverage.instances": "Coverage first %s · instances: %s resident · %s eligible · %s drawn (cap %s) · %s light-only · %s excluded",
+  "perf.calamidade_awakening.coverage.declared": "  lights declared %s: %s in drawn · %s in light-only · %s in excluded (range, fade, anchor) · %s in culled instances",
+  "perf.calamidade_awakening.coverage.pass": "  pass: %s candidates (%s from light-only, %s over the CPU ceiling) · %s culled · %s dark · %s by cap + %s by density (%s/tile) · %s over cap · %s drawn",
+  "perf.calamidade_awakening.coverage.cookies": "  cookies: %s by budget + %s by density · %s fallback · distribution: %s of %s world cells kept · AUTO relief %s",
+  "perf.calamidade_awakening.coverage.limits": "  limits %s: drawn %s · lights %s · cookies %s · beams %s · passes %s (defaults %s/%s/%s/%s/%s)%s",
+  "perf.calamidade_awakening.quality.relief": "Quality: AUTO → %s · relief %s s ago: density and sheet frames off (p95 %s ms > %s ms)",
+  "perf.calamidade_awakening.quality.restore": "Quality: AUTO → %s · relief lifted %s s ago (p95 %s ms < %s ms)",
+  "perf.calamidade_awakening.defaults": "Calamidade_Awakening: caps of %s back to the current defaults (other settings kept)",
+  "perf.calamidade_awakening.coverage.set": "Coverage first: %s (F7: coverage page)",
+  "calamidade_awakening.configuration.coverage": "Coverage first (lights of every effect)"
 }

@@ -58,8 +58,16 @@ public final class FrameCoordinator {
         test = limits;
         invalidate();
     }
+    /**
+     * Coverage first (0.15.0, fase 4, client config {@code quality.coverage}, on by default): the light lane is decoupled
+     * from the effect cap, the lights pass is the engine's and lights over the cap are admitted by tile density. Off:
+     * fase 3 behavior. The test profile UNLIMITED keeps it as configured.
+     */
+    public boolean coverage() { return ClientConfig.coverage(); }
+    /** AUTO relief (fase 4): density admission off and one sheet frame, before AUTO lowers the profile. */
+    public boolean relief() { return mode() == QualityMode.AUTO && test == null && auto.relief(); }
     public StageScene.Plan plan(Vec3 camera, Vec3 look, float partial) {
-        if (plan == null) last = plan = scene.frame(camera, look, partial, limits());
+        if (plan == null) last = plan = scene.frame(camera, look, partial, limits(), coverage());
         return plan;
     }
 
@@ -80,7 +88,8 @@ public final class FrameCoordinator {
         StageScene.Plan p = last;
         boolean drawn = p != null && !p.effects().isEmpty();
         boolean cut = p != null && (p.cut() || passCut);
-        if (auto.frame(nowMs, frameMs, drawn, cut, scene.heroActive())) invalidate();
+        // Fase 4: the frame used the density admission or sampled cookie sheets: AUTO may relieve before stepping down.
+        if (auto.frame(nowMs, frameMs, drawn, cut, scene.heroActive(), coverage() && PerfOverlay.lastRelievable())) invalidate();
     }
 
     private static double targetMs() { return 1000.0 / ClientConfig.autoTargetFps(); }

@@ -37,10 +37,24 @@ public final class StageScene {
      * {@code quality()} is the tier addons see. {@code eligible} counts the visible instances that competed for the
      * frame, so {@code eligible > effects.size()} means the caps cut something (AUTO quality, 0.11.2).
      */
-    public record Plan(List<Sample> effects, List<Sample> volumes, FrameLimits limits, int eligible) {
+    public record Plan(List<Sample> effects, List<Sample> volumes, FrameLimits limits, int eligible, List<Sample> lit,
+                       Coverage coverage) {
+        /** Fase 3 form: the light lane is the drawn instances (no decoupling), no coverage counters. */
+        public Plan(List<Sample> effects, List<Sample> volumes, FrameLimits limits, int eligible) {
+            this(effects, volumes, limits, eligible, effects, Coverage.NONE);
+        }
         public Quality quality() { return limits.tier(); }
         /** True when the effect cap left visible instances out of this frame. */
         public boolean cut() { return eligible > effects.size(); }
+    }
+    /**
+     * Where the instances of a frame went (0.15.0, fase 4, F7): resident; eligible (in range, visible envelope, anchor
+     * loaded); drawn (the effect cap); light-only (not drawn, but their lights still compete in the lights pass);
+     * excluded (out of range, faded out or anchor not loaded). Lights declared by each group, before any light culling.
+     */
+    public record Coverage(int resident, int eligible, int drawn, int lightOnly, int excluded, int declared,
+                           int declaredDrawn, int declaredLightOnly, int declaredExcluded) {
+        public static final Coverage NONE = new Coverage(0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
     private final Map<Long, StageEvent> active = new LinkedHashMap<>();
     /** Real release age of sustained instances, by order (0.7.0). */
@@ -277,12 +291,26 @@ public final class StageScene {
     }
 
     public Plan frame(Vec3 camera, Vec3 look, float partial, FrameLimits limits) {
+        return frame(camera, look, partial, limits, false);
+    }
+
+    /**
+     * Selection of one frame. {@code decouple} (0.15.0, fase 4, coverage first): instances left out by the effect cap,
+     * or whose own frustum box is off screen, still hand their lights to the lights pass ({@link Plan#lit}), which has
+     * its own cap, priority, culling per light and screen tiles. Without it the light lane is the drawn instances
+     * (fase 3). Nothing else of a light-only instance is drawn: no addon pass, beam, mesh, volume or card shader.
+     */
+    public Plan frame(Vec3 camera, Vec3 look, float partial, FrameLimits limits, boolean decouple) {
         if (level == null || active.isEmpty()) return new Plan(List.of(), List.of(), limits, 0);
         List<FrameBudget.Candidate<Sample>> candidates = new ArrayList<>(active.size());
+        List<FrameBudget.Candidate<Sample>> offscreen = new ArrayList<>();
         double now = level.getGameTime() + partial;
         Frustum frustum = Minecraft.getInstance().levelRenderer.getFrustum();
+        int declared = 0, declaredExcluded = 0, excluded = 0;
         for (StageEvent effect : active.values()) {
             VisualKind kind = VisualKind.byId(effect.visual());
+            int lightCount = kind.lights().size();
+            declared += lightCount;
             double age = now - effect.tick();
             double local = localAge(effect, age);
             double p = Math.clamp(local / kind.duration, 0, 1);
@@ -290,14 +318,20 @@ public final class StageScene {
             if (kind.definition() != null && kind.definition().impact() != null)
                 alpha = Math.max(alpha, kind.definition().impact().weight(local));
             Vec3 origin = center(effect, partial);
-            if (origin == null) continue;
+            if (origin == null) {
+                excluded++;
+                declaredExcluded += lightCount;
+                continue;
+            }
             Vec3 relative = origin.subtract(camera);
             double distance = relative.length();
-            if (!isVisible(frustum, origin, kind.radius)) continue;
+            boolean visible = isVisible(frustum, origin, kind.radius);
+            if (!visible && (!decouple || lightCount == 0)) continue;
             float seed = (effect.seed() & 0xFFFFL) / 65535f;
             Sample mark = new Sample(effect, kind, relative, (float) p, (float) alpha, seed, distance, age, local,
                 basis(effect, partial));
-            candidates.add(new FrameBudget.Candidate<>(mark, distance, alpha, effect.order(), kind.range, kind.hero()));
+            var candidate = new FrameBudget.Candidate<>(mark, distance, alpha, effect.order(), kind.range, kind.hero());
+            (visible ? candidates : offscreen).add(candidate);
         }
         // 0.9.0: HERO instances first (nearest 2), never cut by the effect limit; NORMAL ones fill the rest.
         List<Sample> selected = FrameBudget.select(candidates, limits.effects(), limits.heroes());
@@ -305,7 +339,39 @@ public final class StageScene {
         List<Sample> volumes = selected.stream().filter(sample -> sample.kind().volume != VisualKind.Volume.NONE)
             .limit(Math.min(limits.marks(), MAX_VOLUMES)).toList();
         int eligible = (int) candidates.stream().filter(FrameBudget.Candidate::eligible).count();
-        return new Plan(selected, volumes, limits, eligible);
+        int declaredDrawn = 0;
+        for (Sample s : selected) declaredDrawn += s.kind().lights().size();
+        List<Sample> lit = selected;
+        int lightOnly = 0, declaredLightOnly = 0;
+        if (decouple) {
+            // Light lane: the drawn instances first (their order), then every other eligible instance with lights,
+            // HERO first, then by weight, ties by order (stable across frames).
+            java.util.Set<Long> drawn = new java.util.HashSet<>();
+            for (Sample s : selected) drawn.add(s.event().order());
+            List<FrameBudget.Candidate<Sample>> rest = new ArrayList<>();
+            for (var list : List.of(candidates, offscreen)) for (var c : list)
+                if (!drawn.contains(c.value().event().order()) && !c.value().kind().lights().isEmpty() && c.eligible()) rest.add(c);
+            rest.sort(java.util.Comparator.<FrameBudget.Candidate<Sample>, Boolean>comparing(c -> !c.hero())
+                .thenComparing(java.util.Comparator.comparingDouble(FrameBudget.Candidate<Sample>::weight).reversed())
+                .thenComparingLong(FrameBudget.Candidate::order));
+            if (!rest.isEmpty()) {
+                lit = new ArrayList<>(selected.size() + rest.size());
+                lit.addAll(selected);
+                for (var c : rest) {
+                    lit.add(c.value());
+                    declaredLightOnly += c.value().kind().lights().size();
+                }
+                lightOnly = rest.size();
+            }
+        }
+        int outOfRange = 0, declaredOut = 0;
+        for (var list : List.of(candidates, offscreen)) for (var c : list) if (!c.eligible()) {
+            outOfRange++;
+            declaredOut += c.value().kind().lights().size();
+        }
+        var coverage = new Coverage(active.size(), eligible, selected.size(), lightOnly, excluded + outOfRange, declared,
+            declaredDrawn, declaredLightOnly, declaredExcluded + declaredOut);
+        return new Plan(selected, volumes, limits, eligible, lit, coverage);
     }
 
     /**

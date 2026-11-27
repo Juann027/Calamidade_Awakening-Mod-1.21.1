@@ -18,6 +18,13 @@ import java.util.Arrays;
  *       never changes during a protagonist effect nor right after it because of it.</li>
  * </ul>
  * With VSync or a frame cap at the target, p95 never drops below the up threshold: AUTO then only goes down.
+ *
+ * <p><b>Relief (0.15.0, fase 4).</b> When the windows that ask to go down saw the coverage-first extras in use (lights
+ * admitted by tile density, animated cookies), AUTO first turns those extras off for the current profile
+ * ({@link #relief}: same lights, same instances, lower fidelity) and only lowers the profile if the frame is still slow
+ * {@link #DOWN_WINDOWS} windows later. Relief is lifted by the same rule that climbs a profile (p95 under the up
+ * threshold for {@link #UP_WINDOWS} windows), never sooner than {@link #BLOCK_MS} after it began (doubled each time it
+ * comes back, up to {@link #MAX_BLOCK_MS}), so it does not flap. Calls without the relief flag behave as in 0.11.2.
  */
 public final class AutoQuality {
     public static final long WINDOW_MS = 2000, COOLDOWN_MS = 6000, BLOCK_MS = 60_000, MAX_BLOCK_MS = 600_000;
@@ -25,7 +32,7 @@ public final class AutoQuality {
     public static final double DOWN_FACTOR = 1.2, UP_FACTOR = .7;
 
     /** Kind of the last change. */
-    public enum Change { START, UP, DOWN }
+    public enum Change { START, UP, DOWN, /** fase 4 */ RELIEF, /** fase 4 */ RESTORE }
 
     /** Why the profile is what it is: the change, the profiles, the p95 and the threshold that decided, the time. */
     public record Reason(Change change, QualityProfile from, QualityProfile to, double p95, double thresholdMs, long atMs) {}
@@ -36,7 +43,8 @@ public final class AutoQuality {
     private long lastChange, windowStart = -1;
     private double[] times = new double[256];
     private int frames, drawing, cut;
-    private boolean hero;
+    private boolean hero, relievable, relief;
+    private long reliefUntil = Long.MIN_VALUE, reliefMs = BLOCK_MS;
     private int over, under;
     private final long[] blockedUntil = new long[QualityProfile.values().length];
     private final long[] blockMs = new long[QualityProfile.values().length];
@@ -56,7 +64,13 @@ public final class AutoQuality {
         Arrays.fill(blockMs, BLOCK_MS);
         over = under = 0;
         windowStart = -1;
+        relief = relievable = false;
+        reliefUntil = Long.MIN_VALUE;
+        reliefMs = BLOCK_MS;
     }
+
+    /** Fase 4: true while AUTO relieves the coverage-first extras of the current profile. */
+    public boolean relief() { return relief; }
 
     /** Target frame time, ms (1000 / target FPS). */
     public void target(double ms) { targetMs = ms; }
@@ -78,6 +92,12 @@ public final class AutoQuality {
      * @return true when the profile changed
      */
     public boolean frame(long nowMs, double frameMs, boolean drawn, boolean capped, boolean heroActive) {
+        return frame(nowMs, frameMs, drawn, capped, heroActive, false);
+    }
+
+    /** {@link #frame(long, double, boolean, boolean, boolean)}; {@code relievable}: the frame used the extras relief turns off. */
+    public boolean frame(long nowMs, double frameMs, boolean drawn, boolean capped, boolean heroActive, boolean relievable) {
+        this.relievable |= relievable;
         if (windowStart < 0) windowStart = nowMs;
         if (Double.isFinite(frameMs) && frameMs > 0) {
             if (frames == times.length) times = Arrays.copyOf(times, frames * 2);
@@ -90,6 +110,7 @@ public final class AutoQuality {
         boolean changed = evaluate(nowMs);
         frames = drawing = cut = 0;
         hero = false;
+        this.relievable = false;
         windowStart = nowMs;
         return changed;
     }
@@ -107,11 +128,23 @@ public final class AutoQuality {
         if (p95 > down && drawing * 2 >= frames) {
             over++;
             under = 0;
-        } else if (p95 < up && cut * 4 >= frames) {
+        } else if (p95 < up && (relief || cut * 4 >= frames)) {
             under++;
             over = 0;
         } else {
             over = under = 0;
+        }
+        if (over >= DOWN_WINDOWS && !relief && relievable) {
+            // Fidelity before content: same profile, without the extras.
+            if (reliefUntil != Long.MIN_VALUE) reliefMs = Math.min(MAX_BLOCK_MS, reliefMs * 2);
+            reliefUntil = nowMs + reliefMs;
+            relief = true;
+            return change(Change.RELIEF, current, p95, down, nowMs);
+        }
+        if (under >= UP_WINDOWS && relief) {
+            if (nowMs < reliefUntil) return false;
+            relief = false;
+            return change(Change.RESTORE, current, p95, up, nowMs);
         }
         if (over >= DOWN_WINDOWS && current != QualityProfile.LOW) {
             QualityProfile from = current;
@@ -130,6 +163,8 @@ public final class AutoQuality {
 
     private boolean change(Change kind, QualityProfile to, double p95, double threshold, long nowMs) {
         reason = new Reason(kind, current, to, p95, threshold, nowMs);
+        // A new profile starts without relief (its own extras are judged again).
+        if (to != current) relief = false;
         current = to;
         lastChange = nowMs;
         over = under = 0;
