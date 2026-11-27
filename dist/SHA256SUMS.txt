@@ -1,2 +1,2 @@
-617d797ff4f61a8838041a8296b3d639ffa0c34f68fdce51c1abe3e3447920d3  calamidade_awakening-0.15.0.jar
-11d38c77dffabfd5106cc353c232bfd02cfaba90701b1a13eecaccf6e8d5b3ed  vfx-sample-1.13.0.jar
+9a5f8653f86d080ce0ddc4b18445baf502276b3a4f9586ae4d787f4aafe26ed3  calamidade_awakening-0.15.0.jar
+97bb5a225f9cd7a156feb2cc3e32265490fa02a2d629d549fef052393dfa6e65  vfx-sample-1.14.0.jar
