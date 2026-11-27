@@ -1,6 +1,17 @@
 # Validação, medições e limites
 
-## Candidata ao release 0.14.0 (23/11/2026, não publicada)
+## Versão 0.14.0 — Custom Sky (publicada: release v0.14.0)
+
+**Publicada** (tag `v0.14.0` no commit `4c9fd40`, o mesmo da `main`). Compilada e testada só por software (servidor dedicado e cliente Mesa llvmpipe sob xvfb); GPU física, shaderpacks e dois jogadores reais pendentes (lista completa abaixo, em "Não testado").
+
+### Depois do release v0.14.0 (23/11/2026)
+
+Anexos baixados do release: `calamidade_awakening-0.14.0.jar` (SHA-256 `02851af9f70ae404783bc8eaec985b065221828f0ecad8f35bd22d287bcb0cb7`), `vfx-sample-1.11.0.jar` (`3de8796ed796a03490fab74758318fae135c2d944b8c79b0d67c9c2ef932a54f`) e `SHA256SUMS.txt`; `sha256sum -c` OK. Nenhum teste em jogo nem benchmark repetido nesta etapa (só documentação, base da API e consumidor).
+
+- Nova base `scripts/api-base/api-v1-0.14.0.txt` (147 classes, 1731 membros), gerada com `java scripts/ApiCompat.java --write` **do JAR publicado**, conferido por SHA-256 antes da geração. O mesmo JAR passa contra as bases 0.12.0 e 0.13.0.
+- `examples/consumidor` passou para a 0.14.0 (faixa `[0.14.0,0.15.0)`, SHA-256 publicado); `docs/ai/usar-como-dependencia.md` sincronizado por `syncRecipes`.
+
+### Candidata ao release 0.14.0 (23/11/2026, antes da publicação)
 
 Metadados de release: `CalamidadeAwakening.BUILD = "release"` e descrição do `neoforge.mods.toml` sem o aviso de desenvolvimento (o workflow recusa "DEVELOPMENT BUILD"); notas em `.github/release-notes/v0.14.0.md`. Só o texto do log, da lista de mods e do F7 muda: refeitos `./gradlew build dist` e o build do vfx-sample; os testes em jogo da integração abaixo valem sem repetição.
 
