@@ -152,6 +152,8 @@ public final class Sample {
             .then(example.vfxsample.receitas.Receitas.comando())
             .then(example.vfxsample.receitas.Receitas.comandoZumbi())
             .then(example.vfxsample.receitas.LaboratorioLuz.comando())
+            // 1.14.0 — laboratório de integridade visual (coverage first, motor 0.15.0 fase 4).
+            .then(example.vfxsample.receitas.LaboratorioCobertura.comando())
             // 1.9.0 — céu da dimensão de teste.
             .then(example.vfxsample.receitas.DimensaoTeste.comandoCeu())
             .then(example.vfxsample.receitas.DimensaoTeste.comandoDimensao())

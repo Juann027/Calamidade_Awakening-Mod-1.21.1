@@ -114,6 +114,7 @@ public final class Receitas {
         SentinelaEclipse.register();
         // 1.12.0 — laboratório de luz do motor 0.15.0 (Light Cookies, holofotes, projetores): /vfxsample luz.
         LaboratorioLuz.register();
+        LaboratorioCobertura.register();
         bus.addListener(Receitas::abas);
     }
 
@@ -192,6 +193,7 @@ public final class Receitas {
     /** Encerra a última receita do jogador; usado também ao sair do jogo. */
     public static boolean parar(UUID player) {
         LaboratorioLuz.parar(player);
+        LaboratorioCobertura.parar(player);
         var handle = ULTIMA.remove(player);
         return handle != null && handle.stop();
     }
@@ -200,6 +202,7 @@ public final class Receitas {
     public static void limpar() {
         ULTIMA.clear();
         LaboratorioLuz.limpar();
+        LaboratorioCobertura.limpar();
     }
 
     /** Ponto no chão (altura dos pés), {@code distancia} blocos à frente na horizontal. */
