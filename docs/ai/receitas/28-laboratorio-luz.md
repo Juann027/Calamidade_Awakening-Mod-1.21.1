@@ -42,6 +42,13 @@ estilos**: um addon deve trazer as próprias imagens e cores; o motor só sabe p
 | `prioridade` | retícula `CRITICAL` (`OVERRIDE` + `EMISSIVE`) no meio de 28 projeções `DECORATIVE` mais brilhantes: no LOW (16 cookies) a retícula nunca perde o desenho |
 | `adaptativa` (comando) | 32 PNGs de 512 diferentes, 16 a 9 blocos e 16 a 48: não cabem nas 16 células grandes, o atlas reduz (os de longe para 128) sem fallback |
 | `carga <n> <tipo> [modo]` (comando) | exatamente 16, 32, 64, 96, 128 ou 192 luzes; `mesmo` (um PNG), `varios` (16 ou 32 PNGs), `mista` (metade convencionais: 192 = 96 + 96); `espalhado` (grade) ou `sobreposto` (mesma região da tela) |
+| **Fase 4** | (coverage first: integridade visual dos perfis; `LaboratorioCobertura.java`, comando `/vfxsample cobertura ...`; capítulo `docs/LUZ-0.15.md`, "Fase 4") |
+| `cobertura arena` | 12 instâncias num anel de 14 blocos (runa, 6 hexágonos, disco, 8 pontos cada: 192 luzes, 84 cookies). Troque com F8: no LOW a arena continua inteira e mais simples, não uma ilha de luz |
+| `cobertura combate` | 2 retículas `CRITICAL` (`OVERRIDE` sem fallback + `EMISSIVE`) entre 64 luzes `DECORATIVE` |
+| `cobertura mista` | convencionais, vitrais RGB (`COLOR`), neon `EMISSIVE` e grade `OVERRIDE` na mesma cena (4 × 16 luzes) |
+| `cobertura cinema` | 8 instâncias com volume do motor (`RINGS` + `NEBULA`), 2 feixes e 8 luzes: acima do limite de efeitos desenhados a instância perde volume e feixes, não a luz |
+| `cobertura estresse <32..192> <grade\|anel\|aglomerado>` | carga com três distribuições espaciais (aglomerado = pior caso por tile) |
+| `cobertura parar` | encerra as cenas de cobertura do jogador |
 
 ## Código Java
 

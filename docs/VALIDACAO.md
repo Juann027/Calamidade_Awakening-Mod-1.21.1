@@ -1,5 +1,59 @@
 # Validação, medições e limites
 
+## 0.15 Light Engine — fase 4: coverage first (integridade visual dos perfis)
+
+Mesma branch, mesmo ambiente (**Mesa llvmpipe, software, 1280 × 720; nenhuma medida em GPU física**). Testes
+direcionados; nada de céu, terreno, chefes ou shaders mudou, então `checkCeuReferencia`, `testeCeu`, `testeEstrelas`,
+`testeImagens`, `testeBackdrop` e `testeChefe` não foram repetidos (resultados anteriores reaproveitados; nenhum shader
+`.fsh` foi alterado nesta fase).
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew build` (`checkBudget` com `CoverageCheck` novo: arena de 12 grupos — fase 3 empilha 24 luzes em ≤ 2 grupos, fase 4 cobre os 12 com o mesmo teto; CRITICAL nunca trocada por cobertura; 200 quadros com scores oscilando 10% sem nenhuma troca; densidade: 192 espalhadas admitidas sem passar do limite por tile, empilhadas não, o tile mais carregado do teto nunca sobe, teto total, histerese temporal de 8 quadros; migração 3 reconhece BALANCED 6/24/32, HIGH 12, ULTRA 24, LOW 8 e preserva LOW 1 e ULTRA 64; AUTO: alívio antes da descida, alívio mantido no bloqueio e retirado depois, sem a flag igual à 0.11.2; `checkApiCompat`, `checkShaders`, `checkApiDocs`, `checkRecipes`) | verde |
+| `./gradlew testeJogo` | **82/82** (servidor; nenhuma mudança de rede ou servidor) |
+| `xvfb-run -a ./gradlew testeLuz -Pluz.modo=fase4` | **23/23** (abaixo) |
+| `xvfb-run -a ./gradlew testeLuz -Pluz.modo=fase3` (coverage desligado: o caminho da fase 3) | **19/19**; o A/B de tiles agora repete a captura quando o controle (sem tiles × sem tiles) acusa cena em movimento: espalhado 3 tentativas (controle 6, 152, 64; on × off 0, 16, 0), sobreposto 3 (controle 1, 14, 29; on × off 0, 17, 0). Quando o controle é 0 a diferença é 0; o ruído vem da cena (chunks, entidades), não dos tiles |
+
+**Por que a cena sumia** (reprodução do teste na RTX 4060, arena de 192 luzes = 12 instâncias × 16, 84 cookies):
+
+| Perfil | Fase 3: instâncias que iluminam | candidatas | desenhadas | células da cena | Fase 4: instâncias que iluminam | candidatas | desenhadas | cookies | células |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| LOW | 3 de 12 | 48 | 24 | 8 | **12** (3 + 9 só luz) | **192** | 43 (+19 densidade) | 26 de 84 (+10) | 17 de 24 |
+| BALANCED | 8 de 12 | 128 | 64 | 15 | **12** (8 + 4) | **192** | 80 (+16) | 56 de 84 (+8) | **24 de 24** |
+| HIGH | 12 | 192 | 128 | 24 | 12 | 192 | 142 (+14) | **84 de 84** | 24 de 24 |
+| ULTRA | 12 | 192 | 192 | 24 | 12 | 192 | 192 | 84 de 84 | 24 de 24 |
+
+"Luzes eliminadas antes do passe" (declaradas − candidatas): fase 3 LOW 144, BALANCED 64; fase 4: **0 em todos os
+perfis**. Com o config do teste real (LOW com 1 efeito desenhado): fase 3 **16 candidatas** (as 16 de uma instância —
+exatamente o F7 relatado), fase 4 **192 candidatas, 38 desenhadas**, tile mais carregado 16 (o teto de 24 do LOW não é
+ultrapassado). Capturas: `docs/luz-previas/fase4-arena-perfis.jpg` (os quatro perfis, mesma câmera, fase 3 × fase 4) e
+`docs/luz-previas/fase4-cenas.jpg` (caso real, combate, cinema, mista, estresse).
+
+Outras verificações do `fase4`:
+
+- Restaurar padrões do LOW (`ClientConfig.restoreDefaults`): volta a 3 efeitos desenhados, `coverage` intacto.
+- Estabilidade: câmera parada, **0** luzes entram ou saem em 60 ticks; câmera girando ±25° por 80 ticks: fase 3 0 de
+  24, fase 4 **5 entradas em 48 luzes** (antes da histerese temporal: 136 e depois 56; a admissão agora espera 8
+  quadros e tolera 25% a mais para quem já estava).
+- Memória: atlas padrão fixo em 22 369 536 bytes, **nenhum upload** em 100 ticks com os 84 cookies da arena.
+- Combate (LOW): as 4 luzes CRITICAL das 2 retículas texturizadas em **60/60** ticks com 64 decorativas.
+- Iluminação mista (LOW e ULTRA): nenhuma falha de imagem; LOW com 2 fallbacks por orçamento (contados).
+- Cinema (LOW): 3 instâncias desenhadas (volume e 6 feixes), 5 só com luz (40 luzes delas no passe).
+- Estresse LOW, 192 luzes: grade 48 desenhadas (24 + 24 densidade, máx 9 por tile), anel 45 (+21, máx 9),
+  aglomerado 33 (+9, máx 14: o tile cheio não recebe mais).
+- Ciclo de vida: `cobertura parar` zera instâncias e luzes. F7 página 2 com as linhas novas; nenhuma linha sai da tela
+  (quebra na largura, captura `f4_f7_cobertura`).
+
+Tempo de quadro na arena (llvmpipe, 2 repetições intercaladas de 4 s; **tendência, não medida**): LOW 55–60 ms
+(40–48 luzes), BALANCED 65–66 ms (71–77), HIGH 72–81 ms (137), ULTRA 80–84 ms (192); p95 65–97 ms, p99 69–102 ms.
+O custo cresce com as luzes desenhadas, como esperado; o custo de **coverage on × off no mesmo perfil** fica para a
+RTX 4060 (cenários `f4_arena` × `f4_arena_sem_coverage` do benchmark, TESTE-REAL parte 12).
+
+**Pendente em GPU física:** frametime de coverage on × off por perfil, tiles com luzes espalhadas, sobrepostas e
+animadas em 1280 × 720 e 1920 × 1080, AUTO com alívio sob carga real, legibilidade do F7 em outras escalas, revisão
+visual de LOW e BALANCED por uma pessoa (a captura de software não substitui o olho). Não há promessa de equivalência
+visual absoluta: no LOW a arena aparece inteira, com menos luzes por peça e as peças de trás mais fracas.
+
 ## 0.15 Light Engine — fase 3: orçamento adaptativo de luzes
 
 Mesma branch, mesmo ambiente (**Mesa llvmpipe, software, 1280 × 720; nenhuma medida em GPU física**). Testes

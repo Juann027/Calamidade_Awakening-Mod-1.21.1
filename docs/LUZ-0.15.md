@@ -375,6 +375,134 @@ bem maior que a distância até o chão mais baixo. ADD depende da cor da superf
 - A demanda usa a esfera envolvente, não a área exata projetada; é conservadora (pede mais resolução que o necessário).
 - Abaixo de 17 luzes o passe é o laço da fase 2, idêntico pixel a pixel (prévia, 30 cenas).
 
+## Fase 4: coverage first (integridade visual dos perfis)
+
+A filosofia: **a qualidade gráfica decide a fidelidade dos efeitos, não a existência deles.** LOW é a mesma cena com
+menos detalhe; BALANCED fica perto do HIGH; HIGH e ULTRA aumentam a fidelidade, sem serem os únicos perfis que mostram a
+composição real de uma arena, de um chefe ou de um evento.
+
+### Por que partes da cena desapareciam
+
+O teste na RTX 4060 (192 luzes em 12 instâncias de 16: LOW mostrava uma ilha de luz, BALANCED uma fração da cena) não
+era o teto de luzes nem o de cookies. A perda acontecia **antes** do passe de luzes, em três estágios:
+
+| # | Estágio | O que cortava | Visível no F7 da fase 3? |
+|---|---|---|---|
+| 1 | `StageScene.frame` → `FrameBudget.select` (teto de **efeitos desenhados**, 3/8/16/32) | instâncias inteiras, com todas as suas luzes | não: o F7 só contava luzes das instâncias já selecionadas ("pedidas") |
+| 2 | `LightFrame.collect` lia só `plan.effects()` | as luzes das instâncias cortadas no estágio 1 nunca viravam candidatas | não |
+| 3 | `EnginePasses.pay`: o passe de luzes disputava a **vaga comum** de passes (LOW: 1) com feixes e terreno | todas as luzes, quando um feixe pagava primeiro | só como "pass no" |
+| 4 | teto de luzes e de cookies (fase 3) | as luzes menos importantes; acima do orçamento, o cookie virava fallback (a runa virava um disco) | sim |
+| 5 | seleção por prioridade e contribuição | concentrava o orçamento na região mais próxima da câmera | não |
+
+No arquivo de config do teste real, além disso, o BALANCED tinha `drawn = 6` e `lights = 24`: **padrões dos perfis
+provisórios da 0.11.2** (commit `42ca39d`), que a migração da fase 3 não reconhecia (ela só conhecia 8/32/64/64). O LOW
+com `drawn = 1` e o ULTRA com `drawn = 64` não são padrões de nenhuma versão: são ajustes do jogador e ficam. Com
+`drawn = 1`, o estágio 1 deixava uma instância: as 16 luzes "pedidas" do F7 eram as dela.
+
+### Como a arquitetura foi corrigida
+
+1. **Faixa de luz desacoplada** (`StageScene.Plan.lit`). Toda instância elegível (dentro do alcance, envelope visível,
+   âncora carregada) entrega suas luzes ao passe de luzes, mesmo fora do teto de efeitos desenhados e mesmo com a caixa
+   de frustum da instância fora da tela (cada luz tem culling próprio). Uma instância **só de luz** não desenha mais
+   nada: nenhum passe de addon, shader de cartão, feixe, malha, volume ou partícula — esses continuam no teto de
+   efeitos. Ordem da faixa: as desenhadas (HERO primeiro), depois as outras, HERO primeiro e por peso. Teto de CPU:
+   `CoverageBudget.MAX_RESOLVED` (768) luzes resolvidas por quadro; acima disso, as instâncias menos importantes não são
+   resolvidas (contadas no F7).
+2. **Passe de luzes do motor** (`EnginePasses.Pool.ENGINE`). Como os passes de céu e atmosfera, o passe de luzes sai
+   do orçamento de passes de addon; ele já tem orçamento próprio (teto de luzes, teto de cookies, tiles). Um feixe no
+   LOW deixa de apagar todas as luzes, e as luzes deixam de tirar a vaga do shader de um efeito.
+3. **Distribuição espacial** (`CoverageBudget.select`). Acima do teto, dentro de cada prioridade, cada luz já mantida
+   na mesma célula de 8 blocos do mundo divide por 2 o score da próxima candidata dessa célula. A seleção começa pela
+   luz mais importante e não empilha o orçamento num canto. As células são fixas no mundo (a câmera andando não as
+   reembaralha) e a histerese de 1,5 × continua; `CRITICAL` nunca é trocada por cobertura.
+4. **Admissão por densidade** (`CoverageBudget.admit`). O custo real do passe com tiles é **luzes por tile**, não o
+   total. Depois do teto, as luzes que sobraram entram, por prioridade, enquanto todos os tiles que alcançam têm menos
+   que o limite por tile, até 192 no total. O limite é o maior entre a densidade do perfil (luzes: teto/3, entre 4 e
+   64 → 8/21/42/64; cookies: teto/4, entre 2 e 32 → 4/12/24/32) e **o tile mais carregado que o próprio teto já
+   aceitou naquele quadro**: a admissão completa as regiões mais vazias da tela e nunca aumenta o pior custo por pixel
+   do quadro. Luzes espalhadas voltam; luzes empilhadas não. Histerese temporal: uma luz nova só entra depois de caber
+   por 8 quadros seguidos, e uma luz já admitida tolera 25% acima do limite (sem piscar na borda de um tile quando a
+   câmera gira). Só vale com os tiles ligados e com 17 luzes ou mais (abaixo disso o pixel percorreria
+   todas). O custo total (soma de luzes por tile) cresce, limitado a tiles × limite.
+5. **Cookies preservam a forma.** A mesma seleção espalhada e a mesma admissão por densidade decidem quem amostra a
+   imagem; uma luz com `Fallback.NONE` (some sem a imagem) vai antes, dentro da sua prioridade.
+6. **Migração 3 da config** (`lightCapsVersion` = 3): qualquer limite ainda igual a um padrão anterior do seu perfil
+   (`QualityProfile.LEGACY`, de 0.11.2 provisória à fase 3) vai ao padrão atual uma vez; valores escolhidos ficam.
+   **Restaurar padrões** de um perfil sem tocar no resto: Atlas → Qualidade → ajuste fino → "Restaurar padrões", ou
+   `/calamidade_client quality defaults <low|balanced|high|ultra|all>`.
+7. **AUTO com alívio** (`AutoQuality`, `Change.RELIEF`/`RESTORE`): quando o quadro está lento e os extras da cobertura
+   estão em uso, o AUTO primeiro desliga a admissão por densidade e lê um quadro só das folhas de cookies NORMAL e
+   DECORATIVE, **no mesmo perfil**; só baixa o perfil se continuar lento. O alívio sai pela regra de subida, nunca antes
+   de 60 s (dobra a cada volta, até 10 min). Sem extras em uso, o AUTO age como na 0.11.2.
+
+Desligar tudo isso (comportamento da fase 3): config `quality.coverage = false` ou `/calamidade_client coverage off`.
+
+### O que é automático e o que o addon controla
+
+| Simplificação | Automática? | Controle do addon |
+|---|---|---|
+| Luz de instância fora do teto de efeitos continua | sim | — |
+| Distribuição espacial acima do teto | sim | `Light.Priority` (acima de tudo) |
+| Admissão por densidade | sim | — |
+| Resolução efetiva do cookie (512 → 128) | sim, sob pressão do atlas | `Cookie.resolution` (pedido), `Priority` (CRITICAL nunca abaixo de 256) |
+| Um quadro só da folha (sem mistura) | sob pressão por pixel ou alívio do AUTO, só NORMAL e DECORATIVE | `Priority.IMPORTANT`/`CRITICAL` preservam a animação |
+| Fallback sem imagem | último recurso | `Cookie.Fallback.AVERAGE` (permite) ou `NONE` (nunca desenhar sem a forma, e ganha prioridade de cookie) |
+| Descartar luz sem contribuição | sim (< 1/512) | — |
+| Descartar luz | só acima do teto e sem espaço por tile | `Priority` |
+
+Não foi criada API nova: `Light.Priority` já diz a relevância para o gameplay, `Cookie.Fallback` diz se o fallback é
+aceitável, `Cookie.resolution` diz a resolução pedida. Addons antigos ganham a cobertura sem mudar nada. O motor
+**nunca** muda modo de composição (`OVERRIDE` continua `OVERRIDE`, `EMISSIVE` continua `EMISSIVE`), raio, forma, área,
+intensidade ou cor de uma luz para economizar; a imagem reduzida é um nível de mipmap da original (mesma máscara, cores,
+transparência e proporção).
+
+### Resolução reduzida do passe (avaliada, não implementada)
+
+A RimuLib 1.3.0 encadeia os passes de pós (`FxApi.Frame.pass(programa, uniforms)`, `PostPass(program, setup)`) em
+tela cheia, com alvos próprios em ping-pong; não há resolução, alvo ou viewport por passe (conferido com `javap`).
+Iluminar em meia resolução exigiria um framebuffer e um programa GL do motor fora da RimuLib, uma cópia da profundidade,
+reconstrução guiada por profundidade (bilateral) e uma composição — um segundo pipeline de pós. Antes disso, o ganho
+maior e comprovado é não processar luzes que não alcançam o pixel (tiles, densidade). Fica documentado como próximo
+passo se a RTX 4060 mostrar o passe de luzes por pixel como gargalo depois da fase 4.
+
+### Limites que continuam existindo
+
+- 192 luzes por quadro (linhas da textura de dados), 32 por efeito, densidade por tile do perfil, 768 resolvidas.
+- Cookies: teto do perfil + densidade; atlas padrão fixo (~21,3 MB).
+- Efeitos desenhados, passes de addon, feixes, vértices, raymarch: **sem mudança**. A cobertura não aumenta nenhum
+  orçamento de shaders, malhas ou partículas; só a luz das instâncias cortadas continua.
+- Instâncias fora do alcance de distribuição ou com âncora não carregada continuam sem luz (contadas como excluídas).
+
+### F7
+
+F7 agora tem páginas: **F7** abre a página 1 (geral), aperte de novo para a 2 (cobertura e luzes), de novo para a 3
+(céu e terreno), de novo para fechar. Linhas longas quebram na largura da tela (qualquer escala de interface) e nada é
+desenhado abaixo dela. A página 2 começa com:
+
+- `Coverage first on · instâncias: R residentes · E elegíveis · D desenhadas (teto T) · L só luz · X excluídas`
+- `luzes declaradas N: nas desenhadas · nas só luz · nas excluídas (alcance, fade, âncora) · em instâncias fora da tela`
+- `passe: C candidatas (de instâncias só luz, acima do teto de CPU) · fora da visão · sem contribuição · pelo teto +
+  pela densidade (por tile) · acima do teto · desenhadas`
+- `cookies: pelo orçamento + pela densidade · em fallback · distribuição: K de N células do mundo mantidas · alívio do AUTO`
+- `limites PERFIL: desenhados · luzes · cookies · feixes · passes (padrões ...) · CUSTOM` — `CUSTOM` aparece quando algum
+  limite difere do padrão do perfil, com o comando para restaurar.
+
+Depois vêm as linhas da fase 3 (limites, resolução, por pixel). Leitura: "192 declaradas, 16 candidatas" com
+"11 excluídas" é alcance/âncora; com "0 só luz" e coverage off, é o teto de efeitos; "acima do teto" com "0 pela
+densidade" é luz empilhada no mesmo tile.
+
+### Laboratório
+
+`/vfxsample cobertura arena|combate|mista|cinema|estresse <32..192> <grade|anel|aglomerado>|parar` (vfx-sample 1.14.0,
+receita 28). Todas as cenas ficam 18 blocos à frente do jogador; a mesma posição e o mesmo olhar repetem a imagem, e F8
+alterna os perfis (comparação de LOD). `cinema` tem volume do motor e feixes: no LOW, 3 instâncias desenham tudo e as
+outras 5 só a luz. Teste em jogo: `xvfb-run -a ./gradlew testeLuz -Pluz.modo=fase4` (a fase 3 continua em
+`-Pluz.modo=fase3`, agora com coverage desligado para provar o caminho antigo). Resultados: `docs/VALIDACAO.md`.
+
+![Arena de 192 luzes nos quatro perfis, fase 3 × fase 4](luz-previas/fase4-arena-perfis.jpg)
+
+![Caso real (LOW com 1 efeito desenhado), combate, cinema, mista e estresse](luz-previas/fase4-cenas.jpg)
+
 ## Light API ou GLSL próprio?
 
 | Quero... | Use |

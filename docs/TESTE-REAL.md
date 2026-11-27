@@ -337,3 +337,51 @@ trocar de resolução a cada passo; F7 `swaps` só sobe ao assentar), `/vfxsampl
 
 **Limite:** o tempo medido é o do quadro inteiro na CPU (o jogo espera a GPU no `swap`), não o tempo do passe de luzes
 na GPU; para isolar o passe, compare um cenário com e sem as luzes. Envie o arquivo `calamidade-luz.txt` inteiro.
+
+## Parte 12 — coverage first (0.15.0 fase 4, RTX 4060)
+
+O que mudou e precisa de olho humano e GPU real: no LOW e no BALANCED a cena tem de continuar a **mesma cena** (mais
+simples), não uma fração dela. Capítulo: [LUZ-0.15.md](LUZ-0.15.md#fase-4-coverage-first-integridade-visual-dos-perfis).
+
+**Preparar:** `./gradlew testeJogo dist` e `./gradlew -p examples/vfx-sample build` (gera o `vfx-sample-1.14.0.jar`).
+Se você usava a branch antes, **não apague** o `config/calamidade_awakening-client.toml`: a migração 3 tem de levar
+`balanced.drawn = 6` e `balanced.lights = 24` aos padrões (8 e 64) sozinha e manter o seu `low.drawn = 1` e
+`ultra.drawn = 64`. Confira no F7 página 2 a linha `limites` (`CUSTOM` aparece enquanto houver ajuste seu); restaure
+com `/calamidade_client quality defaults all` (ou por perfil) quando quiser.
+
+1. **Funcional na GPU real** (~8 min; só PASS esperado; capturas `f3_arena_*` × `f4_arena_*`, `f4_combate_*`,
+   `f4_mista_*`, `f4_cinema_*`, `f4_estresse_*`, `f4_f7_cobertura` em `run/teste-luz/screenshots/`):
+
+```bash
+./gradlew testeLuz -Pluz.modo=fase4 -Pluz.largura=1920 -Pluz.altura=1080
+```
+
+2. **Benchmark** (~50 min com 5 repetições; `-Pluz.reps=2 -Pluz.amostra=8` para conferir antes):
+
+```bash
+./gradlew testeLuz -Pluz.modo=bench -Pluz.reps=5 -Pluz.largura=1920 -Pluz.altura=1080 -Pluz.perfis=LOW,BALANCED,HIGH,ULTRA -Pluz.cenarios=vazio,f3_carga_192_mista,f4_arena,f4_arena_sem_coverage,f4_estresse_192_grade,f4_estresse_192_aglomerado,f4_cinema
+```
+
+Como ler (mediana das medianas no `RESUMO`; diferenças menores que o IQR são empate):
+
+- `f4_arena` × `f4_arena_sem_coverage` no mesmo perfil = custo da cena inteira contra o da cena cortada. Critério
+  proposto: LOW e BALANCED dentro de 60 FPS na 4060 com folga (p95 < 16,7 ms); se não, baixe a densidade reduzindo
+  `quality.low.lights` (a densidade é teto/3) e anote.
+- `f4_estresse_192_aglomerado` é o pior caso por tile: o custo tem de ficar perto do `f3_carga_192_mista` do mesmo
+  perfil (a densidade não admite luzes em tiles cheios).
+- `f4_cinema` em LOW: 3 instâncias com volume e feixes, 5 só com luz; não deve custar mais que o mesmo cenário em BALANCED.
+- Tiles: repita `f3_carga_192_mista` × `f3_carga_192_mista_sem_tiles` (fase 3) para validar o ganho real por pixel com
+  luzes espalhadas, sobrepostas e animadas (`vfxsample luz carga 64 mista sobreposto`, `vfxsample luz selo`), em
+  1280 × 720 e 1920 × 1080 (`-Pluz.largura/-Pluz.altura`).
+
+3. **À mão (`runClient`)**, mesma posição e mesmo olhar, F8 em LOW → BALANCED → HIGH → ULTRA:
+   - `/vfxsample cobertura arena`: as 12 peças do anel em todos os perfis; no LOW parte das peças fica só com a runa e
+     alguns pontos, nenhuma some inteira. Ande e gire: luzes não devem piscar nem aparecer em ondas.
+   - `/vfxsample cobertura combate`: as duas retículas vermelhas nítidas no LOW.
+   - `/vfxsample cobertura mista`: vitral continua colorido, neon continua emissivo, a grade continua sobrescrita.
+   - `/vfxsample cobertura cinema`: no LOW, 3 pilares com anéis; os outros 5 pontos da cena mantêm a luz no chão.
+   - F7 (três páginas, F7 para avançar) legível em escala de interface 2, 3 e automática, sem linha cortada.
+   - AUTO: com `autoTargetFps` acima do que a máquina faz na arena, a linha de qualidade mostra primeiro `alívio`
+     (mesmo perfil) e só depois a descida de perfil.
+
+Envie `run/teste-luz/calamidade-luz.txt` e as capturas `f3_arena_*`/`f4_arena_*`.
