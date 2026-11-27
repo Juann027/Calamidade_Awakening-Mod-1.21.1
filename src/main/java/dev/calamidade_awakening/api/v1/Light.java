@@ -51,8 +51,11 @@ import java.util.regex.Pattern;
  * Invalid input throws {@link IllegalArgumentException}, like the rest of the API.
  */
 public final class Light {
-    /** Most lights per effect ({@link Effects#lights}). */
-    public static final int MAX_PER_EFFECT = 8;
+    /**
+     * Most lights per effect ({@link Effects#lights}). 0.15.0 fase 3: 32 (before: 8), so one effect can light an arena
+     * or a ring of runes on its own; the profile caps (24/64/128/192 lights per frame) still apply to the whole scene.
+     */
+    public static final int MAX_PER_EFFECT = 32;
     /** Largest reach (point and segment) or disc/ring radius, blocks. */
     public static final float MAX_RADIUS = 128f;
     /** Largest intensity multiplier. */
@@ -134,6 +137,29 @@ public final class Light {
          * coverage {@code 1 − Π(1 − wᵢ)} toward the {@code wᵢ}-weighted mean of their targets.
          */
         OVERRIDE
+    }
+
+    /**
+     * (0.15.0, fase 3) How much a light matters when the frame has more lights or cookies than the quality profile
+     * allows. Opt-in: every light is {@link #NORMAL} unless the addon says otherwise, and a {@code NORMAL} light of a
+     * {@link Effects.Priority#HERO HERO} effect counts as {@link #IMPORTANT} (the effect priority that already existed).
+     * The engine keeps lights by priority first, then by their visible contribution (brightness, screen coverage,
+     * distance), with hysteresis so they do not blink in and out. Cookie images are given to the most important lights
+     * first: a {@link #CRITICAL} reticle keeps its drawing while decorative lights fall back.
+     *
+     * <p><b>Accessibility.</b> Lights are visual and can be turned down or off by the player (screen-effects intensity,
+     * quality profile, shader packs). Never make a light the only sign of danger: pair a CRITICAL reticle with sound,
+     * particles, a mesh or a gameplay telegraph (wind-up animation, timing) that survives with effects off.
+     */
+    public enum Priority {
+        /** Ambient, secondary light: the first to go or to lose its cookie. */
+        DECORATIVE,
+        /** Ordinary light (default). */
+        NORMAL,
+        /** Visually relevant: main glow of an attack, boss aura. */
+        IMPORTANT,
+        /** Combat information: reticles, danger areas, impact zones. Kept before every other light. */
+        CRITICAL
     }
 
     /*
@@ -617,6 +643,7 @@ public final class Light {
     private final float blendStrength, detail, contrast;
     private final float yaw, pitch, roll, angle, softness, sizeX, sizeY;
     private final int[] ramp, gradient;
+    private final Priority priority;
 
     private Light(Builder b) {
         shape = b.shape; from = b.from; to = b.to; beam = b.beam; color = b.color; colorSet = b.colorSet;
@@ -628,6 +655,7 @@ public final class Light {
         blendStrength = b.blendStrength; detail = b.detail; contrast = b.contrast;
         yaw = b.yaw; pitch = b.pitch; roll = b.roll; angle = b.angle; softness = b.softness; sizeX = b.sizeX; sizeY = b.sizeY;
         ramp = b.ramp; gradient = b.gradient;
+        priority = b.priority;
     }
 
     /** Point light at {@code at}. Defaults: white, intensity 1, reach 8 blocks, falloff 2, no flicker. */
@@ -761,6 +789,8 @@ public final class Light {
     public int gradientStops() { return gradient.length; }
     /** (0.15.0) Spatial gradient stop {@code i} (ARGB). */
     public int gradientStop(int i) { return gradient[i]; }
+    /** (0.15.0, fase 3) Priority under the quality budget ({@link Priority#NORMAL} by default). */
+    public Priority priority() { return priority; }
     /** (0.15.0) True when the light needs an orientation (spot, projector, or a disc with a cookie). */
     public boolean oriented() { return shape == Shape.SPOT || shape == Shape.PROJECTOR || (shape == Shape.DISC && cookie != null); }
 
@@ -887,6 +917,7 @@ public final class Light {
         private float blendStrength = 1, detail, contrast = 1;
         private float yaw, pitch = 90, roll, angle = 40, softness, sizeX, sizeY;
         private int[] ramp = new int[0], gradient = new int[0];
+        private Priority priority = Priority.NORMAL;
 
         private Builder(Shape shape, Point from, Point to, Beam beam, float radius, float width) {
             this.shape = shape; this.from = from; this.to = to; this.beam = beam; this.radius = radius; this.width = width;
@@ -1082,6 +1113,16 @@ public final class Light {
             if (argb == null || argb.length < 2 || argb.length > 4)
                 throw new IllegalArgumentException(what + " needs 2..4 colors");
             return argb.clone();
+        }
+
+        /**
+         * (0.15.0, fase 3) Priority when the frame has more lights or cookies than the profile allows (NORMAL by
+         * default). Use {@link Priority#CRITICAL} only for combat information (reticles, danger areas), and never as the
+         * only telegraph of an attack.
+         */
+        public Builder priority(Priority value) {
+            priority = Objects.requireNonNull(value, "priority");
+            return this;
         }
 
         /** Immutable light. Tracks, phase and the linked beam are checked at registration. */

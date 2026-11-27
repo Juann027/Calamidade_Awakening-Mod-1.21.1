@@ -85,7 +85,7 @@ Receitas: [pilar](ai/receitas/08-pilar-de-luz.md), [laser](ai/receitas/09-laser.
 
 | Chamada | Regras |
 |---|---|
-| `Effects.lights(id, luzes...)` | 1 a 8 luzes, uma vez por efeito, só no seu namespace. Depois de `register`; depois de `timeline` se alguma luz lê trilhas ou fase; depois de `beams` se alguma segue um feixe (senão `IllegalArgumentException`, também no servidor dedicado). |
+| `Effects.lights(id, luzes...)` | 1 a 8 luzes (32 desde a 0.15 fase 3), uma vez por efeito, só no seu namespace. Depois de `register`; depois de `timeline` se alguma luz lê trilhas ou fase; depois de `beams` se alguma segue um feixe (senão `IllegalArgumentException`, também no servidor dedicado). |
 
 ### Consultas
 

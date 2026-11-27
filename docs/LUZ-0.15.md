@@ -222,16 +222,17 @@ atlas grande sai sozinho ao baixar para LOW, sem uso por ~1200 quadros, na recar
   o envio à GPU é de no máximo **uma imagem por quadro**. O atlas só existe depois do primeiro cookie usado: sem
   cookies, nenhum byte e nenhum custo. Ele é solto depois de ~1200 quadros sem cookies, na recarga de recursos e ao
   sair do mundo. Imagens sem uso por 60 quadros podem ser despejadas quando o atlas enche.
-- **Teto de cookies por quadro:** um quarto do teto de luzes, de 2 a 16 (LOW 2, BALANCED 8, HIGH e ULTRA 16). As
-  outras luzes com cookie usam o **fallback**.
+- **Teto de cookies por quadro (fase 3):** próprio e configurável, independente do teto de luzes e nunca acima dele:
+  LOW 16, BALANCED 48, HIGH 96, ULTRA 128 (antes: um quarto das luzes, 2/8/16/16). As luzes com cookie fora do teto
+  usam o **fallback**; quem fica com a imagem é decidido por prioridade e contribuição (veja "Fase 3").
 - **Fallback previsível:** `AVERAGE` (padrão) desenha a luz sem a imagem, com a intensidade multiplicada pela cobertura
   média da imagem (0,5 se ela nunca carregou), mantendo tamanho e energia; `NONE` não desenha. Durante a **primeira**
   carga a luz não aparece (alguns quadros), para não piscar do fallback para a imagem.
 - **Culling conservador:** cada luz tem uma esfera envolvente (alcance; projetor: a caixa inteira) testada contra o
   frustum da câmera e contra a distância em que a névoa do jogo já cobre tudo, **antes** do teto de luzes. Uma luz
   descartada não ilumina nenhuma superfície visível.
-- **Limites:** 8 luzes por efeito; até 64 por quadro (teto do perfil); PNG até 4096 de lado (reduzido à metade até
-  caber em 512; maior é recusado); folha até 64 × 64 com 256 quadros.
+- **Limites (fase 3):** 32 luzes por efeito (antes 8); até 192 por quadro (teto do perfil: 24/64/128/192); PNG até
+  4096 de lado (reduzido à metade até caber em 512; maior é recusado); folha até 64 × 64 com 256 quadros.
 - **PNG ausente ou inválido:** registrado **uma vez** no log, contado no F7, a luz usa o fallback; nada trava.
 - **F7:** a linha das luzes ganhou um detalhe: pedidas, descartadas, acima do teto, cookies amostrados/teto, fallbacks,
   quantos em alta resolução, imagens prontas/esperando/com falha, versões grandes prontas e carregando, uploads e MB
@@ -239,6 +240,140 @@ atlas grande sai sozinho ao baixar para LOW, sem uso por ~1200 quadros, na recar
 - **Fase 2:** EMISSIVE, OVERRIDE e o detalhe só calculam no caminho estendido (o sombreamento da superfície é feito na
   primeira luz estendida do pixel); sem luzes novas, nenhum texel, textura, passe ou conta a mais. Uma luz com modo
   novo lê 13 texels em vez de 4.
+
+## Fase 3: orçamento adaptativo de luzes
+
+A filosofia: **preservar o desenho da projeção antes de sacrificar seus detalhes**. Mais luzes e mais cookies por
+quadro, e, quando falta recurso, a perda de qualidade segue o gargalo real.
+
+### Orçamentos
+
+| Perfil | Luzes (antes) | Cookies (antes) | Lado máx. de alta resolução |
+|---|---:|---:|---|
+| LOW | 24 (8) | 16 (2) | 512 |
+| BALANCED | 64 (32) | 48 (8) | 1024 |
+| HIGH | 128 (64) | 96 (16) | 2048 |
+| ULTRA | 192 (64) | 128 (16) | 2048 |
+
+Valores **propostos**, verificados em llvmpipe quanto a correção e tendência, não medidos em GPU real: a medida
+definitiva é a [Parte 11 do TESTE-REAL](TESTE-REAL.md#parte-11--benchmark-da-light-engine-0150-rtx-4060). Os dois
+tetos são editáveis por perfil (config `quality.<perfil>.lights` e `quality.<perfil>.cookies`, Atlas → Qualidade →
+ajuste fino); o aplicado é `min(cookies, luzes)`. Configurações antigas: um `lights` ainda igual ao padrão antigo do
+perfil (8/32/64/64) é levado ao padrão novo uma vez (`lightCapsVersion` = 2); qualquer valor que o jogador escolheu fica.
+Os demais orçamentos (efeitos desenhados, passes, feixes, vértices) não mudaram.
+
+O limite **por efeito** subiu de 8 para 32: com 8, uma arena de runas ou um anel de projeções precisava de várias
+instâncias só para existir, sem nenhum ganho de desempenho (o custo é por luz desenhada, e o teto do perfil continua
+valendo para a cena inteira).
+
+### Os quatro gargalos, tratados separadamente
+
+| Gargalo | Onde aparece | O que o motor faz |
+|---|---|---|
+| **Processamento por pixel** | cada pixel percorria todas as luzes (até 192 × 3 leituras) | **tiles de tela**: com 17 luzes ou mais, a esfera envolvente de cada luz é projetada numa grade 16 × 9; cada tile recebe uma máscara de bits das luzes que o alcançam e o pixel pula as outras sem ler a linha delas. O pixel acha o seu tile projetando a posição reconstruída **com a mesma matriz** que a CPU usou (concordam por construção). Com muitas luzes sobre o mesmo tile, os tiles não ajudam: aí valem o teto, a prioridade e a simplificação abaixo |
+| **Amostras de textura** | cookies sobrepostos no mesmo tile | acima de 12 cookies num tile, cookies NORMAL e DECORATIVE leem só o quadro mais próximo da folha (sem misturar dois quadros: metade das amostras). SMOOTH, SHARP e PIXELATED custam a mesma única leitura, então a filtragem não é rebaixada |
+| **Capacidade do atlas** | muitos PNGs diferentes (16 células de 512) | **resolução efetiva adaptativa** (abaixo): a imagem desce para 256 ou 128 em vez de cair no fallback |
+| **VRAM e uploads** | atlas grande, imagens novas | o atlas padrão é fixo (~21,3 MB, nunca cresce); o grande (~21,3 MB) só existe quando uma luz que pediu alta resolução **cobre mais de 512 pixels na tela**; envios limitados a 4 MB por quadro (pelo menos uma imagem), uma imagem por PNG compartilhada por todas as luzes |
+
+Reduzir uma imagem de 2048 para 512 economiza memória, espaço no atlas e banda de envio; **não** reduz o custo de
+processar a luz no shader (continua uma luz, uma leitura). Por isso os dois problemas têm respostas diferentes.
+
+### Ordem da degradação
+
+1. Descartar luzes fora da visão (frustum, névoa) e **sem contribuição visível** (intensidade × peso × cor abaixo de
+   meio degrau de 8 bits). Contadas à parte no F7 ("dark").
+2. Sob pressão do atlas, **reduzir a resolução efetiva** dos cookies (512 → 256 → 128), os de menor demanda primeiro.
+3. Sob pressão por pixel, **ler um só quadro** das folhas animadas de luzes NORMAL e DECORATIVE.
+4. Acima dos tetos, **manter as luzes mais importantes**: prioridade primeiro, depois contribuição na tela.
+5. **Fallback sem textura** só como último recurso, com a política escolhida pelo addon (`AVERAGE` ou `NONE`).
+
+### Prioridade (opt-in)
+
+```java
+static final Light RETICULA = Light.projector(Point.center(0, 7, 0), 6, 6).cookie(ATAQUE)
+    .blend(Light.Blend.OVERRIDE).priority(Light.Priority.CRITICAL).build();
+static final Light BRILHO_DO_CHAO = Light.disc(Point.center(), 9).priority(Light.Priority.DECORATIVE).build();
+```
+
+`DECORATIVE` (ambiente), `NORMAL` (padrão), `IMPORTANT` (efeito relevante), `CRITICAL` (informação de combate:
+retículas, áreas de perigo). Reaproveita a prioridade que já existia: uma luz `NORMAL` de um efeito `HERO` conta como
+`IMPORTANT`. A escolha considera prioridade, depois a contribuição (brilho × cobertura angular da esfera, que já
+embute distância e tamanho na tela), só entre luzes visíveis; uma luz mantida no quadro anterior ganha 1,5 × no score
+(histerese), então duas luzes parecidas não ficam trocando a cada quadro. Abaixo do teto nada muda: todas entram, e o
+resultado não depende da ordem.
+
+Uma retícula `CRITICAL` não vira mancha porque decorativas gastaram o orçamento: os cookies vão primeiro para ela. No
+teste em jogo (LOW, 16 cookies, 2 luzes CRITICAL contra 28 DECORATIVE mais brilhantes), a retícula ficou texturizada em
+60 de 60 ticks.
+
+**Acessibilidade.** A luz é visual e o jogador pode reduzi-la ou desligá-la (intensidade dos efeitos de tela, perfil,
+shader packs). **Nunca use a iluminação como a única indicação de perigo**: acompanhe uma retícula `CRITICAL` de som,
+partículas, malha ou de um aviso de gameplay (animação de preparo, tempo) que continue legível com os efeitos desligados.
+
+### Resolução efetiva adaptativa
+
+O addon entrega **um** PNG; nunca uma versão por perfil. Níveis efetivos: 128, 256, 512 (atlas padrão, células em
+quadtree 512 → 256 → 128, cada uma alinhada ao próprio tamanho, então os mipmaps nunca misturam células) e 1024, 2048
+(atlas grande). Imagens pequenas nunca são ampliadas.
+
+- **Demanda** de cada luz: o lado que ela precisa na tela (altura projetada da esfera envolvente; folhas: × colunas ou
+  linhas), × 2 para IMPORTANT/CRITICAL, ÷ 2 para DECORATIVE. A demanda de uma imagem é a maior entre as luzes que a usam.
+- **Sem pressão**, a versão padrão fica em 512 (comportamento e aparência da fase 2).
+- **Sob pressão** (atlas acima de 85% ou uma imagem sem lugar nos últimos 120 quadros), cada imagem desce até a sua
+  demanda, nunca abaixo de 256 para CRITICAL. A versão menor é decodificada numa thread de trabalho enquanto a atual
+  continua desenhando, e a troca acontece num quadro só (libera, aloca, envia): **nunca há um quadro sem desenho**.
+- Uma imagem nova que não acha lugar **entra reduzida** (a própria cadeia de mipmaps deslocada, sem decodificar de
+  novo) em vez de cair no fallback.
+- **Histerese:** descer depois de 30 quadros seguidos pedindo menos, subir depois de 240, nunca duas trocas em 600
+  quadros; subir só se o atlas continuar abaixo de 70% com a versão maior (sem ciclo sobe-desce).
+- Máscaras, transparência e cores são preservadas (a versão reduzida é exatamente um nível de mipmap da original);
+  quadros de folhas continuam separados (o nível máximo lido acompanha o tamanho do quadro).
+
+No teste em jogo (`/vfxsample luz adaptativa`: 32 PNGs de 512, 16 perto e 16 longe, que não cabem nas 16 células
+grandes), o atlas assentou em 17 imagens de 128, 6 de 256 e 9 de 512, nenhuma no fallback, memória fixa em 21,3 MB, e
+nenhuma troca nem upload nos 400 ticks seguintes.
+
+### F7
+
+Além da linha da fase 2, três linhas:
+
+- `limits` — tetos efetivos de luzes e cookies; luzes descartadas sem contribuição; cookies mantidos, acima do
+  orçamento, carregando, lendo um só quadro (pressão por pixel); quantas luzes `CRITICAL` estão texturizadas.
+- `resolution` — distribuição 128/256/512/1024/2048, imagens reduzidas e se há pressão do atlas, trocas de
+  resolução (realocações), imagens que entraram reduzidas, uploads adiados, ocupação dos atlas, MB enviados.
+- `per pixel` — tiles ligados, luzes por tile (média e máximo), cookies no tile mais carregado.
+
+Assim cada perda de qualidade tem motivo: **fora da visão** (descartada), **sem contribuição** (dark), **acima do teto de
+luzes** (over cap), **acima do teto de cookies** (over budget → fallback), **carregando**, **resolução reduzida**
+(pressão do atlas) ou **um só quadro** (pressão por pixel).
+
+### Laboratório
+
+`/vfxsample luz carga <16|32|64|96|128|192> <mesmo|varios|mista> [espalhado|sobreposto]` monta exatamente esse número
+de luzes (instâncias de 16; `mista` = metade convencionais, então 192 = 96 cookies + 96 convencionais; `varios` usa
+16 ou 32 PNGs diferentes). `/vfxsample luz adaptativa`, `prioridade`, `runas_atenuacao`, `runas_modos` e
+`runas_relevo`: receita 28. A/B do custo por pixel: `/calamidade_client lighttiles off|on`.
+
+### Por que as runas ficavam fracas abaixo do nível original
+
+Não era a atenuação: é a combinação de projetor + POWER + profundidade. O projetor atenua por `z / profundidade` ao
+longo do eixo; com a fonte 6 blocos acima e profundidade 9, o chão recebia `(1 − 6/9)^0,6` ≈ 52%, um bloco abaixo 41%,
+três abaixo **zero** (z chega à profundidade). A semântica não mudou; a demo `runas` passou a usar profundidade 14 (71%
+no chão, 54% três blocos abaixo), e `runas_atenuacao` mostra lado a lado a profundidade antiga, a nova e `CONSTANT`.
+Para uma projeção que deve valer igual em qualquer altura (retícula), use `Attenuation.CONSTANT` ou uma profundidade
+bem maior que a distância até o chão mais baixo. ADD depende da cor da superfície (terra escura absorve); EMISSIVE não.
+
+### Limitações e decisões
+
+- Os tiles são de CPU (16 × 9, máscara de 192 bits por tile) e não um *tiled/clustered lighting* com compute: o motor
+  tem um passe de pós-processamento sem compute shaders. Custo: projetar 8 cantos por luz na CPU e enviar 4,6 KB por
+  quadro. Em llvmpipe, 64 luzes caíram de ~205–250 ms para ~65–80 ms por quadro (tendência de software, não medida).
+- Os tiles não ajudam quando todas as luzes cobrem os mesmos pixels (sobrepostas): aí o custo é real e os tetos e a
+  prioridade decidem.
+- Uma imagem guarda uma versão no atlas padrão e no máximo uma grande; duas resoluções grandes do mesmo PNG ao mesmo
+  tempo continuam fora (fase 2).
+- A demanda usa a esfera envolvente, não a área exata projetada; é conservadora (pede mais resolução que o necessário).
+- Abaixo de 17 luzes o passe é o laço da fase 2, idêntico pixel a pixel (prévia, 30 cenas).
 
 ## Light API ou GLSL próprio?
 

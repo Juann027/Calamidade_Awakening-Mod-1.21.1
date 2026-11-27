@@ -636,11 +636,17 @@ final class Atlas {
         return ClientHooks.coordinator().profile();
     }
 
-    private static final String[] CAP_LABELS = {"Effects drawn", "Addon passes", "HERO passes", "HERO drawn", "Beams", "Lights"};
+    private static final String[] CAP_LABELS = {"Effects drawn", "Addon passes", "HERO passes", "HERO drawn", "Beams", "Lights",
+        "Light cookies"};
     private static final int[] CAP_MAX = {QualityProfile.Caps.MAX_EFFECTS, QualityProfile.Caps.MAX_PASSES,
         QualityProfile.Caps.MAX_HERO_PASSES, QualityProfile.Caps.MAX_HEROES, dev.calamidade_awakening.api.FrameLimits.MAX_BEAMS,
-        dev.calamidade_awakening.api.FrameLimits.MAX_LIGHTS};
-    private static final int[] CAP_MIN = {1, 0, 0, 0, 0, 0};
+        dev.calamidade_awakening.api.FrameLimits.MAX_LIGHTS, dev.calamidade_awakening.api.FrameLimits.MAX_COOKIES};
+    private static final int[] CAP_MIN = {1, 0, 0, 0, 0, 0, 0};
+    private static final int CAPS = CAP_LABELS.length;
+
+    private static int[] values(QualityProfile.Caps c) {
+        return new int[] {c.effects(), c.passes(), c.heroPasses(), c.heroes(), c.beams(), c.lights(), c.cookies()};
+    }
 
     private void tune(GuiGraphics g, HoloPanel p) {
         QualityProfile profile = editing();
@@ -649,23 +655,25 @@ final class Atlas {
         button(g, p, p.w - 58, 4, 50, 14, t("tune.next", "next ▶"), false, true, () -> editing = profile.higher() == profile
             ? QualityProfile.LOW : profile.higher());
         var caps = ClientConfig.caps(profile);
-        int[] values = {caps.effects(), caps.passes(), caps.heroPasses(), caps.heroes(), caps.beams(), caps.lights()};
-        for (int i = 0; i < 6; i++) {
+        int[] values = values(caps);
+        for (int i = 0; i < CAPS; i++) {
             int index = i;
             int step = i >= 4 ? 4 : 1;
-            slider(g, p, 10, 26 + i * 22, p.w - 20, t("cap." + ClientConfig.CAP_NAMES[i], CAP_LABELS[i]), values[i], CAP_MIN[i],
+            // Fase 3: cookies never above the lights; the slider shows the applied value next to the stored one.
+            String shown = i == 6 && values[6] > values[5] ? values[6] + "→" + values[5] : values[i] + " / " + CAP_MAX[i];
+            slider(g, p, 10, 24 + i * 19, p.w - 20, t("cap." + ClientConfig.CAP_NAMES[i], CAP_LABELS[i]), values[i], CAP_MIN[i],
                 CAP_MAX[i], step, v -> {
                     ClientConfig.cap(profile, index, v);
                     ClientHooks.coordinator().invalidate();
-                }, values[i] + " / " + CAP_MAX[i]);
+                }, shown);
         }
         int fps = ClientConfig.autoTargetFps();
-        slider(g, p, 10, 26 + 6 * 22, p.w - 20, t("tune.fps", "AUTO target FPS"), fps, 30, 240, 5, ClientConfig::autoTargetFps,
+        slider(g, p, 10, 24 + CAPS * 19, p.w - 20, t("tune.fps", "AUTO target FPS"), fps, 30, 240, 5, ClientConfig::autoTargetFps,
             fps + " FPS");
         button(g, p, 10, p.h - 24, 120, 16, t("tune.reset", "Restore defaults"), false, true, () -> {
             var d = profile.defaults;
-            int[] def = {d.effects(), d.passes(), d.heroPasses(), d.heroes(), d.beams(), d.lights()};
-            for (int i = 0; i < 6; i++) ClientConfig.cap(profile, i, def[i]);
+            int[] def = values(d);
+            for (int i = 0; i < CAPS; i++) ClientConfig.cap(profile, i, def[i]);
             ClientHooks.coordinator().invalidate();
         });
         right(g, t("tune.saved", "Saved in the client config"), p.w - 10, p.h - 20, p.w - 140, .6F, style.sub());
@@ -673,7 +681,7 @@ final class Atlas {
 
     private void table(GuiGraphics g, HoloPanel p) {
         text(g, t("table.title", "Caps per profile"), 10, 7, p.w - 20, .8F, style.text());
-        String[] short_ = {"drawn", "passes", "HERO p.", "HERO", "beams", "lights"};
+        String[] short_ = {"drawn", "passes", "HERO p.", "HERO", "beams", "lights", "cookies"};
         float col = (p.w - 64) / 4F;
         QualityProfile current = ClientHooks.coordinator().profile();
         for (QualityProfile each : QualityProfile.values()) {
@@ -681,12 +689,13 @@ final class Atlas {
             centered(g, Component.literal(each == QualityProfile.BALANCED ? "BAL" : each.name()), x + col / 2F, 24, col, .62F,
                 each == current ? style.accent() : style.sub());
             var c = ClientConfig.caps(each);
-            int[] v = {c.effects(), c.passes(), c.heroPasses(), c.heroes(), c.beams(), c.lights()};
-            for (int i = 0; i < 6; i++)
-                centered(g, Component.literal(String.valueOf(v[i])), x + col / 2F, 40 + i * 18, col, .7F,
+            int[] v = values(c);
+            v[6] = Math.min(v[6], v[5]);
+            for (int i = 0; i < CAPS; i++)
+                centered(g, Component.literal(String.valueOf(v[i])), x + col / 2F, 38 + i * 16, col, .7F,
                     each == current ? style.accent() : style.text());
         }
-        for (int i = 0; i < 6; i++) text(g, t("table." + i, short_[i]), 8, 40 + i * 18, 50, .62F, style.sub());
+        for (int i = 0; i < CAPS; i++) text(g, t("table." + i, short_[i]), 8, 38 + i * 16, 50, .62F, style.sub());
         wrapped(g, t("table.note", "The highlighted column is the profile in use. AUTO moves between them."), 8, p.h - 26,
             p.w - 16, .58F, 2, style.sub());
     }

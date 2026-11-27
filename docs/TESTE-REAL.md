@@ -302,5 +302,38 @@ Verificação funcional e capturas da fase 2 na GPU real (~8 min): `./gradlew te
 movimento não sai numa captura: depois, em `runClient`, rode `/vfxsample luz filtros` e `/vfxsample luz resolucoes`,
 ande e gire a câmera e confira que `SHARP` não cintila e que a mandala em ULTRA não tem moiré parado.
 
+**Fase 3 (orçamento adaptativo, os números definitivos dos perfis):** os orçamentos 24/64/128/192 luzes e 16/48/96/128
+cookies são **propostos**; esta medida decide se ficam. Prepare como acima (`./gradlew testeJogo dist` e
+`./gradlew -p examples/vfx-sample build`, que agora gera o `vfx-sample-1.13.0.jar`).
+
+1. Verificação funcional na GPU real (~6 min; deve dar só PASS):
+
+```bash
+./gradlew testeLuz -Pluz.modo=fase3 -Pluz.largura=1920 -Pluz.altura=1080
+```
+
+2. Benchmark da fase 3 nos quatro perfis (~60 min com 5 repetições; `-Pluz.reps=2 -Pluz.amostra=8` para conferir antes):
+
+```bash
+./gradlew testeLuz -Pluz.modo=bench -Pluz.reps=5 -Pluz.largura=1920 -Pluz.altura=1080 -Pluz.perfis=LOW,BALANCED,HIGH,ULTRA -Pluz.cenarios=vazio,convencionais_24,cookie_estresse_32,f3_carga_32_mesmo,f3_carga_64_varios,f3_carga_128_mesmo,f3_carga_128_mesmo_sem_tiles,f3_carga_128_varios,f3_carga_192_mista,f3_carga_192_mista_sem_tiles,f3_sobreposta_64,f3_sobreposta_64_sem_tiles,f3_adaptativa_32_png,f3_prioridade_30
+```
+
+Como ler (mediana das medianas no `RESUMO`, diferenças menores que o IQR são empate):
+
+- **Teto de luzes por perfil:** em `f3_carga_192_mista` cada perfil desenha o seu teto (a coluna "luzes min-max" das
+  `JANELA` mostra 24/64/128/192). Critério: ULTRA abaixo de ~6,9 ms de quadro (144 Hz) com folga, HIGH com folga maior.
+  Se ULTRA passar, baixe `quality.ultra.lights` (Atlas → Qualidade → ajuste fino) até caber e anote o valor.
+- **Teto de cookies:** compare `f3_carga_128_mesmo` (1 PNG) e `f3_carga_128_varios` (32 PNGs, atlas sob pressão): a
+  diferença é o custo das imagens distintas e da redução de resolução; os cookies amostrados aparecem em "cookies min-max".
+- **Tiles:** `..._sem_tiles` × o mesmo cenário com tiles é o ganho real por pixel na GPU. Espalhadas devem ganhar
+  bastante; `f3_sobreposta_64` × `..._sem_tiles` deve empatar (todas as luzes no mesmo tile: o custo é real).
+- **Prioridade e adaptativa:** `f3_prioridade_30` e `f3_adaptativa_32_png` não devem custar mais que `f3_carga_32_mesmo`.
+- Durante a medida, F7 aberto numa segunda passada manual (`runClient`): linhas `limits`, `resolution` e `per pixel`
+  precisam bater com o que as `JANELA` registram.
+
+Em `runClient`, confira também à mão: `/vfxsample luz prioridade` com F8 em LOW (a retícula vermelha continua nítida
+enquanto parte das decorativas vira mancha), `/vfxsample luz adaptativa` andando de perto para longe (sem piscar nem
+trocar de resolução a cada passo; F7 `swaps` só sobe ao assentar), `/vfxsample luz runas_relevo` e `runas_atenuacao`.
+
 **Limite:** o tempo medido é o do quadro inteiro na CPU (o jogo espera a GPU no `swap`), não o tempo do passe de luzes
 na GPU; para isolar o passe, compare um cenário com e sem as luzes. Envie o arquivo `calamidade-luz.txt` inteiro.

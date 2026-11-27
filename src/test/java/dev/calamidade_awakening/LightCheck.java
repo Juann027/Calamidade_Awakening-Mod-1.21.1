@@ -26,6 +26,113 @@ final class LightCheck {
         oriented();
         atlas();
         fase2();
+        fase3();
+    }
+
+    /** 0.15 fase 3: quadtree atlas down to 128, priority selection with hysteresis, demand, resolution, tiles. */
+    private static void fase3() {
+        var A = dev.calamidade_awakening.api.CookieAtlas.class;
+        var a = new dev.calamidade_awakening.api.CookieAtlas();
+        java.util.List<dev.calamidade_awakening.api.CookieAtlas.Cell> cells = new java.util.ArrayList<>();
+        for (int i = 0; i < 256; i++) cells.add(a.allocate(128, 100));
+        require(cells.stream().allMatch(java.util.Objects::nonNull) && a.allocate(1, 1) == null && a.occupancy() == 1f,
+            "256 cells of 128 fill the atlas");
+        for (int i = 0; i < cells.size(); i++) for (int j = i + 1; j < cells.size(); j++) {
+            var p = cells.get(i); var q = cells.get(j);
+            require(p.x() + p.size() <= q.x() || q.x() + q.size() <= p.x() || p.y() + p.size() <= q.y() || q.y() + q.size() <= p.y(),
+                "128 cells overlap");
+        }
+        for (int i = 0; i < 16; i++) a.free(cells.get(i));
+        var whole = a.allocate(512, 512);
+        require(whole != null && whole.size() == 512 && whole.x() == 0 && whole.y() == 0, "sixteen freed 128 cells merge back into a 512");
+        a.clear();
+        var s1 = a.allocate(200, 200);
+        var t1 = a.allocate(100, 100);
+        require(s1.size() == 256 && t1.size() == 128 && t1.big() == s1.big(), "best fit: a 128 inside the already split 512");
+        require(dev.calamidade_awakening.api.CookieAtlas.cellFor(64, 64) == 128 && dev.calamidade_awakening.api.CookieAtlas.cellFor(129, 10) == 256,
+            "cellFor 128/256/512");
+        require(dev.calamidade_awakening.api.CookieAtlas.largeSide(dev.calamidade_awakening.api.Quality.LOW) == 512
+            && dev.calamidade_awakening.api.CookieAtlas.largeSide(dev.calamidade_awakening.api.Quality.BALANCED) == 1024
+            && dev.calamidade_awakening.api.CookieAtlas.largeSide(dev.calamidade_awakening.api.Quality.HIGH) == 2048,
+            "large side by tier, not by the (now larger) lights cap");
+        // Selection: tier first, then score; under the cap everything stays; the previous frame wins ties.
+        int[] tier = {0, 0, 0, 3, 1};
+        float[] score = {9, 8, 7, .001f, 5};
+        boolean[] keep = dev.calamidade_awakening.api.LightBudget.select(5, tier, score, null, 2);
+        require(keep[3] && keep[4] && !keep[0], "a CRITICAL reticle is kept before brighter decorative lights");
+        keep = dev.calamidade_awakening.api.LightBudget.select(5, tier, score, null, 9);
+        require(keep[0] && keep[1] && keep[2] && keep[3] && keep[4], "under the cap every light is kept");
+        int[] same = {1, 1};
+        float[] close = {1f, 1.2f};
+        require(dev.calamidade_awakening.api.LightBudget.select(2, same, close, new boolean[] {true, false}, 1)[0],
+            "hysteresis: the light kept last frame stays against a slightly brighter one");
+        require(dev.calamidade_awakening.api.LightBudget.select(2, same, new float[] {1f, 2f}, new boolean[] {true, false}, 1)[1],
+            "hysteresis is bounded: a much brighter light still wins");
+        // Flicker scenario: two lights trade 10% of score every frame; the kept one never changes.
+        boolean[] prev = {true, false};
+        int swaps = 0;
+        for (int f = 0; f < 100; f++) {
+            float[] sc = f % 2 == 0 ? new float[] {1f, 1.1f} : new float[] {1.1f, 1f};
+            boolean[] k = dev.calamidade_awakening.api.LightBudget.select(2, same, sc, prev, 1);
+            if (k[0] != prev[0]) swaps++;
+            prev = k;
+        }
+        require(swaps == 0, "no blinking between two similar lights: " + swaps);
+        require(dev.calamidade_awakening.api.LightBudget.tier(Light.Priority.NORMAL, true) == 2
+            && dev.calamidade_awakening.api.LightBudget.tier(Light.Priority.DECORATIVE, true) == 0
+            && dev.calamidade_awakening.api.LightBudget.tier(Light.Priority.CRITICAL, false) == 3, "HERO makes NORMAL lights IMPORTANT");
+        require(Light.point(Point.center()).build().priority() == Light.Priority.NORMAL
+            && Light.point(Point.center()).priority(Light.Priority.CRITICAL).build().priority() == Light.Priority.CRITICAL, "priority opt-in");
+        require(Light.MAX_PER_EFFECT == 32, "32 lights per effect");
+        // Demand: from the footprint, sheet frames share the side, importance, bounds 128..2048.
+        float far = dev.calamidade_awakening.api.LightBudget.footprint(5, 200, 1080, 70);
+        float near = dev.calamidade_awakening.api.LightBudget.footprint(5, 6, 1080, 70);
+        require(far < 60 && near > 900, "footprint: " + far + " " + near);
+        require(dev.calamidade_awakening.api.LightBudget.demand(far, 1, 1, 1) == 128
+            && dev.calamidade_awakening.api.LightBudget.demand(900, 1, 1, 1) == 1024 && dev.calamidade_awakening.api.LightBudget.demand(near, 1, 1, 1) == 2048
+            && dev.calamidade_awakening.api.LightBudget.demand(100, 4, 4, 1) == 512
+            && dev.calamidade_awakening.api.LightBudget.demand(100, 1, 1, 3) == 256
+            && dev.calamidade_awakening.api.LightBudget.demand(5000, 1, 1, 3) == 2048, "demand sides");
+        require(dev.calamidade_awakening.api.LightBudget.floor(3) == 256 && dev.calamidade_awakening.api.LightBudget.floor(0) == 128,
+            "CRITICAL never under 256");
+        // Resolution hysteresis: oscillating wishes never change the side; a steady one does, once, then cools down.
+        var res = new dev.calamidade_awakening.api.LightBudget.Resolution(512);
+        int changes = 0;
+        for (int f = 0; f < 1000; f++) if (res.update(f % 20 < 10 ? 256 : 512)) changes++;
+        require(changes == 0, "no resolution change while the wish oscillates: " + changes);
+        changes = 0;
+        for (int f = 0; f < 2000; f++) if (res.update(256)) { changes++; res.changed(256); }
+        require(changes == 1 && res.side() == 256, "one change for a steady wish: " + changes);
+        int up = -1;
+        for (int f = 0; f < 2000 && up < 0; f++) if (res.update(512)) up = f;
+        require(up >= dev.calamidade_awakening.api.LightBudget.Resolution.UP_FRAMES - 1, "going back up waits: " + up);
+        // Screen tiles: a light in front covers some tiles, one behind none, one around the camera all.
+        var proj = new org.joml.Matrix4f().perspective((float) Math.toRadians(70), 16 / 9f, .05f, 1000f);
+        float[] m = new float[16];
+        proj.get(m);
+        int[] r = new int[4];
+        require(dev.calamidade_awakening.api.LightBudget.tiles(m, 0, 0, -30, 2, r) && r[0] > 0 && r[2] < 15 && r[0] <= r[2],
+            "light ahead covers a few tiles: " + java.util.Arrays.toString(r));
+        require(!dev.calamidade_awakening.api.LightBudget.tiles(m, 0, 0, 30, 2, r), "light behind covers none");
+        require(dev.calamidade_awakening.api.LightBudget.tiles(m, 0, 0, 0, 3, r) && r[0] == 0 && r[2] == 15 && r[3] == 8,
+            "camera inside: every tile");
+        float[] masks = new float[dev.calamidade_awakening.api.LightBudget.TILES * 8];
+        dev.calamidade_awakening.api.LightBudget.mark(masks, new int[] {0, 0, 1, 0}, 191);
+        dev.calamidade_awakening.api.LightBudget.mark(masks, new int[] {0, 0, 0, 0}, 168);
+        require((int) masks[7] == ((1 << 23) | 1) && (int) masks[15] == 1 << 23 && masks[7] == (float) ((1 << 23) | 1),
+            "24-bit masks are exact in a float");
+        require(dev.calamidade_awakening.api.LightBudget.score(2, 1, 100) < dev.calamidade_awakening.api.LightBudget.score(2, 1, 10)
+            && dev.calamidade_awakening.api.LightBudget.score(2, 5, 1) == 2, "score falls with distance, 1 coverage inside");
+        // Reduction from the image's own mip chain: the drawing stays (exact texels of the lower level), cells shrink.
+        int[] img = new int[512 * 256];
+        for (int i = 0; i < img.length; i++) img[i] = ((i / 512) % 64 < 32) == ((i % 512) % 64 < 32) ? 0xff2040ff : 0x00000000;
+        int[] sh = dev.calamidade_awakening.client.LightCookiesAccess.shrink(img, 512, 256, 1);
+        require(sh[0] == 256 && sh[1] == 128 && sh[2] == 256 && sh[4] == 1 && sh[5] == 1, "512x256 sheet at 256: " + java.util.Arrays.toString(sh));
+        sh = dev.calamidade_awakening.client.LightCookiesAccess.shrink(img, 512, 256, 2);
+        require(sh[0] == 128 && sh[1] == 64 && sh[2] == 128 && sh[3] == 8 && sh[5] == 1, "at 128: " + java.util.Arrays.toString(sh));
+        // Frames of a 4 x 2 sheet stored at 128 x 64 stay 32 texels wide; the max level keeps them apart.
+        require(dev.calamidade_awakening.api.CookieAtlas.maxLod(32, 32) == 4, "frames of a reduced sheet never mix");
+        require(A != null, "atlas class");
     }
 
     /** 0.15 fase 2: EMISSIVE, OVERRIDE, nitidez, resolução, potência de 2 e atlas grande. */
@@ -269,9 +376,9 @@ final class LightCheck {
         expectRejected(() -> Effects.lights(ResourceLocation.parse("calamidade_awakening:nexus"), fire), "internal effect");
         Effects.register(E.apply("campfire"), definition);
         expectRejected(() -> Effects.lights(E.apply("campfire")), "no lights");
-        Light[] nine = new Light[9];
+        Light[] nine = new Light[Light.MAX_PER_EFFECT + 1];
         java.util.Arrays.fill(nine, fire);
-        expectRejected(() -> Effects.lights(E.apply("campfire"), nine), "9 lights");
+        expectRejected(() -> Effects.lights(E.apply("campfire"), nine), (Light.MAX_PER_EFFECT + 1) + " lights");
         Light[] eight = new Light[8];
         java.util.Arrays.fill(eight, fire);
         Effects.lights(E.apply("campfire"), eight);
@@ -301,7 +408,8 @@ final class LightCheck {
     }
 
     private static void caps() {
-        require(Quality.LOW.lights == 8 && Quality.BALANCED.lights == 24 && Quality.HIGH.lights == 64, "light caps 8/24/64");
+        require(Quality.LOW.lights == 8 && Quality.BALANCED.lights == 24 && Quality.HIGH.lights == 64,
+            "tier light caps 8/24/64 (legacy; the profiles use 24/64/128/192 since fase 3)");
         var perEffect = new java.util.ArrayList<List<Integer>>();
         for (int e = 0; e < 12; e++) perEffect.add(java.util.Collections.nCopies(8, e));
         for (Quality q : Quality.values()) {

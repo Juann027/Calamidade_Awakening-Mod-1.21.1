@@ -9,7 +9,7 @@ estilos**: um addon deve trazer as próprias imagens e cores; o motor só sabe p
 | Teste no jogo | `/vfxsample luz lista`; `/vfxsample luz <demo>` (7 blocos à frente, virada para onde você olha), `/vfxsample luz <demo> soltar` (saída) ou `parar` (corte), `/vfxsample luz comparar referencia runas` (lado a lado), `/vfxsample luz estresse 4` (4 × 8 luzes), `/vfxsample luz parar`. De noite, F7 aberto. |
 | Arquivos | `examples/vfx-sample/src/main/java/example/vfxsample/receitas/LaboratorioLuz.java`; PNGs em `examples/vfx-sample/src/main/resources/assets/vfxsample/textures/lights/` (sem shader) |
 | Usa | `Light.projector`, `Light.spot`, `direction`, `toward(Point.anchorAim(...))`, `roll`, `Light.Cookie` (`MASK`, `colored`, `repeat`, `scale`, `rotation`, `offset`, `sheet`, `fps`, `blendFrames`), trilhas `ROLL`, `YAW`, `FRAME`, `COLOR`, `COOKIE_U/V`, `INTENSITY`, `WEIGHT`; `colorRamp`, `distanceGradient`, `Attenuation.SMOOTH`, `Blend.SOFT`, `Blend.SUBTRACT`; `Effects.follow` |
-| Custo | 1 a 8 luzes por demo num único passe; 0 a 4 cookies; atlas de ~21 MB criado no primeiro cookie; nenhum passe novo |
+| Custo | 1 a 30 luzes por demo (as cargas: até 192) num único passe; 0 a 30 cookies; atlas de ~21 MB criado no primeiro cookie; nenhum passe novo |
 
 | Demo | O que mostra |
 |---|---|
@@ -34,6 +34,14 @@ estilos**: um addon deve trazer as próprias imagens e cores; o motor só sabe p
 | `superficies` | monta escada, muro, relevo e um suporte de armadura (só no comando) e projeta grade `OVERRIDE` + retícula `EMISSIVE` por cima |
 | `sobrepostas` | `ADD`, `SOFT`, `EMISSIVE`, `OVERRIDE` e `SUBTRACT` parcialmente sobrepostos (resultado independe da ordem) |
 | `ataque` | retícula de ataque legível de dia e de noite: `OVERRIDE` total (contraste 4, nítida) + núcleo `EMISSIVE` pulsando |
+| **Fase 3** | (orçamento adaptativo; capítulo `docs/LUZ-0.15.md`, "Fase 3") |
+| `runas` | agora com profundidade 14 (antes 9): com POWER o projetor atenua por `z / profundidade`, e 9 apagava a runa três blocos abaixo do chão original |
+| `runas_atenuacao` | a mesma runa: `POWER` profundidade 9 (antes) \| `POWER` 14 \| `CONSTANT` |
+| `runas_modos` | `ADD` (depende da cor do chão) \| `EMISSIVE` (não depende) |
+| `runas_relevo` | monta chão plano \| cratera de 3 blocos \| degraus de 1 a 3 blocos (só no comando) e projeta uma runa sobre cada |
+| `prioridade` | retícula `CRITICAL` (`OVERRIDE` + `EMISSIVE`) no meio de 28 projeções `DECORATIVE` mais brilhantes: no LOW (16 cookies) a retícula nunca perde o desenho |
+| `adaptativa` (comando) | 32 PNGs de 512 diferentes, 16 a 9 blocos e 16 a 48: não cabem nas 16 células grandes, o atlas reduz (os de longe para 128) sem fallback |
+| `carga <n> <tipo> [modo]` (comando) | exatamente 16, 32, 64, 96, 128 ou 192 luzes; `mesmo` (um PNG), `varios` (16 ou 32 PNGs), `mista` (metade convencionais: 192 = 96 + 96); `espalhado` (grade) ou `sobreposto` (mesma região da tela) |
 
 ## Código Java
 
@@ -74,6 +82,12 @@ import static dev.calamidade_awakening.api.v1.Timeline.keyframe;
  * viradas para onde ele olha. Comandos: {@code /vfxsample luz <demo>}, {@code /vfxsample luz <demo> soltar|parar},
  * {@code /vfxsample luz comparar <a> <b>} (lado a lado), {@code /vfxsample luz estresse <n>}, {@code /vfxsample luz
  * parar} e {@code /vfxsample luz lista}.
+ *
+ * <p>Fase 3 (orçamento adaptativo): {@code /vfxsample luz carga <16|32|64|96|128|192> <mesmo|varios|mista>
+ * [espalhado|sobreposto]} monta exatamente esse número de luzes (instâncias de 16 luzes; {@code mista} = 8 cookies + 8
+ * convencionais por instância, então 192 = 96 + 96), {@code /vfxsample luz adaptativa} (32 PNGs diferentes perto e
+ * longe: pressão sobre o atlas e resolução efetiva por distância) e as demos {@code runas_atenuacao},
+ * {@code runas_modos}, {@code runas_relevo} e {@code prioridade}. Os números de cada perfil aparecem no F7.
  */
 public final class LaboratorioLuz {
     static ResourceLocation id(String path) { return ResourceLocation.fromNamespaceAndPath("vfxsample", "luz_" + path); }
@@ -90,6 +104,12 @@ public final class LaboratorioLuz {
     static final String ATAQUE = "vfxsample:textures/lights/ataque.png";
     static final String PIXEL = "vfxsample:textures/lights/pixel.png";
     static final String MANDALA = "vfxsample:textures/lights/mandala.png";
+    // Fase 3: 32 glifos de 512 diferentes (scripts/gerar_cookies_exemplo.py --carga).
+    static final String[] CARGA_PNG = new String[32];
+
+    static {
+        for (int i = 0; i < CARGA_PNG.length; i++) CARGA_PNG[i] = String.format("vfxsample:textures/lights/carga/carga_%02d.png", i);
+    }
 
     /**
      * Laço de 160 ticks (8 s) entre 20 e 180: trilhas com o mesmo valor nas bordas do laço, entrada e saída de 1 s.
@@ -137,9 +157,13 @@ public final class LaboratorioLuz {
     static final Light REF_DISCO = Light.disc(Point.center(), 6).color(0xffff9050).intensity(1.1f).build();
 
     // 2. Runas: projetor planar de cima, o círculo arcano gira (ROLL) e respira (INTENSITY).
+    //    Fase 3: profundidade 14 (antes 9). Com POWER, a luz de um projetor cai com z / profundidade: a 6 blocos da
+    //    fonte e profundidade 9 o chão já recebia (1 - 6/9)^0,6 = 52% e um bloco abaixo 41%; 3 blocos abaixo, nada (z
+    //    chega à profundidade). Com 14: 71% no chão e 54% três blocos abaixo. A semântica da atenuação não mudou; veja
+    //    as demos runas_atenuacao, runas_modos e runas_relevo.
     static final Demo RUNAS_DEMO = demo("runas", "projeção de runas girando no chão (cookie MASK)");
     static final Light RUNAS_LUZ = Light.projector(Point.center(0, 6, 0), 11, 11).cookie(RUNAS)
-        .color(0xff8ab4ff).radius(9).falloff(.6f).softness(.05f)
+        .color(0xff8ab4ff).radius(14).falloff(.6f).softness(.05f)
         .track(Light.Param.ROLL, "giro").track(Light.Param.INTENSITY, "pulso").track(Light.Param.WEIGHT, "entrada").build();
 
     // 3. Tecnologia: grade hexagonal que repete, varredura (COOKIE_V), cor ciano a verde (rampa) e uma retícula.
@@ -321,6 +345,86 @@ public final class LaboratorioLuz {
         .blend(Light.Blend.EMISSIVE).track(Light.Param.ROLL, "giro").track(Light.Param.WEIGHT, "entrada")
         .build();
 
+    // ---------------------------------------------------------------- fase 3: orçamento adaptativo e comparações
+
+    /** Runas de comparação, lado a lado (x positivo = esquerda de quem olha). */
+    private static Light.Builder runasLado(double x, float profundidade) {
+        return Light.projector(Point.center(x, 6, 0), 5, 5).cookie(RUNAS).color(0xff8ab4ff).intensity(1).radius(profundidade)
+            .falloff(.6f).softness(.05f).track(Light.Param.ROLL, "giro").track(Light.Param.WEIGHT, "entrada");
+    }
+
+    // 21. POWER com a profundidade antiga (9) | POWER com 14 | CONSTANT: a mesma runa, a mesma intensidade.
+    static final Demo RUNAS_ATENUACAO = demo("runas_atenuacao", "runas: POWER prof. 9 (antes) | POWER prof. 14 | CONSTANT");
+    static final Light RUNAS_POWER_9 = runasLado(6, 9).build();
+    static final Light RUNAS_POWER_14 = runasLado(0, 14).build();
+    static final Light RUNAS_CONSTANT = runasLado(-6, 9).attenuation(Light.Attenuation.CONSTANT).build();
+
+    // 22. ADD (depende da cor do chão) | EMISSIVE (não depende: legível em terra escura e de dia).
+    static final Demo RUNAS_MODOS = demo("runas_modos", "runas: ADD | EMISSIVE, mesma intensidade");
+    static final Light RUNAS_ADD = runasLado(3.5, 14).build();
+    static final Light RUNAS_EMISSIVE = runasLado(-3.5, 14).blend(Light.Blend.EMISSIVE).build();
+
+    // 23. Relevo: o comando monta chão plano | cratera de 3 blocos | degraus de 1 a 3 blocos; uma runa sobre cada um.
+    static final Demo RUNAS_RELEVO = demo("runas_relevo", "runas sobre plano | cratera | degraus (monta o relevo)");
+    static final Light RELEVO_PLANO = runasLado(7, 14).build();
+    static final Light RELEVO_CRATERA = runasLado(0, 14).build();
+    static final Light RELEVO_DEGRAUS = runasLado(-7, 14).build();
+
+    // 24. Prioridade: retícula CRITICAL (OVERRIDE + EMISSIVE) no meio de 28 projeções DECORATIVE mais brilhantes. No
+    //     LOW (16 cookies por quadro) as decorativas excedentes caem no fallback; a retícula nunca perde o desenho.
+    static final Demo PRIORIDADE = demo("prioridade", "retícula CRITICAL contra 28 decorativas no mesmo orçamento (teste no LOW)");
+    static final Light[] PRIORIDADE_LUZES = prioridade();
+
+    private static Light[] prioridade() {
+        List<Light> out = new ArrayList<>();
+        out.add(Light.projector(Point.center(0, 7, 0), 6, 6).cookie(Light.Cookie.of(ATAQUE).sharpness(1)).color(0xffff1020)
+            .intensity(1.1f).radius(10).attenuation(Light.Attenuation.CONSTANT).softness(.01f).contrast(4)
+            .blend(Light.Blend.OVERRIDE).priority(Light.Priority.CRITICAL).track(Light.Param.ROLL, "giro")
+            .track(Light.Param.WEIGHT, "entrada").build());
+        out.add(Light.projector(Point.center(0, 7, 0), 6, 6).cookie(Light.Cookie.of(ATAQUE).sharpness(1)).color(0xffff3020)
+            .intensity(.35f).radius(10).attenuation(Light.Attenuation.CONSTANT).softness(.01f).contrast(4)
+            .blend(Light.Blend.EMISSIVE).priority(Light.Priority.CRITICAL).track(Light.Param.ROLL, "giro")
+            .track(Light.Param.WEIGHT, "entrada").build());
+        String[] png = {HEX, RUNAS, NEON, MANDALA};
+        for (int i = 0; i < 28; i++) {
+            double a = i * Math.PI * 2 / 28, r = 5 + (i % 2) * 2.5;
+            out.add(Light.projector(Point.center(Math.cos(a) * r, 6, Math.sin(a) * r), 3.2f, 3.2f).cookie(png[i % 4])
+                .color(0xff60c0ff).intensity(3).radius(9).falloff(.5f).priority(Light.Priority.DECORATIVE)
+                .track(Light.Param.WEIGHT, "entrada").build());
+        }
+        return out.toArray(Light[]::new);
+    }
+
+    /** Tipos de carga: textura e convencionais por instância de 16 luzes. */
+    enum Carga { MESMO, VARIOS_A, VARIOS_B, MISTA }
+
+    /** Efeitos de carga: [tipo][0 espalhado, 1 sobreposto]. */
+    static final ResourceLocation[][] CARGAS = new ResourceLocation[Carga.values().length][2];
+
+    /**
+     * 16 luzes de carga. Espalhado: grade 4 x 4 de 3 blocos (cada luz numa região diferente da tela). Sobreposto: as 16
+     * no mesmo ponto, só o giro muda (a mesma região da tela: pior caso por pixel).
+     */
+    private static Light[] carga(Carga tipo, boolean sobreposto) {
+        Light[] out = new Light[16];
+        for (int i = 0; i < 16; i++) {
+            double x = sobreposto ? 0 : (i % 4 - 1.5) * 3, z = sobreposto ? 0 : (i / 4 - 1.5) * 3;
+            boolean cookie = tipo != Carga.MISTA || i % 2 == 0;
+            if (!cookie) {
+                out[i] = Light.point(Point.center(x, 1.2, z)).color(0xffffa050).intensity(1.6f).radius(5).build();
+                continue;
+            }
+            String png = switch (tipo) {
+                case MESMO, MISTA -> RUNAS;
+                case VARIOS_A -> CARGA_PNG[i];
+                case VARIOS_B -> CARGA_PNG[16 + i];
+            };
+            out[i] = Light.projector(Point.center(x, 5, z), sobreposto ? 6 : 2.6f, sobreposto ? 6 : 2.6f).cookie(png)
+                .color(0xff80b0ff).intensity(sobreposto ? .5f : 2).radius(9).falloff(.5f).roll(i * 22.5f).softness(.04f).build();
+        }
+        return out;
+    }
+
     private static List<Light> estresse() {
         List<Light> out = new ArrayList<>();
         String[] cookies = {RUNAS, HEX, ALVO, VITRAL};
@@ -364,6 +468,19 @@ public final class LaboratorioLuz {
         registrar(SUPERFICIES, 9, LACO, SUP_GRADE, SUP_ALVO);
         registrar(SOBREPOSTAS, 8, LACO, SOB_ADD, SOB_SOFT, SOB_EMISSIVE, SOB_OVERRIDE, SOB_SUBTRACT);
         registrar(ATAQUE_DEMO, 7, LACO, ATAQUE_BASE, ATAQUE_BRILHO);
+        // Fase 3.
+        registrar(RUNAS_ATENUACAO, 10, LACO, RUNAS_POWER_9, RUNAS_POWER_14, RUNAS_CONSTANT);
+        registrar(RUNAS_MODOS, 8, LACO, RUNAS_ADD, RUNAS_EMISSIVE);
+        registrar(RUNAS_RELEVO, 11, LACO, RELEVO_PLANO, RELEVO_CRATERA, RELEVO_DEGRAUS);
+        registrar(PRIORIDADE, 10, LACO, PRIORIDADE_LUZES);
+        for (Carga tipo : Carga.values()) for (int k = 0; k < 2; k++) {
+            ResourceLocation id = id("carga_" + tipo.name().toLowerCase(java.util.Locale.ROOT) + (k == 0 ? "" : "_sobreposta"));
+            CARGAS[tipo.ordinal()][k] = id;
+            Effects.register(id, new Effects.Definition(LACO.duration(), 8, 0xffffffff, Effects.Shape.NONE,
+                Effects.Material.NONE, null, null).withRange(128));
+            Effects.timeline(id, LACO);
+            Effects.lights(id, carga(tipo, k == 1));
+        }
     }
 
     private static void registrar(Demo demo, double raio, Timeline timeline, Light... luzes) {
@@ -390,9 +507,61 @@ public final class LaboratorioLuz {
                 com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "b"))))));
         raiz.then(Commands.literal("estresse").then(Commands.argument("n", IntegerArgumentType.integer(1, 16))
             .executes(ctx -> estresse(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n")))));
+        // Fase 3: laboratório de estresse com quantidades exatas.
+        var quantidade = Commands.argument("n", IntegerArgumentType.integer(16, 192))
+            .suggests((ctx, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(List.of("16", "32", "64", "96", "128", "192"), b));
+        for (String tipo : List.of("mesmo", "varios", "mista")) {
+            quantidade.then(Commands.literal(tipo).executes(ctx -> carga(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), tipo, false))
+                .then(Commands.literal("espalhado").executes(ctx -> carga(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), tipo, false)))
+                .then(Commands.literal("sobreposto").executes(ctx -> carga(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), tipo, true))));
+        }
+        raiz.then(Commands.literal("carga").then(quantidade));
+        raiz.then(Commands.literal("adaptativa").executes(ctx -> adaptativa(ctx.getSource())));
         raiz.then(Commands.literal("parar").executes(ctx -> pararTudo(ctx.getSource())));
         raiz.then(Commands.literal("lista").executes(ctx -> lista(ctx.getSource())));
         return raiz;
+    }
+
+    /**
+     * Fase 3: exatamente {@code n} luzes em instâncias de 16 (arredonda para cima). {@code varios} alterna dois efeitos
+     * com 16 PNGs cada: 16 luzes = 16 texturas, 32 ou mais = 32 texturas. Espalhado: instâncias a 14 blocos; sobreposto:
+     * todas no mesmo ponto.
+     */
+    private static int carga(CommandSourceStack source, int n, String tipo, boolean sobreposto) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        var lista = VIVAS.computeIfAbsent(player.getUUID(), k -> new HashMap<>()).computeIfAbsent("carga", k -> new ArrayList<>());
+        int instancias = (n + 15) / 16, ok = 0;
+        for (int i = 0; i < instancias; i++) {
+            Carga c = switch (tipo) {
+                case "mesmo" -> Carga.MESMO;
+                case "mista" -> Carga.MISTA;
+                default -> i % 2 == 0 ? Carga.VARIOS_A : Carga.VARIOS_B;
+            };
+            Placement at = sobreposto ? posicao(player, 0, 0, 1, 14, 9) : posicao(player, 0, i, instancias, 14, 9);
+            var handle = Effects.start(CARGAS[c.ordinal()][sobreposto ? 1 : 0], player.serverLevel(), at);
+            if (handle.isPresent()) { lista.add(handle.get()); ok++; }
+        }
+        int luzes = ok * 16, cookies = tipo.equals("mista") ? ok * 8 : luzes, texturas = tipo.equals("mesmo") || tipo.equals("mista") ? 1
+            : Math.min(32, ok * 16);
+        int pedidas = instancias;
+        source.sendSuccess(() -> Component.literal("carga " + tipo + (sobreposto ? " sobreposta" : " espalhada") + ": " + luzes
+            + " luzes (" + cookies + " com cookie, " + texturas + " PNG) em " + pedidas + " instâncias"
+            + (luzes < n ? " — o servidor recusou parte (limite por jogador)" : "") + ". Limites e motivos no F7."), false);
+        return ok;
+    }
+
+    /** Fase 3: 16 PNGs perto (7 blocos) e outros 16 longe (48 blocos): o atlas fica sob pressão e reduz os de longe. */
+    private static int adaptativa(CommandSourceStack source) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        var lista = VIVAS.computeIfAbsent(player.getUUID(), k -> new HashMap<>()).computeIfAbsent("carga", k -> new ArrayList<>());
+        int ok = 0;
+        for (int i = 0; i < 2; i++) {
+            Placement at = posicao(player, 0, 0, 1, 0, i == 0 ? 9 : 48);
+            var handle = Effects.start(CARGAS[i == 0 ? Carga.VARIOS_A.ordinal() : Carga.VARIOS_B.ordinal()][0], player.serverLevel(), at);
+            if (handle.isPresent()) { lista.add(handle.get()); ok++; }
+        }
+        source.sendSuccess(() -> Component.literal("adaptativa: 32 PNGs de 512 (16 a 9 blocos, 16 a 48 blocos). F7: resolução 128/256/512 e pressão do atlas."), false);
+        return ok;
     }
 
     private static int iniciar(CommandSourceStack source, Demo demo, double lado, int vezes) throws CommandSyntaxException {
@@ -401,6 +570,7 @@ public final class LaboratorioLuz {
         int ok = 0;
         for (int i = 0; i < vezes; i++) {
             if (demo == SUPERFICIES && i == 0) pista(player, posicao(player, lado, 0, 1).position());
+            if (demo == RUNAS_RELEVO && i == 0) relevo(player, posicao(player, lado, 0, 1));
             var handle = demo == SEGUIR
                 ? Effects.follow(demo.id(), player, Vec3.ZERO)
                 : Effects.start(demo.id(), player.serverLevel(), posicao(player, lado, i, vezes));
@@ -414,13 +584,18 @@ public final class LaboratorioLuz {
 
     /** 7 blocos à frente, virado como o jogador; {@code lado} desloca para a direita (comparar); grade no estresse. */
     private static Placement posicao(ServerPlayer player, double lado, int i, int vezes) {
+        return posicao(player, lado, i, vezes, 10, 7);
+    }
+
+    /** Grade de {@code vezes} instâncias a {@code passo} blocos, a primeira linha {@code frenteMin} blocos à frente. */
+    private static Placement posicao(ServerPlayer player, double lado, int i, int vezes, double passo, double frenteMin) {
         Vec3 frente = player.getLookAngle().multiply(1, 0, 1);
         if (frente.lengthSqr() < 1e-4) frente = new Vec3(0, 0, 1);
         frente = frente.normalize();
         Vec3 direita = new Vec3(-frente.z, 0, frente.x);
         int lado2 = (int) Math.ceil(Math.sqrt(vezes));
-        double gx = vezes > 1 ? (i % lado2 - (lado2 - 1) / 2.0) * 10 : 0, gz = vezes > 1 ? (i / lado2) * 10 : 0;
-        Vec3 pos = player.position().add(frente.scale(7 + gz)).add(direita.scale(lado + gx));
+        double gx = vezes > 1 ? (i % lado2 - (lado2 - 1) / 2.0) * passo : 0, gz = vezes > 1 ? (i / lado2) * passo : 0;
+        Vec3 pos = player.position().add(frente.scale(frenteMin + gz)).add(direita.scale(lado + gx));
         return Placement.at(pos, player.getYRot(), 0).withCaster(player);
     }
 
@@ -483,6 +658,34 @@ public final class LaboratorioLuz {
         for (int[] r : relevo) level.setBlockAndUpdate(base.offset(r[0], 0, r[1]), net.minecraft.world.level.block.Blocks.MOSS_BLOCK.defaultBlockState());
         var suporte = new net.minecraft.world.entity.decoration.ArmorStand(level, centro.x + .5, base.getY(), centro.z - 1.5);
         level.addFreshEntity(suporte);
+    }
+
+    /**
+     * Relevo da demo "runas_relevo" (só no comando): à esquerda de quem olha o chão fica plano; no meio, uma cratera de 3
+     * blocos de fundo; à direita, degraus de 1, 2 e 3 blocos. Vira com o jogador, como as runas.
+     */
+    private static void relevo(ServerPlayer player, Placement centro) {
+        var level = player.serverLevel();
+        Vec3 c = centro.position();
+        Vec3 frente = player.getLookAngle().multiply(1, 0, 1);
+        if (frente.lengthSqr() < 1e-4) frente = new Vec3(0, 0, 1);
+        frente = frente.normalize();
+        Vec3 esquerda = new Vec3(frente.z, 0, -frente.x);
+        var pedra = net.minecraft.world.level.block.Blocks.STONE.defaultBlockState();
+        var ar = net.minecraft.world.level.block.Blocks.AIR.defaultBlockState();
+        for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) {
+            // Cratera: tigela de raio 2,5 e 3 blocos de fundo no centro.
+            Vec3 m = c.add(frente.scale(dz)).add(esquerda.scale(dx));
+            double r = Math.hypot(dx, dz);
+            int fundo = r < 1.2 ? 3 : r < 2.2 ? 2 : r < 2.9 ? 1 : 0;
+            var base = net.minecraft.core.BlockPos.containing(m.x, c.y - 1, m.z);
+            for (int y = 0; y < fundo; y++) level.setBlockAndUpdate(base.below(y), ar);
+            // Degraus: de 1 a 3 blocos de altura conforme a frente.
+            Vec3 d = c.add(frente.scale(dz)).add(esquerda.scale(dx - 7));
+            var chao = net.minecraft.core.BlockPos.containing(d.x, c.y, d.z);
+            int altura = 1 + (dz + 2) / 2;   // linhas de trás para a frente: 1, 1, 2, 2, 3 blocos
+            for (int y = 0; y < altura; y++) level.setBlockAndUpdate(chao.above(y), pedra);
+        }
     }
 
     /** Encerra todas as demos de um jogador (também ao sair do jogo). */

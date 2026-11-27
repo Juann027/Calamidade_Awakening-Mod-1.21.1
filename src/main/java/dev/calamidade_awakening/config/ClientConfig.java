@@ -23,11 +23,18 @@ public final class ClientConfig {
     private static final ModConfigSpec.EnumValue<dev.calamidade_awakening.api.QualityMode> QUALITY;
     /** Frame rate AUTO aims at (0.11.2). */
     private static final ModConfigSpec.IntValue AUTO_TARGET_FPS;
-    /** Caps of each profile (0.11.2): drawn, passes, heroPasses, heroes, beams, lights, in the order of the enum. */
+    /** Caps of each profile (0.11.2): drawn, passes, heroPasses, heroes, beams, lights, cookies (fase 3), in the order of the enum. */
     private static final java.util.Map<dev.calamidade_awakening.api.QualityProfile, ModConfigSpec.IntValue[]> CAPS =
         new java.util.EnumMap<>(dev.calamidade_awakening.api.QualityProfile.class);
     /** Names of the cap entries, also their translation keys. */
-    public static final String[] CAP_NAMES = {"drawn", "passes", "heroPasses", "heroes", "beams", "lights"};
+    public static final String[] CAP_NAMES = {"drawn", "passes", "heroPasses", "heroes", "beams", "lights", "cookies"};
+    /**
+     * (0.15.0, fase 3) Version of the light caps in the file. 0 = written before fase 3: a "lights" value still equal to
+     * the old default of its profile (8/32/64/64) was never chosen by the player and moves to the new default once;
+     * any other value is kept. Set to 2 after that check.
+     */
+    private static final ModConfigSpec.IntValue LIGHT_CAPS_VERSION;
+    private static boolean migrated;
 
     static {
         var builder = new ModConfigSpec.Builder();
@@ -78,9 +85,15 @@ public final class ClientConfig {
                     dev.calamidade_awakening.api.QualityProfile.Caps.MAX_HEROES),
                 cap(builder, "beams", "Beams drawn per frame.", d.beams(), 0, dev.calamidade_awakening.api.FrameLimits.MAX_BEAMS),
                 cap(builder, "lights", "World lights drawn per frame (visual only).", d.lights(), 0,
-                    dev.calamidade_awakening.api.FrameLimits.MAX_LIGHTS)});
+                    dev.calamidade_awakening.api.FrameLimits.MAX_LIGHTS),
+                cap(builder, "cookies", "Lights that sample their cookie image per frame (0.15.0); never above the lights. The others draw their fallback.",
+                    d.cookies(), 0, dev.calamidade_awakening.api.FrameLimits.MAX_COOKIES)});
             builder.pop();
         }
+        LIGHT_CAPS_VERSION = builder
+            .comment("Internal: version of the light caps (0.15.0). Do not edit; 0 moves untouched pre-0.15 light caps to the new defaults once.")
+            .translation("calamidade_awakening.configuration.lightCapsVersion")
+            .defineInRange("lightCapsVersion", 0, 0, 2);
         builder.pop();
         // 0.13.0: boss bars of addons (Boss API).
         builder.comment("Boss bars (0.13.0) drawn with a custom style by addons that use the Boss API.")
@@ -168,12 +181,31 @@ public final class ClientConfig {
     /** Caps of a profile from the config, clamped to the safety maxima; the defaults until the file is loaded. */
     public static dev.calamidade_awakening.api.QualityProfile.Caps caps(dev.calamidade_awakening.api.QualityProfile profile) {
         try {
+            migrate();
             var v = CAPS.get(profile);
             return new dev.calamidade_awakening.api.QualityProfile.Caps(v[0].get(), v[1].get(), v[2].get(), v[3].get(),
-                v[4].get(), v[5].get());
+                v[4].get(), v[5].get(), v[6].get());
         } catch (IllegalStateException notLoaded) {
             return profile.defaults;
         }
+    }
+
+    /**
+     * (fase 3) Once per load: light caps written before 0.15.0 fase 3 that still hold the old default of their profile
+     * move to the new default; values the player changed stay. Throws IllegalStateException before loading.
+     */
+    private static void migrate() {
+        if (migrated) return;
+        if (LIGHT_CAPS_VERSION.get() < 2) {
+            for (var profile : dev.calamidade_awakening.api.QualityProfile.values()) {
+                var lights = CAPS.get(profile)[5];
+                if (lights.get() == dev.calamidade_awakening.api.QualityProfile.LEGACY_LIGHTS[profile.ordinal()])
+                    lights.set(profile.defaults.lights());
+            }
+            LIGHT_CAPS_VERSION.set(2);
+            LIGHT_CAPS_VERSION.save();
+        }
+        migrated = true;
     }
 
     /** Changes one cap of a profile ({@code index} in {@link #CAP_NAMES}) and saves; ignored before loading. */

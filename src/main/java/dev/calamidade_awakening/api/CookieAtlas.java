@@ -9,6 +9,10 @@ package dev.calamidade_awakening.api;
  * {@link #SMALL} texels. Every cell is aligned to its own size, so every mipmap level up to {@code log2(SMALL)} keeps
  * the cells apart (box filtering never mixes two images). An image is stored at the top-left of the smallest cell it
  * fits in.
+ *
+ * <p>Fase 3: the cells form a quadtree down to {@link #MIN} (512 → 256 → 128), so an image whose effective resolution
+ * was reduced under atlas pressure takes a quarter or a sixteenth of a big cell; 128 cells of 128 fit in one quarter of
+ * the atlas. The per-frame cookie budget is no longer derived from the lights cap: see {@link FrameLimits#cookies}.
  */
 public final class CookieAtlas {
     /** Side of the atlas, texels. */
@@ -44,6 +48,12 @@ public final class CookieAtlas {
      */
     public static int largeSide(int lights) { return lights <= 8 ? 512 : lights <= 32 ? 1024 : 2048; }
 
+    /**
+     * (0.15.0, fase 3) Largest stored side by the shader tier of the profile, independent of the lights cap (which
+     * now grows to 24/64/128/192): LOW 512 (no large atlas), BALANCED 1024, HIGH (and ULTRA, which shows HIGH) 2048.
+     */
+    public static int largeSide(Quality tier) { return tier == Quality.LOW ? 512 : tier == Quality.BALANCED ? 1024 : 2048; }
+
     /** Next power of two at or above {@code n} (1 for n below 1). */
     public static int pow2(int n) { return n <= 1 ? 1 : Integer.highestOneBit(n - 1) << 1; }
 
@@ -56,79 +66,111 @@ public final class CookieAtlas {
         return new int[] {Math.min(pow2(w), max), Math.min(pow2(h), max)};
     }
 
-    private final int bigSize, smallSize, perRow, cells;
-    // 0 free, -1 split into small cells (see small[]), 1 used whole
-    private final int[] bigState;
-    private final boolean[][] small;
+    /** (0.15.0, fase 3) Side of the smallest cell of the standard atlas: images reduced under pressure go down to it. */
+    public static final int MIN = 128;
 
-    /** The standard atlas: 16 cells of 512, each splittable into four of 256. */
-    public CookieAtlas() { this(BIG, SMALL); }
+    private final int bigSize, smallSize, perRow, depth;
+    // Quadtree, one array per level (0 = big cells): 0 free, 1 used whole, -1 split into four children.
+    private final byte[][] state;
+    private long usedTexels;
+
+    /** The standard atlas: 16 cells of 512, each splittable into four of 256, each of those into four of 128. */
+    public CookieAtlas() { this(BIG, SMALL, MIN); }
 
     /**
      * (0.15.0, fase 2) An atlas of {@link #SIDE} texels with cells of {@code bigSize}, each splittable into four of
      * {@code smallSize} (the large atlas: one 2048 or four 1024).
      */
-    public CookieAtlas(int bigSize, int smallSize) {
+    public CookieAtlas(int bigSize, int smallSize) { this(bigSize, smallSize, smallSize); }
+
+    /**
+     * (0.15.0, fase 3) An atlas whose big cells split down to {@code minSize} (powers of two, quadtree: a cell is
+     * always aligned to its own size, so the mipmaps never mix two cells up to the level where it is one texel).
+     */
+    public CookieAtlas(int bigSize, int smallSize, int minSize) {
+        if (Integer.bitCount(bigSize) != 1 || Integer.bitCount(minSize) != 1 || minSize > smallSize || smallSize > bigSize)
+            throw new IllegalArgumentException("cell sizes must be powers of two, big >= small >= min");
         this.bigSize = bigSize; this.smallSize = smallSize;
         perRow = SIDE / bigSize;
-        cells = perRow * perRow;
-        bigState = new int[cells];
-        small = new boolean[cells][4];
+        depth = Integer.numberOfTrailingZeros(bigSize) - Integer.numberOfTrailingZeros(minSize) + 1;
+        state = new byte[depth][];
+        for (int l = 0; l < depth; l++) state[l] = new byte[(perRow << l) * (perRow << l)];
     }
 
-    /** Smallest cell side that holds an image of {@code w × h} texels (both at most {@link #BIG}). */
-    public static int cellFor(int w, int h) { return w <= SMALL && h <= SMALL ? SMALL : BIG; }
+    /**
+     * Smallest cell side of the standard atlas that holds an image of {@code w × h} texels (both at most {@link #BIG}):
+     * 128, 256 or 512 (fase 3; before it, 256 or 512).
+     */
+    public static int cellFor(int w, int h) { return w <= MIN && h <= MIN ? MIN : w <= SMALL && h <= SMALL ? SMALL : BIG; }
 
-    /** Allocates a cell for an image, or null when the atlas has no room of that size. */
+    private int sizeAt(int level) { return bigSize >> level; }
+
+    private int rowAt(int level) { return perRow << level; }
+
+    /**
+     * Allocates a cell for an image, or null when the atlas has no room of that size. Best fit: a free cell of the
+     * right size inside an already split cell first, then the smallest free cell that can be split down to it.
+     */
     public Cell allocate(int w, int h) {
         if (w < 1 || h < 1 || w > bigSize || h > bigSize) return null;
-        if (w <= smallSize && h <= smallSize) {
-            // First a free quarter of an already split cell, then split a free big cell.
-            for (int i = 0; i < cells; i++) if (bigState[i] == -1) {
-                for (int q = 0; q < 4; q++) if (!small[i][q]) { small[i][q] = true; return smallCell(i, q); }
+        int target = 0;
+        while (target + 1 < depth && w <= sizeAt(target + 1) && h <= sizeAt(target + 1)) target++;
+        for (int level = target; level >= 0; level--) {
+            int row = rowAt(level);
+            byte[] st = state[level];
+            for (int i = 0; i < st.length; i++) {
+                if (st[i] != 0) continue;
+                if (level > 0) {
+                    int px = (i % row) >> 1, py = (i / row) >> 1;
+                    if (state[level - 1][py * rowAt(level - 1) + px] != -1) continue;
+                }
+                int x = i % row, y = i / row, l = level;
+                while (l < target) {
+                    state[l][y * rowAt(l) + x] = -1;
+                    l++; x <<= 1; y <<= 1;
+                }
+                state[l][y * rowAt(l) + x] = 1;
+                usedTexels += (long) sizeAt(l) * sizeAt(l);
+                return new Cell(x * sizeAt(l), y * sizeAt(l), sizeAt(l));
             }
-            for (int i = 0; i < cells; i++) if (bigState[i] == 0) {
-                bigState[i] = -1;
-                small[i][0] = true;
-                return smallCell(i, 0);
-            }
-            return null;
-        }
-        for (int i = 0; i < cells; i++) if (bigState[i] == 0) {
-            bigState[i] = 1;
-            return new Cell((i % perRow) * bigSize, (i / perRow) * bigSize, bigSize);
         }
         return null;
     }
 
-    private Cell smallCell(int big, int q) {
-        return new Cell((big % perRow) * bigSize + (q & 1) * smallSize, (big / perRow) * bigSize + (q >> 1) * smallSize, smallSize);
-    }
-
-    /** Frees a cell returned by {@link #allocate}; a split big cell becomes free when its four quarters are. */
+    /** Frees a cell returned by {@link #allocate}; a split cell becomes free again when its four children are. */
     public void free(Cell cell) {
-        int i = (cell.y() / bigSize) * perRow + cell.x() / bigSize;
-        if (cell.size() == bigSize) { bigState[i] = 0; return; }
-        int q = ((cell.x() % bigSize) / smallSize) + 2 * ((cell.y() % bigSize) / smallSize);
-        small[i][q] = false;
-        if (!small[i][0] && !small[i][1] && !small[i][2] && !small[i][3]) bigState[i] = 0;
+        int level = Integer.numberOfTrailingZeros(bigSize) - Integer.numberOfTrailingZeros(cell.size());
+        if (level < 0 || level >= depth) return;
+        int x = cell.x() / cell.size(), y = cell.y() / cell.size();
+        if (state[level][y * rowAt(level) + x] != 1) return;
+        state[level][y * rowAt(level) + x] = 0;
+        usedTexels -= (long) cell.size() * cell.size();
+        while (level > 0) {
+            int bx = x & ~1, by = y & ~1, row = rowAt(level);
+            byte[] st = state[level];
+            if (st[by * row + bx] != 0 || st[by * row + bx + 1] != 0 || st[(by + 1) * row + bx] != 0 || st[(by + 1) * row + bx + 1] != 0)
+                return;
+            level--; x >>= 1; y >>= 1;
+            state[level][y * rowAt(level) + x] = 0;
+        }
     }
 
     /** Frees everything. */
     public void clear() {
-        java.util.Arrays.fill(bigState, 0);
-        for (boolean[] q : small) java.util.Arrays.fill(q, false);
+        for (byte[] st : state) java.util.Arrays.fill(st, (byte) 0);
+        usedTexels = 0;
     }
 
-    /** Cells in use, in small-cell units (a big cell counts 4). */
+    /** Cells in use, in units of {@code smallSize²} rounded up (a big cell counts 4; fase 3: a 128 cell a quarter). */
     public int usedQuarters() {
-        int n = 0;
-        for (int i = 0; i < cells; i++) {
-            if (bigState[i] == 1) n += 4;
-            else if (bigState[i] == -1) for (boolean b : small[i]) if (b) n++;
-        }
-        return n;
+        long unit = (long) smallSize * smallSize;
+        return (int) ((usedTexels + unit - 1) / unit);
     }
+
+    /** (fase 3) Texels in use and the occupation 0..1 of the atlas. */
+    public long usedTexels() { return usedTexels; }
+
+    public float occupancy() { return usedTexels / (float) ((long) SIDE * SIDE); }
 
     /** Halvings that bring an image of {@code w × h} within {@link #BIG} on both sides. */
     public static int halvings(int w, int h) {
@@ -161,8 +203,9 @@ public final class CookieAtlas {
     }
 
     /**
-     * Cookie lights that may sample their image per frame for a lights cap (8/32/64 by profile): a quarter of it,
-     * between 2 and 16. The others use their fallback. Pure, so the tests and F7 agree.
+     * Legacy policy (0.15.0 fases 1 e 2): a quarter of the lights cap, between 2 and 16. Since fase 3 the cookie
+     * budget is its own cap ({@link FrameLimits#cookies}, configurable per profile); this is only the default of the
+     * pre-fase-3 constructors of {@link FrameLimits} and {@link FrameLimits#of}. Pure.
      */
     public static int textured(int lights) { return Math.clamp(lights / 4, Math.min(2, lights), 16); }
 }

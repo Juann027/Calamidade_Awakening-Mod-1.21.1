@@ -49,7 +49,7 @@ Effects.register(ID, new Effects.Definition(240, 80, 0xffffb030, Effects.Shape.N
 | 4 | `beams` (0.9) | HERO se algum HERO desenhado tem feixes; senão comum, se algum NORMAL tem. |
 | 5 | `atmosphere` (0.8) | Fora dos orçamentos. |
 
-Os passes de feixes e de luzes **são pagos primeiro** (feixes, depois luzes), antes dos cartões e de `post.pass`, porque um único passe serve todos os efeitos do quadro. Um orçamento nunca paga pelo outro; uma vez pago, o passe desenha os feixes ou as luzes das duas classes (HERO primeiro), até o teto do quadro (16/48/128 feixes, 8/24/64 luzes).
+Os passes de feixes e de luzes **são pagos primeiro** (feixes, depois luzes), antes dos cartões e de `post.pass`, porque um único passe serve todos os efeitos do quadro. Um orçamento nunca paga pelo outro; uma vez pago, o passe desenha os feixes ou as luzes das duas classes (HERO primeiro), até o teto do quadro (16/48/128 feixes, 8/24/64 luzes; desde a 0.15 fase 3 os perfis usam 24/64/128/192 luzes e um teto próprio de cookies, 16/48/96/128, com seleção por `Light.Priority` e contribuição: `docs/LUZ-0.15.md`).
 
 Exemplos em BALANCED (2 comuns, 2 HERO):
 

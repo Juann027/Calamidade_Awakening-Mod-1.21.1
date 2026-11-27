@@ -1,5 +1,57 @@
 # Validação, medições e limites
 
+## 0.15 Light Engine — fase 3: orçamento adaptativo de luzes
+
+Mesma branch, mesmo ambiente (**Mesa llvmpipe, software, 1280 × 720; nenhuma medida em GPU física**). Testes
+direcionados; os históricos sem relação com o passe de luzes não foram repetidos.
+
+| Teste | Resultado |
+|---|---|
+| `./gradlew build` (`checkBudget`: `LightCheck` fase 3 — atlas em quadtree 512/256/128 sem sobreposição e 16 células de 128 que voltam a ser uma de 512, best fit, seleção por prioridade, histerese sem piscar em 100 quadros alternados, demanda, resolução sem troca enquanto o desejo oscila e uma troca só para um desejo estável, tiles conservadores, máscara de 24 bits exata, redução pela cadeia de mipmaps idêntica ao nível original; `LimitsCheck` fase 3 — orçamentos por perfil, cookies ≤ luzes, construtores antigos com a política antiga, migração distinguível; `checkApiCompat`, `checkShaders` (21 shaders), `checkApiDocs`, `checkRecipes`) | verde |
+| Prévia, 30 cenas de luz e feixe (formas da 0.9, cookies da fase 1, modos e filtros da fase 2) × shader da fase 2 | **idênticas pixel a pixel** (caminho abaixo de 17 luzes) |
+| `./gradlew testeJogo` | 82/82 (mundo base; sem regressão) |
+| `xvfb-run -a ./gradlew testeLuz -Pluz.modo=fase3` | **19/19** (abaixo) |
+
+`testeLuz -Pluz.modo=fase3`:
+
+- Limites efetivos: LOW 24/16, BALANCED 64/48, HIGH 128/96, ULTRA 192/128.
+- Cargas exatas em ULTRA: 16, 32, 64, 96, 128 (mesmo PNG) e 192 mista (96 cookies + 96 convencionais) — todas
+  pedidas, nenhuma fora da visão, todas desenhadas, cookies = min(128, pedidos). 128 cookies do mesmo PNG = 1 imagem,
+  nenhum upload em 100 ticks.
+- HIGH com 128 cookies: 96 amostrados, 32 contados como "acima do orçamento" (motivo separado no F7).
+- Prioridade no LOW: retícula `CRITICAL` (2 luzes) texturizada em 60/60 ticks contra 28 decorativas; 16 amostrados.
+- Tiles × laço completo, 64 luzes espalhadas e 64 sobrepostas: **capturas idênticas** (diferença máxima 0; controle
+  sem tiles × sem tiles também 0). Luzes por tile: média 6,1 (espalhadas) e 8,0 (sobrepostas, máximo 64).
+- Pressão do atlas (`adaptativa`, 32 PNGs de 512): 17 imagens em 128, 6 em 256, 9 em 512; 13 entraram reduzidas,
+  14 trocas até assentar, nenhuma luz no fallback; atlas padrão fixo em 22 369 536 bytes; **nenhuma troca nem upload
+  nos 400 ticks seguintes**.
+- Recarga de recursos solta os atlas.
+
+Mediana do tempo de quadro com e sem tiles (llvmpipe, 3 s cada: **tendência, não medida**):
+
+| Cena (HIGH, 64 luzes) | Com tiles | Sem tiles |
+|---|---|---|
+| espalhadas | 74,8 ms | 241,0 ms |
+| sobrepostas | 83,2 ms | 236,4 ms |
+
+Em software o passe domina o quadro, então a queda é exagerada em relação a uma GPU; o sentido (o laço por pixel era o
+gargalo com dezenas de luzes) é o esperado. As sobrepostas também caíram porque o resto da tela (a maior parte) deixou de
+percorrer as 64 luzes. A viabilidade dos orçamentos 128/192 em GPU real é a medida pendente:
+[TESTE-REAL.md, Parte 11, fase 3](TESTE-REAL.md#parte-11--benchmark-da-light-engine-0150-rtx-4060).
+
+**Encontrado e corrigido nos testes:** (1) o pixel achava o tile pelo `texCoord` e as luzes eram cortadas numa fronteira
+de linha de tiles: o pixel agora projeta a própria posição com a mesma matriz da CPU (concordância por construção); (2)
+`int(m + 0,5)` acima de 2²³ arredondava o bit 0 das máscaras (luzes sumiam); agora `int(m)`; (3) o despejo do atlas
+cheio removia entradas do mapa durante a iteração (`ConcurrentModificationException`), defeito antigo que só a pressão
+do atlas expôs.
+
+Capturas: [luz-previas/fase3-0150.jpg](luz-previas/fase3-0150.jpg) (128 cookies em ULTRA, prioridade no LOW, 64
+espalhadas com tiles, adaptativa).
+
+**Não validado aqui:** desempenho em GPU real (orçamentos propostos); nitidez da troca de resolução em movimento
+(verificada por construção e por captura parada); a migração da config num arquivo antigo real (lógica coberta pelo
+`LimitsCheck`, mas não por um cliente com um `calamidade_awakening-client.toml` de 0.14).
+
 ## 0.15 Light Engine — fase 2: composição avançada e nitidez
 
 Mesma branch, mesmo ambiente (**Mesa llvmpipe, software; nenhuma medida em GPU física**).

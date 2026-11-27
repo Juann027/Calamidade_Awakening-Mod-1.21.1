@@ -17,15 +17,19 @@ package dev.calamidade_awakening.api;
  * @param vertices   world mesh vertices per frame, shared among the drawn effects
  * @param test       true for the internal test profile (shown in F7 and in recordings)
  * @param skyLayers  most sky layers painted per frame by the engine's sky pass (0.12.0, at most {@link SkyMath#MAX_LAYERS})
+ * @param cookies    (0.15.0, fase 3) most lights that sample their cookie image per frame, never above {@code lights}
+ *                   (at most {@link #MAX_COOKIES}); the others use their fallback
  */
 public record FrameLimits(Quality tier, String name, int effects, int marks, int heroPasses, int heroes, int beams,
-                          int lights, int vertices, boolean test, int skyLayers) {
+                          int lights, int vertices, boolean test, int skyLayers, int cookies) {
     /** Resident instances per client: no profile can draw more. */
     public static final int MAX_EFFECTS = 96;
     /** Rows of the beams data texture. */
     public static final int MAX_BEAMS = 128;
-    /** Rows of the lights data texture. */
-    public static final int MAX_LIGHTS = 64;
+    /** Rows of the lights data texture (fase 3: 192, from 64). */
+    public static final int MAX_LIGHTS = 192;
+    /** (fase 3) Most cookie lights sampled per frame by any profile. */
+    public static final int MAX_COOKIES = MAX_LIGHTS;
     /** Most passes of one budget: one full-screen shader per drawn instance at most. */
     public static final int MAX_PASSES = MAX_EFFECTS;
 
@@ -38,6 +42,15 @@ public record FrameLimits(Quality tier, String name, int effects, int marks, int
         lights = Math.clamp(lights, 0, MAX_LIGHTS);
         vertices = Math.max(0, vertices);
         skyLayers = Math.clamp(skyLayers, 0, SkyMath.MAX_LAYERS);
+        // Cookies never above the effective lights.
+        cookies = Math.clamp(cookies, 0, Math.min(MAX_COOKIES, lights));
+    }
+
+    /** 0.12 form: the cookie budget of the old policy ({@link CookieAtlas#textured}, a quarter of the lights). */
+    public FrameLimits(Quality tier, String name, int effects, int marks, int heroPasses, int heroes, int beams,
+                       int lights, int vertices, boolean test, int skyLayers) {
+        this(tier, name, effects, marks, heroPasses, heroes, beams, lights, vertices, test, skyLayers,
+            CookieAtlas.textured(Math.clamp(lights, 0, MAX_LIGHTS)));
     }
 
     /** 0.11.2 form: the sky layers of the tier ({@link SkyMath#layers}). */
@@ -60,7 +73,7 @@ public record FrameLimits(Quality tier, String name, int effects, int marks, int
     public static FrameLimits unlimited(int effects, int passes) {
         int e = Math.clamp(effects, 0, MAX_EFFECTS), p = Math.clamp(passes, 0, MAX_PASSES);
         return new FrameLimits(Quality.HIGH, "UNLIMITED(" + e + "/" + p + ")", e, p, p, FrameBudget.MAX_HEROES,
-            MAX_BEAMS, MAX_LIGHTS, Quality.HIGH.vertices * 2, true, SkyMath.MAX_LAYERS);
+            MAX_BEAMS, MAX_LIGHTS, Quality.HIGH.vertices * 2, true, SkyMath.MAX_LAYERS, MAX_COOKIES);
     }
 
     /** {@link #unlimited(int, int)} with no cap on drawn instances nor on passes. */

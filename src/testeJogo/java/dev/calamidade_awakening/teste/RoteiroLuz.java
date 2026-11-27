@@ -85,6 +85,11 @@ final class RoteiroLuz implements Runnable {
                 .map(c -> c.getModInfo().getVersion().toString()).orElse("?"), true);
             render = noCliente(Thread::currentThread);
             preparar();
+            if ("fase3".equals(System.getProperty("calamidade.luz.modo"))) {
+                fase3();
+                escrever("FIM luz", true);
+                return;
+            }
             if ("fase2".equals(System.getProperty("calamidade.luz.modo"))) {
                 fase2();
                 escrever("FIM luz", true);
@@ -189,14 +194,14 @@ final class RoteiroLuz implements Runnable {
         check("cookies: PNG ausente conta como falha, sem crash, e a luz segue com o fallback", falhou && detalhe()[4] >= 1,
             Arrays.toString(detalhe()));
         comando("calamidade bench stop");
-        // Orçamento: no LOW só 2 luzes com cookie por quadro amostram a imagem; as outras usam o fallback.
+        // Orçamento (fase 3): no LOW, 24 luzes e 16 cookies por quadro; 6 × 8 luzes passam dos dois tetos.
         perfil(QualityMode.LOW);
-        comando("calamidade bench 2 vfxsample:luz_estresse");
+        comando("calamidade bench 6 vfxsample:luz_estresse");
         aguardar(() -> detalheSE()[0] > 0, 100);
         ticks(60);
         int[] low = detalhe();
-        check("orçamento LOW: no máximo 2 cookies amostrados, excedentes em fallback, luzes até o teto de 8",
-            low[3] <= 2 && low[5] == 2 && (low[4] > 0 || low[2] > 0), Arrays.toString(low));
+        check("orçamento LOW: no máximo 16 cookies amostrados, luzes acima do teto de 24 descartadas",
+            low[3] <= 16 && low[5] == 16 && low[2] > 0, Arrays.toString(low));
         comando("calamidade bench stop");
         perfil(QualityMode.HIGH);
         // Culling: um projetor atrás da câmera não ocupa vaga.
@@ -217,6 +222,215 @@ final class RoteiroLuz implements Runnable {
     // ------------------------------------------------------------------------------------------------ benchmark
 
     record Cenario(String nome, List<String> comandos, boolean novo) {}
+
+    // ------------------------------------------------------------------------------------------------ fase 3
+
+    private int[] orcamento() throws Exception {
+        return noCliente(() -> {
+            try {
+                return (int[]) PerfOverlay.class.getMethod("lightBudget").invoke(null);
+            } catch (ReflectiveOperationException e) {
+                return new int[26];
+            }
+        });
+    }
+
+    private int[] orcamentoSE() {
+        try { return orcamento(); } catch (Exception e) { return new int[26]; }
+    }
+
+    /** Média do tempo de quadro (ms) em {@code segundos}, para comparar A/B no mesmo ambiente (tendência, não medida). */
+    private double mediaQuadro(int segundos) throws Exception {
+        GRAVANDO.clear();
+        gravar = true;
+        Thread.sleep(segundos * 1000L);
+        gravar = false;
+        synchronized (GRAVANDO) { return GRAVANDO.stream().mapToDouble(Quadro::ms).sorted().skip(GRAVANDO.size() / 2).findFirst().orElse(0); }
+    }
+
+    private void tiles(boolean on) throws Exception {
+        noCliente(() -> {
+            try {
+                Class.forName("dev.calamidade_awakening.client.LightFrame").getDeclaredMethod("tilesAllowed", boolean.class);
+                var m = Class.forName("dev.calamidade_awakening.client.LightFrame").getDeclaredMethod("tilesAllowed", boolean.class);
+                m.setAccessible(true);
+                m.invoke(null, on);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+            return null;
+        });
+        ticks(3);
+    }
+
+    /** Diferença máxima por canal entre duas capturas (0 = idênticas pixel a pixel). */
+    private int diferenca(String a, String b) throws Exception {
+        var ia = javax.imageio.ImageIO.read(mc.gameDirectory.toPath().resolve("screenshots").resolve(a + ".png").toFile());
+        var ib = javax.imageio.ImageIO.read(mc.gameDirectory.toPath().resolve("screenshots").resolve(b + ".png").toFile());
+        if (ia == null || ib == null || ia.getWidth() != ib.getWidth() || ia.getHeight() != ib.getHeight()) return 999;
+        int max = 0;
+        for (int y = 0; y < ia.getHeight(); y++) for (int x = 0; x < ia.getWidth(); x++) {
+            int p = ia.getRGB(x, y), q = ib.getRGB(x, y);
+            for (int sh = 0; sh < 24; sh += 8) max = Math.max(max, Math.abs(((p >> sh) & 255) - ((q >> sh) & 255)));
+        }
+        return max;
+    }
+
+    /**
+     * Fase 3 (orçamento adaptativo): limites efetivos por perfil, quantidades exatas do laboratório de carga, cookies
+     * dentro do orçamento, prioridade CRITICAL no LOW, tiles idênticos ao laço completo (captura A/B), pressão do atlas
+     * com redução de resolução estável (sem trocas nem uploads repetidos), memória fixa do atlas padrão e recarga.
+     */
+    private void fase3() throws Exception {
+        long padrao = 22369536L;
+        ouvirQuadros();
+        // Voando: a câmera fica parada no ar (capturas A/B comparáveis pixel a pixel).
+        noServidor(() -> { jogador().getAbilities().flying = true; jogador().onUpdateAbilities(); });
+        noServidor(() -> jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, 45));
+        int[][] limites = {{24, 16}, {64, 48}, {128, 96}, {192, 128}};
+        QualityMode[] perfis = {QualityMode.LOW, QualityMode.BALANCED, QualityMode.HIGH, QualityMode.ULTRA};
+        comando("vfxsample luz carga 16 mesmo");
+        aguardar(() -> campoSE("lastLights") > 0, 200);
+        for (int i = 0; i < perfis.length; i++) {
+            perfil(perfis[i]);
+            ticks(5);
+            int[] b = orcamento();
+            check("fase 3 limites " + perfis[i] + ": " + limites[i][0] + " luzes e " + limites[i][1] + " cookies",
+                b[22] == limites[i][0] && b[23] == limites[i][1], b[22] + "/" + b[23]);
+        }
+        comando("vfxsample luz parar");
+        ticks(10);
+        // Quantidades exatas: ULTRA desenha tudo o que é visível até 192 e amostra até 128 cookies.
+        perfil(QualityMode.ULTRA);
+        int[][] cargas = {{16, 0}, {32, 0}, {64, 0}, {96, 0}, {128, 0}, {192, 1}};
+        for (int[] c : cargas) {
+            String tipo = c[1] == 1 ? "mista" : "mesmo";
+            // O comando monta as instâncias na altura do jogador: no chão; depois a câmera sobe para ver a grade toda.
+            noServidor(() -> jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, 45));
+            ticks(3);
+            comando("vfxsample luz carga " + c[0] + " " + tipo);
+            noServidor(() -> jogador().teleportTo(overworld(), X + .5, 34, Z - 6.5, 0, 62));
+            aguardar(() -> detalheSE()[3] >= Math.min(32, c[0] / 2), 300);
+            ticks(20);
+            int[] d = detalhe(), b = orcamento();
+            int visiveis = d[0] - d[1] - b[0];
+            int desenhadas = campo("lastLights");
+            escrever("INFO carga " + c[0] + ": efeitos desenhados " + campo("lastEffects") + " limites " + b[22] + "/" + b[23]
+                + " luzes " + desenhadas + " cookies kept " + b[1] + " detalhe " + Arrays.toString(d), true);
+            int cookiesPedidos = c[1] == 1 ? c[0] / 2 : c[0];
+            check("fase 3 carga " + c[0] + " " + tipo + " (ULTRA): " + c[0] + " pedidas, desenhadas = visíveis até 192, cookies até 128",
+                d[0] == c[0] && desenhadas == Math.min(192, visiveis) && d[3] <= 128 && d[3] == Math.min(128, b[1])
+                    && b[1] <= cookiesPedidos,
+                "pedidas " + d[0] + " fora " + d[1] + " escuras " + b[0] + " desenhadas " + desenhadas + " cookies " + d[3] + "/" + b[1]
+                    + " tiles " + (b[5] == 1 ? "on" : "off") + " média/tile " + b[6] / 10.0 + " máx " + b[7]);
+            if (c[0] == 128) {
+                int uploads = detalhe()[9];
+                ticks(100);
+                check("fase 3: 128 cookies do mesmo PNG = 1 imagem, nenhum upload repetido em 100 ticks",
+                    detalhe()[9] == uploads && detalhe()[6] == 1, uploads + " -> " + detalhe()[9] + ", imagens " + detalhe()[6]);
+                captura("f3_carga_128_ultra");
+                // HIGH: 128 luzes, 96 cookies; o resto no fallback por orçamento (motivo contado à parte).
+                perfil(QualityMode.HIGH);
+                ticks(10);
+                int[] h = detalhe(), hb = orcamento();
+                check("fase 3 HIGH: 96 cookies amostrados, excedentes contados como 'acima do orçamento'",
+                    h[3] == Math.min(96, hb[1]) && hb[2] == Math.max(0, hb[1] - 96) && h[4] >= hb[2],
+                    "amostrados " + h[3] + " mantidos " + hb[1] + " acima " + hb[2] + " fallback " + h[4]);
+                perfil(QualityMode.ULTRA);
+            }
+            comando("vfxsample luz parar");
+            ticks(10);
+        }
+        // Prioridade: no LOW (16 cookies), as 2 luzes CRITICAL da retícula sempre amostram; as decorativas excedentes não.
+        perfil(QualityMode.LOW);
+        noServidor(() -> jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, 45));
+        ticks(3);
+        comando("vfxsample luz prioridade");
+        aguardar(() -> orcamentoSE()[25] == 2, 300);
+        int estaveis = 0;
+        for (int t = 0; t < 60; t++) {
+            int[] b = orcamento();
+            if (b[24] == 2 && b[25] == 2) estaveis++;
+            ticks(1);
+        }
+        int[] pb = orcamento(), pd = detalhe();
+        check("fase 3 prioridade (LOW): retícula CRITICAL texturizada em 60/60 ticks com 28 decorativas disputando 16 cookies",
+            estaveis == 60 && pd[3] <= 16 && pb[2] > 0, "estáveis " + estaveis + "/60, amostrados " + pd[3] + ", acima do orçamento " + pb[2]
+                + ", CRITICAL " + pb[25] + "/" + pb[24]);
+        captura("f3_prioridade_low");
+        comando("vfxsample luz parar");
+        ticks(10);
+        // Tiles: a mesma cena com e sem máscaras por tile é idêntica pixel a pixel (as luzes são estáticas).
+        perfil(QualityMode.HIGH);
+        for (String modo : new String[] {"espalhado", "sobreposto"}) {
+            noServidor(() -> jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, 40));
+            ticks(3);
+            comando("vfxsample luz carga 64 mista " + modo);
+            noServidor(() -> jogador().teleportTo(overworld(), X + .5, 22, Z - 4.5, 0, 55));
+            aguardar(() -> detalheSE()[3] >= 32, 300);
+            // Assentar: entrada das instâncias e do orçamento de efeitos antes do A/B.
+            ticks(200);
+            tiles(true);
+            int[] on = orcamento();
+            captura("f3_tiles_on_" + modo);
+            double msOn = mediaQuadro(3);
+            tiles(false);
+            int[] off = orcamento();
+            captura("f3_tiles_off_" + modo);
+            double msOff = mediaQuadro(3);
+            captura("f3_tiles_off2_" + modo);
+            tiles(true);
+            int diff = diferenca("f3_tiles_on_" + modo, "f3_tiles_off_" + modo);
+            captura("f3_tiles_on2_" + modo);
+            int controle = Math.max(diferenca("f3_tiles_off_" + modo, "f3_tiles_off2_" + modo),
+                diferenca("f3_tiles_on_" + modo, "f3_tiles_on2_" + modo));
+            // Com a cena ainda variando, compara as capturas vizinhas no tempo (on2 x off2).
+            if (controle > 0) diff = Math.min(diff, diferenca("f3_tiles_on2_" + modo, "f3_tiles_off2_" + modo));
+            escrever("CONTROLE tiles " + modo + ": off x off diferença máx " + controle, true);
+            check("fase 3 tiles (" + modo + ", 64 luzes): com e sem máscaras por tile, capturas idênticas",
+                on[5] == 1 && off[5] == 0 && diff == 0, "diferença máx " + diff + ", luzes/tile média " + on[6] / 10.0 + " máx " + on[7]
+                    + String.format(Locale.ROOT, " · mediana de quadro llvmpipe: tiles %.1f ms, sem %.1f ms (tendência)", msOn, msOff));
+            escrever(String.format(Locale.ROOT, "MEDIDA fase3 tiles;%s;64 luzes;tiles %.2f ms;sem tiles %.2f ms;luzes/tile média %.1f;máx %d",
+                modo, msOn, msOff, on[6] / 10.0, on[7]), true);
+            comando("vfxsample luz parar");
+            ticks(10);
+        }
+        // Pressão do atlas: 32 PNGs de 512 (16 perto, 16 longe) não cabem em 16 células grandes; o atlas reduz (os de
+        // longe primeiro), sem crescer na memória, e para de trocar.
+        perfil(QualityMode.HIGH);
+        noServidor(() -> jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, 20));
+        ticks(3);
+        comando("vfxsample luz adaptativa");
+        noServidor(() -> jogador().teleportTo(overworld(), X + .5, 6, Z + .5, 0, 20));
+        boolean reduziu = aguardar(() -> orcamentoSE()[14] > 0 || orcamentoSE()[16] > 0, 900);
+        ticks(400);
+        int[] a1 = orcamento();
+        int up1 = detalhe()[9];
+        ticks(400);
+        int[] a2 = orcamento();
+        int up2 = detalhe()[9];
+        check("fase 3 pressão do atlas: imagens reduzidas em vez de fallback, atlas padrão continua 21,3 MB",
+            reduziu && atlasBytes() == padrao && (a2[9] + a2[10]) > 0 && detalhe()[8] == 0,
+            "128:" + a2[9] + " 256:" + a2[10] + " 512:" + a2[11] + " reduzidas " + a2[14] + " entraram reduzidas " + a2[16]
+                + " trocas " + a2[15] + " pressão " + a2[20] + " ocupação " + a2[18] + "% · " + atlasBytes() + " bytes");
+        check("fase 3 estabilidade: nenhuma troca de resolução nem upload em 400 ticks depois de assentar",
+            a2[15] == a1[15] && up2 == up1, "trocas " + a1[15] + " -> " + a2[15] + ", uploads " + up1 + " -> " + up2);
+        int[] fb = detalhe();
+        check("fase 3: nenhuma luz da cena adaptativa caiu no fallback por falta de atlas", fb[4] == 0 || fb[4] == orcamento()[2],
+            "fallback " + fb[4] + " acima do orçamento " + orcamento()[2] + " carregando " + orcamento()[3]);
+        captura("f3_adaptativa");
+        comando("vfxsample luz parar");
+        ticks(10);
+        noCliente(() -> { mc.reloadResourcePacks(); return null; });
+        aguardar(() -> noClienteSemErro(() -> mc.getOverlay() == null), 2400);
+        ticks(20);
+        check("fase 3: recarga de recursos solta os atlas", atlasBytes() == 0, atlasBytes() + " bytes");
+        perfil(QualityMode.AUTO);
+    }
+
+    private int campoSE(String nome) {
+        try { return campo(nome); } catch (Exception e) { return 0; }
+    }
 
     // ------------------------------------------------------------------------------------------------ fase 2
 
@@ -363,14 +577,30 @@ final class RoteiroLuz implements Runnable {
             new Cenario("modos_add_emissive_override", List.of("calamidade bench 1 vfxsample:luz_modos"), true),
             new Cenario("override_5", List.of("calamidade bench 1 vfxsample:luz_forcas"), true),
             new Cenario("alta_resolucao_3", List.of("calamidade bench 1 vfxsample:luz_resolucoes"), true),
-            new Cenario("sobrepostas_5_modos", List.of("calamidade bench 1 vfxsample:luz_sobrepostas"), true)));
+            new Cenario("sobrepostas_5_modos", List.of("calamidade bench 1 vfxsample:luz_sobrepostas"), true),
+            // Fase 3 (orçamento adaptativo): quantidades exatas, mesmo PNG × vários, espalhadas × sobrepostas, tiles
+            // ligados × desligados (A/B do custo por pixel), pressão do atlas e prioridade. "#tiles off" é do roteiro.
+            new Cenario("f3_carga_32_mesmo", List.of("vfxsample luz carga 32 mesmo"), true),
+            new Cenario("f3_carga_64_varios", List.of("vfxsample luz carga 64 varios"), true),
+            new Cenario("f3_carga_128_mesmo", List.of("vfxsample luz carga 128 mesmo"), true),
+            new Cenario("f3_carga_128_mesmo_sem_tiles", List.of("#tiles off", "vfxsample luz carga 128 mesmo"), true),
+            new Cenario("f3_carga_128_varios", List.of("vfxsample luz carga 128 varios"), true),
+            new Cenario("f3_carga_192_mista", List.of("vfxsample luz carga 192 mista"), true),
+            new Cenario("f3_carga_192_mista_sem_tiles", List.of("#tiles off", "vfxsample luz carga 192 mista"), true),
+            new Cenario("f3_sobreposta_64", List.of("vfxsample luz carga 64 mista sobreposto"), true),
+            new Cenario("f3_sobreposta_64_sem_tiles", List.of("#tiles off", "vfxsample luz carga 64 mista sobreposto"), true),
+            new Cenario("f3_adaptativa_32_png", List.of("vfxsample luz adaptativa"), true),
+            new Cenario("f3_prioridade_30", List.of("vfxsample luz prioridade"), true)));
         cenarios.removeIf(c -> c.novo() && !v015);
         String so = System.getProperty("calamidade.luz.cenarios", "");
         if (!so.isBlank()) {
             var nomes = java.util.Set.of(so.split(","));
             cenarios.removeIf(c -> !nomes.contains(c.nome()));
         }
-        QualityMode[] perfis = {QualityMode.LOW, QualityMode.BALANCED, QualityMode.HIGH};
+        // -Pluz.perfis=LOW,BALANCED,HIGH,ULTRA (fase 3: ULTRA tem 192 luzes e 128 cookies); padrão LOW,BALANCED,HIGH.
+        QualityMode[] perfis = java.util.Arrays.stream(System.getProperty("calamidade.luz.perfis", "").isBlank()
+                ? new String[] {"LOW", "BALANCED", "HIGH"} : System.getProperty("calamidade.luz.perfis").split(","))
+            .map(String::trim).map(QualityMode::valueOf).toArray(QualityMode[]::new);
         escrever(String.format(Locale.ROOT, "# bench: %d repetições, aquecer %d s, trocar %d s, amostra %d s, %s", reps, aquecer,
             trocar, amostra, System.getProperty("java.vm.name") + " " + Runtime.version()), true);
         escrever("# JANELA versão;rep;perfil;cenário;quadros;mediana ms;p95 ms;p99 ms;média ms;efeitos min-max;luzes min-max;passes min-max;cookies min-max;fallback min-max", true);
@@ -428,11 +658,21 @@ final class RoteiroLuz implements Runnable {
     private void montar(Cenario c) throws Exception {
         noServidor(() -> jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, 25));
         ticks(5);
-        for (String linha : c.comandos()) comando(linha);
+        for (String linha : c.comandos()) {
+            if (linha.equals("#tiles off")) tiles(false);
+            else comando(linha);
+        }
+        // Fase 3: as cargas do laboratório ficam à frente; a câmera sobe (voando) para ver a grade inteira.
+        if (c.nome().startsWith("f3_carga")) {
+            noServidor(() -> { jogador().getAbilities().flying = true; jogador().onUpdateAbilities(); });
+            noServidor(() -> jogador().teleportTo(overworld(), X + .5, 34, Z - 6.5, 0, 62));
+        }
     }
 
     private void desmontar() throws Exception {
         comando("calamidade bench stop");
+        comando("vfxsample luz parar");
+        tiles(true);
         ticks(20);
     }
 

@@ -2,6 +2,7 @@ package dev.calamidade_awakening.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.calamidade_awakening.api.CookieAtlas;
+import dev.calamidade_awakening.api.LightBudget;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -37,6 +38,18 @@ import java.util.concurrent.CompletableFuture;
  * for {@value #EVICT_FRAMES} frames are evicted; if none can go, the new image waits (its lights use their fallback).
  * Missing, unreadable or oversized images are logged once and counted for F7. Render thread only, except the decoding
  * jobs.
+ *
+ * <p><b>Fase 3 (adaptive resolution).</b> The addon still ships one PNG. The standard version of an image is stored at
+ * 512 (or the image's own size, never enlarged) while the atlas has room. Under <i>atlas pressure</i> (over
+ * {@value #PRESSURE} occupied, or an image that found no room in the last {@value #PRESSURE_FRAMES} frames) each image
+ * goes down to the side its lights need on the screen ({@link LightBudget#demand}: 512, 256 or 128; CRITICAL never
+ * under 256), with the hysteresis of {@link LightBudget.Resolution}: the smaller version is decoded on a worker while
+ * the current one keeps drawing, then swapped in one frame (free, allocate, upload), so the light never loses its
+ * drawing. Without pressure, and only if the larger version fits under {@value #RELIEF} occupation, the image goes back
+ * up. A new image that finds no room enters reduced (its decoded mip chain shifted by one or two levels, no decode
+ * again) instead of falling back. Large versions (1024/2048) are loaded only once a light that asks for them covers
+ * more than 512 pixels on the screen, and freed after {@value #KEEP_FRAMES} frames without that need. Standard
+ * uploads also respect the byte budget per frame (one image at least), so many new images do not stall one frame.
  */
 final class LightCookies {
     private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
@@ -47,6 +60,9 @@ final class LightCookies {
     static final int UPLOAD_BYTES = 4 << 20;
     /** Mipmap levels of the large atlas (2048 down to 1). */
     static final int LARGE_LEVELS = 12;
+    /** Fase 3: atlas pressure above this occupation, relief (going back up) only below {@link #RELIEF} after it. */
+    static final float PRESSURE = .85f, RELIEF = .7f;
+    static final int PRESSURE_FRAMES = 120;
 
     enum Status { PENDING, WAITING, READY, FAILED }
 
@@ -69,7 +85,16 @@ final class LightCookies {
     /** One cookie image. */
     static final class Entry {
         final String texture;
-        final Version std = new Version();
+        Version std = new Version();
+        /** Fase 3: the standard version at another side, decoding or waiting for its swap; null when none. */
+        Version next;
+        /** Fase 3: hysteresis of the stored side of the standard version. */
+        LightBudget.Resolution res = new LightBudget.Resolution(512);
+        /** Fase 3: largest side of the image at full standard size (512 or its own smaller size). */
+        int fullSide = 512;
+        /** Fase 3: largest demand and tier of the lights that used it this frame; frame of the last demand above 512. */
+        int demand, tier;
+        long lastLargeNeed = Long.MIN_VALUE / 2;
         Version large;
         int wanted = 512;
         long lastUsed, lastLarge;
@@ -83,6 +108,10 @@ final class LightCookies {
         Version best() { return large != null && large.ready() ? large : std; }
         boolean isLarge() { return large != null && large.ready(); }
         Status status() { return std.status; }
+        /** Fase 3: stored side of the standard version now (512 unless reduced). */
+        int storedSide() { return Math.max(std.width, std.height); }
+        /** Fase 3: true when the standard version is stored below the image's full standard size. */
+        boolean reduced() { return std.ready() && storedSide() < fullSide; }
     }
 
     private final Map<String, Entry> entries = new HashMap<>();
@@ -93,13 +122,24 @@ final class LightCookies {
     private long frame, lastCookieFrame, lastLargeFrame;
     private int uploadedThisFrame, uploadsTotal, failures;
     private long bytesTotal;
+    // Fase 3: resolution swaps (reallocations), images entered reduced, uploads deferred to a later frame, last frame
+    // an image found no room in the standard atlas.
+    private int reallocations, enteredReduced, deferred;
+    private long lastFull = Long.MIN_VALUE / 2;
     private IntBuffer staging;
 
     /**
      * Entry of an image (starts loading it on first use), marked as used this frame; {@code side} is the resolution the
      * light asks for (512, 1024 or 2048).
      */
-    Entry get(String location, int side) {
+    Entry get(String location, int side) { return get(location, side, side, 1); }
+
+    /**
+     * Fase 3: same, with the side this light needs on the screen ({@link LightBudget#demand}) and its tier. A large
+     * version is only loaded once the need passes 512 (a far HIGH light keeps the 512 version: from far the mipmaps
+     * of 2048 and 512 look the same), then kept until {@value #KEEP_FRAMES} frames without that need.
+     */
+    Entry get(String location, int side, int demand, int tier) {
         Entry e = entries.get(location);
         if (e == null) {
             e = new Entry(location);
@@ -108,7 +148,10 @@ final class LightCookies {
         }
         e.lastUsed = frame;
         lastCookieFrame = frame;
-        if (side > 512) {
+        e.demand = Math.max(e.demand, demand);
+        e.tier = Math.max(e.tier, tier);
+        if (side > 512 && demand > 512) e.lastLargeNeed = frame;
+        if (side > 512 && frame - e.lastLargeNeed <= KEEP_FRAMES) {
             e.wanted = Math.max(e.wanted, side);
             e.lastLarge = frame;
             lastLargeFrame = frame;
@@ -144,12 +187,20 @@ final class LightCookies {
             if (texture != 0 && frame - lastCookieFrame > KEEP_FRAMES) deleteAtlas();
             return;
         }
+        deferred = 0;
+        boolean pressure = atlas.occupancy() > PRESSURE || frame - lastFull < PRESSURE_FRAMES;
         List<Entry> idle = null;
-        for (Entry e : entries.values()) {
+        // A copy: placing an image may evict (remove) another entry (fase 3: found by the atlas pressure test).
+        for (Entry e : new ArrayList<>(entries.values())) {
+            if (entries.get(e.texture) != e) continue;
             finishJob(e, e.std);
             if (e.large != null) finishJob(e, e.large);
+            if (e.next != null) finishJob(e, e.next);
             if (e.std.status == Status.WAITING) place(e, e.std, false);
             if (e.large != null && e.large.status == Status.WAITING && e.std.ready()) place(e, e.large, true);
+            if (e.std.ready()) adapt(e, pressure);
+            e.demand = 0;
+            e.tier = 0;
             if (frame - e.lastUsed > KEEP_FRAMES) (idle == null ? idle = new ArrayList<>() : idle).add(e);
             else if (e.large != null && frame - e.lastLarge > KEEP_FRAMES) freeLarge(e);
         }
@@ -158,12 +209,77 @@ final class LightCookies {
         if (entries.isEmpty() && texture != 0 && frame - lastCookieFrame > KEEP_FRAMES) deleteAtlas();
     }
 
+    /**
+     * Fase 3: effective resolution of the standard version. The wish is 512 (the full image) without pressure, the
+     * screen demand (at least the tier's floor) under pressure; {@link LightBudget.Resolution} decides when it moves.
+     * Going up also needs room: the atlas must stay under {@link #RELIEF} after the larger version is in.
+     */
+    private void adapt(Entry e, boolean pressure) {
+        if (frame - e.lastUsed > 1) return;   // only images drawn in the last frame move
+        int full = Math.min(512, e.fullSide);
+        int wanted = pressure ? Math.clamp(Math.max(e.demand, LightBudget.floor(e.tier)), CookieAtlas.MIN, full) : full;
+        int current = e.res.side();
+        if (wanted > current && !pressure) {
+            long grow = (long) CookieAtlas.cellFor(wanted, wanted) * CookieAtlas.cellFor(wanted, wanted)
+                - (long) CookieAtlas.cellFor(current, current) * CookieAtlas.cellFor(current, current);
+            if (atlas.occupancy() + grow / (float) ((long) CookieAtlas.SIDE * CookieAtlas.SIDE) > RELIEF) wanted = current;
+        }
+        if (e.next == null && e.res.update(wanted)) {
+            e.next = new Version();
+            start(e.next, e.texture, e.res.wish());
+        }
+        if (e.next != null && e.next.status == Status.WAITING) swap(e);
+        else if (e.next != null && e.next.status == Status.FAILED) { e.next = null; e.res.postpone(); }
+    }
+
+    /**
+     * Fase 3: replaces the standard version by {@link Entry#next} within one frame: never a frame without a drawing.
+     * Down: the old cell is freed first (the smaller one always fits then). Up: the new cell must be found first.
+     */
+    private void swap(Entry e) {
+        Version v = e.next;
+        Decoded d = v.decoded;
+        long bytes = bytes(d);
+        if (uploadedThisFrame > 0 && uploadedThisFrame + bytes > UPLOAD_BYTES) { deferred++; return; }
+        boolean down = Math.max(d.width(), d.height()) < e.storedSide();
+        CookieAtlas.Cell old = e.std.cell;
+        if (down) atlas.free(old);
+        CookieAtlas.Cell cell = atlas.allocate(d.width(), d.height());
+        if (cell == null) {
+            if (down) e.std.cell = atlas.allocate(e.std.width, e.std.height);   // cannot happen; keep the old one
+            e.next = null;
+            e.res.postpone();
+            return;
+        }
+        if (!down) atlas.free(old);
+        v.cell = cell;
+        v.level = 0;
+        v.row = 0;
+        upload(texture, v, d);
+        v.width = d.width();
+        v.height = d.height();
+        v.decoded = null;
+        v.status = Status.READY;
+        uploadsTotal++;
+        reallocations++;
+        e.std = v;
+        e.next = null;
+        e.res.changed(Math.max(v.width, v.height));
+    }
+
+    private static long bytes(Decoded d) {
+        long n = 0;
+        for (int[] level : d.levels()) n += level.length * 4L;
+        return n;
+    }
+
     private void finishJob(Entry e, Version v) {
         if (v.status != Status.PENDING || v.job == null || !v.job.isDone()) return;
         try {
             v.decoded = v.job.join();
             v.status = Status.WAITING;
             if (v == e.std) {
+                e.fullSide = Math.max(v.decoded.width(), v.decoded.height());
                 e.avgR = v.decoded.r(); e.avgG = v.decoded.g(); e.avgB = v.decoded.b();
                 e.avgLuma = .2126f * e.avgR + .7152f * e.avgG + .0722f * e.avgB;
             }
@@ -194,6 +310,21 @@ final class LightCookies {
                     if (large) freeLarge(victim); else drop(victim);
                     cell = target.allocate(d.width(), d.height());
                 }
+                if (cell == null && !large) {
+                    // Fase 3: the image enters reduced (its own mip chain shifted) rather than falling back.
+                    lastFull = frame;
+                    int floor = LightBudget.floor(e.tier);
+                    for (int k = 1; cell == null && (d.cellSize() >> k) >= CookieAtlas.MIN
+                        && Math.max(d.width(), d.height()) >> k >= Math.min(floor, Math.max(d.width(), d.height())); k++) {
+                        Decoded small = shrink(d, k);
+                        cell = target.allocate(small.width(), small.height());
+                        if (cell != null) {
+                            d = small;
+                            v.decoded = small;
+                            enteredReduced++;
+                        }
+                    }
+                }
                 if (cell == null) {
                     note(e.texture + (large ? "L" : "S"), "light cookie atlas" + (large ? " (large)" : "") + " full: "
                         + e.texture + " waits (its lights use " + (large ? "the 512 version" : "their fallback") + ")");
@@ -206,12 +337,18 @@ final class LightCookies {
             if (large) { if (largeTexture == 0) largeTexture = create(LARGE_LEVELS); }
             else if (texture == 0) texture = create(CookieAtlas.LEVELS);
         }
+        // Fase 3: a standard image goes up whole, but only within the frame's byte budget (at least one per frame).
+        if (!large && v.level == 0 && v.row == 0 && uploadedThisFrame > 0 && uploadedThisFrame + bytes(d) > UPLOAD_BYTES) {
+            deferred++;
+            return;
+        }
         if (upload(large ? largeTexture : texture, v, d)) {
             v.width = d.width();
             v.height = d.height();
             v.decoded = null;
             v.status = Status.READY;
             uploadsTotal++;
+            if (!large) e.res = new LightBudget.Resolution(Math.max(v.width, v.height));
         }
     }
 
@@ -225,6 +362,7 @@ final class LightCookies {
     private void drop(Entry e) {
         if (e.std.cell != null) atlas.free(e.std.cell);
         if (e.std.job != null) e.std.job.cancel(false);
+        if (e.next != null && e.next.job != null) e.next.job.cancel(false);
         freeLarge(e);
         entries.remove(e.texture);
     }
@@ -243,6 +381,7 @@ final class LightCookies {
     void clear() {
         for (Entry e : entries.values()) {
             if (e.std.job != null) e.std.job.cancel(false);
+            if (e.next != null && e.next.job != null) e.next.job.cancel(false);
             if (e.large != null && e.large.job != null) e.large.job.cancel(false);
         }
         entries.clear();
@@ -264,6 +403,31 @@ final class LightCookies {
             if (e.large != null) { if (e.large.ready()) large++; else if (e.large.status != Status.FAILED) largeWaiting++; }
         }
         return new int[] {ready, waiting, failed, uploadsTotal, atlas.usedQuarters(), large, largeWaiting};
+    }
+
+    /**
+     * Fase 3, F7: images resident at 128, 256, 512, 1024 and 2048 (stored side of the version a light can use: the
+     * large one when ready), images reduced below their full standard size, resolution swaps since start, images that
+     * entered reduced, uploads deferred this frame, standard and large atlas occupation in percent, and 1 under atlas
+     * pressure.
+     */
+    int[] adaptive() {
+        int[] out = new int[13];
+        for (Entry e : entries.values()) {
+            if (!e.std.ready()) continue;
+            int side = e.isLarge() ? Math.max(e.large.width, e.large.height) : e.storedSide();
+            int k = Math.clamp(Integer.numberOfTrailingZeros(CookieAtlas.pow2(side)) - 7, 0, 4);
+            out[k]++;
+            if (e.reduced()) out[5]++;
+        }
+        out[6] = reallocations;
+        out[7] = enteredReduced;
+        out[8] = deferred;
+        out[9] = Math.round(atlas.occupancy() * 100);
+        out[10] = Math.round(largeAtlas.occupancy() * 100);
+        out[11] = atlas.occupancy() > PRESSURE || frame - lastFull < PRESSURE_FRAMES ? 1 : 0;
+        out[12] = (int) Math.min(Integer.MAX_VALUE, bytesTotal >> 10);
+        return out;
     }
 
     /** Bytes of both atlases (0 when none exists). */
@@ -313,6 +477,10 @@ final class LightCookies {
         }
         atlas.clear();
         for (Entry e : entries.values()) freeLarge(e);
+        for (Entry e : entries.values()) {
+            if (e.next != null && e.next.job != null) e.next.job.cancel(false);
+            e.next = null;
+        }
         for (Entry e : entries.values()) if (e.std.cell != null) {
             // The data is gone with the texture: decode again on use.
             e.std.cell = null;
@@ -400,6 +568,24 @@ final class LightCookies {
         } finally {
             image.close();
         }
+    }
+
+    /**
+     * Fase 3, pure: the same image {@code k} times smaller from its own mip chain (no decode again): levels from
+     * {@code k}, the cell and the image halved {@code k} times, the missing last levels rebuilt down to one texel.
+     */
+    static Decoded shrink(Decoded d, int k) {
+        int cell = d.cellSize() >> k;
+        int wanted = Math.min(CookieAtlas.LEVELS, Integer.numberOfTrailingZeros(cell) + 1);
+        int[][] out = new int[wanted][];
+        for (int i = 0; i < wanted; i++) {
+            if (k + i < d.levels().length) out[i] = d.levels()[k + i];
+            else {
+                int s = cell >> (i - 1);
+                out[i] = box(out[i - 1], s, s, Math.max(1, s / 2), Math.max(1, s / 2));
+            }
+        }
+        return new Decoded(out, cell, Math.max(1, d.width() >> k), Math.max(1, d.height() >> k), d.r(), d.g(), d.b());
     }
 
     /** Pure part of the decode (also used by the tests): standard version (largest side 512). */

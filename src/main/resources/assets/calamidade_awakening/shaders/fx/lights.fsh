@@ -22,11 +22,23 @@
 // Ordem da composição de um pixel, fixa e independente da ordem das luzes: cena iluminada por ADD, SOFT e a parte não
 // emissiva de EMISSIVE; escurecida por SUBTRACT; substituída por OVERRIDE (cobertura 1 - prod(1 - w), alvo = média
 // ponderada); por fim a parte emissiva somada (o excesso acima do branco transborda para os outros canais).
+// Fase 3 (0.15.0): até 192 luzes. Com 17 luzes ou mais, CaLightTiles traz, para cada tile de uma grade 16 × 9 da tela,
+// uma máscara de bits das luzes cuja esfera envolvente projetada cobre o tile (2 texels = 8 floats de 24 bits exatos);
+// o pixel pula as luzes fora do seu tile sem ler a linha delas (CaTileInfo.z = 1). Abaixo disso, o laço da 0.14.
+// O tile do pixel vem da sua posição reconstruída projetada pela MESMA matriz que a CPU usou para as esferas
+// (CaTileM0..3): CPU e GPU concordam por construção, qualquer que seja a convenção de texCoord; um pixel que a matriz
+// não projeta (w <= 0) lê todas as luzes.
 uniform sampler2D CaLightData;
 uniform sampler2D CaCookieAtlas;
 uniform sampler2D CaCookieLarge;
 uniform vec4 CaLightInfo;   // x: número de luzes, y: início da névoa do jogo, z: fim da névoa do jogo, w: névoa cilíndrica (1)
 uniform vec4 CaCookieInfo;  // x: lado dos atlas de cookies (texels), y: 1 com o atlas padrão, z: 1 com o atlas grande
+uniform sampler2D CaLightTiles;
+uniform vec4 CaTileInfo;    // x, y: tiles da grade; z: 1 com as máscaras por tile (fase 3)
+uniform vec4 CaTileM0;      // colunas da matriz de projeção × vista usada para as máscaras
+uniform vec4 CaTileM1;
+uniform vec4 CaTileM2;
+uniform vec4 CaTileM3;
 
 #include "calamidade_fx.glsl"
 
@@ -160,8 +172,33 @@ void main() {
     // Sombreamento da superfície (textura sob a luz), usado só por DETAIL de EMISSIVE e OVERRIDE.
     // Calculado na primeira luz estendida: o caminho da 0.9 não paga o pow.
     float shade = 1.0;
-    for (int i = 0; i < 64; i++) {
+    bool tiled = CaTileInfo.z > 0.5;
+    vec4 m0 = vec4(0.0), m1 = vec4(0.0);
+    if (tiled) {
+        vec4 clip = mat4(CaTileM0, CaTileM1, CaTileM2, CaTileM3) * vec4(p, 1.0);
+        if (clip.w > 1e-3) {
+            vec2 ndc = clamp(clip.xy / clip.w * 0.5 + 0.5, 0.0, 1.0);
+            ivec2 tc = ivec2(min(floor(ndc * CaTileInfo.xy), CaTileInfo.xy - 1.0));
+            int row = tc.y * int(CaTileInfo.x + 0.5) + tc.x;
+            m0 = texelFetch(CaLightTiles, ivec2(0, row), 0);
+            m1 = texelFetch(CaLightTiles, ivec2(1, row), 0);
+        } else {
+            tiled = false;
+        }
+    }
+    // Luzes em palavras de 24 (as máscaras dos tiles); sem tiles, todas as palavras cheias. O contador nunca é alterado
+    // dentro do laço (alguns compiladores desenrolam laços de limite constante).
+    for (int w = 0; w < 8; w++) {
+    if (w * 24 >= count) break;
+    int word = 16777215;
+    // Valores inteiros exatos até 2^24: sem "+ 0.5" (acima de 2^23 o float não guarda meios e arredondaria o bit 0).
+    if (tiled) word = int(w < 4 ? m0[w] : m1[w - 4]);
+    // Palavra vazia: as 24 luzes dela não chegam a este tile.
+    if (word == 0) continue;
+    for (int b = 0; b < 24; b++) {
+        int i = w * 24 + b;
         if (i >= count) break;
+        if (((word >> b) & 1) == 0) continue;
         vec4 t0 = lightTexel(0, i);
         vec4 t1 = lightTexel(1, i);
         vec4 t2 = lightTexel(2, i);
@@ -305,6 +342,7 @@ void main() {
             light += add * (1.0 - t12.x);
             emit += add * t12.x * mix(1.0, shade, t12.y);
         }
+    }
     }
     if (!extended) {
         // Só luzes da 0.9: a mesma conta final da 0.14.

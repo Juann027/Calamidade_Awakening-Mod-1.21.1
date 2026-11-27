@@ -73,6 +73,7 @@ Unidades: tempo em ticks (20 por segundo), distâncias em blocos, cores em ARGB 
 - [`Light.Cookie.Resolution`](#lightcookieresolution)
 - [`Light.Cookie.Wrap`](#lightcookiewrap)
 - [`Light.Param`](#lightparam)
+- [`Light.Priority`](#lightpriority)
 - [`Light.Projection`](#lightprojection)
 - [`Light.Shape`](#lightshape)
 - [`Light.State`](#lightstate)
@@ -1178,7 +1179,7 @@ Immutable visual light of one effect (0.9.0): it brightens the blocks, entities 
 
 | Membro | Descrição |
 |---|---|
-| `static int MAX_PER_EFFECT` | Most lights per effect (`Effects.lights`). |
+| `static int MAX_PER_EFFECT` | Most lights per effect (`Effects.lights`). 0.15.0 fase 3: 32 (before: 8), so one effect can light an arena or a ring of runes on its own; the profile caps (24/64/128/192 lights per frame) still apply to the whole scene. |
 | `static float MAX_RADIUS` | Largest reach (point and segment) or disc/ring radius, blocks. |
 | `static float MAX_INTENSITY` | Largest intensity multiplier. |
 | `static float MAX_TRACK_OFFSET` | Largest track offset, blocks per axis. |
@@ -1224,6 +1225,7 @@ Immutable visual light of one effect (0.9.0): it brightens the blocks, entities 
 | `int[] distanceGradient()` | (0.15.0) Spatial gradient stops (ARGB, 2..4) from the source to the reach, or an empty array. |
 | `int gradientStops()` | (0.15.0) Number of spatial gradient stops (0 without a gradient). |
 | `int gradientStop(int i)` | (0.15.0) Spatial gradient stop `i` (ARGB). |
+| `Light.Priority priority()` | (0.15.0, fase 3) Priority under the quality budget (`Priority.NORMAL` by default). |
 | `boolean oriented()` | (0.15.0) True when the light needs an orientation (spot, projector, or a disc with a cookie). |
 | `Light.Projection projection(Timeline.Sampler timeline, double seconds)` | (0.15.0) Orientation and projection at one moment: base values plus tracks (clamped). |
 | `static int rampColor(int[] stops, float t)` | (0.15.0) Color of a ramp of ARGB stops (equally spaced) at `t` (0..1), linear per channel, opaque. |
@@ -1291,6 +1293,7 @@ Builder of a `Light`.
 | `Light.Builder blend(Light.Blend value)` | (0.15.0) Composition with the other lights (ADD by default). |
 | `Light.Builder colorRamp(int... argb)` | (0.15.0) Color animated over time: 2..4 ARGB stops, equally spaced, read at the `Param.COLOR` track (0..1; without the track, the first stop). |
 | `Light.Builder distanceGradient(int... argb)` | (0.15.0) Color that changes with distance: 2..4 ARGB stops from the source (0) to the reach (1), multiplied by the light color (keep it white for the exact stops). |
+| `Light.Builder priority(Light.Priority value)` | (0.15.0, fase 3) Priority when the frame has more lights or cookies than the profile allows (NORMAL by default). |
 | `Light build()` | Immutable light. |
 
 ## Light.Cookie
@@ -1454,6 +1457,19 @@ Numeric parameters that can be driven by a timeline track, each with the range u
 | `float min` | Smallest and largest value of the parameter; track values are clamped to this range. |
 | `float max` | Smallest and largest value of the parameter; track values are clamped to this range. |
 | `float clamp(float value)` | Clamps a value into this parameter's range; NaN becomes the value closest to 0 in the range. |
+
+## Light.Priority
+
+`dev.calamidade_awakening.api.v1.Light.Priority` · enum
+
+(0.15.0, fase 3) How much a light matters when the frame has more lights or cookies than the quality profile allows.
+
+| Membro | Descrição |
+|---|---|
+| `DECORATIVE` | Ambient, secondary light: the first to go or to lose its cookie. |
+| `NORMAL` | Ordinary light (default). |
+| `IMPORTANT` | Visually relevant: main glow of an attack, boss aura. |
+| `CRITICAL` | Combat information: reticles, danger areas, impact zones. |
 
 ## Light.Projection
 

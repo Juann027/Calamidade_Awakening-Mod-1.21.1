@@ -4,6 +4,8 @@ import cyou.rimuru.rimulib.mc1211.client.api.FxApi;
 import dev.calamidade_awakening.api.Basis;
 import dev.calamidade_awakening.api.CookieAtlas;
 import dev.calamidade_awakening.api.EnginePasses;
+import dev.calamidade_awakening.api.FrameLimits;
+import dev.calamidade_awakening.api.LightBudget;
 import dev.calamidade_awakening.api.v1.Beam;
 import dev.calamidade_awakening.api.v1.Light;
 import dev.calamidade_awakening.config.ClientConfig;
@@ -25,10 +27,21 @@ import java.util.List;
  * distance where the game fog covers everything. Only the first {@link CookieAtlas#textured} cookie lights of the frame
  * sample their image; the others use their fallback. Conventional lights (0.9 shapes with the default curve and
  * blend) keep the 0.14 shader path, with no texture reads.
+ *
+ * <p>Fase 3 (adaptive light budget): up to {@value #ROWS} lights per frame (24/64/128/192 by profile) and a separate
+ * cookie budget ({@link FrameLimits#cookies}: 16/48/96/128). Lights that light nothing visible (contribution under
+ * {@link LightBudget#INVISIBLE}) are culled with the out-of-view ones. Over a cap, lights are kept by priority
+ * ({@link Light.Priority}, HERO effects count as IMPORTANT) and visible contribution, with hysteresis
+ * ({@link LightBudget#select}); cookie images go to the most important kept lights. Each cookie light tells the atlas
+ * the side it needs on the screen ({@link LightBudget#demand}). With {@value LightBudget#TILED_FROM} lights or more,
+ * the bounding sphere of every light is projected onto a 16 × 9 screen grid and each tile gets a bit mask of the
+ * lights that reach it: the shader skips, per pixel, the lights whose rectangle does not cover its tile (still one
+ * pass, the 0.14 path for conventional lights). Where one tile has more than {@value LightBudget#PIXEL_PRESSURE}
+ * cookies, NORMAL and DECORATIVE cookies drop the interpolation between sheet frames (one sample instead of two).
  */
 final class LightFrame {
     static final String PROGRAM = "calamidade_awakening:lights";
-    static final int TEXELS = 13, ROWS = 64;
+    static final int TEXELS = 13, ROWS = FrameLimits.MAX_LIGHTS;
 
     /**
      * One resolved light: positions relative to the camera and its state (weight already includes a linked beam's).
@@ -41,14 +54,35 @@ final class LightFrame {
         }
     }
 
+    /** Fase 3: selection data of one resolved light (identity across frames, tier, score, bounding sphere). */
+    private record Pick(Resolved r, long key, int tier, float score, double cx, double cy, double cz, double radius) {}
+
     private final StageScene scene;
     private final DataTexture texture = new DataTexture(TEXELS, ROWS);
     private final float[] data = new float[TEXELS * 4 * ROWS];
     private final float[] rect = new float[4];
     private final LightCookies cookies = new LightCookies();
+    // Fase 3: screen tiles (bit masks of the lights that reach each tile), 2 texels per tile.
+    private final DataTexture tileTexture = new DataTexture(2, LightBudget.TILES);
+    private final float[] masks = new float[LightBudget.TILES * LightBudget.MASK_WORDS];
+    private final int[] tileLights = new int[LightBudget.TILES], tileCookies = new int[LightBudget.TILES];
+    private final int[] tileRect = new int[4];
+    private static final float[] VIEW_PROJ = new float[16];
+    private static boolean viewProjValid, tilesAllowed = true;
+
+    /** Fase 3: debug A/B of the screen tiles ({@code /calamidade_client lighttiles on|off}); on by default. */
+    static void tilesAllowed(boolean on) { tilesAllowed = on; }
     private List<Resolved> lights = List.of();
+    private List<Pick> picks = List.of();
+    private java.util.Set<Long> keptBefore = new java.util.HashSet<>(), texturedBefore = new java.util.HashSet<>();
     private boolean heroNeeds, normalNeeds;
     private int requested, culled, textured, fallbacks, cookieCap, large;
+    // Fase 3 details for F7: lights culled for no visible contribution, cookie lights requested (kept), cookies over the
+    // budget, cookies not ready, frame blends dropped, tiles on/off, average and max lights per tile, max cookies per tile.
+    private int lightsCap;
+    private static float projY = 1.4281f;
+    private int criticalCookies, criticalSampled;
+    private int dark, cookieRequests, overBudget, notReady, blendsDropped, tiled, tileAvg10, tileMax, tileCookieMax;
     // Game terrain fog of the frame (RenderFog, recorded after every listener): the light fades with it.
     private float fogStart = 1e6f, fogEnd = 2e6f;
     private boolean fogCylinder;
@@ -63,6 +97,16 @@ final class LightFrame {
         fogStart = start; fogEnd = end; fogCylinder = cylinder;
     }
 
+    /**
+     * Fase 3: view-projection of the camera-relative world for this frame (RenderLevelStageEvent), used to project the
+     * lights onto the screen tiles; without it (first frame, another renderer) the pass keeps the plain loop.
+     */
+    static void viewProjection(org.joml.Matrix4f modelView, org.joml.Matrix4f projection) {
+        new org.joml.Matrix4f(projection).mul(modelView).get(VIEW_PROJ);
+        projY = Math.abs(projection.m11()) > 1e-3f ? Math.abs(projection.m11()) : projY;
+        viewProjValid = true;
+    }
+
     /** Resolves the visible lights of the plan, in priority order, capped by the quality. */
     void collect(StageScene.Plan plan, Vec3 camera, float partial) { collect(plan, camera, partial, null); }
 
@@ -72,13 +116,13 @@ final class LightFrame {
      */
     void collect(StageScene.Plan plan, Vec3 camera, float partial, TerrainFrame terrain) {
         heroNeeds = normalNeeds = false;
-        requested = culled = 0;
-        cookies.pump(CookieAtlas.largeSide(plan.limits().lights()));
+        requested = culled = dark = 0;
+        cookies.pump(CookieAtlas.largeSide(plan.limits().tier()));
         var mc = Minecraft.getInstance();
         boolean calm = mc.options.hideLightningFlash().get();
         float flickerScale = ClientConfig.screenEffects() * (calm ? .25f : 1f);
         var frustum = mc.levelRenderer.getFrustum();
-        List<List<Resolved>> perEffect = new ArrayList<>();
+        List<Pick> all = new ArrayList<>();
         for (StageScene.Sample sample : plan.effects()) {
             var list = sample.kind().lights();
             var extra = terrain == null ? null : terrain.lights(sample.event().order());
@@ -86,8 +130,11 @@ final class LightFrame {
             Vec3 center = camera.add(sample.relative());
             var sampler = sample.time().timeline();
             double seconds = sample.age() / 20.0;
-            List<Resolved> resolved = new ArrayList<>(list.size());
-            for (Light light : list) {
+            boolean hero = sample.kind().hero();
+            long base = sample.event().order() << 20;
+            int before = all.size();
+            for (int index = 0; index < list.size(); index++) {
+                Light light = list.get(index);
                 Light.State state = light.sample(sampler, sample.opacity(), seconds, sample.seed(), flickerScale);
                 if (!state.visible()) continue;
                 // 0.10.0: track offsets are in the instance frame (world axes without orientation).
@@ -141,22 +188,67 @@ final class LightFrame {
                 } else {
                     r = new Resolved(light, a.subtract(camera), b.subtract(camera), state, weight);
                 }
-                if (!visible(r, camera, frustum)) {
-                    culled++;
-                    continue;
-                }
-                resolved.add(r);
+                Pick pick = pick(r, base | index, LightBudget.tier(light.priority(), hero), camera, frustum);
+                if (pick != null) all.add(pick);
             }
             if (extra != null) {
                 requested += extra.size();
-                for (Resolved r : extra) if (visible(r, camera, frustum)) resolved.add(r); else culled++;
+                for (int j = 0; j < extra.size(); j++) {
+                    Pick pick = pick(extra.get(j), base | (0x80000 + j), hero ? 2 : 1, camera, frustum);
+                    if (pick != null) all.add(pick);
+                }
             }
-            if (resolved.isEmpty()) continue;
-            perEffect.add(resolved);
-            if (sample.kind().hero()) heroNeeds = true; else normalNeeds = true;
+            if (all.size() == before) continue;
+            if (hero) heroNeeds = true; else normalNeeds = true;
         }
-        lights = EnginePasses.cap(perEffect, plan.limits().lights());
-        cookieCap = CookieAtlas.textured(plan.limits().lights());
+        int n = all.size(), max = plan.limits().lights();
+        int[] tiers = new int[n];
+        float[] scores = new float[n];
+        boolean[] was = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            Pick p = all.get(i);
+            tiers[i] = p.tier(); scores[i] = p.score(); was[i] = keptBefore.contains(p.key());
+        }
+        boolean[] keep = LightBudget.select(n, tiers, scores, was, max);
+        List<Pick> kept = new ArrayList<>(Math.min(n, max));
+        List<Resolved> out = new ArrayList<>(Math.min(n, max));
+        java.util.Set<Long> keys = new java.util.HashSet<>();
+        for (int i = 0; i < n; i++) if (keep[i]) {
+            kept.add(all.get(i));
+            out.add(all.get(i).r());
+            keys.add(all.get(i).key());
+        }
+        keptBefore = keys;
+        picks = kept;
+        lights = out;
+        cookieCap = plan.limits().cookies();
+        lightsCap = max;
+    }
+
+    /**
+     * Fase 3: culling and selection data of one light. Null (and counted) when out of view or under the fog, or when it
+     * lights nothing visible.
+     */
+    private Pick pick(Resolved r, long key, int tier, Vec3 camera, net.minecraft.client.renderer.culling.Frustum frustum) {
+        double[] sphere = bounds(r);
+        if (!visible(sphere, camera, frustum)) {
+            culled++;
+            return null;
+        }
+        Light.State s = r.state();
+        int c = s.color();
+        float channel = Math.max(BeamFrame.red(c), Math.max(BeamFrame.green(c), BeamFrame.blue(c)));
+        Light light = r.light();
+        float gain;
+        if (light.blend() == Light.Blend.OVERRIDE) gain = (r.projection() == null ? 1 : r.projection().strength()) * r.weight();
+        else gain = s.intensity() * r.weight() * channel;
+        if (light.gradientStops() > 0) gain = Math.max(gain, s.intensity() * r.weight());
+        if (gain < LightBudget.INVISIBLE) {
+            dark++;
+            return null;
+        }
+        double distance = Math.sqrt(sphere[0] * sphere[0] + sphere[1] * sphere[1] + sphere[2] * sphere[2]);
+        return new Pick(r, key, tier, LightBudget.score(gain, sphere[3], distance), sphere[0], sphere[1], sphere[2], sphere[3]);
     }
 
     /** World axes of an oriented light; {@code sample} non-null turns a local frame by the instance frame. */
@@ -184,7 +276,22 @@ final class LightFrame {
      * than the distance where the game fog hides everything. A light whose sphere is out of view lights no visible
      * surface.
      */
-    private boolean visible(Resolved r, Vec3 camera, net.minecraft.client.renderer.culling.Frustum frustum) {
+    private boolean visible(double[] sphere, Vec3 camera, net.minecraft.client.renderer.culling.Frustum frustum) {
+        Vec3 c = new Vec3(sphere[0], sphere[1], sphere[2]);
+        double radius = sphere[3];
+        double distance = c.length() - radius;
+        // Cylindrical fog distance is at least the euclidean one over sqrt(2).
+        if (distance > 0 && (fogCylinder ? distance / Math.sqrt(2) : distance) > fogEnd) return false;
+        if (frustum == null || distance <= 0) return true;
+        Vec3 w = c.add(camera);
+        return frustum.isVisible(new AABB(w.x - radius, w.y - radius, w.z - radius, w.x + radius, w.y + radius, w.z + radius));
+    }
+
+    /**
+     * Bounding sphere of a light relative to the camera (x, y, z, radius): everything it can light is inside, so the
+     * culling, the screen tiles and the shader agree.
+     */
+    private static double[] bounds(Resolved r) {
         Light.State s = r.state();
         Vec3 c;
         double radius;
@@ -207,12 +314,7 @@ final class LightFrame {
                 radius = s.radius();
             }
         }
-        double distance = c.length() - radius;
-        // Cylindrical fog distance is at least the euclidean one over sqrt(2).
-        if (distance > 0 && (fogCylinder ? distance / Math.sqrt(2) : distance) > fogEnd) return false;
-        if (frustum == null || distance <= 0) return true;
-        Vec3 w = c.add(camera);
-        return frustum.isVisible(new AABB(w.x - radius, w.y - radius, w.z - radius, w.x + radius, w.y + radius, w.z + radius));
+        return new double[] {c.x, c.y, c.z, radius};
     }
 
     /** Lights kept this frame (F7). */
@@ -226,17 +328,52 @@ final class LightFrame {
     /** F7 details of the frame (also when the pass was not paid for). */
     void report(boolean drawn) {
         int kept = Math.min(lights.size(), ROWS);
-        PerfOverlay.lightDetail(requested, culled, Math.max(0, requested - culled - kept), drawn ? textured : 0,
+        PerfOverlay.lightDetail(requested, culled, Math.max(0, requested - culled - dark - kept), drawn ? textured : 0,
             drawn ? fallbacks : 0, cookieCap, cookies.counts(), cookies.bytes(), drawn ? large : 0);
+        int[] a = cookies.adaptive();
+        PerfOverlay.lightBudget(new int[] {dark, drawn ? cookieRequests : 0, drawn ? overBudget : 0, drawn ? notReady : 0,
+            drawn ? blendsDropped : 0, drawn ? tiled : 0, drawn ? tileAvg10 : 0, drawn ? tileMax : 0, drawn ? tileCookieMax : 0,
+            a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], lightsCap, cookieCap,
+            drawn ? criticalCookies : 0, drawn ? criticalSampled : 0});
     }
 
     /** Uploads the lights and queues the pass. Call only when the pass was paid for, before the effect passes. */
     void queue(FxApi.Frame frame) {
         int count = Math.min(lights.size(), ROWS);
         textured = fallbacks = large = 0;
+        cookieRequests = overBudget = notReady = blendsDropped = criticalCookies = criticalSampled = 0;
+        // Fase 3: cookie budget by priority and contribution, with hysteresis (cookies sampled in the last frame stay).
+        boolean[] sampleOk = new boolean[count];
+        {
+            int m = 0;
+            int[] idx = new int[count];
+            for (int i = 0; i < count; i++) if (lights.get(i).light().cookie() != null) idx[m++] = i;
+            int[] tiers = new int[m];
+            float[] scores = new float[m];
+            boolean[] was = new boolean[m];
+            for (int j = 0; j < m; j++) {
+                Pick p = picks.get(idx[j]);
+                tiers[j] = p.tier(); scores[j] = p.score(); was[j] = texturedBefore.contains(p.key());
+            }
+            boolean[] ok = LightBudget.select(m, tiers, scores, was, cookieCap);
+            java.util.Set<Long> keys = new java.util.HashSet<>();
+            for (int j = 0; j < m; j++) if (ok[j]) {
+                sampleOk[idx[j]] = true;
+                keys.add(picks.get(idx[j]).key());
+            }
+            texturedBefore = keys;
+            cookieRequests = m;
+        }
+        boolean tiles = count >= LightBudget.TILED_FROM && viewProjValid && tilesAllowed;
+        tileStats(count, sampleOk, tiles);
+        boolean dropBlend = tileCookieMax > LightBudget.PIXEL_PRESSURE;
+        var window = Minecraft.getInstance().getWindow();
+        int screenH = Math.max(1, window.getHeight());
+        double fov = Math.toDegrees(2 * Math.atan(1 / projY));
         int k = 0;
         for (int i = 0; i < count; i++) {
             Resolved r = lights.get(i);
+            Pick pick = picks.get(i);
             Light light = r.light();
             Light.State s = r.state();
             boolean override = light.blend() == Light.Blend.OVERRIDE;
@@ -248,11 +385,19 @@ final class LightFrame {
             Light.Cookie cookie = light.cookie();
             LightCookies.Entry entry = null;
             if (cookie != null) {
-                entry = cookies.get(cookie.texture(), cookie.resolution().side);
-                boolean budget = textured < cookieCap;
+                // Fase 3: the side this light needs on the screen (sheet frames share the image side).
+                double dist = Math.sqrt(pick.cx() * pick.cx() + pick.cy() * pick.cy() + pick.cz() * pick.cz());
+                int demand = LightBudget.demand(LightBudget.footprint(pick.radius(), dist, screenH, fov), cookie.columns(),
+                    cookie.rows(), pick.tier());
+                entry = cookies.get(cookie.texture(), cookie.resolution().side, demand, pick.tier());
+                boolean budget = sampleOk[i];
+                if (!budget) overBudget++;
+                else if (!entry.ready()) notReady++;
+                if (pick.tier() == 3) criticalCookies++;
                 if (entry.ready() && budget) {
                     flags |= 1;
                     textured++;
+                    if (pick.tier() == 3) criticalSampled++;
                 } else if (entry.status() == LightCookies.Status.PENDING && budget) {
                     // First load: nothing yet (it shows within a few frames), instead of a fallback that pops.
                     gain = 0;
@@ -301,6 +446,13 @@ final class LightFrame {
                 float f = Math.max(0, p.frame());
                 int f0 = (int) Math.floor(f);
                 mix = f - f0;
+                // Fase 3: many cookies on the same tile: NORMAL and DECORATIVE cookies read one frame (half the samples).
+                if (dropBlend && pick.tier() < 2 && mix > 0) {
+                    mix = Math.round(mix);
+                    f0 += (int) mix;
+                    mix = 0;
+                    blendsDropped++;
+                }
                 int f1 = cookie.play() == Light.Cookie.Play.LOOP ? (f0 + 1) % cookie.frames() : Math.min(f0 + 1, cookie.frames() - 1);
                 LightCookies.Version v = (flags & 16) != 0 ? entry.best() : entry.std;
                 CookieAtlas.frameRect(v.cell, v.width, v.height, cookie.columns(), cookie.rows(), f0, rect);
@@ -325,6 +477,10 @@ final class LightFrame {
                 cookie == null ? 0 : cookie.lodBias());
         }
         int id = texture.upload(data, count);
+        int tileId = tileTexture.upload(masks, tiles ? LightBudget.TILES : 0);
+        // The pixel finds its tile with the same matrix the spheres were projected with (copied: the pass runs later).
+        float[] tileMatrix = VIEW_PROJ.clone();
+        float tileOn = tiles ? 1 : 0;
         int atlas = cookies.texture(), largeAtlas = cookies.largeTexture();
         float start = fogStart, end = fogEnd, cylinder = fogCylinder ? 1 : 0;
         frame.pass(PROGRAM, u -> {
@@ -335,7 +491,47 @@ final class LightFrame {
             // 0.15 fase 2: the large atlas only exists while a high-resolution cookie is resident.
             u.glTexture("CaCookieLarge", largeAtlas != 0 ? largeAtlas : atlas != 0 ? atlas : id);
             u.f4("CaCookieInfo", CookieAtlas.SIDE, atlas != 0 ? 1 : 0, largeAtlas != 0 ? 1 : 0, 0);
+            // Fase 3: screen tiles (masks of the lights per tile); off below TILED_FROM lights or without the matrices.
+            u.glTexture("CaLightTiles", tileId);
+            u.f4("CaTileInfo", LightBudget.TILES_X, LightBudget.TILES_Y, tileOn, 0);
+            float[] m = tileMatrix;
+            u.f4("CaTileM0", m[0], m[1], m[2], m[3]);
+            u.f4("CaTileM1", m[4], m[5], m[6], m[7]);
+            u.f4("CaTileM2", m[8], m[9], m[10], m[11]);
+            u.f4("CaTileM3", m[12], m[13], m[14], m[15]);
         });
+    }
+
+    /**
+     * Fase 3: bit masks of the lights per screen tile and their statistics (F7: average and max lights per tile, max
+     * sampled cookies per tile). A sphere the tiles find off screen is marked everywhere (the frustum kept it: never
+     * lose a light to a matrix mismatch).
+     */
+    private void tileStats(int count, boolean[] sampled, boolean on) {
+        java.util.Arrays.fill(tileLights, 0);
+        java.util.Arrays.fill(tileCookies, 0);
+        tiled = on ? 1 : 0;
+        if (on) java.util.Arrays.fill(masks, 0);
+        for (int i = 0; i < count; i++) {
+            Pick p = picks.get(i);
+            if (!viewProjValid || !LightBudget.tiles(VIEW_PROJ, p.cx(), p.cy(), p.cz(), p.radius(), tileRect)) {
+                tileRect[0] = 0; tileRect[1] = 0; tileRect[2] = LightBudget.TILES_X - 1; tileRect[3] = LightBudget.TILES_Y - 1;
+            }
+            if (on) LightBudget.mark(masks, tileRect, i);
+            for (int ty = tileRect[1]; ty <= tileRect[3]; ty++) for (int tx = tileRect[0]; tx <= tileRect[2]; tx++) {
+                int t = ty * LightBudget.TILES_X + tx;
+                tileLights[t]++;
+                if (sampled[i]) tileCookies[t]++;
+            }
+        }
+        long sum = 0;
+        tileMax = tileCookieMax = 0;
+        for (int t = 0; t < LightBudget.TILES; t++) {
+            sum += tileLights[t];
+            tileMax = Math.max(tileMax, tileLights[t]);
+            tileCookieMax = Math.max(tileCookieMax, tileCookies[t]);
+        }
+        tileAvg10 = (int) (sum * 10 / LightBudget.TILES);
     }
 
     private int put(int k, float x, float y, float z, float w) {

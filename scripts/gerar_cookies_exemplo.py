@@ -13,7 +13,9 @@ Saída em examples/vfx-sample/src/main/resources/assets/vfxsample/textures/light
   ataque.png      256 x 256  retícula de ataque de alto contraste (fase 2: OVERRIDE)
   pixel.png        32 x 32   ícone de pixel art (fase 2: filtros SMOOTH, SHARP, PIXELATED)
   mandala.png    2048 x 2048 mandala de linhas finas (fase 2: resoluções 512, 1024 e 2048; requer numpy)
-Uso: python3 scripts/gerar_cookies_exemplo.py
+  carga/carga_00..31.png  512 x 512  32 glifos diferentes (fase 3: laboratório de estresse com texturas distintas,
+                 pressão sobre o atlas e resolução adaptativa; requer numpy). Só com: --carga
+Uso: python3 scripts/gerar_cookies_exemplo.py [--carga]
 Requer Pillow. Cada imagem é desenhada por pixel (sem fontes nem antialias do sistema), por isso o resultado não
 depende da máquina.
 """
@@ -317,7 +319,50 @@ def mandala():
     save('mandala.png', Image.fromarray(rgba, 'RGBA'))
 
 
+def carga():
+    """Fase 3: 32 glifos de 512 distintos (simetria k, anéis e raios por semente). Desenho nítido com detalhe fino,
+    para que a redução de resolução (512 -> 256 -> 128) seja visível no F7 e nas capturas sem virar outra forma."""
+    import numpy as np
+    n = 512
+    yy, xx = np.mgrid[0:n, 0:n].astype(np.float64)
+    x = (xx + .5) / n - .5
+    y = .5 - (yy + .5) / n
+    r = np.hypot(x, y)
+    a = np.arctan2(y, x)
+    px = 1.0 / n
+    os.makedirs(os.path.join(OUT, 'carga'), exist_ok=True)
+    for i in range(32):
+        rnd = random.Random(7000 + i)
+        k = 3 + i % 7
+        val = np.zeros_like(r)
+        for ring in range(2 + i % 3):
+            rr = .12 + ring * .11 + rnd.random() * .04
+            val = np.maximum(val, 1 - np.abs(r - rr) / (2.5 * px))
+        star = np.abs(np.cos(k * a / 2)) ** (2 + i % 4) * (.2 + .05 * (i % 5)) + .1
+        val = np.maximum(val, 1 - np.abs(r - star) / (3 * px))
+        for j in range(k):
+            ang = j * 2 * np.pi / k + rnd.random() * .2
+            d = np.abs(np.sin(a - ang)) * r
+            val = np.maximum(val, np.where((np.cos(a - ang) > 0) & (r > .05) & (r < .44), 1 - d / (2 * px), 0))
+        # Marca de canto (orientação visível) e número do glifo em pontos, para distinguir as 32 imagens.
+        val = np.maximum(val, ((x > .36) & (x < .44) & (y > .36) & (y < .44)).astype(np.float64))
+        for b in range(5):
+            if (i >> b) & 1:
+                cx, cy = -.4 + b * .06, -.42
+                val = np.maximum(val, (np.hypot(x - cx, y - cy) < .02).astype(np.float64))
+        val = np.clip(val, 0, 1) * (r < .49)
+        alpha = (np.clip(val, 0, 1) * 255).round().astype(np.uint8)
+        rgba = np.zeros((n, n, 4), np.uint8)
+        rgba[..., :3] = 255
+        rgba[..., 3] = alpha
+        save(os.path.join('carga', 'carga_%02d.png' % i), Image.fromarray(rgba, 'RGBA'))
+
+
 if __name__ == '__main__':
+    import sys
+    if '--carga' in sys.argv:
+        carga()
+        sys.exit(0)
     runas()
     hexagonos()
     causticas()

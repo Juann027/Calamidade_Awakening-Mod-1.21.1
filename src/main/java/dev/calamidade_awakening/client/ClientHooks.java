@@ -312,6 +312,10 @@ public final class ClientHooks {
                     .then(net.minecraft.commands.Commands.literal("effects").executes(ctx -> measure("effects")))
                     .then(net.minecraft.commands.Commands.literal("passes").executes(ctx -> measure("passes")))
                     .then(net.minecraft.commands.Commands.literal("all").executes(ctx -> measure("all")))))
+                // 0.15.0 fase 3: A/B of the screen tiles of the lights pass (benchmark and equivalence checks only).
+                .then(net.minecraft.commands.Commands.literal("lighttiles")
+                    .then(net.minecraft.commands.Commands.literal("on").executes(ctx -> lightTiles(true)))
+                    .then(net.minecraft.commands.Commands.literal("off").executes(ctx -> lightTiles(false))))
             .then(net.minecraft.commands.Commands.literal("record")
                 .then(net.minecraft.commands.Commands.argument("seconds",
                         com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 300))
@@ -326,6 +330,15 @@ public final class ClientHooks {
                                 "A recording is already running"), false);
                         return started ? 1 : 0;
                     }))));
+    }
+
+    /** 0.15.0 fase 3: /calamidade_client lighttiles on|off (A/B of the per-tile light masks; on by default, not saved). */
+    private static int lightTiles(boolean on) {
+        LightFrame.tilesAllowed(on);
+        var player = Minecraft.getInstance().player;
+        if (player != null) player.displayClientMessage(Component.literal("Light tiles " + (on ? "on" : "off")
+            + " (F7: lights · per pixel)"), false);
+        return 1;
     }
 
     /** True while a HERO effect is resident on this client. */
@@ -350,6 +363,8 @@ public final class ClientHooks {
     @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.HIGH)
     public static void backdrop(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_SKY || Minecraft.getInstance().level == null) return;
+        // 0.15.0 fase 3: camera matrices of this frame for the screen tiles of the lights pass.
+        LightFrame.viewProjection(event.getModelViewMatrix(), event.getProjectionMatrix());
         BACKDROP.draw(event, SKY.hiddenSun(), SKY.hiddenMoon());
         PerfOverlay.backdrop(BACKDROP.drawn(), BACKDROP.candidates(), BACKDROP.opaque(), BACKDROP.blocked());
         // 0.14.0 (phase 3): stars, constellations and nebulae over the backgrounds, under terrain, clouds and the layers.

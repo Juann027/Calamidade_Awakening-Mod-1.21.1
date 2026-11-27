@@ -29,6 +29,24 @@ final class LimitsCheck {
         }
     }
 
+    /** 0.15.0 fase 3: separate light and cookie budgets per profile; cookies never above the applied lights. */
+    private static void fase3() {
+        int[][] expected = {{24, 16}, {64, 48}, {128, 96}, {192, 128}};
+        for (QualityProfile p : QualityProfile.values()) {
+            FrameLimits l = p.limits();
+            require(l.lights() == expected[p.ordinal()][0] && l.cookies() == expected[p.ordinal()][1],
+                "fase 3 budget " + p + ": " + l.lights() + "/" + l.cookies());
+        }
+        var c = new QualityProfile.Caps(32, 12, 4, 2, 128, 40, 100);
+        require(c.cookies() == 100 && QualityProfile.ULTRA.limits(c).cookies() == 40, "cookies stored apart, applied up to the lights");
+        require(new QualityProfile.Caps(32, 12, 4, 2, 128, 64).cookies() == 16, "six-cap form keeps the old cookie policy");
+        require(new QualityProfile.Caps(1, 1, 1, 1, 1, 1, 9999).cookies() == FrameLimits.MAX_COOKIES, "cookie safety max");
+        require(QualityProfile.LEGACY_LIGHTS.length == QualityProfile.values().length && QualityProfile.LEGACY_LIGHTS[3] == 64,
+            "legacy light defaults for the config migration");
+        for (QualityProfile p : QualityProfile.values())
+            require(p.defaults.lights() != QualityProfile.LEGACY_LIGHTS[p.ordinal()], "migration can tell old defaults apart: " + p);
+    }
+
     private static void unlimited() {
         FrameLimits u = FrameLimits.unlimited();
         require(u.test() && u.tier() == Quality.HIGH, "test profile keeps the HIGH tier for addons");
@@ -37,7 +55,9 @@ final class LimitsCheck {
         require(u.label().equals("UNLIMITED(96/96)"), "test profile label " + u.label());
         FrameLimits clamped = new FrameLimits(Quality.LOW, "x", 500, -3, 999, 999, 1000, 1000, -1, true);
         require(clamped.effects() == 96 && clamped.marks() == 0 && clamped.heroPasses() == 96 && clamped.heroes() == 96
-            && clamped.beams() == 128 && clamped.lights() == 64 && clamped.vertices() == 0, "caps clamped to the hard maxima");
+            && clamped.beams() == 128 && clamped.lights() == 192 && clamped.vertices() == 0, "caps clamped to the hard maxima");
+        require(clamped.cookies() == 16, "pre-fase-3 constructor: cookies of the old policy (a quarter of the lights, 16 at most)");
+        require(u.cookies() == FrameLimits.MAX_COOKIES, "test profile lifts the cookie cap");
         // 60 NORMAL candidates: all drawn under UNLIMITED, 12 under HIGH; HERO still capped at 2.
         List<FrameBudget.Candidate<Integer>> c = new ArrayList<>();
         for (int i = 0; i < 60; i++) c.add(new FrameBudget.Candidate<>(i, 14, 1, i, 128, i < 5));
@@ -52,8 +72,8 @@ final class LimitsCheck {
         for (QualityProfile p : List.of(QualityProfile.LOW)) {
             FrameLimits a = p.limits(), b = FrameLimits.of(p.tier);
             require(a.effects() == b.effects() && a.marks() == b.marks() && a.heroPasses() == b.heroPasses()
-                && a.heroes() == b.heroes() && a.beams() == b.beams() && a.lights() == b.lights()
-                && a.vertices() == b.vertices() && a.tier() == p.tier, "profile " + p + " keeps the 0.11.1 caps");
+                && a.heroes() == b.heroes() && a.beams() == b.beams()
+                && a.vertices() == b.vertices() && a.tier() == p.tier, "profile " + p + " keeps the 0.11.1 caps (lights: fase 3)");
         }
         QualityProfile[] all = QualityProfile.values();
         for (int i = 1; i < all.length; i++)
@@ -72,6 +92,7 @@ final class LimitsCheck {
         require(caps.effects() == QualityProfile.Caps.MAX_EFFECTS && caps.passes() == QualityProfile.Caps.MAX_PASSES
             && caps.heroPasses() == QualityProfile.Caps.MAX_HERO_PASSES && caps.heroes() == QualityProfile.Caps.MAX_HEROES
             && caps.beams() == FrameLimits.MAX_BEAMS && caps.lights() == FrameLimits.MAX_LIGHTS, "config caps: safety maxima");
+        fase3();
         var low = new QualityProfile.Caps(0, -1, -1, 3, -1, -1);
         require(low.effects() == 1 && low.heroes() == 1 && low.passes() == 0, "at least 1 drawn; HERO never above drawn");
         // HERO cap from the config: 3 HERO with a cap of 1 draw the nearest one only.

@@ -106,6 +106,20 @@ public final class PerfOverlay {
         cookieBytes = bytes;
     }
 
+    private static int[] lightBudget = new int[26];
+
+    /**
+     * Fase 3 details of the lights pass: culled with no visible contribution, cookie lights kept, cookies over the
+     * budget, cookies not loaded yet, frame blends dropped, tiles on, average lights per tile ×10, max lights per tile,
+     * max cookies per tile; images resident at 128/256/512/1024/2048, reduced, resolution swaps, entered reduced,
+     * deferred uploads, standard and large atlas occupation %, atlas pressure, KiB uploaded; effective lights and
+     * cookie caps; CRITICAL cookie lights kept and how many sampled their image.
+     */
+    static void lightBudget(int[] values) { lightBudget = values; }
+
+    /** Last fase 3 light details (tests), layout of {@link #lightBudget(int[])}. */
+    public static int[] lightBudget() { return lightBudget.clone(); }
+
     /**
      * Last light details (tests): requested, culled, capped, textured, fallback, cap, ready, waiting, failed, uploads;
      * since fase 2 also large versions resident, large versions loading, lights sampling a large version this frame.
@@ -312,6 +326,20 @@ public final class PerfOverlay {
                 lightDetail[0], lightDetail[1], lightDetail[2], lightDetail[3], lightDetail[5], lightDetail[4], lightDetail[12],
                 lightDetail[6], lightDetail[7], lightDetail[8], lightDetail[10], lightDetail[11], lightDetail[9],
                 format(cookieBytes / 1048576.0)));
+        if (lightDetail[0] > 0 || cookieBytes > 0) {
+            int[] b = lightBudget;
+            // Fase 3: limits, why lights or cookies lost quality, effective resolutions, atlas and per-pixel cost.
+            lines.add(Component.translatableWithFallback(PREFIX + "lights.budget",
+                "  limits %s lights · %s cookies · %s dark (no contribution) · cookies %s kept: %s over budget, %s loading, %s single-frame (pixel pressure) · CRITICAL %s/%s textured",
+                b[22], b[23], b[0], b[1], b[2], b[3], b[4], b[25], b[24]));
+            lines.add(Component.translatableWithFallback(PREFIX + "lights.resolution",
+                "  resolution 128:%s 256:%s 512:%s 1024:%s 2048:%s · %s reduced (atlas pressure %s) · %s swaps · %s entered reduced · %s deferred uploads · atlas %s%% · large %s%% · %s MB uploaded",
+                b[9], b[10], b[11], b[12], b[13], b[14], b[20] == 1 ? "yes" : "no", b[15], b[16], b[17], b[18], b[19],
+                format(b[21] / 1024.0)));
+            lines.add(Component.translatableWithFallback(PREFIX + "lights.tiles",
+                "  per pixel: tiles %s · %s lights/tile average · %s max · %s cookies max in one tile",
+                b[5] == 1 ? "on" : "off", format(b[6] / 10.0), b[7], b[8]));
+        }
         lines.add(Component.translatableWithFallback(PREFIX + "terrain", "Terrain: %s hot zones · %s stand-ins · pass %s",
             lastTerrainZones, lastTerrainStandIns, pool(lastTerrainPool)));
         lines.add(Component.translatableWithFallback(PREFIX + "meshes", "Stand-in meshes: %s · %s vertices · last build %s ms",
