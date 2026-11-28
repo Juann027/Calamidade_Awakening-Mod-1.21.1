@@ -1,5 +1,61 @@
 # Validação, medições e limites
 
+## 0.15 Light Engine — phase 5: final quality budgets, English, rebranding preparation (English)
+
+Same branch and environment as phase 4 (**Mesa llvmpipe, software rendering; no physical GPU measurement in this
+phase**). The user's manual tests on an RTX 4060 were satisfactory and are enough to continue development, but formal
+GPU benchmarks have not been completed or submitted: the phase 5 budgets are requested defaults, not validated
+performance targets. Focused validation only; sky, terrain writer, boss and shader code did not change (only text in
+`scripts/novo_efeito.py`'s generated shader), so `checkSkyReference`, `testSky`, `testStars`, `testImages`,
+`testBackdrop`, `testBoss`, `testOrphans` and `testClient` were not repeated (earlier results reused).
+
+| Test | Result |
+|---|---|
+| `./gradlew build` | green: `checkBudget` (with the new `ScenarioCheck` and `NoticeCheck`, updated `LimitsCheck` and `CoverageCheck`), `checkFrustum`, `checkShaders` (21 shaders), `checkApiCompat` (0.12.0: 89 classes / 1038 members; 0.13.0: 113 / 1242; nothing removed), `checkApiDocs` (regenerated with English headings), `checkRecipes`, `checkModVersion` (engine 0.15.0, vfx-sample 1.14.1) |
+| `./gradlew -p examples/vfx-sample build` | green (1.14.1) |
+| `checkShaders` with a freshly scaffolded effect (`novo_efeito.py vfxsample solar_ray --card`, then removed) | 22 shaders compiled; the scaffolded Java compiled against the 0.15.0 JAR without edits |
+| `./gradlew testGame` (`testeJogo`) | **82/82** (run here; needed network once to resolve `DevLaunch`); includes `/calamidade world list` showing the translated `loop` state |
+| `xvfb-run -a ./gradlew testLight -Pluz.modo=fase4` | **23/23** with the phase 5 budgets (in-game caps LOW 32/24 read back from the config); arena in four profiles with and without coverage, LOW with 1 drawn effect, restore defaults, stability, memory, CRITICAL reticles 60/60 ticks, mixed lighting LOW and ULTRA (ULTRA: 48 of 48 cookies sampled), cinematic, clustered overload, life cycle, F7. Uses the Portuguese command aliases throughout (`luz carga`, `cobertura arena`, `evento eclipse`…), so it also proves legacy command compatibility in game |
+| `xvfb-run -a ./gradlew testLight` (default mode) | **16/17**: LOW budget check passes with the new values (24 cookies sampled at most, lights over 32 dropped); **FAIL** "culling: a light outside the frustum is discarded before the cap" (`[1, 0, 0, 1, …]`: the runes projector behind the camera is not culled). The **same check fails on the phase 4 commit `9dbe7ff`** (16/17, `[1, 0, 0, 1, 0, 96, …]`), run in a separate worktree in this session: it predates phase 5 (this mode was last recorded passing at phase 1) and is left open; it was not hidden or changed |
+
+**Budgets.** `LimitsCheck`: LOW 32/24, BALANCED 80/60, HIGH 176/132, ULTRA 192/192; safety maxima 192/192; cookies applied
+never above lights. **Migration.** `CoverageCheck`: phase 4 lights (24/64/128) and cookies (16/48/96/128) are earlier
+defaults; LOW 20 lights, LOW 12 cookies, HIGH 100 cookies, ULTRA 64 cookies and ULTRA 160 lights are not (they stay);
+`CAPS_VERSION` 4; no current default is an earlier one. **ULTRA 192 cookies.** `ScenarioCheck`: 192 spread textured
+lights keep all 192 cookies (phase 4: 142). **Coverage scenes** (`ScenarioCheck`, settled selection, phase 4 → 5,
+lights / cookies): arena LOW 28→34 / 20→28, combat LOW 28→36 / 16→24, mixed LOW 29→34 / 18→22; BALANCED and above keep
+all of combat and mixed; ULTRA keeps every light and cookie of the three scenes; every CRITICAL light and cookie kept in
+every profile; phase 5 never keeps less than phase 4. Analysis: `docs/LUZ-0.15.md`, "Phase 5".
+
+**LOW notice.** `NoticeCheck`: manual LOW notifies, other profiles never; no repeat while LOW stays; manual cooldown 60 s;
+AUTO entering LOW notifies once, 120 s in LOW without repeats, 200 oscillations BALANCED↔LOW without any notice, a new
+notice only after re-arm (30 s above LOW) and cooldown (10 min); a manual notice also holds the AUTO cooldown; forced
+profiles never produce an AUTO notice. In game, the notice is a chat message (not verified visually in this phase).
+
+**Commands.** A standalone Brigadier check (brigadier 1.3.10, the version in the game) ran the `Cmd` alias helper:
+`light runes`, `luz runas`, `luz runes soltar`, `light runas release`, `light load 128 same spread`,
+`luz carga 128 mesmo espalhado`, `luz carga 64 same`, `chefe` and `boss` reach the same commands with the same arguments.
+A first version based on Brigadier `redirect` lost the `<n>` argument after an alias (`carga <n> mesmo`); it was replaced
+by shared child nodes before any commit.
+
+**Localization.** `en_us.json` and `pt_br.json` of the engine have the same keys (no key missing in `en_us`); the
+vfx-sample `en_us.json` has every key used by the code (new keys are English only; `pt_br` falls back to English). A scan
+of string literals in `src/main/java` found no remaining Portuguese user-facing text; remaining Portuguese literals are
+legitimate: command aliases (`último`, `ultimo`, vfx-sample aliases), persistent identifiers (effect IDs like
+`vfxsample:luz_runas`, timeline track names like `entrada`/`giro`, sky state names), optional `pt_br` values and the
+historical in-game test mod `src/testeJogo` (Portuguese report text, unchanged except for the strings it matches).
+**Docs.** Every relative link and anchor in the edited documents resolves. Chapters still in Portuguese are listed in
+the README, "Documentation status".
+
+**Gradle aliases.** `./gradlew tasks --all` lists `testGame`, `testLight`, `testBoss`, `testSky`, `testOrphans`,
+`checkSkyReference`…; each depends on its Portuguese task; registration fails the build if an English name collides with
+an existing task.
+
+**Not done in this phase:** physical GPU benchmarks; a visual check of the LOW notice and of the Atlas in a real client;
+two-player tests; translation of the remaining Portuguese chapters (Timeline, Atmosphere, Beams, Light 0.9, Terrain, Sky,
+Custom Sky, Bosses, Integration, recipe pages, this file's history, TESTE-REAL).
+
+
 ## 0.15 Light Engine — fase 4: coverage first (integridade visual dos perfis)
 
 Mesma branch, mesmo ambiente (**Mesa llvmpipe, software, 1280 × 720; nenhuma medida em GPU física**). Testes

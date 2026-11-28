@@ -1,1 +1,2 @@
-Execute ./gradlew dist para gerar o JAR desta versão aqui.
+Experimental JARs of Calamidade_Awakening 0.15.0 (phase 5) and VFX Sample 1.14.1. Not a release.
+Run ./gradlew dist to rebuild the engine JAR here; checksums in SHA256SUMS.txt.
