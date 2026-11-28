@@ -1,211 +1,221 @@
-# Histórico e evolução prevista
+# History and planned evolution
 
-## Versões publicadas
+## Published versions
 
-### 0.1 — base do motor
+### 0.1 — engine base
 
-- Catálogo de habilidades, menu e transporte compartilhados.
-- Timeline de cliente, deduplicação e seleção por prioridade.
-- Primitivas geométricas, volume, lente, cena orbital e cinematográfica.
-- Cinco habilidades visuais e regulagem de qualidade.
-- JAR distribuído e testes isolados de geometria. Consulte VALIDACAO.md para a cobertura da versão.
+- Shared ability catalog, menu and transport.
+- Client timeline, deduplication and selection by priority.
+- Geometric primitives, volume, lens, orbital and cinematic scene.
+- Five visual abilities and quality tuning.
+- Distributed JAR and isolated geometry tests. See VALIDACAO.md for the version's coverage.
 
-### 0.2.0 — Atlas e Horizon Core
+### 0.2.0 — Atlas and Horizon Core
 
-- Abertura e foco do Atlas com seleção durante o movimento.
-- Horizon Core com câmera, áudio posicional e onda em superfícies.
-- Pulso Prismático com início rápido e recarga reduzida.
+- Opening and focusing the Atlas with selection while moving.
+- Horizon Core with camera, positional audio and a wave across surfaces.
+- Prismatic Pulse with a fast start and a reduced cooldown.
 
-### 0.3.0 — integração externa
+### 0.3.0 — external integration
 
-- API pública com registro por namespace, âncoras de posição e entidade, cancelamento e sincronização.
-- Acento de impacto configurável em ticks, com clarão colorido ou dessaturação e contraste.
-- Projeto consumidor separado e guia API-0.3.md com exemplo de registro e comandos de teste.
+- Public API with registration by namespace, position and entity anchors, cancellation and synchronization.
+- Impact accent configurable in ticks, with a colored flash or desaturation and contrast.
+- Separate consumer project and the API-0.3.md guide with a registration example and test commands.
 
-### 0.4.0 — addons de habilidades
+### 0.4.0 — ability addons
 
-- Cartões publicados pelo addon no Atlas paginado e no conjunto do Focus.
-- Potência configurável com limites definidos e aplicados pelo servidor.
-- Shader no namespace do addon, malha por instância, HUD, painel e tomadas de câmera.
-- Exemplo completo Sinal de Maré. Consulte ADDONS-0.4.md.
+- Cards published by the addon in the paged Atlas and in the Focus set.
+- Configurable power with limits defined and applied by the server.
+- Shader in the addon's namespace, per-instance mesh, HUD, panel and camera shots.
+- Complete Tidal Signal example. See ADDONS-0.4.md.
 
-### 0.5.0 — gameplay e diagnóstico
+### 0.5.0 — gameplay and diagnostics
 
-- Cues de servidor (`Effects.cue`, `Effects.onImpact`) para dano, empurrão e outras consequências no mesmo tick do visual. Consulte GAMEPLAY-0.5.md.
-- Recarga por jogador e por habilidade, em vez de uma recarga única por jogador.
-- Painel de diagnóstico (F7), gravação de tempos de quadro em CSV e comando `/calamidade bench` para carga reproduzível. Consulte TESTE-REAL.md.
-- Atlas: títulos ajustados ao cartão e órbita decorativa mais discreta.
-- O Sinal de Maré passa a demonstrar gameplay no impacto.
+- Server cues (`Effects.cue`, `Effects.onImpact`) for damage, knockback and other consequences on the same tick as the visual. See GAMEPLAY-0.5.md.
+- Cooldown per player and per ability, instead of a single cooldown per player.
+- Diagnostics panel (F7), frame time recording to CSV and the `/calamidade bench` command for reproducible load. See TESTE-REAL.md.
+- Atlas: titles fitted to the card and a more discreet decorative orbit.
+- The Tidal Signal now demonstrates gameplay on impact.
 
-### 0.6.0 — ganchos avançados para addons
+### 0.6.0 — advanced hooks for addons
 
-- `AddonLayers.post`: frame da RimuLib por instância, com uniforms próprios, vários passes e pós-processamento por fase, dentro do orçamento de qualidade.
-- `AddonLayers.film`: câmera própria com tomadas da RimuLib, controlada pelo motor (pular, cancelar, encerrar).
-- `AddonLayers.start`: evento de início em todos os clientes, inclusive entradas tardias.
-- Sinal de Maré 1.3.0 demonstra os três ganchos. Consulte AVANCADO-0.6.md.
+- `AddonLayers.post`: a RimuLib frame per instance, with its own uniforms, several passes and post-processing per phase, within the quality budget.
+- `AddonLayers.film`: own camera with RimuLib shots, controlled by the engine (skip, cancel, end).
+- `AddonLayers.start`: start event on every client, late joiners included.
+- Tidal Signal 1.3.0 demonstrates the three hooks. See AVANCADO-0.6.md.
 
-### 0.6.1 — correções de revisão
+### 0.6.1 — review fixes
 
-- `AddonLayers.Post` deixa de expor o frame cru: cada passe pedido por `post.pass(...)` consome o orçamento do quadro (1/2/4) e passes além dele são recusados. Shaders de cartão e posts dividem o orçamento na ordem de prioridade dos efeitos.
-- Efeitos de tela por métodos que combinam pelo máximo (`bloom`, `shake`, `desaturate`, `contrast`, `flash`); `flash` respeita a opção de ocultar clarões.
-- O painel F7 conta os passes realmente enfileirados.
-- Um cue que encerra a própria instância impede os cues seguintes no mesmo tick.
+- `AddonLayers.Post` no longer exposes the raw frame: each pass requested with `post.pass(...)` consumes the frame budget (1/2/4) and passes beyond it are refused. Card shaders and posts share the budget in the effects' priority order.
+- Screen effects through methods that combine by maximum (`bloom`, `shake`, `desaturate`, `contrast`, `flash`); `flash` respects the hide-flashes option.
+- The F7 panel counts the passes actually queued.
+- A cue that ends its own instance prevents the following cues on the same tick.
 
-### 0.6.2 — revisão de prioridade, alcance, duração e acessibilidade
+### 0.6.2 — review of priority, range, duration and accessibility
 
-- O callback `AddonLayers.post` é chamado mesmo sem vaga no orçamento; só os passes são recusados, e os ajustes de tela continuam valendo.
-- Alcance de distribuição por definição (`withRange`, 16 a 1024 blocos; padrão 128).
-- Duração até 12000 ticks e raio até 512 blocos para efeitos de addon; rampas automáticas limitadas em ticks acima de 1200.
-- Configuração de cliente centralizada: intensidade dos efeitos de tela e tremor, aplicadas ao motor e aos addons, editáveis na lista de mods.
+- The `AddonLayers.post` callback is called even without a budget slot; only the passes are refused, and the screen adjustments still apply.
+- Distribution range per definition (`withRange`, 16 to 1024 blocks; default 128).
+- Duration up to 12000 ticks and radius up to 512 blocks for addon effects; automatic ramps limited in ticks above 1200.
+- Centralized client configuration: intensity of screen effects and shake, applied to the engine and the addons, editable in the mod list.
 
 ### 0.7.0 — Timeline API
 
-- `Timeline`: fases com peso suave, trilhas com keyframes e seis easings, marcadores e sustain com release. Java puro, validado e coberto pelo checkBudget. Consulte TIMELINE-0.7.md.
-- `Effects.timeline`, cues em marcadores, `Handle.release()` e o pacote release, enviado também a quem entra tarde. Servidor e cliente usam a idade local.
-- Amostrador da timeline em `Time`, `World`, `Hud` e `Post`; `Post.uploadTracks`; `Film` recebe a timeline para alinhar cortes às fases.
-- `Post.aberration`, `zoomBlur`, `vignette`, `afterimage` e `grain`; opção de cliente "Efeitos de movimento".
-- Conclusão sobre arrays de uniforms registrada em AVANCADO-0.6.md; fim do atributo obsoleto `EventBusSubscriber.Bus`.
-- vfx-sample 1.4.0: Sinal de Maré roteirizado pela timeline e o Farol, efeito ambiente em loop.
+- `Timeline`: phases with smooth weights, tracks with keyframes and six easings, markers and sustain with release. Pure Java, validated and covered by checkBudget. See TIMELINE-0.7.md.
+- `Effects.timeline`, cues on markers, `Handle.release()` and the release packet, also sent to late joiners. Server and client use the local age.
+- Timeline sampler in `Time`, `World`, `Hud` and `Post`; `Post.uploadTracks`; `Film` receives the timeline to align cuts to the phases.
+- `Post.aberration`, `zoomBlur`, `vignette`, `afterimage` and `grain`; client option "Motion effects".
+- Conclusion about uniform arrays recorded in AVANCADO-0.6.md; end of the obsolete `EventBusSubscriber.Bus` attribute.
+- vfx-sample 1.4.0: Tidal Signal scripted by the timeline and the Beacon, a looping ambient effect.
 
-### 0.8.0 — Atmosphere API e kit para IAs
+### 0.8.0 — Atmosphere API and AI kit
 
-- `Atmosphere`: céu (gradiente e mistura), névoa por distância, exposição, tinta ambiente e estrelas, com parâmetros vindos de trilhas da Timeline e peso pelo envelope. Mistura das duas de maior peso. Consulte ATMOSFERA-0.8.md.
-- Um passe `atmosphere` por quadro, fora do orçamento de addons; névoa pela névoa do jogo (eventos do NeoForge) com plano B na tela; acessibilidade de exposição e tinta; linha nova no F7.
-- Biblioteca GLSL `calamidade_fx.glsl` por `#include`, testada numa GPU.
-- Kit para IAs: AGENTS.md, skill de projeto, referência da API gerada do JAR, guia de GLSL, 7 receitas executáveis e `scripts/novo_efeito.py`.
-- Verificações de build: `checkShaders`, `checkApiDocs`, `checkRecipes`. RimuLib baixada do CurseForge com SHA-256, fora do repositório e dos releases.
-- vfx-sample 1.5.0: receitas, céu dourado no impacto do Sinal de Maré e névoa no Farol.
+- `Atmosphere`: sky (gradient and blend), distance fog, exposure, ambient tint and stars, with parameters from Timeline tracks and weight from the envelope. Blending of the two with the highest weight. See ATMOSFERA-0.8.md.
+- One `atmosphere` pass per frame, outside the addon budget; fog through the game's fog (NeoForge events) with an on-screen fallback; accessibility of exposure and tint; new line in F7.
+- GLSL library `calamidade_fx.glsl` by `#include`, tested on a GPU.
+- AI kit: AGENTS.md, project skill, API reference generated from the JAR, GLSL guide, 7 runnable recipes and `scripts/novo_efeito.py`.
+- Build checks: `checkShaders`, `checkApiDocs`, `checkRecipes`. RimuLib downloaded from CurseForge with SHA-256, outside the repository and the releases.
+- vfx-sample 1.5.0: recipes, golden sky on the Tidal Signal impact and fog in the Beacon.
 
-### 0.9.0 — Beam API, Light API e prioridade protagonista
+### 0.9.0 — Beam API, Light API and protagonist priority
 
-- `Effects.Priority.HERO` (`withPriority`): o efeito principal da cena entra antes dos NORMAL, nunca é cortado pelo limite de desenhados (no máximo 2 HERO por quadro, os mais próximos) e tem orçamento de passes próprio (1/2/3). Consulte PRIORIDADE-0.9.md.
-- `Beam` e `Point`: feixes entre pontos (centro, mundo, âncora, conjurador, olhos, mira) com núcleo e halo, pulsos, ondulação, ruído e revelação, por trilhas da Timeline; um passe `beams` para todos os feixes do quadro (16/48/128), com largura mínima por pixel e oclusão. Consulte FEIXES-0.9.md.
-- `Light`: luz visual pontual, de segmento (ou seguindo um feixe), de disco ou de anel no chão, com cintilação; um passe `lights` antes dos efeitos e da atmosfera (8/24/64), com normal pela profundidade e a névoa do jogo. Não muda o nível de luz do jogo. Consulte LUZ-0.9.md.
-- `calamidade_fx.glsl` versão 2 (11 funções novas, 106 casos no WebGL2) e `scripts/previa_passes.cjs` (prévia dos passes sem o jogo).
-- F7 e CSV com HERO, feixes e luzes.
-- vfx-sample 1.6.0: receitas pilar, laser, teia, fogueira, onda de luz e protagonista; luz breve no impacto do Sinal de Maré.
+- `Effects.Priority.HERO` (`withPriority`): the main effect of the scene goes before NORMAL ones, is never cut by the drawn-effects limit (at most 2 HERO per frame, the nearest) and has its own pass budget (1/2/3). See PRIORIDADE-0.9.md.
+- `Beam` and `Point`: beams between points (center, world, anchor, caster, eyes, aim) with core and halo, pulses, waves, noise and reveal, through Timeline tracks; one `beams` pass for all beams of the frame (16/48/128), with a minimum per-pixel width and occlusion. See FEIXES-0.9.md.
+- `Light`: visual point light, segment light (or following a beam), disc or ring light on the ground, with flicker; one `lights` pass before the effects and the atmosphere (8/24/64), with normals from depth and the game's fog. It does not change the game's light level. See LUZ-0.9.md.
+- `calamidade_fx.glsl` version 2 (11 new functions, 106 cases in WebGL2) and `scripts/previa_passes.cjs` (preview of the passes without the game).
+- F7 and CSV with HERO, beams and lights.
+- vfx-sample 1.6.0: pillar, laser, web, campfire, light wave and hero recipes; a brief light on the Tidal Signal impact.
 
-### 0.10.0 — integração com outros mods
+### 0.10.0 — integration with other mods
 
-- Orientação por instância: `Placement` (posição ou âncora, yaw, pitch, `facing`, `arrivingFrom`, `shifted`, `followingBody`) e `Effects.start`/`follow` com orientação; pontos do centro, `Point.facing`, deslocamentos de trilha e o deslocamento da âncora giram com a instância; o yaw pode seguir o corpo da âncora. Pacote `event_v2`. Consulte INTEGRACAO-0.10.md.
-- Fontes (`EffectSource`: jogador, mob, bloco, script), limites por fonte e vagas reservadas para jogadores na config do servidor; recarga por fonte e efeito; F7 e `/calamidade status` por tipo de fonte.
-- `EffectTriggers`: gatilhos de item (uso, ataque, recarga, durabilidade), de block entity (PERIODIC, REDSTONE, PROXIMITY, fim ao quebrar ou descarregar) e de entidade (corpo ou alvo), só com API comum; guia de ligação com keyframes de GeckoLib.
-- Consumo como biblioteca sem Maven: modelo de `build.gradle` (release do GitHub com SHA-256) e `examples/consumidor`, conferidos pelo build; conferida com o NeoForge 21.1.265.
-- vfx-sample 1.7.0: leque orientado, cajado, pilares de redstone e periódico, zumbi com feixe.
+- Per-instance orientation: `Placement` (position or anchor, yaw, pitch, `facing`, `arrivingFrom`, `shifted`, `followingBody`) and `Effects.start`/`follow` with orientation; center points, `Point.facing`, track offsets and the anchor offset turn with the instance; the yaw can follow the anchor's body. Packet `event_v2`. See INTEGRACAO-0.10.md.
+- Sources (`EffectSource`: player, mob, block, script), per-source limits and slots reserved for players in the server config; cooldown per source and effect; F7 and `/calamidade status` by source kind.
+- `EffectTriggers`: item triggers (use, attack, cooldown, durability), block entity triggers (PERIODIC, REDSTONE, PROXIMITY, end on break or unload) and entity triggers (body or target), with common API only; guide to linking GeckoLib keyframes.
+- Consumption as a library without Maven: a `build.gradle` template (GitHub release with SHA-256) and `examples/consumidor`, checked by the build; checked with NeoForge 21.1.265.
+- vfx-sample 1.7.0: oriented fan, staff, redstone and periodic pillars, zombie with a beam.
 
 ### 0.11.0 — Terrain API
 
-- Formas de escavação (`TerrainShape`: esfera, cratera com perfil, trincheira, cilindro, união e subtração) com borda irregular por ruído determinístico da seed da instância, viradas pela `Placement`. Consulte TERRENO-0.11.md.
-- Paleta de queimado por faixas (`TerrainPalette`: fundo, parede, borda) numa casca que veda fluidos e queima plantas; preenchimento real no centro (`Fill`) e estruturas `.nbt` giradas em 90°.
-- Plano puro numa thread de trabalho (sem ler o mundo) e commit no marcador da Timeline, escrevendo direto nas seções dos chunks com orçamento de blocos por tick, sem drops, vizinhos nem física; reenvio por seção no fim de cada lote. Decisão do Passo 0: a `CarveApi` da RimuLib não é usada (cortes só de coluna, orçamento de tempo compartilhado, sem desfazer).
-- Segurança na config do servidor (liga e desliga, volume, blocos por tick, dimensões, mobGriefing, BlockEntity só com opção explícita, tag `terrain_protected`), `TerrainEditEvent` cancelável e `/calamidade terrain undo|list` com snapshot compacto.
-- Cliente: passe `terrain` com o calor (brasa, fissuras, fumaça, tremor de calor, faixa incandescente nas trincheiras) calculado da mesma forma analítica e seed, luzes que esfriam, dublês esféricos e malhas de estrutura em cache; canal novo `terrain_v1`.
-- vfx-sample 1.8.0: raio que abre trincheira, meteoro que vira blocos reais, cratera simples e torre que cai e fica.
+- Excavation shapes (`TerrainShape`: sphere, crater with a profile, trench, cylinder, union and subtraction) with a rough edge from deterministic noise seeded by the instance, turned by the `Placement`. See TERRENO-0.11.md.
+- Burnt palette by bands (`TerrainPalette`: floor, wall, rim) in a shell that seals fluids and burns plants; real fill at the center (`Fill`) and `.nbt` structures turned by 90°.
+- Pure plan on a worker thread (without reading the world) and commit at the Timeline marker, writing straight into the chunk sections with a blocks-per-tick budget, without drops, neighbours or physics; resend per section at the end of each batch. Step 0 decision: RimuLib's `CarveApi` is not used (column-only cuts, shared time budget, no undo).
+- Safety in the server config (on and off, volume, blocks per tick, dimensions, mobGriefing, BlockEntity only with an explicit option, tag `terrain_protected`), cancellable `TerrainEditEvent` and `/calamidade terrain undo|list` with a compact snapshot.
+- Client: `terrain` pass with the heat (embers, cracks, smoke, heat shimmer, glowing strip in trenches) computed from the same analytic shape and seed, cooling lights, spherical stand-ins and cached structure meshes; new channel `terrain_v1`.
+- vfx-sample 1.8.0: lightning that opens a trench, meteor that becomes real blocks, simple crater and a tower that falls and stays.
 
-### 0.11.1 — compatibilidade da Terrain API
+### 0.11.1 — Terrain API compatibility
 
-- Proteção territorial pelos eventos de explosão do NeoForge (`Start` e `Detonate` com uma explosão sintética), borda do mundo, proteção de spawn e modo de jogo do jogador; config `terrainExplosionEvent` e `terrainSpawnProtection`.
-- Casca externa: atualização de forma, de vizinho e ticks de fluido nos blocos logo fora da edição (commit e desfazer), sem cascata; dados de block entity reenviados ao cliente.
-- Compatível com ScalableLux (correção), C2ME, Sodium, Embeddium e Distant Horizons; Moonrise não abre com a RimuLib 1.3.0.
-- Testes em jogo no repositório: `./gradlew testeJogo` (servidor dedicado, 51 verificações, com reinício) e `xvfb-run ./gradlew testeCliente` (10 verificações). Consulte TERRENO-0.11.md, seção "Compatibilidade (0.11.1)".
+- Land protection through NeoForge's explosion events (`Start` and `Detonate` with a synthetic explosion), world border, spawn protection and the player's game mode; config `terrainExplosionEvent` and `terrainSpawnProtection`.
+- Outer shell: shape and neighbour updates and fluid ticks on the blocks just outside the edit (commit and undo), without cascade; block entity data resent to the client.
+- Compatible with ScalableLux (fix), C2ME, Sodium, Embeddium and Distant Horizons; Moonrise does not start with RimuLib 1.3.0.
+- In-game tests in the repository: `./gradlew testGame` (`testeJogo`; dedicated server, 51 checks then, with restart) and `xvfb-run ./gradlew testClient` (`testeCliente`; 10 checks). See TERRENO-0.11.md, section "Compatibilidade (0.11.1)".
 
-### 0.11.2 — perfis medidos, qualidade automática e Atlas no mundo
+### 0.11.2 — measured profiles, automatic quality and the Atlas in the world
 
-- Medição de custo por efeito e por passe no próprio jogo (`/calamidade_client debug measure`, perfil de teste UNLIMITED, `bench <n> mix`), por software e na RTX 4060 do autor; perfis novos (LOW igual, BALANCED 8, HIGH 16, ULTRA 32 desenhados) com limites no config de cliente.
-- Qualidade automática AUTO (padrão): p95 do quadro, histerese, nunca durante um efeito HERO; F8 força um perfil, F7 mostra o motivo.
-- Atlas Estelar refeito como placas paradas no mundo (engenharia adaptada do menu holográfico do RespectCraft), visual de astrolábio, abas de habilidades, qualidade, acessibilidade, terreno e diagnóstico. Consulte ATLAS-0.11.2.md.
-- Testes em jogo novos: `testeMedicao` e `testeAtlas`.
+- Cost measurement per effect and per pass in the game itself (`/calamidade_client debug measure`, test profile UNLIMITED, `bench <n> mix`), in software and on the author's RTX 4060; new profiles (LOW unchanged, BALANCED 8, HIGH 16, ULTRA 32 drawn) with caps in the client config.
+- Automatic quality AUTO (default): frame p95, hysteresis, never during a HERO effect; F8 forces a profile, F7 shows the reason.
+- Star Atlas rebuilt as panels standing in the world (engineering adapted from RespectCraft's holographic menu), astrolabe look, tabs for abilities, quality, accessibility, terrain and diagnostics. See ATLAS-0.11.2.md.
+- New in-game tests: `testMeasure` (`testeMedicao`) and `testAtlas` (`testeAtlas`).
 
 ### 0.12.0 — Sky & World Events
 
-- **Sky API:** camadas de céu por direção (buraco negro com lente gravitacional que entorta céu e terreno distante, portal para outra galáxia, eclipse, fenda, astro gigante com fases e anéis, aurora e raios ao longe), procedurais, com parâmetros por trilha; um passe `sky` do motor, primeiro do quadro, fora do orçamento, 2/4/6/8 camadas por perfil. O sol e a lua do jogo são apagados por subtração da mesma textura. Consulte CEU-0.12.md.
-- **Eventos globais (`WorldEvents`):** escopos AREA, DIMENSION e SERVER, entrada tardia na fase certa (login, troca de dimensão, respawn), persistência opcional, limite com prioridades, `/calamidade world`.
-- **Céu por dimensão (`SkyProfiles`):** estados nomeados com transição suave, sincronizados e salvos no mundo; `ProfileSkyEffects` para o motor ser dono do céu inteiro de uma dimensão própria.
-- Exemplo 1.9.0: receitas 22 a 26 (buraco negro, portal, lua gigante, eclipse global, dimensão de teste).
+- **Sky API:** sky layers by direction (black hole with gravitational lensing that bends the sky and distant terrain, portal to another galaxy, eclipse, rift, giant celestial body with phases and rings, aurora and distant lightning), procedural, with parameters by track; one engine `sky` pass, first of the frame, outside the budget, 2/4/6/8 layers per profile. The game's sun and moon are hidden by subtracting the same texture. See CEU-0.12.md.
+- **Global events (`WorldEvents`):** scopes AREA, DIMENSION and SERVER, late join in the right phase (login, dimension change, respawn), optional persistence, a limit with priorities, `/calamidade world`.
+- **Per-dimension sky (`SkyProfiles`):** named states with smooth transitions, synchronized and saved in the world; `ProfileSkyEffects` so the engine owns the whole sky of its own dimension.
+- Example 1.9.0: recipes 22 to 26 (black hole, portal, giant moon, global eclipse, test dimension).
 
-## Medições pendentes
+## Pending measurements
 
-As ferramentas da 0.5.0 existem para fechar estes itens. O roteiro está em TESTE-REAL.md.
+The tools from 0.5.0 exist to close these items. The procedure is in TESTE-REAL.md.
 
-- Custo absoluto por efeito e por passe na RTX 4060 com VSync desligado (a medição da 0.11.2 estava presa a 144 Hz) e numa placa integrada (perfil LOW); AUTO subindo numa GPU física.
-- Sincronização entre dois clientes em servidor dedicado: observador, entrada tardia, saída e retorno ao alcance, troca de dimensão.
-- Pipeline em Fast, Fancy, Fabulous e com mods de renderização (Sodium/Embeddium, Iris/Oculus).
-- Aparência dos feixes e da luz numa GPU física (de dia, de noite, debaixo d'água) e custo dos passes `beams` e `lights` com o teto de HIGH (128 feixes, 64 luzes).
-- Gatilhos e limites por fonte com dois jogadores num servidor dedicado (TESTE-REAL.md, parte 5) e o RespectCraft rodando o Finisher Engine com efeitos do Calamidade.
-- Terrain API com mods de proteção reais (FTB Chunks, Open Parties and Claims, GriefDefender), com jogadores reais na proteção de spawn e no modo aventura, o LOD do Distant Horizons num servidor sem DH e o custo da remontagem numa GPU física (TESTE-REAL.md, partes 6 e 7).
+- Absolute cost per effect and per pass on the RTX 4060 with VSync off (the 0.11.2 measurement was capped at 144 Hz) and on integrated graphics (LOW profile); AUTO going up on a physical GPU.
+- Synchronization between two clients on a dedicated server: observer, late join, leaving and returning to range, dimension change.
+- The pipeline in Fast, Fancy, Fabulous and with rendering mods (Sodium/Embeddium, Iris/Oculus).
+- Look of the beams and the light on a physical GPU (day, night, underwater) and cost of the `beams` and `lights` passes at the HIGH cap.
+- Triggers and per-source limits with two players on a dedicated server (TESTE-REAL.md, part 5) and RespectCraft running the Finisher Engine with Calamidade effects.
+- Terrain API with real protection mods (FTB Chunks, Open Parties and Claims, GriefDefender), with real players in spawn protection and adventure mode, Distant Horizons LOD on a server without DH and the cost of the rebuild on a physical GPU (TESTE-REAL.md, parts 6 and 7).
+- **0.15.0 Light Engine:** formal benchmarks of the phase 5 budgets (LOW 32/24, BALANCED 80/60, HIGH 176/132, ULTRA 192/192) on physical GPUs, including integrated graphics. Manual testing on an RTX 4060 was satisfactory; no formal numbers were submitted.
 
-## Próximas versões
+## Next versions
 
 ### 0.13 — Bosses
 
-Implementada no branch `claude/bosses-0.13` (baseado no 0.12.0, sem a 0.14); **publicada** (release v0.13.0, commit `2c90f60`). Capítulo: [BOSSES-0.13.md](BOSSES-0.13.md).
+Implemented on branch `claude/bosses-0.13` (based on 0.12.0, without 0.14); **published** (release v0.13.0, commit `2c90f60`). Chapter: [BOSSES-0.13.md](BOSSES-0.13.md).
 
-- **Boss API** (`Boss`, `Bosses`): controlador preso a uma entidade do addon; fases, transições por tempo, vida, sinal, dano, morte e predicado, sequências pela Timeline, efeitos de entrada, saída e sustain, ações periódicas, evento global por fase, invulnerabilidade opcional, persistência na entidade, `maxPerBoss` e `bossMaxActive`, `/calamidade boss`.
-- **Pontos presos a ossos** (`RigAnchors`, `Point.socket`, `Point.socketAim`, `Effects.anchorSocket`, `AnchorCapture`): pose capturada no render do addon (vanilla, GeckoLib ou outro), providers, anchors estáticos e plano B, sem o Calamidade depender do GeckoLib; visual no cliente, aproximação estática no servidor.
-- **BossBar:** barra vanilla mais estilos de cliente (`BossBars`), barra segmentada com nome da fase, fantasma de dano e clarão; acessibilidade de tamanho, contraste, rótulos e "forçar vanilla"; canal `boss_v1`.
-- Chefe de exemplo: o Sentinela do Eclipse (receita 27), que dispara o eclipse da 0.12 em área na fase final.
+- **Boss API** (`Boss`, `Bosses`): a controller attached to an addon entity; phases, transitions by time, health, signal, damage, death and predicate, sequences through the Timeline, enter, exit and sustain effects, periodic actions, a global event per phase, optional invulnerability, persistence on the entity, `maxPerBoss` and `bossMaxActive`, `/calamidade boss`.
+- **Points attached to bones** (`RigAnchors`, `Point.socket`, `Point.socketAim`, `Effects.anchorSocket`, `AnchorCapture`): pose captured in the addon's renderer (vanilla, GeckoLib or other), providers, static anchors and fallback, without Calamidade depending on GeckoLib; visual on the client, static approximation on the server.
+- **BossBar:** vanilla bar plus client styles (`BossBars`), a segmented bar with the phase name, damage ghost and flash; accessibility of size, contrast, labels and "force vanilla"; channel `boss_v1`.
+- Example boss: the Eclipse Sentinel (recipe 27), which triggers the 0.12 eclipse in an area in the final phase.
 
-### 0.14 — Custom Sky (candidata ao release v0.14.0, integrada sobre a 0.13.0; não publicada)
+### 0.14 — Custom Sky (release candidate v0.14.0, integrated on top of 0.13.0; not published)
 
-Fases 0 a 4 implementadas no branch `claude/ceu-personalizado` e integradas à Boss Engine da 0.13 em `claude/integracao-0.13-0.14-u8nraa`. **Entrou:** Backdrop (cubemap, panorama, gradiente), estrelas, constelações e nebulosas procedurais, imagens, flipbooks e impostors, `customSkies`. **Adiado** (sem versão definida, ou 0.15 quando indicado): domo procedural, nebulosas e fundos por PNG animado, perfis de céu em JSON de datapack, camadas de noite sobre o sol, nuvens próprias, receita de céu no vfx-sample. **Não testado:** GPU física, dois jogadores reais, shaderpacks e renderizadores alternativos.
+Phases 0 to 4 implemented on branch `claude/ceu-personalizado` and integrated with the 0.13 Boss Engine in `claude/integracao-0.13-0.14-u8nraa`. **Included:** Backdrop (cubemap, panorama, gradient), procedural stars, constellations and nebulae, images, flipbooks and impostors, `customSkies`. **Deferred** (no version set, or 0.15 where noted): procedural dome, nebulae and backgrounds from animated PNGs, sky profiles in datapack JSON, layers drawn at night over the sun, own clouds, a sky recipe in the vfx-sample. **Not tested:** physical GPU, two real players, shaderpacks and alternative renderers.
 
-Expansão **só aditiva** da Sky API: os sete fenômenos procedurais da 0.12 continuam como estão, e nada novo aparece sem um addon pedir. Arquitetura e verificações: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
+An **additive-only** expansion of the Sky API: the seven procedural phenomena of 0.12 stay as they are, and nothing new appears unless an addon asks for it. Architecture and checks: [CEU-PERSONALIZADO.md](CEU-PERSONALIZADO.md).
 
-**Entregue na 0.14.0** (candidata):
+**Delivered in 0.14.0** (candidate):
 
-- **Backdrop:** cubemap 3 × 2, panorama equirretangular e gradiente, substituição parcial ou completa, sol e lua do jogo redesenhados a pedido (fase 2).
-- **Estrelas, constelações e nebulosas procedurais:** campo por semente, catálogo manual com constelações, composição `SkyBlend` NORMAL, LUMINOUS e COVER, `SkyDarkening` (fase 3).
-- **Imagens no céu, flipbooks e impostors:** `SkyImage`, `SkyImpostor`, `layer(FRONT)`, cache `SkyTextures` com orçamento por perfil, ferramenta `gerar_impostor.cjs` (fase 4).
-- Config de cliente `customSkies`; integração com a Boss Engine da 0.13 sem mudança de rede.
+- **Backdrop:** 3 × 2 cubemap, equirectangular panorama and gradient, partial or complete replacement, the game's sun and moon redrawn on request (phase 2).
+- **Procedural stars, constellations and nebulae:** seeded field, manual catalog with constellations, `SkyBlend` composition NORMAL, LUMINOUS and COVER, `SkyDarkening` (phase 3).
+- **Images in the sky, flipbooks and impostors:** `SkyImage`, `SkyImpostor`, `layer(FRONT)`, `SkyTextures` cache with a per-profile budget, tool `gerar_impostor.cjs` (phase 4).
+- Client config `customSkies`; integration with the 0.13 Boss Engine without a network change.
 
-**Adiado (não está na 0.14.0; sem versão definida, em "Depois da 0.14"):** domo procedural de Backdrop; nebulosas, galáxias e fundos por PNG animado (além dos flipbooks de `SkyImage`); perfis de céu em JSON de datapack; camadas desenhadas de noite sobre o sol; nuvens próprias; receita de céu no vfx-sample; limites definidos por medição em GPU física.
+**Deferred (not in 0.14.0; no version set, under "After 0.14"):** procedural Backdrop dome; nebulae, galaxies and backgrounds from animated PNGs (beyond the `SkyImage` flipbooks); sky profiles in datapack JSON; layers drawn at night over the sun; own clouds; a sky recipe in the vfx-sample; limits set by measurement on a physical GPU.
 
-**Proposta aprovada (histórico, antes da implementação):**
+**Approved proposal (history, before implementation):**
 
-- **Backdrop:** fundo de céu por cubemap de 6 faces, panorama equirretangular, gradiente ou domo procedural; substituição parcial (com transparência) ou completa (cobrindo o céu do jogo e redesenhando só o que o addon pedir: gradiente, sol, lua, estrelas); em dimensões próprias, `ProfileSkyEffects` continua dono do céu inteiro.
-- **Estrelas:** campo procedural por semente (densidade, tamanhos, cores, cintilação, faixa galáctica) e catálogo manual com constelações, em poucas chamadas de desenho. **Feito na fase 3** (com nebulosas procedurais e a composição híbrida por objeto: `SkyBlend` NORMAL, LUMINOUS e COVER).
-- **Nebulosas e galáxias:** procedurais e por PNG; fundos animados.
-- **Imagens no céu e impostors:** PNG com transparência, tamanho angular, rotação, cor, brilho, por trilha da Timeline; folhas de sprites, flipbooks, vários ângulos. **Feito na fase 4** (`SkyImage`, `SkyImpostor`, `layer(FRONT)`, cache `SkyTextures` com orçamento por perfil, ferramenta `gerar_impostor.cjs`; modelos 3D reais continuam na 0.15).
-- Itens desta lista que vieram de "Depois da 0.13": **perfis de céu em JSON de datapack** (codec, `/reload`, envio do perfil inteiro), **camadas desenhadas também de noite sobre o sol** e **nuvens próprias** — os três adiados, não entregues na 0.14.0.
-- Limites e custos definidos por medição (nenhum limite da proposta é definitivo sem benchmark).
+- **Backdrop:** sky background from a 6-face cubemap, an equirectangular panorama, a gradient or a procedural dome; partial replacement (with transparency) or complete (covering the game's sky and redrawing only what the addon asks: gradient, sun, moon, stars); in own dimensions, `ProfileSkyEffects` stays the owner of the whole sky.
+- **Stars:** a procedural seeded field (density, sizes, colors, twinkle, galactic band) and a manual catalog with constellations, in few draw calls. **Done in phase 3** (with procedural nebulae and the hybrid per-object composition: `SkyBlend` NORMAL, LUMINOUS and COVER).
+- **Nebulae and galaxies:** procedural and from PNG; animated backgrounds.
+- **Images in the sky and impostors:** PNG with transparency, angular size, rotation, color, brightness, by Timeline track; sprite sheets, flipbooks, several angles. **Done in phase 4** (`SkyImage`, `SkyImpostor`, `layer(FRONT)`, `SkyTextures` cache with a per-profile budget, tool `gerar_impostor.cjs`; real 3D models stay in 0.15).
+- Items in this list that came from "After 0.13": **sky profiles in datapack JSON** (codec, `/reload`, sending the whole profile), **layers also drawn at night over the sun** and **own clouds** — all three deferred, not delivered in 0.14.0.
+- Limits and costs set by measurement (no limit of the proposal is final without a benchmark).
 
-### 0.15.0 experimental — Light Engine (branch `claude/great-pascal-pq0xtj`, não publicada)
+### 0.15.0 experimental — Light Engine (branch `claude/great-pascal-pq0xtj`, not published)
 
-Pedido de foco antes de Sky Objects: Light Cookies (imagens próprias como padrão de luz), holofote, projetor planar, curvas de atenuação, composição `ADD`/`SOFT`/`SUBTRACT`, rampas de cor e gradientes de distância no mesmo passe único; correção do ciclo de vida das instâncias (dono, vigia de órfãs, reconciliação `live_v1`, comandos `fx`). Capítulo: [LUZ-0.15.md](LUZ-0.15.md). **Adiado:** cookie em luz pontual (cubemap) e em segmento, oclusão/sombras reais, materiais. A numeração da proposta abaixo passa para a versão seguinte quando a Light Engine for publicada.
+A focus request before Sky Objects: Light Cookies (own images as light patterns), spotlight, planar projector, attenuation curves, `ADD`/`SOFT`/`SUBTRACT` composition, color ramps and distance gradients in the same single pass; a fix of the instance life cycle (owner, orphan watchdog, `live_v1` reconciliation, `fx` commands). Chapter: [LUZ-0.15.md](LUZ-0.15.md). **Deferred:** cookies on point lights (cubemap) and on segments, real occlusion/shadows, materials. The numbering of the proposal below moves to the next version when the Light Engine is published.
 
-### 0.15 — Sky Objects & Cinematics (proposta aprovada)
+- Phase 2: EMISSIVE and OVERRIDE, sharpness and high-resolution cookies.
+- Phase 3: adaptive light budgets, light priorities, tiled lighting, adaptive cookie resolution.
+- Phase 4: coverage first (independent light lane, engine lights pass, spatial spread, density admission, temporal hysteresis, AUTO relief), the coverage lab in vfx-sample 1.14.0.
+- **Phase 5:** final budgets LOW 32/24, BALANCED 80/60, HIGH 176/132, ULTRA 192/192 (lights/cookies; requested defaults after manual RTX 4060 testing, not validated performance targets); the "Reduced Visual Quality" notice for LOW; English as the canonical language (commands, Gradle tasks, interface strings, AI instructions, entry-point docs), with Portuguese aliases kept; rebranding preparation ([REBRANDING.md](REBRANDING.md)); vfx-sample 1.14.1.
 
-- **Modelos 3D reais do Blockbench:** formato principal Bedrock `.geo.json` com um subconjunto documentado de animação, validado contra exportações reais; alternativas Java (`ModelPart`), OBJ/JSON de bloco e renderizadores externos (sem dependência do GeckoLib).
-- **Sky Space, World Space e Entity Space** escolhidos pelo addon; LOD opcional (billboard → impostor → modelo), cache de malhas.
-- **Transições céu ↔ mundo e portais cinematográficos** coordenados pela Timeline existente; recorte por CPU ou GPU escolhido por medição; continuidade garantida só perto do ponto de referência.
-- **Integração opcional com entidades** (o addon cuida de IA, vida, dano e spawn), sem duplicar a Boss API da 0.13.
-- Itens desta lista que vieram de "Depois da 0.13" e de "Evolução da API": **lentes que entortam feixes e efeitos de addons** e **cache de malhas estáticas e LOD adaptativo**.
+### Rebranding (name not chosen)
 
-### Depois da 0.14
+The project will be renamed. Phase 5 mapped presentation and technical identity and documented a safe presentation-only procedure and the migration a full technical rename would need ([REBRANDING.md](REBRANDING.md)). No identifier has been changed.
 
-Adiados da 0.14 (planejados para ela, não entregues na 0.14.0; versão a definir):
+### 0.15 — Sky Objects & Cinematics (approved proposal)
 
-- Perfis de céu em JSON de datapack (codec, `/reload`, envio do perfil inteiro).
-- Camadas desenhadas também de noite sobre o sol; nuvens próprias.
-- Domo procedural de Backdrop; nebulosas, galáxias e fundos por PNG animado.
-- Receita de céu personalizado no vfx-sample; limites de memória e envio medidos em GPU física.
+- **Real 3D Blockbench models:** main format Bedrock `.geo.json` with a documented subset of animation, validated against real exports; Java alternatives (`ModelPart`), block OBJ/JSON and external renderers (no GeckoLib dependency).
+- **Sky Space, World Space and Entity Space** chosen by the addon; optional LOD (billboard → impostor → model), mesh cache.
+- **Sky ↔ world transitions and cinematic portals** coordinated by the existing Timeline; CPU or GPU clipping chosen by measurement; continuity guaranteed only near the reference point.
+- **Optional integration with entities** (the addon handles AI, health, damage and spawning), without duplicating the 0.13 Boss API.
+- Items in this list that came from "After 0.13" and from "API evolution": **lenses that bend addon beams and effects** and **static mesh cache and adaptive LOD**.
 
-### Depois da 0.13
+### After 0.14
 
-- Perfis de céu em JSON de datapack → planejado para a 0.14, adiado (veja "Depois da 0.14").
-- Sky API: camadas desenhadas também de noite sobre o sol e nuvens próprias → planejadas para a 0.14, adiadas; ~~lentes que entortam feixes e efeitos de addons~~ → 0.15.
-- Trail API (rastros e marcas): fitas com histórico de posições para entidades, projéteis e pontas de feixe; marcas que ficam no chão por um tempo.
-- Títulos e HUD cinematográficos sincronizados à Timeline.
-- Ramificações de feixes (raios que se dividem) e feixes curvos.
-- Sombras simples para a Light (oclusão por profundidade na direção da fonte).
-- Terrain API: edições em cadeia por trilha (um rasgo que cresce ao longo de vários ticks junto com o raio) e paletas por bioma.
+Deferred from 0.14 (planned for it, not delivered in 0.14.0; version to be set):
 
-### Evolução da API, sem versão definida
+- Sky profiles in datapack JSON (codec, `/reload`, sending the whole profile).
+- Layers also drawn at night over the sun; own clouds.
+- Procedural Backdrop dome; nebulae, galaxies and backgrounds from animated PNGs.
+- A custom sky recipe in the vfx-sample; memory and upload limits measured on a physical GPU.
 
-- Parâmetros de habilidade via arquivos de dados.
-- Editor de sequências e previsão de custo.
-- Trilha de áudio sincronizada e poses ligadas às fases da Timeline.
-- Dados por instância enviados pelo servidor ao cliente (por exemplo, lista de alvos, força de um golpe) para os ganchos de cliente.
-- Orientação seguindo o olhar (yaw e pitch da cabeça) além do corpo.
-- Transição suave (crossfade) opcional no release, para loops cujas bordas não coincidem.
-- ~~Cache de malhas estáticas e LOD adaptativo ao frametime~~ → 0.15 (Sky Objects).
+### After 0.13
+
+- Sky profiles in datapack JSON → planned for 0.14, deferred (see "After 0.14").
+- Sky API: layers also drawn at night over the sun and own clouds → planned for 0.14, deferred; ~~lenses that bend addon beams and effects~~ → 0.15.
+- Trail API (trails and marks): ribbons with a position history for entities, projectiles and beam tips; marks that stay on the ground for a while.
+- Cinematic titles and HUD synchronized to the Timeline.
+- Beam branching (lightning that splits) and curved beams.
+- Simple shadows for Light (depth occlusion toward the source).
+- Terrain API: chained edits by track (a tear that grows over several ticks along with the lightning) and palettes by biome.
+
+### API evolution, no version set
+
+- Ability parameters through data files.
+- Sequence editor and cost prediction.
+- Synchronized audio track and poses tied to the Timeline phases.
+- Per-instance data sent by the server to the client (for example, a target list, the strength of a blow) for the client hooks.
+- Orientation following the look (head yaw and pitch) besides the body.
+- Optional smooth transition (crossfade) on release, for loops whose edges do not match.
+- ~~Static mesh cache and adaptive LOD to frame time~~ → 0.15 (Sky Objects).

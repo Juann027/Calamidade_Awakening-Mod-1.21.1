@@ -503,6 +503,97 @@ outras 5 só a luz. Teste em jogo: `xvfb-run -a ./gradlew testeLuz -Pluz.modo=fa
 
 ![Caso real (LOW com 1 efeito desenhado), combate, cinema, mista e estresse](luz-previas/fase4-cenas.jpg)
 
+## Phase 5: final quality budgets (English)
+
+Phase 5 finalizes the light budgets without a new architectural expansion. Everything from phase 4 stays: the
+independent light lane, the engine lights pass, the spatial spread, the density admission, the temporal hysteresis,
+light priorities, adaptive cookie resolution, tiled lighting and AUTO relief.
+
+### Budgets
+
+| Profile | Lights | Light cookies | Phase 4 (before) |
+|---|---:|---:|---|
+| LOW | 32 | 24 | 24 / 16 |
+| BALANCED | 80 | 60 | 64 / 48 |
+| HIGH | 176 | 132 | 128 / 96 |
+| ULTRA | 192 | 192 | 192 / 128 |
+
+- The absolute safety maximum stays 192 lights and 192 cookies (`FrameLimits.MAX_LIGHTS`, `MAX_COOKIES`); the applied
+  cookie budget never exceeds the applied light budget. Light and cookie caps are configured independently per profile
+  (`quality.<profile>.lights` and `.cookies` in the client config, the Atlas fine-tuning, F7 page 2).
+- These are the **requested defaults** after manual testing on an RTX 4060 that was satisfactory. They are not measured
+  performance targets for all hardware: formal GPU benchmarks have not been completed or submitted.
+- Shader, beam, particle, mesh and raymarching budgets are unchanged.
+- **ULTRA:** 192 cookies, as many as lights, so no light loses its image only because the cookie budget is smaller than
+  the light budget; cookie resolution up to 2048 (the large atlas of phase 2), colors, shapes and frame interpolation
+  are kept. Culling, accessibility, atlas capacity (adaptive resolution 512 → 256 → 128 under pressure) and the safety
+  maxima still apply; ULTRA is not an unlimited debugging profile.
+
+### Config migration (version 4)
+
+`quality.lightCapsVersion` goes to 4. Once per file, every cap still equal to an earlier default of its profile moves to
+the current default: the phase 4 defaults (lights 24/64/128 for LOW/BALANCED/HIGH, cookies 16/48/96/128) are now in
+`QualityProfile.LEGACY` together with every older default (0.11.2 provisional profiles, phase 3). Any other value was
+chosen by the player and stays (for example LOW 20 lights, HIGH 100 cookies, ULTRA 64 cookies). A value a player set
+deliberately to a former default cannot be told apart and moves too. "Restore defaults" (Atlas,
+`/calamidade_client quality defaults <profile|all>`) applies the phase 5 values.
+
+### Why combat and mixed kept fewer lights than the arena on LOW
+
+`ScenarioCheck` (pure, part of `checkBudget`) rebuilds the three vfx-sample scenes in front of a camera with the same
+geometry (`LaboratorioCobertura`) and runs the client selection (spread under the cap, density admission per tile, then
+the cookie budget with its own admission) until it settles:
+
+| Scene | Profile | Lights kept (phase 4 → 5) | Cookies sampled (phase 4 → 5) |
+|---|---|---|---|
+| arena (192 lights, 84 cookies) | LOW | 28 → 34 | 20 → 28 |
+| | BALANCED | 74 → 91 | 58 → 68 |
+| | HIGH | 141 → 182 | 84 → 84 |
+| | ULTRA | 192 → 192 | 84 → 84 |
+| combat (68 lights, 36 cookies) | LOW | 28 → 36 | 16 → 24 |
+| | BALANCED | 64 → 68 | 36 → 36 |
+| | HIGH, ULTRA | 68 → 68 | 36 → 36 |
+| mixed (64 lights, 48 cookies) | LOW | 29 → 34 | 18 → 22 |
+| | BALANCED, HIGH, ULTRA | 64 → 64 | 48 → 48 |
+
+The arena keeps a smaller **fraction** of its lights than combat on LOW, yet it looked more complete. The causes:
+
+1. **Light priorities (composition of the scene).** Each arena piece has one large NORMAL rune; the rest is DECORATIVE.
+   The cap always keeps the 12 NORMAL runes (one per instance), so every piece keeps its dominant shape. Combat has two
+   CRITICAL reticles (4 lights and 4 cookies taken first, as intended) and 64 DECORATIVE lights of equal weight, so the
+   remaining 20 (phase 4) decorative lights are spread thinly over the four rings and each ring looks incomplete.
+2. **Spatial concentration on screen (tile density).** Combat and mixed sit within about 14 blocks of the scene center,
+   so their lights overlap the central tiles. The density admission never raises the busiest tile the cap produced
+   (worst tile about 20 lights on LOW), so it could add only 2 to 4 lights. The arena's ring spreads across the screen,
+   but its cap-selected lights are just as concentrated in the middle tiles, so it gains little from admission too.
+3. **Cookie budget.** Mixed asks for 48 cookies in 64 lights and combat for 36; the LOW cookie cap of 16 (+ a per-tile
+   cookie density of 4) left most projections on their fallback. This is what "mixed removes projections" was.
+
+It was not caused by a fault in the CRITICAL handling (every CRITICAL light and cookie is kept in every profile, checked
+by `ScenarioCheck`), nor by atlas capacity. No priority was weakened, and no projection shape, color, area or
+composition was changed to hide the limits. The fix is the requested budget increase.
+
+### "Reduced Visual Quality" notice
+
+When the player selects LOW (F8 or the Atlas), or AUTO moves into LOW, the chat shows:
+
+> **Reduced Visual Quality**
+> The LOW graphics profile prioritizes performance. Some visual effects, lighting and cinematic sequences may be
+> simplified or omitted. For a more complete visual experience, BALANCED or higher is recommended if your hardware
+> allows it.
+
+It is a chat message (no screen, no pause, no confirmation; LOW stays usable). `LowQualityNotice` (pure, tested by
+`NoticeCheck`) guards against spam: only a transition into LOW notifies (nothing repeats while LOW stays active); manual
+selections notify at most once a minute (cycling F8 passes LOW every lap); an AUTO transition notifies only after 30 s
+above LOW and 10 minutes since the previous notice, so AUTO oscillating around LOW during a fight stays quiet. Turn it
+off with the client config entry `quality.lowQualityWarning` (translation keys `notice.calamidade_awakening.low_quality.*`).
+
+### Commands
+
+The light and coverage labs have English names since vfx-sample 1.14.1 (`/vfxsample light …`, `/vfxsample coverage
+arena|combat|mixed|cinematic|stress <n> <grid|ring|clustered>|stop`); the Portuguese names used in the sections above
+(`luz`, `cobertura`, `carga`, `mesmo`, `espalhado`…) remain deprecated aliases. Reference: [COMMANDS.md](COMMANDS.md).
+
 ## Light API ou GLSL próprio?
 
 | Quero... | Use |

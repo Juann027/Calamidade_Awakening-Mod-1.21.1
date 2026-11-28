@@ -1,6 +1,42 @@
 # Mudanças
 
-**Estado: 0.15.0 experimental (Light Engine) no branch `claude/great-pascal-pq0xtj`, não publicada; 0.14.0 candidata ao release, não publicada (seção abaixo). Último release publicado: 0.13.0 (release v0.13.0, tag no commit `2c90f60`). Release anterior: 0.12.0 compilada (motor; vfx-sample 1.9.0), coberta pelos testes de build (`checkBudget` com `SkyCheck`, `WorldEventCheck`, `WorldEventSyncCheck` e `SkyProfileCheck`; 173 casos GLSL), pela prévia fora do jogo (`node scripts/previa_passes.cjs ceu`) e pelos testes em jogo `./gradlew testeJogo` (eventos globais e céu por dimensão no servidor dedicado, com reinício) e `xvfb-run ./gradlew testeCeu` (cliente). Pendentes: GPU física, dois jogadores em dimensões diferentes vendo o mesmo eclipse.** Veja docs/VALIDACAO.md e o roteiro em docs/TESTE-REAL.md (parte 10).
+**Status (English): 0.15.0 experimental at phase 5, see the first entry. Estado: 0.15.0 experimental (Light Engine) no branch `claude/great-pascal-pq0xtj`, não publicada; 0.14.0 candidata ao release, não publicada (seção abaixo). Último release publicado: 0.13.0 (release v0.13.0, tag no commit `2c90f60`). Release anterior: 0.12.0 compilada (motor; vfx-sample 1.9.0), coberta pelos testes de build (`checkBudget` com `SkyCheck`, `WorldEventCheck`, `WorldEventSyncCheck` e `SkyProfileCheck`; 173 casos GLSL), pela prévia fora do jogo (`node scripts/previa_passes.cjs ceu`) e pelos testes em jogo `./gradlew testeJogo` (eventos globais e céu por dimensão no servidor dedicado, com reinício) e `xvfb-run ./gradlew testeCeu` (cliente). Pendentes: GPU física, dois jogadores em dimensões diferentes vendo o mesmo eclipse.** Veja docs/VALIDACAO.md e o roteiro em docs/TESTE-REAL.md (parte 10).
+
+# 0.15.0 phase 5 — final quality tuning, English standardization, rebranding preparation (experimental, not published)
+
+English is the canonical language of this changelog from this entry on; the older entries below stay in Portuguese until
+they are converted. No network channel, no public API removal (`checkApiCompat` green), engine still 0.15.0.
+
+- **Light budgets:** LOW 32 lights / 24 cookies, BALANCED 80 / 60, HIGH 176 / 132, ULTRA 192 / 192 (phase 4: 24/16,
+  64/48, 128/96, 192/128). Safety maximum unchanged (192 lights, 192 cookies); lights and cookies configured
+  independently; other budgets unchanged. Requested defaults after manual RTX 4060 testing, **not** validated
+  performance targets (formal GPU benchmarks pending).
+- **Config migration 4:** caps still equal to a phase 4 (or older) default move to the phase 5 default once; customized
+  values stay. Restore defaults, the Atlas and F7 use the new values.
+- **Coverage investigation:** `ScenarioCheck` reproduces `/vfxsample coverage arena|combat|mixed`; combat and mixed kept
+  fewer lights on LOW because of the scene's priority mix (all DECORATIVE besides the CRITICAL reticles), screen
+  concentration (the density admission never raises the busiest tile) and the 16-cookie LOW cap. CRITICAL handling was
+  correct and is unchanged. Details: `docs/LUZ-0.15.md`, "Phase 5".
+- **"Reduced Visual Quality" notice** when LOW is selected (F8, Atlas) or AUTO enters LOW: chat message, no pause or
+  confirmation, no repeat while LOW stays active, 1 min cooldown for manual selections, 10 min plus 30 s re-arm for
+  AUTO; client option `quality.lowQualityWarning`. `LowQualityNotice`, `NoticeCheck`.
+- **English first:** remaining Portuguese engine strings translated (instance listings, world-event status, boss tags,
+  the cost-measure report, a log warning); `/calamidade terrain undo last` (legacy `último`/`ultimo` kept); English
+  Gradle task aliases (`testGame`, `testClient`, `testMeasure`, `testAtlas`, `testSky`, `testBackdrop`, `testStars`,
+  `testImages`, `testBoss`, `testOrphans`, `testLight`, `checkSkyReference`, `checkBackdropComposition`,
+  `checkObjectComposition`) depending on the Portuguese tasks, which keep working; `scripts/novo_efeito.py` generates
+  English code and commands (`/<ns> effect <name>`; old flags still accepted). AGENTS.md, CLAUDE.md, the project skill,
+  README, ROADMAP, `docs/ai` indexes in English; new `docs/COMMANDS.md`.
+- **Rebranding preparation:** `docs/REBRANDING.md` (presentation vs technical identity, safe rename procedure,
+  consequences, migration requirements, checklist); `CalamidadeAwakening.NAME` centralizes the display name in Java. No
+  identifier changed.
+- **Example 1.14.1:** English canonical commands (`light`, `coverage`, `recipe`, `boss`, `event`, `sky`, `dimension`,
+  `zombie`, `beacon`, recipe and demo names, `release`, `stop`, `compare`, `stress`, `load`, `same`, `varied`, `mixed`,
+  `spread`, `overlapping`, `combat`, `cinematic`, `grid`, `ring`, `clustered`); the Portuguese names are deprecated
+  aliases sharing the same Brigadier nodes (`Cmd`); messages and demo descriptions translatable in English. Effect IDs
+  unchanged.
+- **Known:** the default-mode `testLight` culling check ("a light outside the frustum is discarded before the cap")
+  fails identically on the phase 4 commit; it predates phase 5 and is recorded in `docs/VALIDACAO.md`.
 
 # 0.15.0 — Light Engine (experimental; branch `claude/great-pascal-pq0xtj`, não publicada)
 
