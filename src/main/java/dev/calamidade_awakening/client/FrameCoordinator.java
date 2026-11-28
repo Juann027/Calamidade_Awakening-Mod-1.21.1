@@ -2,6 +2,7 @@ package dev.calamidade_awakening.client;
 
 import dev.calamidade_awakening.api.AutoQuality;
 import dev.calamidade_awakening.api.FrameLimits;
+import dev.calamidade_awakening.api.LowQualityNotice;
 import dev.calamidade_awakening.api.QualityMode;
 import dev.calamidade_awakening.api.QualityProfile;
 import dev.calamidade_awakening.config.ClientConfig;
@@ -18,6 +19,8 @@ public final class FrameCoordinator {
     private StageScene.Plan plan, last;
     private final AutoQuality auto = new AutoQuality(QualityProfile.BALANCED, 1000.0 / 60, System.currentTimeMillis());
     private QualityMode lastMode;
+    /** Phase 5: "Reduced Visual Quality" notice on manual and AUTO transitions into LOW. */
+    private final LowQualityNotice notice = new LowQualityNotice();
 
     public FrameCoordinator(StageScene scene) { this.scene = scene; }
     public void invalidate() { plan = null; }
@@ -52,6 +55,34 @@ public final class FrameCoordinator {
         lastMode = mode;
         test = null;
         invalidate();
+        if (mode.profile != null) show(notice.manual(mode.profile, System.currentTimeMillis()));
+    }
+
+    /**
+     * Phase 5: the LOW notice in the chat (no pause, no screen, no confirmation; LOW stays usable). Off with the client
+     * config entry {@code quality.lowQualityWarning}.
+     */
+    private static void show(LowQualityNotice.Kind kind) {
+        if (kind == LowQualityNotice.Kind.NONE || !ClientConfig.lowQualityWarning()) return;
+        var player = net.minecraft.client.Minecraft.getInstance().player;
+        if (player == null) return;
+        String k = "notice.calamidade_awakening.low_quality.";
+        var title = net.minecraft.network.chat.Component.translatableWithFallback(k + "title", "Reduced Visual Quality")
+            .withStyle(net.minecraft.ChatFormatting.GOLD, net.minecraft.ChatFormatting.BOLD);
+        var body = net.minecraft.network.chat.Component.empty();
+        if (kind == LowQualityNotice.Kind.AUTO)
+            body.append(net.minecraft.network.chat.Component.translatableWithFallback(k + "auto",
+                "AUTO switched to LOW to keep the frame rate.")).append(" ");
+        body.append(net.minecraft.network.chat.Component.translatableWithFallback(k + "body",
+                "The LOW graphics profile prioritizes performance. Some visual effects, lighting and cinematic sequences may be simplified or omitted."))
+            .append(" ")
+            .append(net.minecraft.network.chat.Component.translatableWithFallback(k + "hint",
+                "For a more complete visual experience, BALANCED or higher is recommended if your hardware allows it."));
+        player.displayClientMessage(title, false);
+        player.displayClientMessage(body.withStyle(net.minecraft.ChatFormatting.GRAY), false);
+        player.displayClientMessage(net.minecraft.network.chat.Component.translatableWithFallback(k + "disable",
+            "This notice can be turned off in the client config (quality.lowQualityWarning).")
+            .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC), false);
     }
     /** Sets (or clears, with null) the internal test profile UNLIMITED. */
     public void test(FrameLimits limits) {
@@ -83,6 +114,7 @@ public final class FrameCoordinator {
                 auto.restart(lastMode.profile, targetMs(), nowMs);
             lastMode = mode;
         }
+        if (test == null) show(notice.frame(profile(), mode == QualityMode.AUTO, nowMs));
         if (mode != QualityMode.AUTO || test != null) return;
         auto.target(targetMs());
         StageScene.Plan p = last;

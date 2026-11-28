@@ -2,17 +2,21 @@
 
 A modular visual effects engine for Minecraft 1.21.1, NeoForge 21.1.x and Java 21, using RimuLib 1.3.0.
 
-**Status:** the latest published release is **v0.13.0** (Bosses). The experimental **0.15.0 Light Engine** (light cookies, spotlights, projectors, instance lifecycle fixes; `docs/LUZ-0.15.md`) lives on branch `claude/great-pascal-pq0xtj` and is not a release. This branch holds the **0.14.0 release candidate** (Custom Sky integrated with the 0.13 Boss Engine), which is **not published yet**: there is no v0.14.0 tag or GitHub release, and a JAR built from it is not an official download until that release exists.
+**Status:** the latest published release is **v0.13.0** (Bosses). This branch (`claude/great-pascal-pq0xtj`) holds the experimental **0.15.0 Light Engine** (light cookies, spotlights, projectors, coverage-first light budgets, instance lifecycle fixes; [docs/LUZ-0.15.md](docs/LUZ-0.15.md)), currently at **phase 5** (final quality budgets, English standardization, rebranding preparation), built on the **0.14.0 release candidate** (Custom Sky integrated with the 0.13 Boss Engine). Neither 0.14.0 nor 0.15.0 is published: there is no tag or GitHub release for them, and JARs built from this branch (or the experimental JARs in `dist/`) are not official downloads. Formal GPU benchmarks of 0.15.0 are not complete; manual testing on an RTX 4060 was satisfactory.
+
+**Language.** English is the canonical language of the project: interface, commands, public API, documentation and AI instructions. `en_us.json` is the complete translation and the fallback; Brazilian Portuguese (`pt_br.json`) remains an optional translation selected through Minecraft's language setting. Some older chapters in `docs/` are still in Portuguese while they are being converted (see [Documentation status](#documentation-status)). The project will be renamed in the future; see [docs/REBRANDING.md](docs/REBRANDING.md).
 
  The five built-in abilities are cosmetic; addons add gameplay through server cues and, since 0.11.0, terrain edits (craters, trenches, falling structures) through the Terrain API. Since 0.12.0 addons also paint the sky (black holes with gravitational lensing, galaxy portals, eclipses, rifts, giant moons, auroras, distant lightning), start global events seen by a whole dimension or server (persistent across restarts) and give each dimension its own sky with named states. Since 0.13.0 addons turn their own entities into bosses (phases, transitions, boss bars, effects bound to rig anchors such as eyes or mouth). The 0.14.0 candidate adds custom skies: backdrops (cubemap, panorama, gradient), star fields, constellations and nebulae, and PNG images, flipbooks and impostors in the sky.
 
-[Manual geral do mod e da API (Português)](docs/MANUAL-GERAL.md)
+[Command reference](docs/COMMANDS.md) · [General manual (generated from the chapters; Portuguese)](docs/MANUAL-GERAL.md)
 
 ## Installation
 
 Download `calamidade_awakening-<version>.jar` from the [GitHub releases](https://github.com/Juann027/Calamidade_Awakening-Mod-1.21.1/releases) (v0.13.0 today; v0.14.0 once published), or build the 0.14.0 candidate with `./gradlew dist` (see Development) to get `dist/calamidade_awakening-0.14.0.jar`, and install it together with RimuLib 1.3.0 for NeoForge in the mods folder. The optional sample addon is `vfx-sample-1.11.0.jar` for 0.14.0 (`vfx-sample-1.10.0.jar` for 0.13.0). Download RimuLib from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/rimulib/files/9676532) (`rimulib-1.3.0-neoforge.jar`); it is not stored in this repository nor attached to the GitHub releases, which carry only the Calamidade and sample JARs. Use the same versions on the server and all clients (0.10.0 changed the start packet to `event_v2`; 0.11.0 adds the `terrain_v1` channel; 0.12.0 adds `world_event_v1`, `world_end_v1` and `sky_profile_v1`; 0.13.0 adds `boss_v1`; 0.14.0 adds no channel but still requires the same engine version everywhere). Custom skies of addons can be turned off with the client option `customSkies`. GeckoLib is not a dependency. Replace the previous JAR; the namespace, item and key bindings are unchanged since 0.1.2. To obtain a focus, use `/give @s calamidade_awakening:focus`. Reassign custom shortcuts in Controls.
 
-English is the fallback for interface text. Brazilian Portuguese is available through Minecraft's language setting.
+English is the canonical interface language and the fallback. Brazilian Portuguese is an optional translation, selected through Minecraft's language setting (the mod never overrides it).
+
+The LOW profile shows a "Reduced Visual Quality" notice when you select it (F8 or the Atlas) or when AUTO moves into LOW; it never blocks and can be turned off with the client option `quality.lowQualityWarning`.
 
 | Default key | Action |
 |---|---|
@@ -40,11 +44,11 @@ The public entry point is `dev.calamidade_awakening.api.v1.Effects`. Register an
 
 ## For AIs and agents
 
-Start with [AGENTS.md](AGENTS.md): project map, non-negotiable rules (public API, network, licenses, javap, git), build and test commands and "how to create a new effect in 6 steps". [docs/ai/](docs/ai/README.md) holds the API reference generated from the compiled JAR, the GLSL guide with the `calamidade_fx.glsl` library seventeen complete recipes that are real effects of the sample (`/vfxsample receita <name>`; recipes 15 to 17 are an item, blocks and a vanilla mob) and the template for depending on the engine without Maven. `python3 scripts/novo_efeito.py <namespace> <name>` scaffolds an effect that compiles without edits. Claude Code also picks up the project skill in `.claude/skills/calamidade-efeitos/`.
+Start with [AGENTS.md](AGENTS.md): project map, non-negotiable rules (public API, network, licenses, javap, git), build and test commands and "how to create a new effect in 6 steps". [docs/ai/](docs/ai/README.md) holds the API reference generated from the compiled JAR, the GLSL guide with the `calamidade_fx.glsl` library complete recipes that are real effects of the sample (`/vfxsample recipe <name>`; recipes 15 to 17 are an item, blocks and a vanilla mob) and the template for depending on the engine without Maven. `python3 scripts/novo_efeito.py <namespace> <name>` scaffolds an effect that compiles without edits. Claude Code also picks up the project skill in `.claude/skills/calamidade-efeitos/`.
 
 ## Publishing an addon
 
-Register an effect, then publish its card through `Addons.publish`. The Star Atlas shows a page per addon, and the Awakening Focus includes the same skills with artwork and optional power controls. The sample Tidal Signal adds a camera aligned to its timeline phases, a shader fed by timeline tracks, world-space blades, a HUD, a Focus panel and a marker cue that damages and pushes nearby creatures. The sample Beacon (`/vfxsample farol start`, then `release`) shows a looping ambient effect with amber fog while it is lit, and the Tidal Signal briefly tints the sky gold on impact.
+Register an effect, then publish its card through `Addons.publish`. The Star Atlas shows a page per addon, and the Awakening Focus includes the same skills with artwork and optional power controls. The sample Tidal Signal adds a camera aligned to its timeline phases, a shader fed by timeline tracks, world-space blades, a HUD, a Focus panel and a marker cue that damages and pushes nearby creatures. The sample Beacon (`/vfxsample beacon start`, then `release`) shows a looping ambient effect with amber fog while it is lit, and the Tidal Signal briefly tints the sky gold on impact.
 
 [Addon tutorial (Portuguese)](docs/ADDONS-0.4.md) · [Example implementation](examples/vfx-sample/src/main/java/example/vfxsample/Sample.java)
 
@@ -61,5 +65,18 @@ The build downloads RimuLib from CurseForge into `libs/` and checks its SHA-256 
 - `./gradlew dist` copies the JAR to `dist/`.
 - `./gradlew -p examples/vfx-sample build` builds the sample addon against that JAR.
 - `./gradlew runClient` / `./gradlew runServer` start the development client and dedicated server.
+- In-game tests have English task names (`testGame`, `testLight`, `testSky`, `testBoss`, `testOrphans`, …; the Portuguese names `testeJogo`, `testeLuz`, … still work). See [docs/COMMANDS.md](docs/COMMANDS.md#gradle-tasks).
 
 On Windows use `gradlew.bat`. The configured NeoForge version is 21.1.267. The manual is generated from the chapters in `docs/` with `python3 scripts/gerar_manual.py`.
+
+## Documentation status
+
+English is canonical. These documents are in English: this README, [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md), the
+project skill (`.claude/skills/calamidade-efeitos/SKILL.md`), [docs/COMMANDS.md](docs/COMMANDS.md),
+[docs/REBRANDING.md](docs/REBRANDING.md), [docs/ai/README.md](docs/ai/README.md), the recipe index
+[docs/ai/receitas/README.md](docs/ai/receitas/README.md), [docs/ROADMAP.md](docs/ROADMAP.md), the 0.15.0 phase 5
+sections of [docs/LUZ-0.15.md](docs/LUZ-0.15.md), [docs/VALIDACAO.md](docs/VALIDACAO.md) and
+[MUDANCAS.md](MUDANCAS.md), and the generated API reference headings. The other chapters (Timeline, Atmosphere, Beams,
+Light 0.9, Terrain, Sky, Custom Sky, Bosses, Integration, the individual recipes, the full validation history and the
+real-hardware test protocol) are still Portuguese and are being converted file by file with their technical content
+unchanged; file paths stay stable so links and automation keep working.

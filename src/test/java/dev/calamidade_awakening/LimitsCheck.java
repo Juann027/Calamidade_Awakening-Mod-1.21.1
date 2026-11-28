@@ -29,13 +29,13 @@ final class LimitsCheck {
         }
     }
 
-    /** 0.15.0 fase 3: separate light and cookie budgets per profile; cookies never above the applied lights. */
+    /** 0.15.0 fase 3: separate light and cookie budgets per profile; cookies never above the applied lights (phase 5 values). */
     private static void fase3() {
-        int[][] expected = {{24, 16}, {64, 48}, {128, 96}, {192, 128}};
+        int[][] expected = {{32, 24}, {80, 60}, {176, 132}, {192, 192}};
         for (QualityProfile p : QualityProfile.values()) {
             FrameLimits l = p.limits();
             require(l.lights() == expected[p.ordinal()][0] && l.cookies() == expected[p.ordinal()][1],
-                "fase 3 budget " + p + ": " + l.lights() + "/" + l.cookies());
+                "phase 5 budget " + p + ": " + l.lights() + "/" + l.cookies());
         }
         var c = new QualityProfile.Caps(32, 12, 4, 2, 128, 40, 100);
         require(c.cookies() == 100 && QualityProfile.ULTRA.limits(c).cookies() == 40, "cookies stored apart, applied up to the lights");

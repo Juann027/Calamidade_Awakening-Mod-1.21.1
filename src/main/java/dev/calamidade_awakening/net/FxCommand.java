@@ -41,8 +41,8 @@ public final class FxCommand {
 
     /** One line of the listing. */
     public static String line(StageNetwork.Info i) {
-        return String.format(java.util.Locale.ROOT, "%s%d %s · %s em %s · fonte %s · dono %s · âncora %s · %s · (%.0f %.0f %.0f)%s",
-            i.orphan() ? "ÓRFÃO " : "", i.order(), i.effect(), i.scope(), i.dimension(), i.source(), i.owner(), i.anchor(), i.state(),
+        return String.format(java.util.Locale.ROOT, "%s%d %s · %s in %s · source %s · owner %s · anchor %s · %s · (%.0f %.0f %.0f)%s",
+            i.orphan() ? "ORPHAN " : "", i.order(), i.effect(), i.scope(), i.dimension(), i.source(), i.owner(), i.anchor(), i.state(),
             i.center().x, i.center().y, i.center().z, i.note().isEmpty() ? "" : " · " + i.note());
     }
 

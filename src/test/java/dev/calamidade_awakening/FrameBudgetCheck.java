@@ -69,6 +69,8 @@ public final class FrameBudgetCheck {
         LimitsCheck.run();
         AutoQualityCheck.run();
         CoverageCheck.run();
+        ScenarioCheck.run();
+        NoticeCheck.run();
         HoloCheck.run();
         SkyCheck.run();
         WorldEventCheck.run();

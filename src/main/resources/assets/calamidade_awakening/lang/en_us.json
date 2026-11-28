@@ -261,5 +261,12 @@
   "perf.calamidade_awakening.quality.restore": "Quality: AUTO → %s · relief lifted %s s ago (p95 %s ms < %s ms)",
   "perf.calamidade_awakening.defaults": "Calamidade_Awakening: caps of %s back to the current defaults (other settings kept)",
   "perf.calamidade_awakening.coverage.set": "Coverage first: %s (F7: coverage page)",
-  "calamidade_awakening.configuration.coverage": "Coverage first (lights of every effect)"
+  "calamidade_awakening.configuration.coverage": "Coverage first (lights of every effect)",
+  "notice.calamidade_awakening.low_quality.title": "Reduced Visual Quality",
+  "notice.calamidade_awakening.low_quality.body": "The LOW graphics profile prioritizes performance. Some visual effects, lighting and cinematic sequences may be simplified or omitted.",
+  "notice.calamidade_awakening.low_quality.hint": "For a more complete visual experience, BALANCED or higher is recommended if your hardware allows it.",
+  "notice.calamidade_awakening.low_quality.auto": "AUTO switched to LOW to keep the frame rate.",
+  "notice.calamidade_awakening.low_quality.disable": "This notice can be turned off in the client config (quality.lowQualityWarning).",
+  "calamidade_awakening.configuration.lowQualityWarning": "LOW quality notice",
+  "calamidade_awakening.configuration.lowQualityWarning.tooltip": "Show the \"Reduced Visual Quality\" notice in the chat when LOW is selected (F8 or the Atlas) or when AUTO moves into LOW. It never blocks or asks for confirmation; AUTO notices have a cooldown."
 }

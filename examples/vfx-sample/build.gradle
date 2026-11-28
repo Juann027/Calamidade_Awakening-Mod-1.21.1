@@ -3,7 +3,7 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.148'
 }
 
-version = '1.14.0'
+version = '1.14.1'
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 neoForge {
     // -Pneoforge.version=21.1.265 compila o exemplo contra outra versão da linha 21.1 (como no motor).

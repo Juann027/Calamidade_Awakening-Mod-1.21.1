@@ -183,12 +183,12 @@ public final class StageNetwork {
 
         Info info() {
             String src = source.kind().name().toLowerCase(java.util.Locale.ROOT) + (source.uuid() != null ? " " + shortName(source.uuid()) : "");
-            String own = owner == null ? "-" : "boss " + shortName(owner) + (dev.calamidade_awakening.boss.BossServer.isBoss(owner) ? "" : " (encerrado)");
-            String anc = anchor == null ? "fixo" : anchor.getType().toShortString() + " " + shortName(anchor.getUUID());
+            String own = owner == null ? "-" : "boss " + shortName(owner) + (dev.calamidade_awakening.boss.BossServer.isBoss(owner) ? "" : " (ended)");
+            String anc = anchor == null ? "fixed" : anchor.getType().toShortString() + " " + shortName(anchor.getUUID());
             long a = age();
-            String st = !kind.sustained() ? "efêmero " + a + "/" + kind.duration
-                : releasedAt >= 0 ? "saindo (solto em " + releasedAt + ")" + (orphanReleased ? " · órfão" : "")
-                : kind.timeline().localAge(a, -1) >= kind.timeline().sustainStart() ? "laço" : "entrada";
+            String st = !kind.sustained() ? "ephemeral " + a + "/" + kind.duration
+                : releasedAt >= 0 ? "exiting (released at " + releasedAt + ")" + (orphanReleased ? " · orphan" : "")
+                : kind.timeline().localAge(a, -1) >= kind.timeline().sustainStart() ? "loop" : "intro";
             boolean orphan = owner != null && kind.sustained() && !dev.calamidade_awakening.boss.BossServer.isBoss(owner);
             return new Info(event.order(), kind.networkKey(), scope, level.dimension().location().toString(), src, own, anc,
                 st + " · " + a / 20 + " s", center(), note, orphan);

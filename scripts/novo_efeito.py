@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
-"""Gera o esqueleto de um efeito de addon do Calamidade_Awakening 0.10.0 que compila sem edição.
+"""Scaffolds a Calamidade_Awakening addon effect that compiles without edits (0.15.0).
 
-Uso:
-    python3 scripts/novo_efeito.py <namespace> <nome> [--projeto DIR] [--pacote PACOTE] [--cartao] [--forcar]
+Usage:
+    python3 scripts/novo_efeito.py <namespace> <name> [--project DIR] [--package PACKAGE] [--card] [--force]
 
-Exemplo, dentro deste repositório:
-    python3 scripts/novo_efeito.py vfxsample raio_solar --projeto examples/vfx-sample --cartao
+(The Portuguese flags of earlier versions, --projeto, --pacote, --cartao and --forcar, still work.)
 
-Gera, dentro do projeto do addon (padrão: diretório atual):
-  - src/main/java/<pacote>/<Classe>.java: definição, timeline, cue, comando de teste e camada post de cliente.
-    A classe se registra sozinha: @EventBusSubscriber + FMLConstructModEvent (durante a construção do mod, que é
-    quando o motor aceita registros) e FMLClientSetupEvent na classe interna Client. Nada a editar no seu @Mod.
-  - src/main/resources/assets/<namespace>/shaders/fx/<nome>.fsh: shader do passe, usando calamidade_fx.glsl.
-  - src/main/resources/assets/<namespace>/shaders/fx/calamidade_fx.glsl: cópia da biblioteca do motor (o
-    #include da RimuLib só procura no namespace do próprio shader).
-  - traduções en_us e pt_br (mescladas aos arquivos existentes).
-  - com --cartao: Addons.publish (cartão no Atlas e no Focus), textos do cartão e uma arte 64x32 provisória.
+Example, inside this repository:
+    python3 scripts/novo_efeito.py vfxsample solar_ray --project examples/vfx-sample --card
 
-Teste no jogo: /<namespace> efeito <nome> (permissão de comandos). Próximos passos: AGENTS.md e docs/ai/receitas/.
+Creates, inside the addon project (default: the current directory):
+  - src/main/java/<package>/<Class>.java: definition, timeline, cue, test command and client post layer.
+    The class registers itself: @EventBusSubscriber + FMLConstructModEvent (during mod construction, which is when
+    the engine accepts registrations) and FMLClientSetupEvent in the inner Client class. Nothing to edit in your @Mod.
+  - src/main/resources/assets/<namespace>/shaders/fx/<name>.fsh: the pass shader, using calamidade_fx.glsl.
+  - src/main/resources/assets/<namespace>/shaders/fx/calamidade_fx.glsl: a copy of the engine library (the RimuLib
+    #include only looks in the shader's own namespace).
+  - en_us and pt_br translations (merged into existing files).
+  - with --card: Addons.publish (a card in the Atlas and the Focus), card texts and a provisional 64x32 artwork.
+
+Test in game: /<namespace> effect <name> (command permission). Next steps: AGENTS.md and docs/ai/receitas/.
 """
 from __future__ import annotations
 
@@ -34,7 +36,7 @@ BIBLIOTECA = RAIZ / "src/main/resources/assets/calamidade_awakening/shaders/fx/c
 
 
 def camel(nome: str) -> str:
-    return "".join(parte.capitalize() for parte in nome.split("_") if parte) or "Efeito"
+    return "".join(parte.capitalize() for parte in nome.split("_") if parte) or "Effect"
 
 
 def titulo(nome: str) -> str:
@@ -42,7 +44,7 @@ def titulo(nome: str) -> str:
 
 
 def cor_do_nome(nome: str) -> tuple[int, int, int]:
-    """Cor viva e estável a partir do nome (matiz pelo hash)."""
+    """A vivid, stable color from the name (hue from the hash)."""
     h = (zlib.crc32(nome.encode()) % 360) / 360.0
     i, f = int(h * 6), h * 6 - int(h * 6)
     q, t = 1 - f, f
@@ -57,12 +59,12 @@ def detectar_pacote(projeto: Path, namespace: str) -> str:
         if re.search(r'@Mod\(\s*"%s"\s*\)' % re.escape(namespace), texto):
             pacote = re.search(r"^package\s+([\w.]+);", texto, re.M)
             if pacote:
-                return pacote.group(1) + ".efeitos"
-    return namespace.replace("-", "_").replace(".", "_") + ".efeitos"
+                return pacote.group(1) + ".effects"
+    return namespace.replace("-", "_").replace(".", "_") + ".effects"
 
 
 def png(largura: int, altura: int, cor: tuple[int, int, int]) -> bytes:
-    """PNG RGBA com um gradiente da cor do efeito e um anel claro: arte provisória do cartão."""
+    """RGBA PNG with a gradient of the effect color and a light ring: provisional card artwork."""
     linhas = bytearray()
     cx, cy = largura / 2, altura / 2
     for y in range(altura):
@@ -82,7 +84,7 @@ def png(largura: int, altura: int, cor: tuple[int, int, int]) -> bytes:
 def java(pacote: str, classe: str, ns: str, nome: str, cor: tuple[int, int, int], cartao: bool) -> str:
     argb = "0xff%02x%02x%02x" % cor
     publicar = f"""
-        // Cartão no Atlas e no Focus (recarga de 100 ticks). A arte fica em
+        // Card in the Atlas and the Focus (100-tick cooldown). The artwork lives in
         // assets/calamidade_awakening/textures/gui/sprites/skill/focus/addon/{ns}/{nome}.png.
         Addons.publish(ID, new Addons.Card("ability.{ns}.{nome}", "{titulo(nome)}", "CUSTOM", 100, null, List.of()));""" if cartao else ""
     import_list = "import java.util.List;\n" if cartao else ""
@@ -107,44 +109,44 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 {import_list}import static dev.calamidade_awakening.api.v1.Timeline.keyframe;
 
 /**
- * Efeito {ns}:{nome}, gerado por scripts/novo_efeito.py (Calamidade_Awakening 0.10.0).
+ * Effect {ns}:{nome}, generated by scripts/novo_efeito.py (Calamidade_Awakening 0.15.0).
  *
- * <p>Registro automático: {{@link #construir}} roda durante a construção do mod (FMLConstructModEvent) e
- * {{@link Client#setup}} no setup do cliente. Teste: /{ns} efeito {nome}. Próximos passos: AGENTS.md e
- * docs/ai/receitas/ do repositório do Calamidade_Awakening.
+ * <p>Automatic registration: {{@link #construct}} runs during mod construction (FMLConstructModEvent) and
+ * {{@link Client#setup}} in the client setup. Test: /{ns} effect {nome}. Next steps: AGENTS.md and docs/ai/receitas/
+ * in the Calamidade_Awakening repository.
  */
 @EventBusSubscriber(modid = "{ns}")
 public final class {classe} {{
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("{ns}", "{nome}");
 
-    /** Roteiro em ticks: entrada, impacto no tick 30 e saída. O servidor, o shader e a câmera leem o mesmo objeto. */
+    /** Script in ticks: intro, impact at tick 30 and outro. The server, the shader and the camera read the same object. */
     static final Timeline TIMELINE = Timeline.builder(100)
-        .phase("entrada", 0, 30, 20, 0)
-        .phase("impacto", 30, 50, 0, 15)
-        .phase("saida", 50, 100, 0, 40)
-        .track("intensidade", keyframe(0, 0f), keyframe(30, 1f, Easing.OVERSHOOT), keyframe(100, 0f, Easing.EASE_OUT))
-        .marker("impacto", 30)
+        .phase("intro", 0, 30, 20, 0)
+        .phase("impact", 30, 50, 0, 15)
+        .phase("outro", 50, 100, 0, 40)
+        .track("intensity", keyframe(0, 0f), keyframe(30, 1f, Easing.OVERSHOOT), keyframe(100, 0f, Easing.EASE_OUT))
+        .marker("impact", 30)
         .build();
 
     private {classe}() {{}}
 
-    /** Construção do mod, nos dois lados. Ordem obrigatória: register, timeline, atmosphere, cues. */
+    /** Mod construction, on both sides. Required order: register, timeline, atmosphere, cues. */
     @SubscribeEvent
-    public static void construir(FMLConstructModEvent event) {{
-        Addons.resources("{ns}", {classe}.class); // a RimuLib acha os shaders deste JAR (repetir não faz mal)
-        // 100 ticks, raio 6 blocos, cor principal, sem forma nem material embutidos (tudo vem do passe).
+    public static void construct(FMLConstructModEvent event) {{
+        Addons.resources("{ns}", {classe}.class); // RimuLib finds the shaders of this JAR (repeating it is harmless)
+        // 100 ticks, radius 6 blocks, main color, no built-in shape or material (everything comes from the pass).
         Effects.register(ID, new Effects.Definition(100, 6, {argb}, Effects.Shape.NONE, Effects.Material.NONE, null, null));
         Effects.timeline(ID, TIMELINE);
-        Effects.cue(ID, "impacto", ctx -> {{
-            // Servidor, no tick do marcador "impacto": dano, empurrão ou custo (docs/GAMEPLAY-0.5.md).
+        Effects.cue(ID, "impact", ctx -> {{
+            // Server, on the tick of the "impact" marker: damage, knockback or cost (docs/GAMEPLAY-0.5.md).
         }});{publicar}
     }}
 
-    /** /{ns} efeito {nome}: inicia o efeito 6 blocos à frente, na linha do olhar (permissão de comandos). */
+    /** /{ns} effect {nome}: starts the effect 6 blocks ahead, along the line of sight (command permission). */
     @SubscribeEvent
-    public static void comandos(RegisterCommandsEvent event) {{
+    public static void commands(RegisterCommandsEvent event) {{
         event.getDispatcher().register(Commands.literal("{ns}").requires(source -> source.hasPermission(2))
-            .then(Commands.literal("efeito").then(Commands.literal("{nome}").executes(ctx -> {{
+            .then(Commands.literal("effect").then(Commands.literal("{nome}").executes(ctx -> {{
                 ServerPlayer player = ctx.getSource().getPlayerOrException();
                 Vec3 at = player.getEyePosition().add(player.getLookAngle().scale(6));
                 boolean ok = Effects.start(ID, player.serverLevel(), at).isPresent();
@@ -154,7 +156,7 @@ public final class {classe} {{
             }}))));
     }}
 
-    /** Só no cliente (a classe não é carregada num servidor dedicado). */
+    /** Client only (the class is not loaded on a dedicated server). */
     @EventBusSubscriber(modid = "{ns}", value = Dist.CLIENT)
     public static final class Client {{
         private Client() {{}}
@@ -163,14 +165,14 @@ public final class {classe} {{
         public static void setup(FMLClientSetupEvent event) {{
             AddonLayers.post(ID, post -> {{
                 var t = post.timeline();
-                float intensidade = t.value("intensidade");
-                if (intensidade <= .001f) return;
+                float intensity = t.value("intensity");
+                if (intensity <= .001f) return;
                 post.pass("{ns}:{nome}", u -> {{
-                    u.v3("EfeitoCentro", post.center());
-                    u.f4("EfeitoEstado", intensidade, t.weight("impacto"), post.time().opacity(), (float) post.time().radius());
-                    u.f1("EfeitoDesde", (float) t.since("impacto"));
+                    u.v3("EffectCenter", post.center());
+                    u.f4("EffectState", intensity, t.weight("impact"), post.time().opacity(), (float) post.time().radius());
+                    u.f1("EffectSince", (float) t.since("impact"));
                 }});
-                post.bloom(t.weight("impacto") * .2f);
+                post.bloom(t.weight("impact") * .2f);
             }});
         }}
     }}
@@ -180,31 +182,31 @@ public final class {classe} {{
 
 def shader(ns: str, nome: str, cor: tuple[int, int, int]) -> str:
     r, g, b = (c / 255 for c in cor)
-    return f"""// Shader do efeito {ns}:{nome} (gerado por scripts/novo_efeito.py). A RimuLib antepõe #version 150 e common.glsl.
-uniform vec3 EfeitoCentro;  // centro relativo à câmera (post.center()), o mesmo espaço de scenePosAt
-uniform vec4 EfeitoEstado;  // x: trilha "intensidade", y: peso da fase "impacto", z: opacidade, w: raio (blocos)
-uniform float EfeitoDesde;  // ticks desde o marcador "impacto" (negativo antes)
+    return f"""// Shader of the effect {ns}:{nome} (generated by scripts/novo_efeito.py). RimuLib prepends #version 150 and common.glsl.
+uniform vec3 EffectCenter;  // center relative to the camera (post.center()), the same space as scenePosAt
+uniform vec4 EffectState;   // x: "intensity" track, y: weight of the "impact" phase, z: opacity, w: radius (blocks)
+uniform float EffectSince;  // ticks since the "impact" marker (negative before)
 
 #include "calamidade_fx.glsl"
 
 void main() {{
     vec3 color = texture(DiffuseSampler, texCoord).rgb;
-    vec3 cor = vec3({r:.3f}, {g:.3f}, {b:.3f});
+    vec3 tint = vec3({r:.3f}, {g:.3f}, {b:.3f});
     vec3 rd = viewDir(texCoord);
-    float cena = length(scenePosAt(texCoord));
-    // Casca de energia: esfera com borda brilhante (fresnel), escondida pelo terreno na frente.
-    float raio = EfeitoEstado.w * (0.4 + 0.6 * EfeitoEstado.x);
-    vec2 t = caRaySphere(vec3(0.0), rd, EfeitoCentro, raio);
-    if (t.x > 0.0 && t.x < cena) {{
-        vec3 n = normalize(rd * t.x - EfeitoCentro);
-        float borda = pow(1.0 - abs(dot(n, rd)), 2.5);
-        color += cor * borda * EfeitoEstado.x * EfeitoEstado.z * 1.5;
+    float scene = length(scenePosAt(texCoord));
+    // Energy shell: a sphere with a bright rim (fresnel), hidden by terrain in front of it.
+    float radius = EffectState.w * (0.4 + 0.6 * EffectState.x);
+    vec2 t = caRaySphere(vec3(0.0), rd, EffectCenter, radius);
+    if (t.x > 0.0 && t.x < scene) {{
+        vec3 n = normalize(rd * t.x - EffectCenter);
+        float rim = pow(1.0 - abs(dot(n, rd)), 2.5);
+        color += tint * rim * EffectState.x * EffectState.z * 1.5;
     }}
-    // Onda no chão a partir do impacto.
+    // Ground wave from the impact.
     if (!skyAt(texCoord)) {{
-        vec3 d = scenePosAt(texCoord) - EfeitoCentro;
-        float onda = caDistanceWave(length(d.xz), EfeitoDesde, 0.4, 0.6, 18.0);
-        color += cor * onda * (1.0 - smoothstep(2.0, 5.0, abs(d.y))) * EfeitoEstado.z;
+        vec3 d = scenePosAt(texCoord) - EffectCenter;
+        float wave = caDistanceWave(length(d.xz), EffectSince, 0.4, 0.6, 18.0);
+        color += tint * wave * (1.0 - smoothstep(2.0, 5.0, abs(d.y))) * EffectState.z;
     }}
     fragColor = vec4(color, 1.0);
 }}
@@ -219,28 +221,28 @@ def mesclar_json(arquivo: Path, valores: dict[str, str]) -> None:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Gera o esqueleto de um efeito de addon do Calamidade_Awakening.")
-    p.add_argument("namespace", help="namespace do seu mod (o mesmo do @Mod), ex.: meumod")
-    p.add_argument("nome", help="nome do efeito em [a-z0-9_], ex.: raio_solar")
-    p.add_argument("--projeto", default=".", help="raiz do projeto Gradle do addon (padrão: diretório atual)")
-    p.add_argument("--pacote", help="pacote Java (padrão: pacote da classe @Mod + .efeitos)")
-    p.add_argument("--cartao", action="store_true", help="publica um cartão no Atlas e no Focus")
-    p.add_argument("--forcar", action="store_true", help="sobrescreve arquivos existentes")
+    p = argparse.ArgumentParser(description="Scaffolds a Calamidade_Awakening addon effect.")
+    p.add_argument("namespace", help="your mod's namespace (the same as in @Mod), e.g. mymod")
+    p.add_argument("nome", metavar="name", help="effect name in [a-z0-9_], e.g. solar_ray")
+    p.add_argument("--project", "--projeto", dest="projeto", default=".", help="root of the addon Gradle project (default: current directory)")
+    p.add_argument("--package", "--pacote", dest="pacote", help="Java package (default: package of the @Mod class + .effects)")
+    p.add_argument("--card", "--cartao", dest="cartao", action="store_true", help="publish a card in the Atlas and the Focus")
+    p.add_argument("--force", "--forcar", dest="forcar", action="store_true", help="overwrite existing files")
     a = p.parse_args()
 
     if not re.fullmatch(r"[a-z0-9_.-]+", a.namespace) or a.namespace in ("calamidade_awakening", "minecraft"):
-        print("namespace inválido ou reservado: " + a.namespace, file=sys.stderr)
+        print("invalid or reserved namespace: " + a.namespace, file=sys.stderr)
         return 2
     if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", a.nome):
-        print("nome inválido (use [a-z0-9_], começando por letra): " + a.nome, file=sys.stderr)
+        print("invalid name (use [a-z0-9_], starting with a letter): " + a.nome, file=sys.stderr)
         return 2
     projeto = Path(a.projeto).resolve()
     if not (projeto / "build.gradle").exists() and not (projeto / "build.gradle.kts").exists():
-        print(f"{projeto} não parece um projeto Gradle (falta build.gradle)", file=sys.stderr)
+        print(f"{projeto} does not look like a Gradle project (no build.gradle)", file=sys.stderr)
         return 2
     pacote = a.pacote or detectar_pacote(projeto, a.namespace)
     if not re.fullmatch(r"[a-z_][\w]*(\.[a-z_][\w]*)*", pacote):
-        print("pacote Java inválido: " + pacote, file=sys.stderr)
+        print("invalid Java package: " + pacote, file=sys.stderr)
         return 2
     classe = camel(a.nome)
     cor = cor_do_nome(a.nome)
@@ -251,18 +253,18 @@ def main() -> int:
     }
     existentes = [str(f) for f in arquivos if f.exists()]
     if existentes and not a.forcar:
-        print("Já existem (use --forcar para sobrescrever):\n  " + "\n  ".join(existentes), file=sys.stderr)
+        print("Already exist (use --force to overwrite):\n  " + "\n  ".join(existentes), file=sys.stderr)
         return 1
     for arquivo, texto in arquivos.items():
         arquivo.parent.mkdir(parents=True, exist_ok=True)
         arquivo.write_text(texto, encoding="utf-8")
-        print("criado   " + str(arquivo.relative_to(projeto)))
+        print("created  " + str(arquivo.relative_to(projeto)))
 
     biblioteca = recursos / a.namespace / "shaders/fx/calamidade_fx.glsl"
     nova = BIBLIOTECA.read_text(encoding="utf-8")
     if not biblioteca.exists() or biblioteca.read_text(encoding="utf-8") != nova:
         biblioteca.write_text(nova, encoding="utf-8")
-        print("copiado  " + str(biblioteca.relative_to(projeto)) + " (biblioteca GLSL do motor)")
+        print("copied   " + str(biblioteca.relative_to(projeto)) + " (engine GLSL library)")
 
     t = titulo(a.nome)
     en = {f"effect.{a.namespace}.{a.nome}": t,
@@ -281,17 +283,18 @@ def main() -> int:
         if not arte.exists() or a.forcar:
             arte.parent.mkdir(parents=True, exist_ok=True)
             arte.write_bytes(png(64, 32, cor))
-            print("criado   " + str(arte.relative_to(projeto)) + " (arte provisória do cartão)")
+            print("created  " + str(arte.relative_to(projeto)) + " (provisional card artwork)")
     for lang, valores in (("en_us", en), ("pt_br", pt)):
         mesclar_json(recursos / a.namespace / "lang" / f"{lang}.json", valores)
-        print(f"traduções em assets/{a.namespace}/lang/{lang}.json")
+        print(f"translations in assets/{a.namespace}/lang/{lang}.json")
 
     print(f"""
-Pronto: {a.namespace}:{a.nome} ({pacote}.{classe}).
-1. Compile o addon (o JAR do Calamidade 0.10.x e a RimuLib no classpath; veja docs/ai/usar-como-dependencia.md) e confira o manifesto:
-   calamidade_awakening com versionRange "[0.10.0,0.11.0)" e rimulib "[1.3.0,2.0)".
-2. No jogo: /{a.namespace} efeito {a.nome}{" ou o cartão no Atlas (N)" if a.cartao else ""}.
-3. Edite a timeline, o shader e o cue. Receitas prontas: docs/ai/receitas/. Orçamento e regras: AGENTS.md.""")
+Done: {a.namespace}:{a.nome} ({pacote}.{classe}).
+1. Build the addon (the Calamidade JAR and RimuLib on the classpath; see docs/ai/usar-como-dependencia.md) and check the
+   manifest: calamidade_awakening with the versionRange of the engine you build against (e.g. "[0.15.0,0.16.0)") and
+   rimulib "[1.3.0,2.0)".
+2. In game: /{a.namespace} effect {a.nome}{" or the card in the Atlas (N)" if a.cartao else ""}.
+3. Edit the timeline, the shader and the cue. Ready-made recipes: docs/ai/receitas/. Budgets and rules: AGENTS.md.""")
     return 0
 
 

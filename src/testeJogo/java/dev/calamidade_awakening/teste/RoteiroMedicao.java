@@ -102,11 +102,11 @@ final class RoteiroMedicao implements Runnable {
             long limite = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(15);
             while (noCliente(CostProbe::running) && System.currentTimeMillis() < limite) {
                 String status = noCliente(CostProbe::status);
-                if (!viu60 && status.contains("60 desenhados") && status.contains("gravando")) {
+                if (!viu60 && status.contains("60 drawn") && status.contains("recording")) {
                     viu60 = true;
                     captura("medicao-60-efeitos");
                 }
-                if (!viu12 && status.contains("12 passes") && status.contains("gravando")) {
+                if (!viu12 && status.contains("12 passes") && status.contains("recording")) {
                     viu12 = true;
                     captura("medicao-12-passes");
                 }
@@ -124,7 +124,7 @@ final class RoteiroMedicao implements Runnable {
             check("passo " + x0.group() + " · " + x0.label() + " gravou quadros", x0.frames() >= 10, x0.frames() + " quadros");
             if (x0.label().startsWith("base")) continue;
             int n = Integer.parseInt(x0.label().split(" ")[0]);
-            if (x0.group().equals("efeitos"))
+            if (x0.group().equals("effects"))
                 check(String.format(Locale.ROOT, "efeitos: %d pedidos, %.1f desenhados em média", n, x0.drawn()),
                     x0.drawn() >= n * .8, String.format(Locale.ROOT, "%.1f residentes", x0.resident()));
             else
@@ -133,7 +133,7 @@ final class RoteiroMedicao implements Runnable {
         }
         // Inclinação por mínimos quadrados: ms de mediana e de p95 por efeito desenhado e por passe.
         escrever(String.format(Locale.ROOT, "# inclinação efeitos: %+.3f ms de mediana e %+.3f ms de p95 por efeito desenhado",
-            inclinacao(r, "efeitos", true, false), inclinacao(r, "efeitos", true, true)), true);
+            inclinacao(r, "effects", true, false), inclinacao(r, "effects", true, true)), true);
         escrever(String.format(Locale.ROOT, "# inclinação passes: %+.3f ms de mediana e %+.3f ms de p95 por passe de addon",
             inclinacao(r, "passes", false, false), inclinacao(r, "passes", false, true)), true);
         check("capturas da carga de 60 efeitos e de 12 passes", viu60 && viu12, "");

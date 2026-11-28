@@ -173,9 +173,18 @@ final class CoverageCheck {
         require(QualityProfile.HIGH.legacy(0, 12) && QualityProfile.ULTRA.legacy(0, 24) && QualityProfile.LOW.legacy(5, 8),
             "HIGH 12 drawn, ULTRA 24 drawn, LOW 8 lights");
         require(!QualityProfile.LOW.legacy(0, 1) && !QualityProfile.ULTRA.legacy(0, 64), "values the player chose stay (LOW 1, ULTRA 64)");
+        // Phase 5: the phase 4 defaults of the lights and cookies are earlier defaults; customized values are not.
+        int[][] phase4 = {{24, 16}, {64, 48}, {128, 96}, {192, 128}};
+        for (QualityProfile p : QualityProfile.values()) {
+            if (p != QualityProfile.ULTRA) require(p.legacy(5, phase4[p.ordinal()][0]), "phase 4 lights default is legacy: " + p);
+            require(p.legacy(6, phase4[p.ordinal()][1]), "phase 4 cookies default is legacy: " + p);
+        }
+        require(!QualityProfile.LOW.legacy(5, 20) && !QualityProfile.LOW.legacy(6, 12) && !QualityProfile.HIGH.legacy(6, 100)
+            && !QualityProfile.ULTRA.legacy(6, 64) && !QualityProfile.ULTRA.legacy(5, 160), "customized lights and cookies stay");
+        require(dev.calamidade_awakening.config.ClientConfig.CAPS_VERSION == 4, "phase 5 migration version");
         for (QualityProfile p : QualityProfile.values()) {
             int[] d = p.defaultValues();
-            for (int i = 0; i < 6; i++) require(!p.legacy(i, d[i]), "a current default is never an earlier one: " + p + " " + i);
+            for (int i = 0; i < d.length; i++) require(!p.legacy(i, d[i]), "a current default is never an earlier one: " + p + " " + i);
             require(d[5] == p.defaults.lights() && d[6] == p.defaults.cookies(), "defaultValues order");
         }
     }

@@ -8,35 +8,38 @@ package dev.calamidade_awakening.api;
  */
 public enum QualityProfile {
     /**
-     * Integrated graphics: the caps of 0.11.1; fase 3 (0.15.0): 24 lights and 16 cookies (before: 8 and 2). The lights
-     * pass culls by screen tiles, so lights far from a pixel cost it nothing (docs/LUZ-0.15.md, "Fase 3").
+     * Integrated graphics: the caps of 0.11.1; phase 3 (0.15.0): 24 lights and 16 cookies (before: 8 and 2); phase 5:
+     * 32 lights and 24 cookies. The lights pass culls by screen tiles, so lights far from a pixel cost it nothing
+     * (docs/LUZ-0.15.md, "Phase 3"). Phase 5 values follow manual testing on an RTX 4060; they are requested defaults,
+     * not measured targets for every machine.
      */
-    LOW(Quality.LOW, new Caps(3, 1, 1, 2, 16, 24, 16)),
-    /** Fase 3: 64 lights and 48 cookies (before: 32 and 8). */
-    BALANCED(Quality.BALANCED, new Caps(8, 3, 2, 2, 64, 64, 48)),
-    /** Fase 3: 128 lights and 96 cookies (before: 64 and 16). */
-    HIGH(Quality.HIGH, new Caps(16, 6, 3, 2, 128, 128, 96)),
+    LOW(Quality.LOW, new Caps(3, 1, 1, 2, 16, 32, 24)),
+    /** Phase 3: 64 lights and 48 cookies (before: 32 and 8); phase 5: 80 and 60. */
+    BALANCED(Quality.BALANCED, new Caps(8, 3, 2, 2, 64, 80, 60)),
+    /** Phase 3: 128 lights and 96 cookies (before: 64 and 16); phase 5: 176 and 132. */
+    HIGH(Quality.HIGH, new Caps(16, 6, 3, 2, 128, 176, 132)),
     /**
      * Strong machines. Measured on an RTX 4060 at 1920 × 1009 (0.11.2): no cost visible within a 144 Hz frame up to 24
-     * drawn effects and 12 addon passes; at 48 drawn the p95 rose from 10.4 to 15.7 ms. 32 keeps a margin. Fase 3:
-     * 192 lights and 128 cookies (before: 64 and 16), proposed values to be measured on the RTX 4060
-     * (docs/VALIDACAO.md, procedure of fase 3).
+     * drawn effects and 12 addon passes; at 48 drawn the p95 rose from 10.4 to 15.7 ms. 32 keeps a margin. Phase 3:
+     * 192 lights and 128 cookies (before: 64 and 16). Phase 5: 192 cookies, as many as lights, so no light loses its
+     * image to a cookie budget smaller than the light budget (atlas capacity and culling still apply).
      */
-    ULTRA(Quality.HIGH, new Caps(32, 12, 4, 2, 128, 192, 128));
+    ULTRA(Quality.HIGH, new Caps(32, 12, 4, 2, 128, 192, 192));
 
     /** Lights and cookies caps of each profile before fase 3 (config migration of untouched values). */
     public static final int[] LEGACY_LIGHTS = {8, 32, 64, 64};
 
     /**
-     * (fase 4) Every earlier default of the caps, by profile and cap (drawn, passes, heroPasses, heroes, beams, lights),
-     * from the provisional 0.11.2 profiles (BALANCED 6/2/48/24, HIGH 12/4, ULTRA 24/8) to fase 3. A config value equal
-     * to one of these was never chosen by the player and moves to the current default once (config migration 3).
+     * (fase 4) Every earlier default of the caps, by profile and cap (drawn, passes, heroPasses, heroes, beams, lights,
+     * cookies), from the provisional 0.11.2 profiles (BALANCED 6/2/48/24, HIGH 12/4, ULTRA 24/8) to phase 4 (lights
+     * 24/64/128/192, cookies 16/48/96/128). A config value equal to one of these was never chosen by the player and
+     * moves to the current default once (config migration 3, and 4 for the phase 5 lights and cookies).
      */
     public static final int[][][] LEGACY = {
-        {{}, {}, {}, {}, {}, {8}},
-        {{6}, {2}, {}, {}, {48}, {24, 32}},
-        {{12}, {4}, {}, {}, {}, {64}},
-        {{24}, {8}, {}, {}, {}, {64}},
+        {{}, {}, {}, {}, {}, {8, 24}, {16}},
+        {{6}, {2}, {}, {}, {48}, {24, 32, 64}, {48}},
+        {{12}, {4}, {}, {}, {}, {64, 128}, {96}},
+        {{24}, {8}, {}, {}, {}, {64}, {128}},
     };
 
     /** (fase 4) True when {@code value} is an earlier default of cap {@code index} of this profile (not the current one). */

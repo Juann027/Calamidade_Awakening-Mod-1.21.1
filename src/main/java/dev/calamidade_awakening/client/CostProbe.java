@@ -72,8 +72,8 @@ public final class CostProbe {
         if (!running()) return "";
         Step step = steps.get(index);
         long left = Math.max(0, (phaseEnds - System.currentTimeMillis() + 999) / 1000);
-        return String.format(Locale.ROOT, "Medição %d/%d: %s · %s · %s %d s", index + 1, steps.size(), step.group(),
-            step.label(), recording ? "gravando" : "aquecendo", left);
+        return String.format(Locale.ROOT, "Measure %d/%d: %s · %s · %s %d s", index + 1, steps.size(), step.group(),
+            step.label(), recording ? "recording" : "warming up", left);
     }
 
     /** Builds the sweep: {@code effects}, {@code passes} or {@code all}. */
@@ -81,9 +81,9 @@ public final class CostProbe {
         List<Step> out = new ArrayList<>();
         boolean effects = !which.equals("passes"), passes = !which.equals("effects");
         if (effects) {
-            out.add(new Step("efeitos", "base (0)", "calamidade bench stop", FrameLimits.unlimited()));
+            out.add(new Step("effects", "base (0)", "calamidade bench stop", FrameLimits.unlimited()));
             for (int n : EFFECTS)
-                out.add(new Step("efeitos", n + " desenhados", "calamidade bench " + n + " mix", FrameLimits.unlimited()));
+                out.add(new Step("effects", n + " drawn", "calamidade bench " + n + " mix", FrameLimits.unlimited()));
         }
         if (passes) {
             out.add(new Step("passes", "base (0)", "calamidade bench stop", FrameLimits.unlimited(PASS_LOAD, 0)));
@@ -186,7 +186,7 @@ public final class CostProbe {
             message = Component.translatableWithFallback("perf.calamidade_awakening.measured",
                 "Measurement done: %s steps → %s", last.size(), text.getFileName().toString());
         } catch (IOException failure) {
-            message = Component.literal("Calamidade_Awakening: " + failure.getMessage());
+            message = Component.literal(dev.calamidade_awakening.CalamidadeAwakening.NAME + ": " + failure.getMessage());
         }
         if (mc.player != null) mc.player.displayClientMessage(message, false);
     }
@@ -194,14 +194,14 @@ public final class CostProbe {
     /** Text report: header with the machine and the table of every step. */
     public static List<String> report(Minecraft mc) {
         List<String> lines = new ArrayList<>();
-        lines.add("# Calamidade_Awakening · medição de custo (/calamidade_client debug measure) · " + LocalDateTime.now());
-        lines.add("# renderer=" + PerfOverlay.renderer() + "; janela=" + mc.getWindow().getWidth() + "x"
-            + mc.getWindow().getHeight() + "; limiteQuadros=" + mc.options.framerateLimit().get() + "; vsync="
-            + mc.options.enableVsync().get() + "; distancia=" + mc.options.renderDistance().get() + "; graficos="
+        lines.add("# Calamidade_Awakening · cost measure (/calamidade_client debug measure) · " + LocalDateTime.now());
+        lines.add("# renderer=" + PerfOverlay.renderer() + "; window=" + mc.getWindow().getWidth() + "x"
+            + mc.getWindow().getHeight() + "; frameLimit=" + mc.options.framerateLimit().get() + "; vsync="
+            + mc.options.enableVsync().get() + "; renderDistance=" + mc.options.renderDistance().get() + "; graphics="
             + mc.options.graphicsMode().get().name());
-        lines.add("# aquecimento " + WARMUP_MS / 1000 + " s, gravação " + RECORD_MS / 1000 + " s por passo");
-        lines.add(String.format(Locale.ROOT, "%-8s %-15s %-18s %7s %9s %10s %7s %7s %10s %8s %8s", "grupo", "passo",
-            "perfil", "quadros", "residentes", "desenhados", "passes", "feixes", "mediana_ms", "p95_ms", "media_ms"));
+        lines.add("# warm-up " + WARMUP_MS / 1000 + " s, recording " + RECORD_MS / 1000 + " s per step");
+        lines.add(String.format(Locale.ROOT, "%-8s %-15s %-18s %7s %9s %10s %7s %7s %10s %8s %8s", "group", "step",
+            "profile", "frames", "resident", "drawn", "passes", "beams", "median_ms", "p95_ms", "mean_ms"));
         for (Result r : results)
             lines.add(String.format(Locale.ROOT, "%-8s %-15s %-18s %7d %9.1f %10.1f %7.1f %7.1f %10.2f %8.2f %8.2f",
                 r.group(), r.label(), r.profile(), r.frames(), r.resident(), r.drawn(), r.passes(), r.beams(),

@@ -103,7 +103,7 @@ public final class EclipseGlobal {
 
     /** /vfxsample evento eclipse start | release | stop. */
     public static LiteralArgumentBuilder<CommandSourceStack> comando() {
-        return Commands.literal("evento").then(Commands.literal("eclipse")
+        return Commands.literal("event").then(Commands.literal("eclipse")
             .then(Commands.literal("start").executes(ctx -> {
                 var source = ctx.getSource();
                 var handle = WorldEvents.start(ID, WorldEvents.Scope.SERVER, source.getServer().overworld(),

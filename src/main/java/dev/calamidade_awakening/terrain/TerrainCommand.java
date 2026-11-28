@@ -27,6 +27,8 @@ public final class TerrainCommand {
             .then(Commands.literal("terrain")
                 .then(Commands.literal("list").executes(TerrainCommand::list))
                 .then(Commands.literal("undo").executes(ctx -> undo(ctx, -1))
+                    .then(Commands.literal("last").executes(ctx -> undo(ctx, -1)))
+                    // Legacy Portuguese aliases (hidden from the docs): same implementation.
                     .then(Commands.literal("último").executes(ctx -> undo(ctx, -1)))
                     .then(Commands.literal("ultimo").executes(ctx -> undo(ctx, -1)))
                     .then(Commands.argument("id", IntegerArgumentType.integer(1))

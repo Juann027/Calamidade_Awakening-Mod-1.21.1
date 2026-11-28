@@ -242,11 +242,11 @@ public final class SentinelaEclipse {
 
     /** /vfxsample chefe [cratera on|off]: cria o golem 8 blocos à frente e anexa o Sentinela. */
     public static LiteralArgumentBuilder<CommandSourceStack> comando() {
-        return Commands.literal("chefe")
-            .executes(ctx -> criar(ctx.getSource()))
-            .then(Commands.literal("cratera")
-                .then(Commands.literal("on").executes(ctx -> crateraLigada(ctx.getSource(), true)))
-                .then(Commands.literal("off").executes(ctx -> crateraLigada(ctx.getSource(), false))));
+        var root = Commands.literal("boss").executes(ctx -> criar(ctx.getSource()));
+        example.vfxsample.Cmd.then(root, Commands.literal("crater")
+            .then(Commands.literal("on").executes(ctx -> crateraLigada(ctx.getSource(), true)))
+            .then(Commands.literal("off").executes(ctx -> crateraLigada(ctx.getSource(), false))), "cratera");
+        return root;
     }
 
     private static int criar(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {

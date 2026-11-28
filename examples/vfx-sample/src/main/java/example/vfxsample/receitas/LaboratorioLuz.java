@@ -90,19 +90,34 @@ public final class LaboratorioLuz {
         .sustain(100, 180)
         .build();
 
-    /** Uma demo: nome do comando, efeito e descrição curta. */
-    record Demo(String nome, ResourceLocation id, String descricao) {}
+    /**
+     * Uma demo: nome legado (chave interna e id do efeito, estáveis), nome do comando em inglês (1.14.1, canônico),
+     * efeito e descrição curta em inglês (chave de tradução {@code vfxsample.light.demo.<name>}).
+     */
+    record Demo(String nome, String name, ResourceLocation id, String descricao) {
+        /** Description as a translatable component (English fallback). */
+        Component description() { return Component.translatableWithFallback("vfxsample.light.demo." + name, descricao); }
+    }
 
     static final Map<String, Demo> DEMOS = new LinkedHashMap<>();
+    /** 1.14.1: demos by English command name. */
+    static final Map<String, Demo> BY_NAME = new LinkedHashMap<>();
 
-    private static Demo demo(String nome, String descricao) {
-        Demo d = new Demo(nome, id(nome), descricao);
+    private static Demo demo(String nome, String name, String descricao) {
+        Demo d = new Demo(nome, name, id(nome), descricao);
         DEMOS.put(nome, d);
+        BY_NAME.put(name, d);
         return d;
     }
 
+    /** A demo by English name or legacy Portuguese name. */
+    static Demo find(String name) {
+        Demo d = BY_NAME.get(name);
+        return d != null ? d : DEMOS.get(name);
+    }
+
     // 1. Referência: uma luz convencional (ponto) e um disco, sem textura, no caminho rápido do shader.
-    static final Demo REFERENCIA = demo("referencia", "luz convencional (ponto + disco), o caminho da 0.9");
+    static final Demo REFERENCIA = demo("referencia", "reference", "conventional light (point + disc), the 0.9 path");
     static final Light REF_PONTO = Light.point(Point.center(0, 1.2, 0)).color(0xffffb070).intensity(2.6f).radius(10).falloff(1.4f)
         .flicker(.12f, 3).build();
     static final Light REF_DISCO = Light.disc(Point.center(), 6).color(0xffff9050).intensity(1.1f).build();
@@ -112,13 +127,13 @@ public final class LaboratorioLuz {
     //    fonte e profundidade 9 o chão já recebia (1 - 6/9)^0,6 = 52% e um bloco abaixo 41%; 3 blocos abaixo, nada (z
     //    chega à profundidade). Com 14: 71% no chão e 54% três blocos abaixo. A semântica da atenuação não mudou; veja
     //    as demos runas_atenuacao, runas_modos e runas_relevo.
-    static final Demo RUNAS_DEMO = demo("runas", "projeção de runas girando no chão (cookie MASK)");
+    static final Demo RUNAS_DEMO = demo("runas", "runes", "rune projection spinning on the ground (MASK cookie)");
     static final Light RUNAS_LUZ = Light.projector(Point.center(0, 6, 0), 11, 11).cookie(RUNAS)
         .color(0xff8ab4ff).radius(14).falloff(.6f).softness(.05f)
         .track(Light.Param.ROLL, "giro").track(Light.Param.INTENSITY, "pulso").track(Light.Param.WEIGHT, "entrada").build();
 
     // 3. Tecnologia: grade hexagonal que repete, varredura (COOKIE_V), cor ciano a verde (rampa) e uma retícula.
-    static final Demo TECNO = demo("tecnologia", "grade hexagonal em ladrilho com varredura e cor animada");
+    static final Demo TECNO = demo("tecnologia", "technology", "tiled hexagonal grid with a sweep and animated color");
     static final Light TECNO_GRADE = Light.projector(Point.center(0, 5, 0), 14, 12)
         .cookie(Light.Cookie.of(HEX).repeat().scale(3))
         .colorRamp(0xff30f0ff, 0xff40ff90).intensity(2.2f).radius(8).falloff(.3f).softness(.2f)
@@ -129,7 +144,7 @@ public final class LaboratorioLuz {
 
     // 4. Água: duas camadas de cáusticas animadas (folha 4 x 4, quadros misturados), escalas e giros diferentes,
     //    composição SOFT para a soma não estourar.
-    static final Demo AGUA = demo("agua", "cáusticas animadas em duas camadas (folha 4x4, SOFT)");
+    static final Demo AGUA = demo("agua", "water", "animated caustics in two layers (4x4 sheet, SOFT)");
     static final Light AGUA_A = Light.projector(Point.center(0, 7, 0), 16, 16)
         .cookie(Light.Cookie.of(CAUSTICAS).sheet(4, 4).fps(9).blendFrames(true).repeat().scale(2))
         .color(0xff60d0ff).intensity(2.6f).radius(10).falloff(.3f).softness(.35f).blend(Light.Blend.SOFT)
@@ -142,18 +157,18 @@ public final class LaboratorioLuz {
         .track(Light.Param.WEIGHT, "entrada").build();
 
     // 5. Vitral: holofote com cookie COLOR; a luz branca leva as cores da imagem para o chão e as paredes.
-    static final Demo VITRAL_DEMO = demo("vitral", "holofote com textura RGB (cookie COLOR)");
+    static final Demo VITRAL_DEMO = demo("vitral", "stained_glass", "spotlight with an RGB texture (COLOR cookie)");
     static final Light VITRAL_LUZ = Light.spot(Point.center(-2.5, 7, -1)).direction(-20, 62).angle(48).cookie(Light.Cookie.of(VITRAL).colored())
         .color(0xffffffff).intensity(4.2f).radius(16).falloff(1).softness(.04f).track(Light.Param.WEIGHT, "entrada").build();
 
     // 6. Holofote orientável: busca de um lado a outro (YAW), gradiente de distância quente -> frio, curva SMOOTH.
-    static final Demo HOLOFOTE = demo("holofote", "holofote orientável varrendo, gradiente de distância");
+    static final Demo HOLOFOTE = demo("holofote", "spotlight", "sweeping orientable spotlight, distance gradient");
     static final Light HOLOFOTE_LUZ = Light.spot(Point.center(0, 6, -3)).direction(0, 38).angle(26).softness(.3f)
         .distanceGradient(0xfffff4d0, 0xffffa040, 0xff3060ff).intensity(4.5f).radius(22).attenuation(Light.Attenuation.SMOOTH)
         .track(Light.Param.YAW, "varrer").track(Light.Param.WEIGHT, "entrada").build();
 
     // 7. Selo animado pela timeline: quadro da folha (FRAME), giro (ROLL), cor na rampa (COLOR) e força (INTENSITY).
-    static final Demo SELO_DEMO = demo("selo", "folha de quadros dirigida pela timeline (FRAME, ROLL, COLOR)");
+    static final Demo SELO_DEMO = demo("selo", "seal", "frame sheet driven by the timeline (FRAME, ROLL, COLOR)");
     static final Light SELO_LUZ = Light.projector(Point.center(0, 5, 0), 9, 9).cookie(Light.Cookie.of(SELO).sheet(4, 2))
         .colorRamp(0xff9040ff, 0xffffffff, 0xffffc040).radius(7).falloff(.4f).softness(.03f)
         .track(Light.Param.FRAME, "quadro").track(Light.Param.ROLL, "giro").track(Light.Param.COLOR, "cor")
@@ -161,14 +176,14 @@ public final class LaboratorioLuz {
 
     // 8. Seguir: presa ao jogador (Effects.follow): retícula projetada em volta dele e uma lanterna dos olhos até a
     //    mira. Com um chefe, troque por Point.socket("olhos", ...) e Light.spot(...).toward(Point.socketAim(...)).
-    static final Demo SEGUIR = demo("seguir", "retícula e lanterna presas à entidade (anchor, mira)");
+    static final Demo SEGUIR = demo("seguir", "follow", "reticle and lantern attached to the entity (anchor, aim)");
     static final Light SEGUIR_ALVO = Light.projector(Point.anchor(0, 4, 0), 5, 5).cookie(ALVO).color(0xffff6060)
         .intensity(3).radius(7).falloff(.25f).softness(.02f).track(Light.Param.ROLL, "giro").track(Light.Param.WEIGHT, "entrada").build();
     static final Light SEGUIR_LANTERNA = Light.spot(Point.anchorEye(0, -.2, 0)).toward(Point.anchorAim(24)).angle(30)
         .softness(.45f).color(0xfffff0d0).intensity(3.2f).radius(24).falloff(1.2f).track(Light.Param.WEIGHT, "entrada").build();
 
     // 9. Combinação: fogo convencional, anel de choque, runas por cima e uma persiana SUBTRACT que escurece em faixas.
-    static final Demo COMBINADA = demo("combinada", "convencional + anel + cookie + sombra SUBTRACT");
+    static final Demo COMBINADA = demo("combinada", "combined", "conventional + ring + cookie + SUBTRACT shadow");
     static final Light COMB_FOGO = Light.point(Point.center(1.5, .8, 1.5)).color(0xffff8a30).intensity(2.6f).radius(9)
         .flicker(.3f, 6).build();
     static final Light COMB_ANEL = Light.ring(Point.center(), 5, 1.5f).color(0xff80c0ff).intensity(2).track(Light.Param.INTENSITY, "pulso").build();
@@ -179,7 +194,7 @@ public final class LaboratorioLuz {
         .track(Light.Param.COOKIE_V, "rolar").track(Light.Param.WEIGHT, "entrada").build();
 
     // 10. Estresse: 8 luzes por instância (4 projetores com cookie e 4 pontos); /vfxsample luz estresse <n>.
-    static final Demo ESTRESSE = demo("estresse", "8 luzes por instância (4 com cookie)");
+    static final Demo ESTRESSE = demo("estresse", "stress", "8 lights per instance (4 with a cookie)");
     static final List<Light> ESTRESSE_LUZES = estresse();
 
     // ---------------------------------------------------------------- fase 2: composição, sobrescrita e nitidez
@@ -194,13 +209,13 @@ public final class LaboratorioLuz {
     }
 
     // 11. ADD × EMISSIVE × OVERRIDE com o mesmo cookie, cor e intensidade.
-    static final Demo MODOS = demo("modos", "ADD | EMISSIVE | OVERRIDE com o mesmo cookie e a mesma intensidade");
+    static final Demo MODOS = demo("modos", "modes", "ADD | EMISSIVE | OVERRIDE with the same cookie and the same intensity");
     static final Light MODO_ADD = lado(6, NEON, 5).color(0xff40e0ff).intensity(2.5f).contrast(2).build();
     static final Light MODO_EMISSIVE = lado(0, NEON, 5).color(0xff40e0ff).intensity(2.5f).contrast(2).blend(Light.Blend.EMISSIVE).build();
     static final Light MODO_OVERRIDE = lado(-6, NEON, 5).color(0xff40e0ff).intensity(2.5f).contrast(2).blend(Light.Blend.OVERRIDE).build();
 
     // 12. OVERRIDE nas forças 0, 0,25, 0,5, 0,75 e 1.
-    static final Demo FORCAS = demo("forcas", "OVERRIDE nas forças 0 | 0,25 | 0,5 | 0,75 | 1");
+    static final Demo FORCAS = demo("forcas", "strengths", "OVERRIDE at strengths 0 | 0.25 | 0.5 | 0.75 | 1");
     static final Light[] FORCAS_LUZES = forcas();
 
     private static Light[] forcas() {
@@ -213,7 +228,7 @@ public final class LaboratorioLuz {
     }
 
     // 13. Filtros: o mesmo pixel art 32 x 32 ampliado em SMOOTH, SHARP e PIXELATED.
-    static final Demo FILTROS = demo("filtros", "pixel art 32x32: SMOOTH | SHARP | PIXELATED");
+    static final Demo FILTROS = demo("filtros", "filters", "32x32 pixel art: SMOOTH | SHARP | PIXELATED");
     static final Light FILTRO_SUAVE = filtro(5, Light.Cookie.of(PIXEL));
     static final Light FILTRO_NITIDO = filtro(0, Light.Cookie.of(PIXEL).filter(Light.Cookie.Filter.SHARP).sharpness(1));
     static final Light FILTRO_PIXEL = filtro(-5, Light.Cookie.of(PIXEL).pixelated());
@@ -225,7 +240,7 @@ public final class LaboratorioLuz {
 
     // 14. A mesma mandala de 2048 em 512 (STANDARD) e em alta resolução (ULTRA: 2048 em HIGH/ULTRA, 1024 em BALANCED,
     //     512 em LOW; troque o perfil com F8). Uma imagem guarda uma versão grande só, a do maior pedido.
-    static final Demo RESOLUCOES = demo("resolucoes", "mandala 2048: STANDARD 512 | ULTRA (2048 no HIGH, 1024 no BALANCED)");
+    static final Demo RESOLUCOES = demo("resolucoes", "resolutions", "2048 mandala: STANDARD 512 | ULTRA (2048 on HIGH, 1024 on BALANCED)");
     static final Light RES_512 = resolucao(4, Light.Cookie.Resolution.STANDARD);
     static final Light RES_ALTA = resolucao(-4, Light.Cookie.Resolution.ULTRA);
 
@@ -236,7 +251,7 @@ public final class LaboratorioLuz {
     }
 
     // 15. Neon intenso: EMISSIVE com contraste alto, núcleo que estoura em branco e um disco emissivo fraco embaixo.
-    static final Demo NEON_DEMO = demo("neon", "projeção neon intensa (EMISSIVE, contraste, núcleo branco)");
+    static final Demo NEON_DEMO = demo("neon", "neon", "intense neon projection (EMISSIVE, contrast, white core)");
     static final Light NEON_LUZ = Light.projector(Point.center(0, 6, 0), 9, 9).cookie(Light.Cookie.of(NEON).sharpness(.8f))
         .color(0xffff30d0).intensity(4.5f).radius(9).attenuation(Light.Attenuation.CONSTANT).softness(.03f).contrast(2.5f)
         .blend(Light.Blend.EMISSIVE).track(Light.Param.ROLL, "giro").track(Light.Param.INTENSITY, "pulso")
@@ -245,7 +260,7 @@ public final class LaboratorioLuz {
         .blendStrength(.6f).track(Light.Param.WEIGHT, "entrada").build();
 
     // 16. Multicolorido de dia: vitral COLOR em OVERRIDE (domina a grama, guarda 40% da textura) + um pouco de EMISSIVE.
-    static final Demo DIA = demo("dia", "vitral RGB forte de dia (OVERRIDE com detalhe + EMISSIVE)");
+    static final Demo DIA = demo("dia", "daylight", "strong RGB stained glass in daylight (OVERRIDE with detail + EMISSIVE)");
     static final Light DIA_OVERRIDE = Light.projector(Point.center(0, 6, 0), 9, 9).cookie(Light.Cookie.of(VITRAL).colored())
         .color(0xffffffff).intensity(1.1f).radius(9).attenuation(Light.Attenuation.CONSTANT).softness(.03f)
         .blend(Light.Blend.OVERRIDE).blendStrength(.9f).surfaceDetail(.4f).track(Light.Param.WEIGHT, "entrada").build();
@@ -254,14 +269,14 @@ public final class LaboratorioLuz {
         .blend(Light.Blend.EMISSIVE).track(Light.Param.WEIGHT, "entrada").build();
 
     // 17. Transição: a mesma luz vai de convencional (BLEND_STRENGTH 0 = ADD) a emissiva (1) e volta, pela Timeline.
-    static final Demo TRANSICAO = demo("transicao", "convencional -> emissiva -> convencional (trilha BLEND_STRENGTH)");
+    static final Demo TRANSICAO = demo("transicao", "transition", "conventional -> emissive -> conventional (BLEND_STRENGTH track)");
     static final Light TRANSICAO_LUZ = Light.projector(Point.center(0, 6, 0), 9, 9).cookie(NEON).color(0xff60ff90).intensity(3)
         .radius(9).attenuation(Light.Attenuation.CONSTANT).softness(.04f).contrast(2).blend(Light.Blend.EMISSIVE)
         .track(Light.Param.BLEND_STRENGTH, "cor").track(Light.Param.WEIGHT, "entrada").build();
 
     // 18. Superfícies: o comando monta uma escada, um muro, chão irregular e um suporte de armadura; a projeção cobre
     //     tudo (grade OVERRIDE parcial + retícula EMISSIVE) e segue o relevo e a entidade.
-    static final Demo SUPERFICIES = demo("superficies", "paredes, escada, relevo e entidade (monta a pista de teste)");
+    static final Demo SUPERFICIES = demo("superficies", "surfaces", "walls, stairs, relief and an entity (builds the test track)");
     static final Light SUP_GRADE = Light.projector(Point.center(0, 8, 0), 11, 11).cookie(Light.Cookie.of(HEX).repeat().scale(3))
         .color(0xff40ffd0).intensity(1).radius(12).attenuation(Light.Attenuation.CONSTANT).softness(.15f)
         .blend(Light.Blend.OVERRIDE).blendStrength(.55f).surfaceDetail(.5f).track(Light.Param.WEIGHT, "entrada").build();
@@ -270,7 +285,7 @@ public final class LaboratorioLuz {
         .blend(Light.Blend.EMISSIVE).track(Light.Param.ROLL, "giro").track(Light.Param.WEIGHT, "entrada").build();
 
     // 19. Sobrepostas: ADD, SOFT, EMISSIVE, OVERRIDE e SUBTRACT parcialmente sobrepostos (resultado não depende da ordem).
-    static final Demo SOBREPOSTAS = demo("sobrepostas", "ADD + SOFT + EMISSIVE + OVERRIDE + SUBTRACT sobrepostos");
+    static final Demo SOBREPOSTAS = demo("sobrepostas", "overlapping", "ADD + SOFT + EMISSIVE + OVERRIDE + SUBTRACT overlapping");
     static final Light SOB_ADD = Light.projector(Point.center(2.5, 6, 1), 7, 7).cookie(RUNAS).color(0xffffa040).intensity(2.5f)
         .radius(9).attenuation(Light.Attenuation.CONSTANT).track(Light.Param.WEIGHT, "entrada").build();
     static final Light SOB_SOFT = Light.projector(Point.center(-2.5, 6, 1), 7, 7)
@@ -287,7 +302,7 @@ public final class LaboratorioLuz {
         .track(Light.Param.COOKIE_V, "rolar").track(Light.Param.WEIGHT, "entrada").build();
 
     // 20. Retícula de ataque extremamente legível: OVERRIDE total vermelho (contraste 4, nítida) + EMISSIVE fraco (sem estourar).
-    static final Demo ATAQUE_DEMO = demo("ataque", "retícula de ataque legível (OVERRIDE total + EMISSIVE)");
+    static final Demo ATAQUE_DEMO = demo("ataque", "attack", "readable attack reticle (full OVERRIDE + EMISSIVE)");
     static final Light ATAQUE_BASE = Light.projector(Point.center(0, 7, 0), 7, 7).cookie(Light.Cookie.of(ATAQUE).sharpness(1))
         .color(0xffff1020).intensity(1.1f).radius(10).attenuation(Light.Attenuation.CONSTANT).softness(.01f).contrast(4)
         .blend(Light.Blend.OVERRIDE).track(Light.Param.ROLL, "giro").track(Light.Param.WEIGHT, "entrada").build();
@@ -305,25 +320,25 @@ public final class LaboratorioLuz {
     }
 
     // 21. POWER com a profundidade antiga (9) | POWER com 14 | CONSTANT: a mesma runa, a mesma intensidade.
-    static final Demo RUNAS_ATENUACAO = demo("runas_atenuacao", "runas: POWER prof. 9 (antes) | POWER prof. 14 | CONSTANT");
+    static final Demo RUNAS_ATENUACAO = demo("runas_atenuacao", "runes_attenuation", "runes: POWER depth 9 (before) | POWER depth 14 | CONSTANT");
     static final Light RUNAS_POWER_9 = runasLado(6, 9).build();
     static final Light RUNAS_POWER_14 = runasLado(0, 14).build();
     static final Light RUNAS_CONSTANT = runasLado(-6, 9).attenuation(Light.Attenuation.CONSTANT).build();
 
     // 22. ADD (depende da cor do chão) | EMISSIVE (não depende: legível em terra escura e de dia).
-    static final Demo RUNAS_MODOS = demo("runas_modos", "runas: ADD | EMISSIVE, mesma intensidade");
+    static final Demo RUNAS_MODOS = demo("runas_modos", "runes_modes", "runes: ADD | EMISSIVE, same intensity");
     static final Light RUNAS_ADD = runasLado(3.5, 14).build();
     static final Light RUNAS_EMISSIVE = runasLado(-3.5, 14).blend(Light.Blend.EMISSIVE).build();
 
     // 23. Relevo: o comando monta chão plano | cratera de 3 blocos | degraus de 1 a 3 blocos; uma runa sobre cada um.
-    static final Demo RUNAS_RELEVO = demo("runas_relevo", "runas sobre plano | cratera | degraus (monta o relevo)");
+    static final Demo RUNAS_RELEVO = demo("runas_relevo", "runes_terrain", "runes over flat ground | crater | steps (builds the relief)");
     static final Light RELEVO_PLANO = runasLado(7, 14).build();
     static final Light RELEVO_CRATERA = runasLado(0, 14).build();
     static final Light RELEVO_DEGRAUS = runasLado(-7, 14).build();
 
     // 24. Prioridade: retícula CRITICAL (OVERRIDE + EMISSIVE) no meio de 28 projeções DECORATIVE mais brilhantes. No
     //     LOW (16 cookies por quadro) as decorativas excedentes caem no fallback; a retícula nunca perde o desenho.
-    static final Demo PRIORIDADE = demo("prioridade", "retícula CRITICAL contra 28 decorativas no mesmo orçamento (teste no LOW)");
+    static final Demo PRIORIDADE = demo("prioridade", "priority", "CRITICAL reticle against 28 decorative lights in the same budget (test on LOW)");
     static final Light[] PRIORIDADE_LUZES = prioridade();
 
     private static Light[] prioridade() {
@@ -442,34 +457,48 @@ public final class LaboratorioLuz {
         Effects.lights(demo.id(), luzes);
     }
 
-    /** /vfxsample luz ... */
+    /**
+     * /vfxsample light ... (1.14.1: English canonical names; the Portuguese names of 1.14.0 and earlier, such as
+     * {@code luz}, {@code soltar}, {@code parar}, {@code comparar}, {@code carga}, {@code mesmo} and {@code espalhado},
+     * remain deprecated aliases of the same nodes).
+     */
     public static LiteralArgumentBuilder<CommandSourceStack> comando() {
-        var raiz = Commands.literal("luz");
+        var raiz = Commands.literal("light");
+        // "stress" is both a demo (no argument) and "stress <n>": one node.
+        var stress = Commands.literal(ESTRESSE.name()).executes(ctx -> iniciar(ctx.getSource(), ESTRESSE, 0, 1))
+            .then(Commands.argument("n", IntegerArgumentType.integer(1, 16))
+                .executes(ctx -> estresse(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"))));
         for (Demo demo : DEMOS.values()) {
-            raiz.then(Commands.literal(demo.nome()).executes(ctx -> iniciar(ctx.getSource(), demo, 0, 1))
-                .then(Commands.literal("soltar").executes(ctx -> encerrar(ctx.getSource(), demo.nome(), false)))
-                .then(Commands.literal("parar").executes(ctx -> encerrar(ctx.getSource(), demo.nome(), true))));
+            var node = demo == ESTRESSE ? stress : Commands.literal(demo.name()).executes(ctx -> iniciar(ctx.getSource(), demo, 0, 1));
+            var release = Commands.literal("release").executes(ctx -> encerrar(ctx.getSource(), demo.nome(), false));
+            var stop = Commands.literal("stop").executes(ctx -> encerrar(ctx.getSource(), demo.nome(), true));
+            example.vfxsample.Cmd.then(node, release, "soltar");
+            example.vfxsample.Cmd.then(node, stop, "parar");
+            example.vfxsample.Cmd.then(raiz, node, demo.nome());
         }
         var nomes = Commands.argument("a", com.mojang.brigadier.arguments.StringArgumentType.word())
-            .suggests((ctx, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(DEMOS.keySet(), b));
-        raiz.then(Commands.literal("comparar").then(nomes.then(Commands.argument("b", com.mojang.brigadier.arguments.StringArgumentType.word())
-            .suggests((ctx, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(DEMOS.keySet(), b))
+            .suggests((ctx, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(BY_NAME.keySet(), b));
+        example.vfxsample.Cmd.then(raiz, Commands.literal("compare").then(nomes.then(Commands.argument("b", com.mojang.brigadier.arguments.StringArgumentType.word())
+            .suggests((ctx, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(BY_NAME.keySet(), b))
             .executes(ctx -> comparar(ctx.getSource(), com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "a"),
-                com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "b"))))));
-        raiz.then(Commands.literal("estresse").then(Commands.argument("n", IntegerArgumentType.integer(1, 16))
-            .executes(ctx -> estresse(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n")))));
+                com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "b"))))), "comparar");
         // Fase 3: laboratório de estresse com quantidades exatas.
         var quantidade = Commands.argument("n", IntegerArgumentType.integer(16, 192))
             .suggests((ctx, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(List.of("16", "32", "64", "96", "128", "192"), b));
-        for (String tipo : List.of("mesmo", "varios", "mista")) {
-            quantidade.then(Commands.literal(tipo).executes(ctx -> carga(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), tipo, false))
-                .then(Commands.literal("espalhado").executes(ctx -> carga(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), tipo, false)))
-                .then(Commands.literal("sobreposto").executes(ctx -> carga(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), tipo, true))));
+        String[][] tipos = {{"same", "mesmo"}, {"varied", "varios"}, {"mixed", "mista"}};
+        for (String[] t : tipos) {
+            String tipo = t[1];
+            var node = Commands.literal(t[0]).executes(ctx -> carga(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), tipo, false));
+            example.vfxsample.Cmd.then(node, Commands.literal("spread")
+                .executes(ctx -> carga(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), tipo, false)), "espalhado");
+            example.vfxsample.Cmd.then(node, Commands.literal("overlapping")
+                .executes(ctx -> carga(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), tipo, true)), "sobreposto");
+            example.vfxsample.Cmd.then(quantidade, node, t[1]);
         }
-        raiz.then(Commands.literal("carga").then(quantidade));
-        raiz.then(Commands.literal("adaptativa").executes(ctx -> adaptativa(ctx.getSource())));
-        raiz.then(Commands.literal("parar").executes(ctx -> pararTudo(ctx.getSource())));
-        raiz.then(Commands.literal("lista").executes(ctx -> lista(ctx.getSource())));
+        example.vfxsample.Cmd.then(raiz, Commands.literal("load").then(quantidade), "carga");
+        example.vfxsample.Cmd.then(raiz, Commands.literal("adaptive").executes(ctx -> adaptativa(ctx.getSource())), "adaptativa");
+        example.vfxsample.Cmd.then(raiz, Commands.literal("stop").executes(ctx -> pararTudo(ctx.getSource())), "parar");
+        example.vfxsample.Cmd.then(raiz, Commands.literal("list").executes(ctx -> lista(ctx.getSource())), "lista");
         return raiz;
     }
 
@@ -495,9 +524,12 @@ public final class LaboratorioLuz {
         int luzes = ok * 16, cookies = tipo.equals("mista") ? ok * 8 : luzes, texturas = tipo.equals("mesmo") || tipo.equals("mista") ? 1
             : Math.min(32, ok * 16);
         int pedidas = instancias;
-        source.sendSuccess(() -> Component.literal("carga " + tipo + (sobreposto ? " sobreposta" : " espalhada") + ": " + luzes
-            + " luzes (" + cookies + " com cookie, " + texturas + " PNG) em " + pedidas + " instâncias"
-            + (luzes < n ? " — o servidor recusou parte (limite por jogador)" : "") + ". Limites e motivos no F7."), false);
+        String kind = switch (tipo) { case "mesmo" -> "same"; case "mista" -> "mixed"; default -> "varied"; };
+        source.sendSuccess(() -> Component.translatableWithFallback("command.vfxsample.light.load",
+            "load %s %s: %s lights (%s with a cookie, %s PNG) in %s instances%s. Caps and reasons in F7.", kind,
+            sobreposto ? "overlapping" : "spread", luzes, cookies, texturas, pedidas,
+            luzes < n ? Component.translatableWithFallback("command.vfxsample.light.load.refused",
+                " — the server refused part of it (per-player limit)") : ""), false);
         return ok;
     }
 
@@ -511,7 +543,8 @@ public final class LaboratorioLuz {
             var handle = Effects.start(CARGAS[i == 0 ? Carga.VARIOS_A.ordinal() : Carga.VARIOS_B.ordinal()][0], player.serverLevel(), at);
             if (handle.isPresent()) { lista.add(handle.get()); ok++; }
         }
-        source.sendSuccess(() -> Component.literal("adaptativa: 32 PNGs de 512 (16 a 9 blocos, 16 a 48 blocos). F7: resolução 128/256/512 e pressão do atlas."), false);
+        source.sendSuccess(() -> Component.translatableWithFallback("command.vfxsample.light.adaptive",
+            "adaptive: 32 PNGs of 512 (16 at 9 blocks, 16 at 48 blocks). F7: resolution 128/256/512 and atlas pressure."), false);
         return ok;
     }
 
@@ -529,7 +562,7 @@ public final class LaboratorioLuz {
         }
         int n = ok;
         source.sendSuccess(() -> Component.translatable(n > 0 ? "command.vfxsample.luz.started" : "command.vfxsample.luz.failed",
-            demo.nome(), demo.descricao()), false);
+            demo.name(), demo.description()), false);
         return ok;
     }
 
@@ -551,7 +584,7 @@ public final class LaboratorioLuz {
     }
 
     private static int comparar(CommandSourceStack source, String a, String b) throws CommandSyntaxException {
-        Demo da = DEMOS.get(a), db = DEMOS.get(b);
+        Demo da = find(a), db = find(b);
         if (da == null || db == null) {
             source.sendFailure(Component.translatable("command.vfxsample.luz.unknown", da == null ? a : b));
             return 0;
@@ -571,8 +604,10 @@ public final class LaboratorioLuz {
             if (parar) lista.clear(); else lista.removeIf(h -> !h.alive());
         }
         int count = n;
+        Demo demo = DEMOS.get(nome);
+        String shown = demo != null ? demo.name() : nome;
         source.sendSuccess(() -> Component.translatable(parar ? "command.vfxsample.luz.stopped" : "command.vfxsample.luz.released",
-            nome, count), false);
+            shown, count), false);
         return n;
     }
 
@@ -584,7 +619,7 @@ public final class LaboratorioLuz {
 
     private static int lista(CommandSourceStack source) {
         for (Demo d : DEMOS.values())
-            source.sendSuccess(() -> Component.literal("/vfxsample luz " + d.nome() + " — " + d.descricao()), false);
+            source.sendSuccess(() -> Component.literal("/vfxsample light " + d.name() + " — ").append(d.description()), false);
         return DEMOS.size();
     }
 

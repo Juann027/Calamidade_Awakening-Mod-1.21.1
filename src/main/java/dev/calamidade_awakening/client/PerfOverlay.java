@@ -318,7 +318,7 @@ public final class PerfOverlay {
             message = Component.translatableWithFallback(PREFIX + "saved", "Saved %s frames: median %s ms, p95 %s ms → %s",
                 ms.length, format(percentile(ms, .5)), format(percentile(ms, .95)), file.getFileName().toString());
         } catch (IOException failure) {
-            message = Component.literal("Calamidade_Awakening: " + failure.getMessage());
+            message = Component.literal(dev.calamidade_awakening.CalamidadeAwakening.NAME + ": " + failure.getMessage());
         }
         if (mc.player != null) mc.player.displayClientMessage(message, false);
     }
@@ -358,7 +358,7 @@ public final class PerfOverlay {
         double[] window = new double[frameCount];
         for (int i = 0; i < frameCount; i++) window[i] = frames[i] / 1e6;
         Arrays.sort(window);
-        lines.add(Component.translatableWithFallback(PREFIX + "title", "Calamidade_Awakening · diagnostics (%s)",
+        lines.add(Component.translatableWithFallback(PREFIX + "title", dev.calamidade_awakening.CalamidadeAwakening.NAME + " · diagnostics (%s)",
             TOGGLE.getTranslatedKeyMessage()));
         lines.add(Component.translatableWithFallback(PREFIX + "gpu", "GPU: %s", renderer()));
         lines.add(Component.translatableWithFallback(PREFIX + "frame", "%s FPS · frame %s ms · p95 %s ms · %s",

@@ -34,45 +34,46 @@ import java.util.function.Function;
  */
 public final class Receitas {
     /** Nome do comando, efeito e como ele começa no servidor. */
-    record Receita(String nome, ResourceLocation id, Function<ServerPlayer, Optional<Effects.Handle>> inicio) {
+    /** 1.14.1: {@code nome} is the English command name; {@code legado} the Portuguese name of 1.14.0 (deprecated alias). */
+    record Receita(String nome, String legado, ResourceLocation id, Function<ServerPlayer, Optional<Effects.Handle>> inicio) {
         /** Effects.start numa posição em relação ao jogador. */
-        static Receita em(String nome, ResourceLocation id, Function<ServerPlayer, Vec3> posicao) {
-            return new Receita(nome, id, p -> Effects.start(id, p.serverLevel(), posicao.apply(p)));
+        static Receita em(String nome, String legado, ResourceLocation id, Function<ServerPlayer, Vec3> posicao) {
+            return new Receita(nome, legado, id, p -> Effects.start(id, p.serverLevel(), posicao.apply(p)));
         }
 
         /** Effects.follow: presa ao jogador. */
-        static Receita presa(String nome, ResourceLocation id) {
-            return new Receita(nome, id, p -> Effects.follow(id, p, Vec3.ZERO));
+        static Receita presa(String nome, String legado, ResourceLocation id) {
+            return new Receita(nome, legado, id, p -> Effects.follow(id, p, Vec3.ZERO));
         }
 
         Optional<Effects.Handle> iniciar(ServerPlayer player) { return inicio.apply(player); }
     }
 
     static final List<Receita> TODAS = List.of(
-        Receita.em("anel", AnelImpacto.ID, p -> chao(p, 6)),
-        Receita.em("cubo", CuboGrade.ID, p -> chao(p, 22).add(0, 8, 0)),
-        Receita.em("bolha", BolhaArcoIris.ID, p -> olhos(p, 7)),
-        Receita.em("impacto", ImpactFrame.ID, p -> olhos(p, 3)),
-        Receita.em("feixe", FeixeVertical.ID, p -> chao(p, 14)),
-        Receita.em("ambiente", AmbienteVagalumes.ID, p -> chao(p, 5)),
-        Receita.em("ceu", CeuTingido.ID, p -> p.position().add(0, 2, 0)),
-        Receita.em("pilar", PilarDeLuz.ID, p -> chao(p, 18)),
-        Receita.presa("laser", LaserMira.ID),
-        Receita.em("teia", TeiaDeFeixes.ID, p -> chao(p, 12)),
-        Receita.em("fogueira", Fogueira.ID, p -> chao(p, 5)),
-        Receita.em("onda_luz", OndaDeLuz.ID, p -> chao(p, 6)),
-        Receita.em("protagonista", Protagonista.ID, p -> chao(p, 30)),
+        Receita.em("ring", "anel", AnelImpacto.ID, p -> chao(p, 6)),
+        Receita.em("cube", "cubo", CuboGrade.ID, p -> chao(p, 22).add(0, 8, 0)),
+        Receita.em("bubble", "bolha", BolhaArcoIris.ID, p -> olhos(p, 7)),
+        Receita.em("impact", "impacto", ImpactFrame.ID, p -> olhos(p, 3)),
+        Receita.em("beam", "feixe", FeixeVertical.ID, p -> chao(p, 14)),
+        Receita.em("ambient", "ambiente", AmbienteVagalumes.ID, p -> chao(p, 5)),
+        Receita.em("sky", "ceu", CeuTingido.ID, p -> p.position().add(0, 2, 0)),
+        Receita.em("pillar", "pilar", PilarDeLuz.ID, p -> chao(p, 18)),
+        Receita.presa("laser", "laser", LaserMira.ID),
+        Receita.em("web", "teia", TeiaDeFeixes.ID, p -> chao(p, 12)),
+        Receita.em("campfire", "fogueira", Fogueira.ID, p -> chao(p, 5)),
+        Receita.em("light_wave", "onda_luz", OndaDeLuz.ID, p -> chao(p, 6)),
+        Receita.em("hero", "protagonista", Protagonista.ID, p -> chao(p, 30)),
         // 1.7.0 — orientação: o leque começa virado com o yaw do jogador (Placement).
-        new Receita("leque", LequeOrientado.ID, LequeOrientado::iniciar),
+        new Receita("fan", "leque", LequeOrientado.ID, LequeOrientado::iniciar),
         // 1.8.0 — Terrain API: as formas giram com o yaw do jogador.
-        new Receita("raio_trincheira", RaioTrincheira.ID, RaioTrincheira::iniciar),
-        new Receita("meteoro", Meteoro.ID, Meteoro::iniciar),
-        Receita.em("cratera_simples", CrateraSimples.ID, p -> chao(p, 12)),
-        new Receita("torre_caindo", TorreCaindo.ID, TorreCaindo::iniciar),
+        new Receita("lightning_trench", "raio_trincheira", RaioTrincheira.ID, RaioTrincheira::iniciar),
+        new Receita("meteor", "meteoro", Meteoro.ID, Meteoro::iniciar),
+        Receita.em("simple_crater", "cratera_simples", CrateraSimples.ID, p -> chao(p, 12)),
+        new Receita("falling_tower", "torre_caindo", TorreCaindo.ID, TorreCaindo::iniciar),
         // 1.9.0 — Sky API: camadas presas a pontos muito longe à frente do jogador.
-        new Receita("buraco_negro", BuracoNegro.ID, BuracoNegro::iniciar),
-        new Receita("portal_galaxia", PortalGalaxia.ID, PortalGalaxia::iniciar),
-        new Receita("lua_gigante", LuaGigante.ID, LuaGigante::iniciar));
+        new Receita("black_hole", "buraco_negro", BuracoNegro.ID, BuracoNegro::iniciar),
+        new Receita("galaxy_portal", "portal_galaxia", PortalGalaxia.ID, PortalGalaxia::iniciar),
+        new Receita("giant_moon", "lua_gigante", LuaGigante.ID, LuaGigante::iniciar));
 
     /** Última receita iniciada por jogador, para release e stop. */
     private static final Map<UUID, Effects.Handle> ULTIMA = new HashMap<>();
@@ -141,19 +142,20 @@ public final class Receitas {
         OndaDeLuz.Client.setup();
     }
 
-    /** /vfxsample receita &lt;nome&gt; | release | stop. */
+    /** /vfxsample recipe &lt;name&gt; | release | stop (1.14.1; {@code receita} and the Portuguese names stay as aliases). */
     public static LiteralArgumentBuilder<CommandSourceStack> comando() {
-        var raiz = Commands.literal("receita");
+        var raiz = Commands.literal("recipe");
         for (Receita receita : TODAS)
-            raiz.then(Commands.literal(receita.nome()).executes(ctx -> iniciar(ctx.getSource(), receita)));
+            example.vfxsample.Cmd.then(raiz, Commands.literal(receita.nome()).executes(ctx -> iniciar(ctx.getSource(), receita)),
+                receita.legado());
         raiz.then(Commands.literal("release").executes(ctx -> liberar(ctx.getSource())));
         raiz.then(Commands.literal("stop").executes(ctx -> parar(ctx.getSource())));
         return raiz;
     }
 
-    /** /vfxsample zumbi on|off: liga ou desliga o feixe dos zumbis (receita 17). */
+    /** /vfxsample zombie on|off: liga ou desliga o feixe dos zumbis (receita 17); {@code zumbi} é alias. */
     public static LiteralArgumentBuilder<CommandSourceStack> comandoZumbi() {
-        return Commands.literal("zumbi")
+        return Commands.literal("zombie")
             .then(Commands.literal("on").executes(ctx -> zumbi(ctx.getSource(), true)))
             .then(Commands.literal("off").executes(ctx -> zumbi(ctx.getSource(), false)));
     }

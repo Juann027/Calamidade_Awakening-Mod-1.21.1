@@ -246,9 +246,9 @@ public final class ClientHooks {
         while (QUALITY.consumeClick()) {
             var mode = COORDINATOR.cycleQuality();
             if (mc.player != null) mc.player.displayClientMessage(mode == dev.calamidade_awakening.api.QualityMode.AUTO
-                ? Component.translatableWithFallback("perf.calamidade_awakening.mode.auto", "Calamidade_Awakening: AUTO (now %s)",
+                ? Component.translatableWithFallback("perf.calamidade_awakening.mode.auto", dev.calamidade_awakening.CalamidadeAwakening.NAME + ": AUTO (now %s)",
                     COORDINATOR.profile().name())
-                : Component.literal("Calamidade_Awakening: " + mode.name()), true);
+                : Component.literal(dev.calamidade_awakening.CalamidadeAwakening.NAME + ": " + mode.name()), true);
         }
         DEMOS.forEach((kind, key) -> poll(mc, key, kind));
         if (mc.player != null && SkillApi.holds(mc.player, AwakeningSkills.SET)) {
@@ -496,7 +496,7 @@ public final class ClientHooks {
         var player = Minecraft.getInstance().player;
         if (player != null) player.displayClientMessage(n == 0 ? Component.literal("Unknown profile: " + which)
             : Component.translatableWithFallback("perf.calamidade_awakening.defaults",
-                "Calamidade_Awakening: caps of %s back to the current defaults (other settings kept)", which.toUpperCase(java.util.Locale.ROOT)), false);
+                dev.calamidade_awakening.CalamidadeAwakening.NAME + ": caps of %s back to the current defaults (other settings kept)", which.toUpperCase(java.util.Locale.ROOT)), false);
         return n;
     }
 
@@ -514,7 +514,7 @@ public final class ClientHooks {
         COORDINATOR.test(limits);
         var player = Minecraft.getInstance().player;
         if (player != null) player.displayClientMessage(Component.translatableWithFallback(
-            "perf.calamidade_awakening.profile", "Calamidade_Awakening: %s", COORDINATOR.limits().label()), false);
+            "perf.calamidade_awakening.profile", dev.calamidade_awakening.CalamidadeAwakening.NAME + ": %s", COORDINATOR.limits().label()), false);
         return 1;
     }
 

@@ -261,5 +261,12 @@
   "perf.calamidade_awakening.quality.restore": "Qualidade: AUTO → %s · alívio retirado há %s s (p95 %s ms < %s ms)",
   "perf.calamidade_awakening.defaults": "Calamidade_Awakening: limites de %s de volta aos padrões atuais (demais configurações mantidas)",
   "perf.calamidade_awakening.coverage.set": "Cobertura primeiro: %s (F7: página de cobertura)",
-  "calamidade_awakening.configuration.coverage": "Cobertura primeiro (luzes de todos os efeitos)"
+  "calamidade_awakening.configuration.coverage": "Cobertura primeiro (luzes de todos os efeitos)",
+  "notice.calamidade_awakening.low_quality.title": "Qualidade visual reduzida",
+  "notice.calamidade_awakening.low_quality.body": "O perfil gráfico LOW prioriza o desempenho. Alguns efeitos visuais, iluminação e sequências cinematográficas podem ser simplificados ou omitidos.",
+  "notice.calamidade_awakening.low_quality.hint": "Para uma experiência visual mais completa, recomenda-se BALANCED ou superior, se o seu hardware permitir.",
+  "notice.calamidade_awakening.low_quality.auto": "O AUTO mudou para LOW para manter a taxa de quadros.",
+  "notice.calamidade_awakening.low_quality.disable": "Este aviso pode ser desligado na config de cliente (quality.lowQualityWarning).",
+  "calamidade_awakening.configuration.lowQualityWarning": "Aviso de qualidade LOW",
+  "calamidade_awakening.configuration.lowQualityWarning.tooltip": "Mostra o aviso \"Qualidade visual reduzida\" no chat quando o LOW é escolhido (F8 ou Atlas) ou quando o AUTO entra no LOW. Nunca bloqueia nem pede confirmação; os avisos do AUTO têm intervalo mínimo."
 }

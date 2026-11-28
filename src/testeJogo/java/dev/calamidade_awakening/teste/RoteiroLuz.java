@@ -201,14 +201,17 @@ final class RoteiroLuz implements Runnable {
         check("cookies: PNG ausente conta como falha, sem crash, e a luz segue com o fallback", falhou && detalhe()[4] >= 1,
             Arrays.toString(detalhe()));
         comando("calamidade bench stop");
-        // Orçamento (fase 3): no LOW, 24 luzes e 16 cookies por quadro; 6 × 8 luzes passam dos dois tetos.
+        // Orçamento (fase 3; valores da fase 5: LOW 32 luzes e 24 cookies por quadro); 8 × 8 luzes (32 cookies) passam
+        // dos dois tetos.
         perfil(QualityMode.LOW);
-        comando("calamidade bench 6 vfxsample:luz_estresse");
+        comando("calamidade bench 8 vfxsample:luz_estresse");
         aguardar(() -> detalheSE()[0] > 0, 100);
         ticks(60);
         int[] low = detalhe();
-        check("orçamento LOW: no máximo 16 cookies amostrados, luzes acima do teto de 24 descartadas",
-            low[3] <= 16 && low[5] == 16 && low[2] > 0, Arrays.toString(low));
+        int lowCookies = dev.calamidade_awakening.api.QualityProfile.LOW.defaults.cookies();
+        check("orçamento LOW: no máximo " + lowCookies + " cookies amostrados, luzes acima do teto de "
+                + dev.calamidade_awakening.api.QualityProfile.LOW.defaults.lights() + " descartadas",
+            low[3] <= lowCookies && low[5] == lowCookies && low[2] > 0, Arrays.toString(low));
         comando("calamidade bench stop");
         perfil(QualityMode.HIGH);
         // Culling: um projetor atrás da câmera não ocupa vaga.
@@ -407,7 +410,7 @@ final class RoteiroLuz implements Runnable {
         int depois = detalhe()[0], desenhadas = campo("lastLights");
         captura("f4_arena_low_1efeito");
         check("fase 4 LOW com 1 efeito desenhado (config do teste real): 16 candidatas antes, 192 agora, sem passar do teto por tile",
-            antes == 16 && depois == 192 && orcamento()[7] <= Math.max(24, cobertura()[5]),
+            antes == 16 && depois == 192 && orcamento()[7] <= Math.max(dev.calamidade_awakening.api.QualityProfile.LOW.defaults.lights(), cobertura()[5]),
             "antes " + antes + " depois " + depois + " desenhadas " + desenhadas + " máx/tile " + orcamento()[7]);
         noCliente(() -> { chamar(CONFIG, "restoreDefaults", new Class<?>[] {dev.calamidade_awakening.api.QualityProfile.class},
             dev.calamidade_awakening.api.QualityProfile.LOW); ClientHooks.coordinator().invalidate(); return null; });
@@ -539,7 +542,7 @@ final class RoteiroLuz implements Runnable {
         // Voando: a câmera fica parada no ar (capturas A/B comparáveis pixel a pixel).
         noServidor(() -> { jogador().getAbilities().flying = true; jogador().onUpdateAbilities(); });
         noServidor(() -> jogador().teleportTo(overworld(), X + .5, 1, Z + .5, 0, 45));
-        int[][] limites = {{24, 16}, {64, 48}, {128, 96}, {192, 128}};
+        int[][] limites = {{32, 24}, {80, 60}, {176, 132}, {192, 192}};   // fase 5
         QualityMode[] perfis = {QualityMode.LOW, QualityMode.BALANCED, QualityMode.HIGH, QualityMode.ULTRA};
         comando("vfxsample luz carga 16 mesmo");
         aguardar(() -> campoSE("lastLights") > 0, 200);
@@ -552,7 +555,7 @@ final class RoteiroLuz implements Runnable {
         }
         comando("vfxsample luz parar");
         ticks(10);
-        // Quantidades exatas: ULTRA desenha tudo o que é visível até 192 e amostra até 128 cookies.
+        // Quantidades exatas: ULTRA desenha tudo o que é visível até 192 e amostra até 192 cookies (fase 5).
         perfil(QualityMode.ULTRA);
         int[][] cargas = {{16, 0}, {32, 0}, {64, 0}, {96, 0}, {128, 0}, {192, 1}};
         for (int[] c : cargas) {
@@ -570,8 +573,9 @@ final class RoteiroLuz implements Runnable {
             escrever("INFO carga " + c[0] + ": efeitos desenhados " + campo("lastEffects") + " limites " + b[22] + "/" + b[23]
                 + " luzes " + desenhadas + " cookies kept " + b[1] + " detalhe " + Arrays.toString(d), true);
             int cookiesPedidos = c[1] == 1 ? c[0] / 2 : c[0];
-            check("fase 3 carga " + c[0] + " " + tipo + " (ULTRA): " + c[0] + " pedidas, desenhadas = visíveis até 192, cookies até 128",
-                d[0] == c[0] && desenhadas == Math.min(192, visiveis) && d[3] <= 128 && d[3] == Math.min(128, b[1])
+            int ultraCookies = dev.calamidade_awakening.api.QualityProfile.ULTRA.defaults.cookies();
+            check("fase 3 carga " + c[0] + " " + tipo + " (ULTRA): " + c[0] + " pedidas, desenhadas = visíveis até 192, cookies até " + ultraCookies,
+                d[0] == c[0] && desenhadas == Math.min(192, visiveis) && d[3] <= ultraCookies && d[3] == Math.min(ultraCookies, b[1])
                     && b[1] <= cookiesPedidos,
                 "pedidas " + d[0] + " fora " + d[1] + " escuras " + b[0] + " desenhadas " + desenhadas + " cookies " + d[3] + "/" + b[1]
                     + " tiles " + (b[5] == 1 ? "on" : "off") + " média/tile " + b[6] / 10.0 + " máx " + b[7]);
@@ -581,12 +585,13 @@ final class RoteiroLuz implements Runnable {
                 check("fase 3: 128 cookies do mesmo PNG = 1 imagem, nenhum upload repetido em 100 ticks",
                     detalhe()[9] == uploads && detalhe()[6] == 1, uploads + " -> " + detalhe()[9] + ", imagens " + detalhe()[6]);
                 captura("f3_carga_128_ultra");
-                // HIGH: 128 luzes, 96 cookies; o resto no fallback por orçamento (motivo contado à parte).
+                // HIGH: teto de cookies do perfil (fase 5: 132); o resto no fallback por orçamento (motivo contado à parte).
                 perfil(QualityMode.HIGH);
                 ticks(10);
                 int[] h = detalhe(), hb = orcamento();
-                check("fase 3 HIGH: 96 cookies amostrados, excedentes contados como 'acima do orçamento'",
-                    h[3] == Math.min(96, hb[1]) && hb[2] == Math.max(0, hb[1] - 96) && h[4] >= hb[2],
+                int highCookies = dev.calamidade_awakening.api.QualityProfile.HIGH.defaults.cookies();
+                check("fase 3 HIGH: " + highCookies + " cookies amostrados, excedentes contados como 'acima do orçamento'",
+                    h[3] == Math.min(highCookies, hb[1]) && hb[2] == Math.max(0, hb[1] - highCookies) && h[4] >= hb[2],
                     "amostrados " + h[3] + " mantidos " + hb[1] + " acima " + hb[2] + " fallback " + h[4]);
                 perfil(QualityMode.ULTRA);
             }
@@ -606,8 +611,9 @@ final class RoteiroLuz implements Runnable {
             ticks(1);
         }
         int[] pb = orcamento(), pd = detalhe();
-        check("fase 3 prioridade (LOW): retícula CRITICAL texturizada em 60/60 ticks com 28 decorativas disputando 16 cookies",
-            estaveis == 60 && pd[3] <= 16 && pb[2] > 0, "estáveis " + estaveis + "/60, amostrados " + pd[3] + ", acima do orçamento " + pb[2]
+        int lowCap = dev.calamidade_awakening.api.QualityProfile.LOW.defaults.cookies();
+        check("fase 3 prioridade (LOW): retícula CRITICAL texturizada em 60/60 ticks com 28 decorativas disputando " + lowCap + " cookies",
+            estaveis == 60 && pd[3] <= lowCap && pb[2] > 0, "estáveis " + estaveis + "/60, amostrados " + pd[3] + ", acima do orçamento " + pb[2]
                 + ", CRITICAL " + pb[25] + "/" + pb[24]);
         captura("f3_prioridade_low");
         comando("vfxsample luz parar");

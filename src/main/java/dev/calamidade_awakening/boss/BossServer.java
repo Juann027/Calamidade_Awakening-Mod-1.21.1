@@ -283,7 +283,7 @@ public final class BossServer {
             releaseHeld();
             if (phase.sustain() != null) {
                 sustain = start(phase.sustain()).orElse(null);
-                if (sustain != null) StageNetwork.tag(sustain, null, "boss " + boss.id() + " · sustain de " + phase.name());
+                if (sustain != null) StageNetwork.tag(sustain, null, "boss " + boss.id() + " · sustain of " + phase.name());
             }
             if (phase.worldEvent() != null) startWorld(phase);
             if (fresh && phase.onEnter() != null) call("onEnter", () -> phase.onEnter().run(this));
@@ -302,7 +302,7 @@ public final class BossServer {
             if (phase.worldScope() == WorldEvents.Scope.AREA) {
                 // Arena event: an ordinary instance at the boss's position, counted toward maxPerBoss.
                 area = start(phase.worldEvent(), Placement.at(entity.position())).orElse(null);
-                if (area != null) StageNetwork.tag(area, "AREA", "boss " + boss.id() + " · evento de área de " + phase.name());
+                if (area != null) StageNetwork.tag(area, "AREA", "boss " + boss.id() + " · area event of " + phase.name());
             } else {
                 world = WorldEvents.start(phase.worldEvent(), phase.worldScope(), level,
                     WorldEvents.Options.defaults().at(entity.position())).orElse(null);

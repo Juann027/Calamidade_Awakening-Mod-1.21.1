@@ -1,18 +1,20 @@
-# Material para IAs e agentes
+# Material for AIs and agents
 
-Comece por [AGENTS.md](../../AGENTS.md) na raiz (regras, comandos e "como criar um efeito novo em 6 passos"). Para o fluxo completo de criação de efeitos, a skill de projeto está em [.claude/skills/calamidade-efeitos/SKILL.md](../../.claude/skills/calamidade-efeitos/SKILL.md).
+Start with [AGENTS.md](../../AGENTS.md) at the root (rules, commands and "how to create a new effect in 7 steps"). For the complete effect creation workflow, the project skill is in [.claude/skills/calamidade-efeitos/SKILL.md](../../.claude/skills/calamidade-efeitos/SKILL.md). Commands are listed in [docs/COMMANDS.md](../COMMANDS.md) (English canonical names; the Portuguese names are deprecated aliases).
 
-| Arquivo | Conteúdo |
+| File | Contents |
 |---|---|
-| [API-REFERENCIA.md](API-REFERENCIA.md) | Toda a API pública (`api.v1`), gerada do JAR compilado com `javap` e do Javadoc; uma linha por membro. Não edite à mão: `./gradlew apiDocs`. |
-| [glsl.md](glsl.md) | Como a RimuLib monta os shaders, o que o `common.glsl` oferece e a biblioteca `calamidade_fx.glsl`. |
-| [receitas/](receitas/README.md) | 26 efeitos completos e compiláveis, cada um com objetivo, Java, shader (quando há), timeline e o que conferir no jogo (`/vfxsample receita <nome>`): shaders, malha, atmosfera, feixes, luzes, prioridade HERO, desde a 0.10.0 orientação e gatilhos de item, bloco e mob, desde a 0.11.0 a Terrain API (trincheira, meteoro, cratera e torre que cai) e desde a 0.12.0 a Sky API, os eventos globais e o céu por dimensão (buraco negro, portal, lua gigante, eclipse global, dimensão de teste). |
-| [usar-como-dependencia.md](usar-como-dependencia.md) | Modelo de `build.gradle` para outro mod depender do Calamidade sem Maven (JAR do release do GitHub com SHA-256, `compileOnly` + `runtimeOnly`), igual ao projeto real `examples/consumidor`. |
+| [API-REFERENCIA.md](API-REFERENCIA.md) | The whole public API (`api.v1`), generated from the compiled JAR with `javap` and from the Javadoc; one line per member. Do not edit it by hand: `./gradlew apiDocs`. |
+| [glsl.md](glsl.md) | How RimuLib assembles the shaders, what `common.glsl` offers and the `calamidade_fx.glsl` library (Portuguese chapter). |
+| [receitas/](receitas/README.md) | 28 complete, compilable effects, each with its goal, Java, shader (when there is one), timeline and what to check in game (`/vfxsample recipe <name>`): shaders, mesh, atmosphere, beams, lights, HERO priority, since 0.10.0 orientation and item, block and mob triggers, since 0.11.0 the Terrain API (trench, meteor, crater and falling tower), since 0.12.0 the Sky API, global events and the per-dimension sky (black hole, portal, giant moon, global eclipse, test dimension), since 0.13.0 the demo boss and since 0.15.0 the light lab. |
+| [usar-como-dependencia.md](usar-como-dependencia.md) | A `build.gradle` template for another mod to depend on Calamidade without Maven (JAR from the GitHub release with SHA-256, `compileOnly` + `runtimeOnly`), identical to the real project `examples/consumidor` (Portuguese chapter). |
 
-Ferramentas: `python3 scripts/novo_efeito.py` (esqueleto de efeito), `node scripts/testar_glsl.cjs` (testes da biblioteca GLSL numa GPU), `node scripts/previa_passes.cjs` (passes `beams` e `lights` numa cena sintética; `ceu` para os passes `sky` e `atmosphere`), `./gradlew build` (inclui `checkShaders`, `checkApiDocs` e `checkRecipes`).
+Tools: `python3 scripts/novo_efeito.py` (effect skeleton), `node scripts/testar_glsl.cjs` (GLSL library tests on a GPU), `node scripts/previa_passes.cjs` (`beams` and `lights` passes on a synthetic scene; `ceu` for the `sky` and `atmosphere` passes), `./gradlew build` (includes `checkShaders`, `checkApiDocs` and `checkRecipes`).
 
-Integração com outros mods (orientação, fontes, limites, gatilhos, GeckoLib e o Finisher Engine do RespectCraft): [docs/INTEGRACAO-0.10.md](../INTEGRACAO-0.10.md).
+Integration with other mods (orientation, sources, limits, triggers, GeckoLib and RespectCraft's Finisher Engine): [docs/INTEGRACAO-0.10.md](../INTEGRACAO-0.10.md).
 
-Céu fantástico, eventos globais e céu por dimensão (0.12.0): [docs/CEU-0.12.md](../CEU-0.12.md).
+Fantastic sky, global events and per-dimension sky (0.12.0): [docs/CEU-0.12.md](../CEU-0.12.md).
 
-Destruição de terreno: antes de criar crateras, trincheiras ou ataques destrutivos, leia [Escolher a operação](../TERRENO-0.11.md#escolher-a-operação) e [Custo de uma destruição](../TERRENO-0.11.md#custo-de-uma-destruição) (escavação, casca, preenchimento, estrutura ou só visual; dragões e chefes). Resumo obrigatório: regra 11 do [AGENTS.md](../../AGENTS.md).
+Terrain destruction: before creating craters, trenches or destructive attacks, read [Choosing the operation](../TERRENO-0.11.md#escolher-a-operação) and [Cost of a destruction](../TERRENO-0.11.md#custo-de-uma-destruição) (excavation, shell, fill, structure or visual only; dragons and bosses). Mandatory summary: rule 11 of [AGENTS.md](../../AGENTS.md).
+
+Identity and the future rename: [docs/REBRANDING.md](../REBRANDING.md) lists which names are presentation (safe to change) and which are technical (must stay stable).

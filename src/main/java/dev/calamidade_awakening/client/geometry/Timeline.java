@@ -4,7 +4,7 @@ package dev.calamidade_awakening.client.geometry;
 public final class Timeline {
     private Timeline() {}
     public static double progress(double t, double start, double end) {
-        if (end <= start) throw new IllegalArgumentException("Intervalo inválido");
+        if (end <= start) throw new IllegalArgumentException("Invalid interval");
         return Math.clamp((t - start) / (end - start), 0, 1);
     }
     public static double smooth(double t) {

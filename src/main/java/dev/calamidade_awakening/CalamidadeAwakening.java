@@ -13,6 +13,11 @@ import net.neoforged.fml.config.ModConfig;
 @Mod(CalamidadeAwakening.ID)
 public final class CalamidadeAwakening {
     public static final String ID = "calamidade_awakening";
+    /**
+     * Presentation name (0.15.0 phase 5): the one place Java code takes the human-readable name from. Changing it is a
+     * presentation-only rename (docs/REBRANDING.md); {@link #ID} is technical identity and must stay stable.
+     */
+    public static final String NAME = "Calamidade_Awakening";
     public static final RimuMod RIMU = RimulibApi.connect(ID, CalamidadeAwakening.class);
 
     /**
@@ -23,7 +28,7 @@ public final class CalamidadeAwakening {
 
     public CalamidadeAwakening(IEventBus bus, ModContainer container) {
         if (!"release".equals(BUILD))
-            com.mojang.logging.LogUtils.getLogger().warn("Calamidade_Awakening: build de {}. Não distribua este JAR.", BUILD);
+            com.mojang.logging.LogUtils.getLogger().warn("{}: {} build. Do not distribute this JAR.", NAME, BUILD);
         container.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
         // 0.10.0: limits by source (per player, per mob, per block, slots reserved for players), per world.
         container.registerConfig(ModConfig.Type.SERVER, dev.calamidade_awakening.config.ServerConfig.SPEC);

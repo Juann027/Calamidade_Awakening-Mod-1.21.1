@@ -59,10 +59,10 @@ public final class DimensaoTeste {
 
     /** /vfxsample ceu &lt;estado&gt;: troca o céu da dimensão de teste em 100 ticks (5 s), para todos que estão lá. */
     public static LiteralArgumentBuilder<CommandSourceStack> comandoCeu() {
-        return Commands.literal("ceu").then(Commands.argument("estado", StringArgumentType.word())
+        return Commands.literal("sky").then(Commands.argument("state", StringArgumentType.word())
             .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(CEU.states().keySet(), builder))
             .executes(ctx -> {
-                String estado = StringArgumentType.getString(ctx, "estado");
+                String estado = StringArgumentType.getString(ctx, "state");
                 if (!CEU.has(estado)) {
                     ctx.getSource().sendFailure(Component.translatable("command.vfxsample.ceu.unknown", estado));
                     return 0;
@@ -76,13 +76,17 @@ public final class DimensaoTeste {
 
     /** /vfxsample dimensao: leva o jogador para a dimensão de teste (e /vfxsample dimensao voltar, para o Overworld). */
     public static LiteralArgumentBuilder<CommandSourceStack> comandoDimensao() {
-        return Commands.literal("dimensao")
+        return Commands.literal("dimension")
             .executes(ctx -> ir(ctx.getSource(), ResourceKey.create(Registries.DIMENSION, ID), 0.5, 8, 0.5))
-            .then(Commands.literal("voltar").executes(ctx -> {
-                var spawn = ctx.getSource().getServer().overworld().getSharedSpawnPos();
-                return ir(ctx.getSource(), net.minecraft.world.level.Level.OVERWORLD, spawn.getX() + .5, spawn.getY() + 1,
-                    spawn.getZ() + .5);
-            }));
+            .then(Commands.literal("back").executes(DimensaoTeste::voltar))
+            .then(Commands.literal("voltar").executes(DimensaoTeste::voltar));
+    }
+
+    private static int voltar(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        var spawn = ctx.getSource().getServer().overworld().getSharedSpawnPos();
+        return ir(ctx.getSource(), net.minecraft.world.level.Level.OVERWORLD, spawn.getX() + .5, spawn.getY() + 1,
+            spawn.getZ() + .5);
     }
 
     private static int ir(CommandSourceStack source, ResourceKey<net.minecraft.world.level.Level> key, double x, double y,

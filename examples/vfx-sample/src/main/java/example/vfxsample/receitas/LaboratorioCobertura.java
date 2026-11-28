@@ -26,11 +26,11 @@ import java.util.UUID;
  * parte da cena). Nada aqui contorna o motor: são instâncias comuns, com prioridades e políticas da API pública.
  *
  * <ul>
- *   <li>{@code /vfxsample cobertura arena}: 12 instâncias num anel de 14 blocos, cada uma uma runa grande, seis hexágonos,
+ *   <li>{@code /vfxsample coverage arena}: 12 instâncias num anel de 14 blocos, cada uma uma runa grande, seis hexágonos,
  *       um disco e oito pontos (192 luzes, 84 cookies). No LOW a arena continua inteira, mais simples.</li>
- *   <li>{@code combate}: duas retículas {@code CRITICAL} (OVERRIDE) no meio de 64 luzes decorativas.</li>
- *   <li>{@code mista}: convencionais, vitrais RGB (COLOR), neon EMISSIVE e grade OVERRIDE na mesma cena.</li>
- *   <li>{@code cinema}: 8 instâncias com volume do motor, dois feixes e oito luzes: as que passam do limite de efeitos
+ *   <li>{@code combat}: duas retículas {@code CRITICAL} (OVERRIDE) no meio de 64 luzes decorativas.</li>
+ *   <li>{@code mixed}: convencionais, vitrais RGB (COLOR), neon EMISSIVE e grade OVERRIDE na mesma cena.</li>
+ *   <li>{@code cinematic}: 8 instâncias com volume do motor, dois feixes e oito luzes: as que passam do limite de efeitos
  *       desenhados perdem o volume e os feixes, não a luz.</li>
  *   <li>{@code estresse <32|64|128|192> <grade|anel|aglomerado>}: carga com distribuições espaciais diferentes.</li>
  *   <li>{@code parar}: encerra as cenas do jogador.</li>
@@ -168,24 +168,33 @@ public final class LaboratorioCobertura {
 
     private static final Map<UUID, List<Effects.Handle>> VIVAS = new HashMap<>();
 
-    /** /vfxsample cobertura ... */
+    /**
+     * /vfxsample coverage ... (1.14.1: English canonical names; {@code cobertura}, {@code combate}, {@code mista},
+     * {@code cinema}, {@code estresse}, {@code grade}, {@code anel}, {@code aglomerado} and {@code parar} remain
+     * deprecated aliases).
+     */
     public static LiteralArgumentBuilder<CommandSourceStack> comando() {
-        var raiz = Commands.literal("cobertura");
+        var raiz = Commands.literal("coverage");
         raiz.then(Commands.literal("arena").executes(ctx -> arena(ctx.getSource())));
-        raiz.then(Commands.literal("combate").executes(ctx -> combate(ctx.getSource())));
-        raiz.then(Commands.literal("mista").executes(ctx -> grade(ctx.getSource(), MISTA, 4, 16, "mista: convencionais, RGB, EMISSIVE e OVERRIDE")));
-        raiz.then(Commands.literal("cinema").executes(ctx -> grade(ctx.getSource(), CINEMA, 8, 9,
-            "cinema: 8 instâncias com volume, feixes e luzes; acima do limite de efeitos sobra a luz")));
+        example.vfxsample.Cmd.then(raiz, Commands.literal("combat").executes(ctx -> combate(ctx.getSource())), "combate");
+        example.vfxsample.Cmd.then(raiz, Commands.literal("mixed").executes(ctx -> grade(ctx.getSource(), MISTA, 4, 16,
+            Component.translatableWithFallback("command.vfxsample.coverage.mixed", "mixed: conventional, RGB, EMISSIVE and OVERRIDE"))), "mista");
+        example.vfxsample.Cmd.then(raiz, Commands.literal("cinematic").executes(ctx -> grade(ctx.getSource(), CINEMA, 8, 9,
+            Component.translatableWithFallback("command.vfxsample.coverage.cinematic",
+                "cinematic: 8 instances with volume, beams and lights; over the effect cap the light remains"))), "cinema");
         var n = Commands.argument("n", IntegerArgumentType.integer(16, 192))
             .suggests((ctx, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(List.of("32", "64", "128", "192"), b));
-        for (String d : List.of("grade", "anel", "aglomerado"))
-            n.then(Commands.literal(d).executes(ctx -> estresse(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), d)));
-        raiz.then(Commands.literal("estresse").then(n));
-        raiz.then(Commands.literal("parar").executes(ctx -> {
+        String[][] dist = {{"grid", "grade"}, {"ring", "anel"}, {"clustered", "aglomerado"}};
+        for (String[] d : dist)
+            example.vfxsample.Cmd.then(n, Commands.literal(d[0])
+                .executes(ctx -> estresse(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "n"), d[1])), d[1]);
+        example.vfxsample.Cmd.then(raiz, Commands.literal("stress").then(n), "estresse");
+        example.vfxsample.Cmd.then(raiz, Commands.literal("stop").executes(ctx -> {
             int k = parar(ctx.getSource().getPlayerOrException().getUUID());
-            ctx.getSource().sendSuccess(() -> Component.literal("cobertura: " + k + " instâncias encerradas"), false);
+            ctx.getSource().sendSuccess(() -> Component.translatableWithFallback("command.vfxsample.coverage.stopped",
+                "coverage: %s instances stopped", k), false);
             return k;
-        }));
+        }), "parar");
         return raiz;
     }
 
@@ -214,8 +223,8 @@ public final class LaboratorioCobertura {
             if (iniciar(player, ARENA[i % ARENA.length], pos)) ok++;
         }
         int k = ok;
-        source.sendSuccess(() -> Component.literal("arena: " + k + " instâncias, " + k * 16 + " luzes (" + k * 7
-            + " cookies). F8 compara perfis; F7 página 2 explica cada perda."), false);
+        source.sendSuccess(() -> Component.translatableWithFallback("command.vfxsample.coverage.arena",
+            "arena: %s instances, %s lights (%s cookies). F8 compares profiles; F7 page 2 explains every loss.", k, k * 16, k * 7), false);
         return ok;
     }
 
@@ -230,11 +239,12 @@ public final class LaboratorioCobertura {
         if (iniciar(player, RETICULA, e[0].add(e[2].scale(-4)))) ok++;
         if (iniciar(player, RETICULA, e[0].add(e[2].scale(4)).add(e[1].scale(-3)))) ok++;
         int k = ok;
-        source.sendSuccess(() -> Component.literal("combate: 2 retículas CRITICAL entre 64 luzes decorativas (" + k + " instâncias)"), false);
+        source.sendSuccess(() -> Component.translatableWithFallback("command.vfxsample.coverage.combat",
+            "combat: 2 CRITICAL reticles among 64 decorative lights (%s instances)", k), false);
         return ok;
     }
 
-    private static int grade(CommandSourceStack source, ResourceLocation id, int n, double passo, String texto) throws CommandSyntaxException {
+    private static int grade(CommandSourceStack source, ResourceLocation id, int n, double passo, Component texto) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         Vec3[] e = eixo(player);
         int lado = (int) Math.ceil(Math.sqrt(n)), ok = 0;
@@ -243,7 +253,8 @@ public final class LaboratorioCobertura {
             if (iniciar(player, id, e[0].add(e[2].scale(gx)).add(e[1].scale(gz)))) ok++;
         }
         int k = ok;
-        source.sendSuccess(() -> Component.literal(texto + " (" + k + " instâncias)"), false);
+        source.sendSuccess(() -> texto.copy().append(Component.translatableWithFallback("command.vfxsample.coverage.instances",
+            " (%s instances)", k)), false);
         return ok;
     }
 
@@ -270,7 +281,9 @@ public final class LaboratorioCobertura {
             if (iniciar(player, CARGA, pos)) ok++;
         }
         int k = ok;
-        source.sendSuccess(() -> Component.literal("estresse " + distribuicao + ": " + k * 16 + " luzes em " + k + " instâncias"), false);
+        String shown = switch (distribuicao) { case "anel" -> "ring"; case "aglomerado" -> "clustered"; default -> "grid"; };
+        source.sendSuccess(() -> Component.translatableWithFallback("command.vfxsample.coverage.stress",
+            "stress %s: %s lights in %s instances", shown, k * 16, k), false);
         return ok;
     }
 

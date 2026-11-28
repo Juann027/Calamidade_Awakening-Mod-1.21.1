@@ -951,3 +951,30 @@ tasks.register('testeLuz') {
         if (!failed.isEmpty()) throw new GradleException('testeLuz:\n' + failed.join('\n'))
     }
 }
+
+// 0.15.0 phase 5: English task names are canonical. The Portuguese names above stay operational (scripts, CI and the
+// historical docs use them); each English task only depends on its Portuguese counterpart, so there is one
+// implementation. Run with xvfb-run -a where the Portuguese task needs a screen.
+[
+    testGame        : ['testeJogo',              'In-game server and Terrain API tests (testeJogo).'],
+    testClient      : ['testeCliente',           'Client tests with a screen (testeCliente).'],
+    testMeasure     : ['testeMedicao',           'Cost measure on the client (testeMedicao).'],
+    testAtlas       : ['testeAtlas',             'Atlas holographic panel tests (testeAtlas).'],
+    testSky         : ['testeCeu',               'Sky API tests in game (testeCeu).'],
+    testBackdrop    : ['testeBackdrop',          'Sky backdrops in game (testeBackdrop).'],
+    testStars       : ['testeEstrelas',          'Stars and nebulae in game (testeEstrelas).'],
+    testImages      : ['testeImagens',           'Sky images, flipbooks and impostors in game (testeImagens).'],
+    testBoss        : ['testeChefe',             'Boss API in game (testeChefe).'],
+    testOrphans     : ['testeOrfaos',            'Orphan effect regression on the client (testeOrfaos).'],
+    testLight       : ['testeLuz',               'Light lab and benchmark on the client (testeLuz).'],
+    checkBackdropComposition: ['checkFundoComposicao',   'Backdrop composition pixel probes (checkFundoComposicao).'],
+    checkObjectComposition  : ['checkObjetosComposicao', 'Stars, nebulae and sky image composition probes (checkObjetosComposicao).'],
+    checkSkyReference       : ['checkCeuReferencia',     'Sky API visual reference scenes (checkCeuReferencia).'],
+].each { english, target ->
+    if (tasks.names.contains(english)) throw new GradleException("English alias ${english} collides with an existing task")
+    tasks.register(english) {
+        group = 'verification'
+        description = target[1] + ' English alias; the Portuguese task name stays supported.'
+        dependsOn target[0]
+    }
+}

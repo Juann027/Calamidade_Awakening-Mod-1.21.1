@@ -184,10 +184,10 @@ public final class WorldEventServer {
         /** One line for {@code /calamidade world list}. */
         String describe() {
             long age = age();
-            String phase = released >= 0 ? "saída" : kind.sustained() && kind.timeline().localAge(age, -1) >= kind.timeline().sustainStart()
-                ? "laço" : "entrada";
-            return String.format(java.util.Locale.ROOT, "#%d %s · %s em %s · %d s · %s · prioridade %d%s", key, kind.networkKey(),
-                scope.name(), dimension.location(), age / 20, phase, priority, persistent ? " · persistente" : "");
+            String phase = released >= 0 ? "outro" : kind.sustained() && kind.timeline().localAge(age, -1) >= kind.timeline().sustainStart()
+                ? "loop" : "intro";
+            return String.format(java.util.Locale.ROOT, "#%d %s · %s in %s · %d s · %s · priority %d%s", key, kind.networkKey(),
+                scope.name(), dimension.location(), age / 20, phase, priority, persistent ? " · persistent" : "");
         }
     }
 

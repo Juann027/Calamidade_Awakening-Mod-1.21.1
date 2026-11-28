@@ -206,7 +206,7 @@ final class RoteiroOrfaos implements Runnable {
         estado("fúria + eclipse com a fonte do chefe e handle perdido (" + order + ")");
         comando("kill @e[type=minecraft:iron_golem]");
         boolean soltoNaMorte = aguardar(() -> noServidorSemErro(() -> StageNetwork.describe().stream()
-            .anyMatch(i -> i.order() == order && i.state().startsWith("saindo"))), 60);
+            .anyMatch(i -> i.order() == order && i.state().startsWith("exiting"))), 60);
         boolean acabou = aguardar(() -> noServidorSemErro(() -> StageNetwork.describe().stream().noneMatch(i -> i.order() == order)), 520);
         check("dono: sustentada da fonte do chefe, sem handle, é solta quando o controlador acaba e termina",
             perdido.isPresent() && soltoNaMorte && acabou, estado("depois da morte"));
@@ -251,11 +251,11 @@ final class RoteiroOrfaos implements Runnable {
         java.util.List<String> saida = new java.util.concurrent.CopyOnWriteArrayList<>();
         noServidor(() -> server().getCommands().performPrefixedCommand(saidaDe(saida), "calamidade fx list"));
         noServidor(() -> server().getCommands().performPrefixedCommand(saidaDe(saida), "calamidade world list"));
-        boolean area = saida.stream().anyMatch(l -> l.contains("vfxsample:evento_eclipse") && l.contains("AREA") && l.contains("dono boss"));
+        boolean area = saida.stream().anyMatch(l -> l.contains("vfxsample:evento_eclipse") && l.contains("AREA") && l.contains("owner boss"));
         long ordem = noServidor(() -> StageNetwork.describe().stream().filter(i -> i.scope().equals("AREA")).mapToLong(StageNetwork.Info::order)
             .findFirst().orElse(-1));
         noServidor(() -> server().getCommands().performPrefixedCommand(saidaDe(saida), "calamidade fx release " + ordem));
-        boolean saindo = noServidor(() -> StageNetwork.describe().stream().anyMatch(i -> i.order() == ordem && i.state().startsWith("saindo")));
+        boolean saindo = noServidor(() -> StageNetwork.describe().stream().anyMatch(i -> i.order() == ordem && i.state().startsWith("exiting")));
         noServidor(() -> server().getCommands().performPrefixedCommand(saidaDe(saida), "calamidade fx stop " + ordem));
         boolean parado = noServidor(() -> StageNetwork.describe().stream().noneMatch(i -> i.order() == ordem));
         check("comandos: fx list e world list mostram o eclipse AREA com dono; fx release solta, fx stop encerra",

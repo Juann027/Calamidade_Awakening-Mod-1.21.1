@@ -140,26 +140,32 @@ public final class Sample {
         NeoForge.EVENT_BUS.addListener(this::shutdown);
     }
 
+    /**
+     * /vfxsample ... 1.14.1: English canonical names (light, coverage, recipe, boss, event, sky, dimension, zombie,
+     * beacon). The Portuguese names of 1.14.0 and earlier (luz, cobertura, receita, chefe, evento, ceu, dimensao,
+     * zumbi, farol) are deprecated aliases that redirect to the same nodes: scripts keep working, docs use English.
+     */
     private void commands(RegisterCommandsEvent event) {
-        event.getDispatcher().register(Commands.literal("vfxsample").requires(source -> source.hasPermission(2))
+        var root = Commands.literal("vfxsample").requires(source -> source.hasPermission(2))
             .then(Commands.literal("at").executes(ctx -> play(ctx.getSource().getPlayerOrException(), false)))
             .then(Commands.literal("follow").executes(ctx -> play(ctx.getSource().getPlayerOrException(), true)))
-            .then(Commands.literal("stop").executes(ctx -> stop(ctx.getSource().getPlayerOrException().getUUID()) ? 1 : 0))
-            .then(Commands.literal("farol")
-                .then(Commands.literal("start").executes(ctx -> beaconStart(ctx.getSource())))
-                .then(Commands.literal("release").executes(ctx -> beaconRelease(ctx.getSource())))
-                .then(Commands.literal("stop").executes(ctx -> beaconStop(ctx.getSource()))))
-            .then(example.vfxsample.receitas.Receitas.comando())
-            .then(example.vfxsample.receitas.Receitas.comandoZumbi())
-            .then(example.vfxsample.receitas.LaboratorioLuz.comando())
-            // 1.14.0 — laboratório de integridade visual (coverage first, motor 0.15.0 fase 4).
-            .then(example.vfxsample.receitas.LaboratorioCobertura.comando())
-            // 1.9.0 — céu da dimensão de teste.
-            .then(example.vfxsample.receitas.DimensaoTeste.comandoCeu())
-            .then(example.vfxsample.receitas.DimensaoTeste.comandoDimensao())
-            .then(example.vfxsample.receitas.EclipseGlobal.comando())
-            // 1.10.0 — chefe de demonstração da Boss API.
-            .then(example.vfxsample.receitas.SentinelaEclipse.comando()));
+            .then(Commands.literal("stop").executes(ctx -> stop(ctx.getSource().getPlayerOrException().getUUID()) ? 1 : 0));
+        Cmd.then(root, Commands.literal("beacon")
+            .then(Commands.literal("start").executes(ctx -> beaconStart(ctx.getSource())))
+            .then(Commands.literal("release").executes(ctx -> beaconRelease(ctx.getSource())))
+            .then(Commands.literal("stop").executes(ctx -> beaconStop(ctx.getSource()))), "farol");
+        Cmd.then(root, example.vfxsample.receitas.Receitas.comando(), "receita");
+        Cmd.then(root, example.vfxsample.receitas.Receitas.comandoZumbi(), "zumbi");
+        Cmd.then(root, example.vfxsample.receitas.LaboratorioLuz.comando(), "luz");
+        // 1.14.0 — visual integrity lab (coverage first, engine 0.15.0 phase 4).
+        Cmd.then(root, example.vfxsample.receitas.LaboratorioCobertura.comando(), "cobertura");
+        // 1.9.0 — sky of the test dimension.
+        Cmd.then(root, example.vfxsample.receitas.DimensaoTeste.comandoCeu(), "ceu");
+        Cmd.then(root, example.vfxsample.receitas.DimensaoTeste.comandoDimensao(), "dimensao");
+        Cmd.then(root, example.vfxsample.receitas.EclipseGlobal.comando(), "evento");
+        // 1.10.0 — Boss API demo boss.
+        Cmd.then(root, example.vfxsample.receitas.SentinelaEclipse.comando(), "chefe");
+        event.getDispatcher().register(root);
     }
 
     private static void impact(Effects.Context context) {

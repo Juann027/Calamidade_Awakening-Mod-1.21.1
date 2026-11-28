@@ -4,7 +4,7 @@ license="MIT"
 
 [[mods]]
 modId="vfxsample"
-version="1.14.0"
+version="1.14.1"
 displayName="VFX Sample"
 
 [[dependencies.vfxsample]]

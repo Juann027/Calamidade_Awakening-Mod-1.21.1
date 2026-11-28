@@ -152,7 +152,7 @@ final class Roteiro implements Runnable {
             server.getCommands().performPrefixedCommand(fonte, "calamidade world list");
             server.getCommands().performPrefixedCommand(fonte, "calamidade world stop " + curtos[1]);
         });
-        boolean listou = saida.stream().anyMatch(l -> l.contains(CalamidadeTeste.GLOBAL.toString()) && l.contains("SERVER") && l.contains("laço"));
+        boolean listou = saida.stream().anyMatch(l -> l.contains(CalamidadeTeste.GLOBAL.toString()) && l.contains("SERVER") && l.contains("loop"));
         boolean parou = no(() -> dev.calamidade_awakening.api.v1.WorldEvents.get(server, curtos[1]).isEmpty());
         check("/calamidade world list mostra o evento no laço e stop <id> encerra", listou && parou, String.join(" | ", saida));
         // Perfil do End: estado inicial e troca.

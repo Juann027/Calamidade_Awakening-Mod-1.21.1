@@ -34,8 +34,12 @@ public final class ClientConfig {
      * any other value is kept. Set to 2 after that check.
      */
     private static final ModConfigSpec.IntValue LIGHT_CAPS_VERSION;
+    /** (phase 5) Current version of the caps: 3 = phase 4 migration, 4 = phase 5 lights and cookies. */
+    public static final int CAPS_VERSION = 4;
     /** (0.15.0, fase 4) Coverage first: lights of instances over the effect cap, engine lights pass, density admission. */
     private static final ModConfigSpec.BooleanValue COVERAGE;
+    /** (phase 5) "Reduced Visual Quality" notice when LOW is selected or AUTO enters LOW. */
+    private static final ModConfigSpec.BooleanValue LOW_QUALITY_WARNING;
     private static boolean migrated;
 
     static {
@@ -93,13 +97,17 @@ public final class ClientConfig {
             builder.pop();
         }
         LIGHT_CAPS_VERSION = builder
-            .comment("Internal: version of the caps (0.15.0). Do not edit; below 3 moves caps still equal to an earlier default of their profile (0.11.2 to 0.15 fase 3) to the current default once. Values you chose stay.")
+            .comment("Internal: version of the caps (0.15.0). Do not edit; below 4 moves caps still equal to an earlier default of their profile (0.11.2 to 0.15 phase 4) to the current default once. Values you chose stay.")
             .translation("calamidade_awakening.configuration.lightCapsVersion")
-            .defineInRange("lightCapsVersion", 0, 0, 3);
+            .defineInRange("lightCapsVersion", 0, 0, CAPS_VERSION);
         COVERAGE = builder
             .comment("Coverage first (0.15.0): every effect in range keeps its lights even when the drawn-effects cap leaves the rest of it out; the lights pass has its own caps and keeps more lights where the screen region still has room. Off: the 0.15 phase 3 behavior (only drawn effects light the world).")
             .translation("calamidade_awakening.configuration.coverage")
             .define("coverage", true);
+        LOW_QUALITY_WARNING = builder
+            .comment("Show the \"Reduced Visual Quality\" notice in the chat when LOW is selected (F8 or the Atlas) or when AUTO moves into LOW (0.15.0). It never blocks or asks for confirmation; AUTO notices have a cooldown.")
+            .translation("calamidade_awakening.configuration.lowQualityWarning")
+            .define("lowQualityWarning", true);
         builder.pop();
         // 0.13.0: boss bars of addons (Boss API).
         builder.comment("Boss bars (0.13.0) drawn with a custom style by addons that use the Boss API.")
@@ -202,16 +210,17 @@ public final class ClientConfig {
      */
     private static void migrate() {
         if (migrated) return;
-        if (LIGHT_CAPS_VERSION.get() < 3) {
+        if (LIGHT_CAPS_VERSION.get() < CAPS_VERSION) {
             // Fase 4: every earlier default (not only the lights of fase 3): BALANCED 24 lights and 6 drawn of the
             // provisional 0.11.2 profiles stayed in some files. Values the player chose are not earlier defaults.
             for (var profile : dev.calamidade_awakening.api.QualityProfile.values()) {
                 int[] current = profile.defaultValues();
                 var entries = CAPS.get(profile);
-                for (int i = 0; i < 6; i++)
+                // Phase 5 (version 4): the cookies too (phase 3 and 4 defaults 16/48/96/128).
+                for (int i = 0; i < current.length; i++)
                     if (entries[i].get() != current[i] && profile.legacy(i, entries[i].get())) entries[i].set(current[i]);
             }
-            LIGHT_CAPS_VERSION.set(3);
+            LIGHT_CAPS_VERSION.set(CAPS_VERSION);
             LIGHT_CAPS_VERSION.save();
         }
         migrated = true;
@@ -231,6 +240,18 @@ public final class ClientConfig {
             return true;
         }
     }
+
+    /** (phase 5) LOW notice; true until the config file is loaded. */
+    public static boolean lowQualityWarning() {
+        try {
+            return LOW_QUALITY_WARNING.get();
+        } catch (IllegalStateException notLoaded) {
+            return true;
+        }
+    }
+
+    /** (phase 5) Turns the LOW notice on or off and saves. */
+    public static void lowQualityWarning(boolean value) { store(LOW_QUALITY_WARNING, value); }
 
     /** (fase 4) Turns coverage first on or off and saves. */
     public static void coverage(boolean value) { store(COVERAGE, value); }
